@@ -8,6 +8,8 @@
 
 .DEFAULT_GOAL := help
 
+CARGO := $(shell command -v cargo 2> /dev/null || echo ~/.cargo/bin/cargo)
+
 help:
 	@echo "Quiver Desktop - Makefile Commands"
 	@echo ""
@@ -20,6 +22,7 @@ help:
 	@echo "  make fmt-check-frontend    - Check Prettier formatting"
 	@echo "  make fmt-frontend          - Fix formatting with Prettier"
 	@echo "  make lint-frontend         - Run ESLint"
+	@echo "  make lint-frontend-fix     - Run ESLint with auto-fix"
 	@echo "  make typecheck-frontend    - Run TypeScript type checking"
 	@echo "  make audit-frontend        - Run security audit"
 	@echo "  make code-quality-frontend - Run all frontend quality checks"
@@ -53,29 +56,34 @@ deps-frontend:
 
 deps-rust:
 	@echo "📦 Downloading Rust dependencies..."
-	@cd src-tauri && cargo fetch
+	@cd src-tauri && $(CARGO) fetch
 	@echo "✅ Rust dependencies downloaded"
 
 deps: deps-frontend deps-rust
 
 fmt-check-frontend:
 	@echo "🎨 Checking frontend formatting..."
-	@bun run prettier --check "src/**/*.{ts,tsx,js,jsx}" || (echo "❌ Frontend formatting check failed. Run 'make fmt-frontend' to fix." && exit 1)
+	@bunx prettier --check "src/**/*.{ts,tsx,js,jsx}" || (echo "❌ Frontend formatting check failed. Run 'make fmt-frontend' to fix." && exit 1)
 	@echo "✅ Frontend formatting is correct"
 
 fmt-frontend:
 	@echo "🎨 Fixing frontend formatting..."
-	@bun run prettier --write "src/**/*.{ts,tsx,js,jsx}"
+	@bunx prettier --write "src/**/*.{ts,tsx,js,jsx}"
 	@echo "✅ Frontend formatted successfully"
 
 lint-frontend:
 	@echo "🔍 Running ESLint..."
-	@bun run eslint "src/**/*.{ts,tsx,js,jsx}" || (echo "❌ ESLint check failed" && exit 1)
+	@bunx eslint "src/**/*.{ts,tsx,js,jsx}" || (echo "❌ ESLint check failed" && exit 1)
 	@echo "✅ ESLint passed"
+
+lint-frontend-fix:
+	@echo "🔧 Running ESLint with auto-fix..."
+	@bunx eslint "src/**/*.{ts,tsx,js,jsx}" --fix
+	@echo "✅ ESLint auto-fix completed"
 
 typecheck-frontend:
 	@echo "🔍 Running TypeScript type checking..."
-	@bun run tsc --noEmit || (echo "❌ Type checking failed" && exit 1)
+	@bunx tsc --noEmit || (echo "❌ Type checking failed" && exit 1)
 	@echo "✅ Type checking passed"
 
 audit-frontend:
@@ -88,23 +96,23 @@ code-quality-frontend: fmt-check-frontend lint-frontend typecheck-frontend audit
 
 fmt-check-rust:
 	@echo "🎨 Checking Rust formatting..."
-	@cd src-tauri && cargo fmt --check || (echo "❌ Rust formatting check failed. Run 'make fmt-rust' to fix." && exit 1)
+	@cd src-tauri && $(CARGO) fmt --check || (echo "❌ Rust formatting check failed. Run 'make fmt-rust' to fix." && exit 1)
 	@echo "✅ Rust formatting is correct"
 
 fmt-rust:
 	@echo "🎨 Fixing Rust formatting..."
-	@cd src-tauri && cargo fmt
+	@cd src-tauri && $(CARGO) fmt
 	@echo "✅ Rust formatted successfully"
 
 lint-rust:
 	@echo "🔍 Running Clippy..."
-	@cd src-tauri && cargo clippy -- -D warnings || (echo "❌ Clippy check failed" && exit 1)
+	@cd src-tauri && $(CARGO) clippy -- -D warnings || (echo "❌ Clippy check failed" && exit 1)
 	@echo "✅ Clippy passed"
 
 audit-rust:
 	@echo "🔒 Running Rust security audit..."
-	@command -v cargo-audit >/dev/null 2>&1 || (echo "⚠️  cargo-audit not installed. Run: cargo install cargo-audit" && exit 1)
-	@cd src-tauri && cargo audit || (echo "⚠️  Security vulnerabilities found" && exit 1)
+	@$(CARGO) audit --version >/dev/null 2>&1 || (echo "⚠️  cargo-audit not installed. Run: $(CARGO) install cargo-audit" && exit 1)
+	@cd src-tauri && $(CARGO) audit || (echo "⚠️  Security vulnerabilities found" && exit 1)
 	@echo "✅ Security audit passed"
 
 code-quality-rust: fmt-check-rust lint-rust audit-rust
@@ -119,7 +127,7 @@ build-frontend:
 
 build-rust:
 	@echo "🔨 Building Tauri backend..."
-	@cd src-tauri && cargo build || (echo "❌ Rust build failed" && exit 1)
+	@cd src-tauri && $(CARGO) build || (echo "❌ Rust build failed" && exit 1)
 	@echo "✅ Tauri backend built successfully"
 
 build: build-frontend build-rust
@@ -127,14 +135,14 @@ build: build-frontend build-rust
 
 test-rust:
 	@echo "🧪 Running Rust tests..."
-	@cd src-tauri && cargo test || (echo "❌ Rust tests failed" && exit 1)
+	@cd src-tauri && $(CARGO) test || (echo "❌ Rust tests failed" && exit 1)
 	@echo "✅ Rust tests passed"
 
 coverage-rust:
 	@echo "🧪 Running Rust tests with coverage..."
-	@command -v cargo-tarpaulin >/dev/null 2>&1 || (echo "⚠️  cargo-tarpaulin not installed. Run: cargo install cargo-tarpaulin" && exit 1)
+	@$(CARGO) tarpaulin --version >/dev/null 2>&1 || (echo "⚠️  cargo-tarpaulin not installed. Run: $(CARGO) install cargo-tarpaulin" && exit 1)
 	@mkdir -p coverage
-	@cd src-tauri && cargo tarpaulin --out Xml --out Html --out Lcov --output-dir ../coverage --verbose || (echo "❌ Coverage generation failed" && exit 1)
+	@cd src-tauri && $(CARGO) tarpaulin --out Xml --out Html --out Lcov --output-dir ../coverage --verbose || (echo "❌ Coverage generation failed" && exit 1)
 	@if [ -f "coverage/cobertura.xml" ]; then \
 		OVERALL_COVERAGE=$$(grep -oP 'line-rate="\K[0-9.]+' coverage/cobertura.xml | head -1); \
 		COVERAGE_PERCENT=$$(echo "$$OVERALL_COVERAGE * 100" | bc); \

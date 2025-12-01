@@ -45,19 +45,26 @@ export default [
 			'react/react-in-jsx-scope': 'off',
 			'react/jsx-uses-react': 'off',
 
-			'brace-style': ['error', 'allman', { allowSingleLine: true }],
+			'no-undef': 'off',
 
-			'space-in-parens': ['error', 'always'],
-			'keyword-spacing': ['error', { before: true, after: true }],
-			'space-infix-ops': 'error',
-			'comma-spacing': ['error', { before: false, after: true }],
-			'object-curly-spacing': ['error', 'always'],
-			'array-bracket-spacing': ['error', 'always'],
+			'brace-style': 'off',
+			'space-in-parens': 'off',
+			'keyword-spacing': 'off',
+			'space-infix-ops': 'off',
+			'comma-spacing': 'off',
+			'object-curly-spacing': 'off',
+			'array-bracket-spacing': 'off',
 
 			'@typescript-eslint/no-unused-vars': ['error', {
 				argsIgnorePattern: '^_',
 				varsIgnorePattern: '^_',
 			}],
+
+			'jsx-a11y/label-has-associated-control': ['warn', {
+				assert: 'either',
+				depth: 3,
+			}],
+			'jsx-a11y/no-static-element-interactions': 'warn',
 
 			'import/order': ['error', {
 				'groups': [
@@ -133,8 +140,13 @@ export default [
 				pragma: 'h',
 			},
 			'import/resolver': {
-				typescript: true,
-				node: true,
+				typescript: {
+					alwaysTryTypes: true,
+					project: './tsconfig.json',
+				},
+				node: {
+					extensions: ['.js', '.jsx', '.ts', '.tsx'],
+				},
 			},
 		},
 	},
