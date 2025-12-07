@@ -190,7 +190,7 @@ jobs:
       
     - name: Security audit
       run: |
-        cargo install cargo-audit
+        cargo install cargo-audit --locked
         cd src-tauri
         cargo audit
         echo "✅ Security audit passed"
