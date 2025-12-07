@@ -1,21 +1,17 @@
-import Preact from "preact";
+import Preact from 'preact';
 
 export function Header1({
 	children,
 	className,
 	useSecondaryFont = false,
 }: {
-	children: Preact.VNode;
+	children: Preact.ComponentChildren;
 	className?: string;
 	useSecondaryFont?: boolean;
 }) {
-	const fontClass = useSecondaryFont
-		? ""
-		: "";
+	const fontClass = useSecondaryFont ? '' : '';
 	return (
-		<h1
-			className={`scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl ${fontClass} ${className}`}
-		>
+		<h1 className={`scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl ${fontClass} ${className}`}>
 			{children}
 		</h1>
 	);
@@ -26,13 +22,11 @@ export function Header2({
 	className,
 	useSecondaryFont = false,
 }: {
-	children: Preact.VNode;
+	children: Preact.ComponentChildren;
 	className?: string;
 	useSecondaryFont?: boolean;
 }) {
-	const fontClass = useSecondaryFont
-		? ""
-		: "";
+	const fontClass = useSecondaryFont ? '' : '';
 	return (
 		<h2
 			className={`${fontClass} scroll-m-20 border-b border-dashed pb-2 mb-2 text-3xl font-semibold tracking-tight first:mt-0 ${className}`}
@@ -47,19 +41,13 @@ export function Header3({
 	className,
 	useSecondaryFont = false,
 }: {
-	children: Preact.VNode;
+	children: Preact.ComponentChildren;
 	className?: string;
 	useSecondaryFont?: boolean;
 }) {
-	const fontClass = useSecondaryFont
-		? ""
-		: "";
+	const fontClass = useSecondaryFont ? '' : '';
 	return (
-		<h3
-			className={`scroll-m-20 text-2xl font-semibold tracking-tight ${fontClass} ${className}`}
-		>
-			{children}
-		</h3>
+		<h3 className={`scroll-m-20 text-2xl font-semibold tracking-tight ${fontClass} ${className}`}>{children}</h3>
 	);
 }
 
@@ -68,20 +56,12 @@ export function Header4({
 	className,
 	useSecondaryFont = false,
 }: {
-	children: Preact.VNode;
+	children: Preact.ComponentChildren;
 	className?: string;
 	useSecondaryFont?: boolean;
 }) {
-	const fontClass = useSecondaryFont
-		? ""
-		: "";
-	return (
-		<h4
-			className={`${fontClass} scroll-m-20 text-xl font-semibold tracking-tight ${className}`}
-		>
-			{children}
-		</h4>
-	);
+	const fontClass = useSecondaryFont ? '' : '';
+	return <h4 className={`${fontClass} scroll-m-20 text-xl font-semibold tracking-tight ${className}`}>{children}</h4>;
 }
 
 export function Paragraph({
@@ -89,18 +69,12 @@ export function Paragraph({
 	className,
 	useSecondaryFont = false,
 }: {
-	children: Preact.VNode;
+	children: Preact.ComponentChildren;
 	className?: string;
 	useSecondaryFont?: boolean;
 }) {
-	const fontClass = useSecondaryFont
-		? ""
-		: "";
-	return (
-		<div className={`leading-7 not-first:mt-6 ${fontClass} ${className}`}>
-			{children}
-		</div>
-	);
+	const fontClass = useSecondaryFont ? '' : '';
+	return <div className={`leading-7 not-first:mt-6 ${fontClass} ${className}`}>{children}</div>;
 }
 
 export function Span({
@@ -108,12 +82,10 @@ export function Span({
 	className,
 	useSecondaryFont = false,
 }: {
-	children?: Preact.VNode;
+	children?: Preact.ComponentChildren;
 	className?: string;
 	useSecondaryFont?: boolean;
 }) {
-	const fontClass = useSecondaryFont
-		? ""
-		: "";
+	const fontClass = useSecondaryFont ? '' : '';
 	return <span className={`${fontClass} ${className}`}>{children}</span>;
 }
