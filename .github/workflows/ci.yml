@@ -190,7 +190,7 @@ jobs:
       
     - name: Security audit
       run: |
-        cargo install cargo-audit --locked
+        cargo install cargo-audit --locked --force
         cd src-tauri
         cargo audit
         echo "✅ Security audit passed"
@@ -324,7 +324,7 @@ jobs:
         toolchain: ${{ env.RUST_VERSION }}
         
     - name: Install cargo-tarpaulin
-      run: cargo install cargo-tarpaulin --locked
+      run: cargo install cargo-tarpaulin --locked --force
       
     - name: Run tests with coverage
       run: |
