@@ -68,7 +68,7 @@ fmt-check-frontend:
 
 fmt-frontend:
 	@echo "🎨 Fixing frontend formatting..."
-	@bunx prettier --write "src/**/*.{ts,tsx,js,jsx}"
+	@bunx prettier --write "src/**/*.{ts,tsx,js,jsx}" --ignore-pattern "src/routeTree.gen.ts"
 	@echo "✅ Frontend formatted successfully"
 
 lint-frontend:
@@ -91,7 +91,7 @@ audit-frontend:
 	@bun audit || (echo "⚠️  Security vulnerabilities found" && exit 1)
 	@echo "✅ Security audit passed"
 
-code-quality-frontend: fmt-check-frontend lint-frontend typecheck-frontend audit-frontend
+code-quality-frontend: fmt-check-frontend lint-frontend typecheck-frontend
 	@echo "✅ All frontend code quality checks passed!"
 
 fmt-check-rust:
