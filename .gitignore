@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Sidecar binaries (fetched during release, not committed)
+src-tauri/binaries/quiver-*
