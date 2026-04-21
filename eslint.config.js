@@ -152,6 +152,7 @@ export default [
 			'src-tauri/target/',
 			'*.config.js',
 			'*.config.ts',
+			'src/routeTree.gen.ts',
 		],
 	},
 ];
