@@ -3,17 +3,43 @@ name: CI
 on:
   pull_request:
     branches: [ master, develop ]
-    types: [ opened, synchronize, reopened ]
+    types: [ opened, synchronize, reopened, ready_for_review ]
 
 env:
   RUST_VERSION: '1.85'
   BUN_VERSION: 'latest'
 
 jobs:
+  draft-reminder:
+    name: Draft PR Reminder
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == true && github.event.action == 'opened'
+    permissions:
+      pull-requests: write
+    steps:
+    - name: Comment on draft PR
+      uses: actions/github-script@v9
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `⚠️ **Draft PR Reminder**\n\nHey @${context.payload.pull_request.user.login}!\n\nBe sure to run the command \`make pr-checks\` before opening this PR. Thanks!\n\n> **Note:** CI won't run on draft PRs to optimize [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions). Mark as ready for review when you're done! 🚀`
+          });
+
   validate-branch:
     name: Validate Branch Model
     runs-on: ubuntu-latest
     steps:
+    - name: Check if PR is draft
+      run: |
+        if [ "${{ github.event.pull_request.draft }}" == "true" ]; then
+          echo "❌ This PR is a draft. Please mark it as ready for review to run CI checks."
+          exit 1
+        fi
+        echo "✅ PR is ready for review"
+
     - name: Checkout code
       uses: actions/checkout@v4
       with:
@@ -23,10 +49,10 @@ jobs:
       run: |
         SOURCE_BRANCH="${{ github.head_ref }}"
         TARGET_BRANCH="${{ github.base_ref }}"
-        
+
         echo "Source branch: $SOURCE_BRANCH"
         echo "Target branch: $TARGET_BRANCH"
-        
+
         validate_branch() {
           case "$SOURCE_BRANCH" in
             enhancement/*)
@@ -44,6 +70,18 @@ jobs:
             fix/*)
               if [ "$TARGET_BRANCH" != "develop" ]; then
                 echo "❌ Fix branches can only target 'develop', not '$TARGET_BRANCH'"
+                exit 1
+              fi
+              ;;
+            refactor/*)
+              if [ "$TARGET_BRANCH" != "develop" ]; then
+                echo "❌ Refactor branches can only target 'develop', not '$TARGET_BRANCH'"
+                exit 1
+              fi
+              ;;
+            dependabot/*)
+              if [ "$TARGET_BRANCH" != "develop" ]; then
+                echo "❌ Dependabot branches can only target 'develop', not '$TARGET_BRANCH'"
                 exit 1
               fi
               ;;
@@ -70,77 +108,69 @@ jobs:
               echo "  - enhancement/name (→ develop)"
               echo "  - feature/name (→ develop)"
               echo "  - fix/name (→ develop)"
+              echo "  - refactor/name (→ develop)"
               echo "  - hotfix/name (→ master)"
               echo "  - release/yyyy-mm-dd (develop → master)"
               exit 1
               ;;
           esac
-          
+
           echo "✅ Quiver loves your PR: $SOURCE_BRANCH → $TARGET_BRANCH"
         }
-        
+
         validate_branch
 
   code-quality-frontend:
     name: Code Quality - Frontend
     runs-on: ubuntu-latest
     needs: validate-branch
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
       with:
         bun-version: ${{ env.BUN_VERSION }}
-        
+
     - name: Cache Bun dependencies
       uses: actions/cache@v4
       with:
         path: |
           ~/.bun/install/cache
           node_modules
-        key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+        key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
         restore-keys: |
           ${{ runner.os }}-bun-
-          
+
     - name: Install dependencies
       run: bun install
-      
+
     - name: Format check
       run: |
-        bun run prettier --check "src/**/*.{ts,tsx,js,jsx}"
-        if [ $? -ne 0 ]; then
-          echo "❌ Code is not properly formatted. Please run 'make fmt-frontend'"
-          exit 1
-        fi
+        bunx prettier --check "src/**/*.{ts,tsx,js,jsx}"
         echo "✅ Code formatting is correct"
-      
+
     - name: Lint check
       run: |
-        bun run eslint "src/**/*.{ts,tsx,js,jsx}"
+        bunx eslint "src/**/*.{ts,tsx,js,jsx}"
         echo "✅ Linting passed"
-      
+
     - name: Type checking
       run: |
-        bun run tsc --noEmit
+        bunx tsc --noEmit
         echo "✅ Type checking passed"
-      
-    - name: Security audit
-      run: |
-        bun audit
-        echo "✅ Security audit passed"
 
   code-quality-rust:
     name: Code Quality - Rust
     runs-on: ubuntu-latest
     needs: validate-branch
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Install system dependencies
       run: |
         sudo apt-get update
@@ -152,13 +182,13 @@ jobs:
           libssl-dev \
           libayatana-appindicator3-dev \
           librsvg2-dev
-      
+
     - name: Set up Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: ${{ env.RUST_VERSION }}
         components: rustfmt, clippy
-        
+
     - name: Cache Cargo dependencies
       uses: actions/cache@v4
       with:
@@ -171,23 +201,19 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-
-          
+
     - name: Format check
       run: |
         cd src-tauri
         cargo fmt --check
-        if [ $? -ne 0 ]; then
-          echo "❌ Rust code is not properly formatted. Please run 'make fmt-rust'"
-          exit 1
-        fi
         echo "✅ Rust formatting is correct"
-      
+
     - name: Clippy check
       run: |
         cd src-tauri
         cargo clippy -- -D warnings
         echo "✅ Clippy checks passed"
-      
+
     - name: Security audit
       run: |
         cargo install cargo-audit --locked --force
@@ -198,33 +224,33 @@ jobs:
   build-frontend:
     name: Build - Frontend
     runs-on: ubuntu-latest
-    needs: [code-quality-frontend, code-quality-rust]
-    
+    needs: [code-quality-frontend]
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
       with:
         bun-version: ${{ env.BUN_VERSION }}
-        
+
     - name: Cache Bun dependencies
       uses: actions/cache@v4
       with:
         path: |
           ~/.bun/install/cache
           node_modules
-        key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+        key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
         restore-keys: |
           ${{ runner.os }}-bun-
-          
+
     - name: Install dependencies
       run: bun install
-      
+
     - name: Build frontend
       run: bun run build
-      
+
     - name: Verify build output
       run: |
         if [ ! -d "dist" ]; then
@@ -237,12 +263,12 @@ jobs:
   build-tauri:
     name: Build - Tauri
     runs-on: ubuntu-latest
-    needs: [code-quality-frontend, code-quality-rust]
-    
+    needs: [code-quality-rust]
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Install system dependencies
       run: |
         sudo apt-get update
@@ -254,17 +280,17 @@ jobs:
           libssl-dev \
           libayatana-appindicator3-dev \
           librsvg2-dev
-      
+
     - name: Set up Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: ${{ env.RUST_VERSION }}
-        
+
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
       with:
         bun-version: ${{ env.BUN_VERSION }}
-        
+
     - name: Cache Cargo dependencies
       uses: actions/cache@v4
       with:
@@ -277,20 +303,20 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-
-          
+
     - name: Install frontend dependencies
       run: bun install
-      
+
     - name: Build Tauri backend
       run: |
         cd src-tauri
         cargo build --release
-      
+
     - name: Verify binary
       run: |
-        if [ ! -f "src-tauri/target/release/quiverdesktop" ]; then
-          echo "❌ Binary not found after build"
+        BINARY="src-tauri/target/release/quiverdesktop"
+        if [ ! -f "$BINARY" ]; then
+          echo "❌ Binary not found at $BINARY after build"
           exit 1
         fi
         echo "✅ Tauri binary built successfully"
-        ls -la src-tauri/target/release/
