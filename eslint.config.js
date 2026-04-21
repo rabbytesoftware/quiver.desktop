@@ -79,11 +79,6 @@ export default [
 						position: 'before',
 					},
 					{
-						pattern: 'preact',
-						group: 'builtin',
-						position: 'before',
-					},
-					{
 						pattern: 'next/**',
 						group: 'builtin',
 						position: 'before',
@@ -119,7 +114,7 @@ export default [
 						position: 'before',
 					},
 				],
-				'pathGroupsExcludedImportTypes': ['react', 'preact'],
+				'pathGroupsExcludedImportTypes': ['react'],
 				'newlines-between': 'always',
 				'alphabetize': {
 					order: 'asc',
@@ -137,7 +132,6 @@ export default [
 		settings: {
 			react: {
 				version: 'detect',
-				pragma: 'h',
 			},
 			'import/resolver': {
 				typescript: {

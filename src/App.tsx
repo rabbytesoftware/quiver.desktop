@@ -1,4 +1,4 @@
-import './App.css';
+import './index.css';
 import { Header1 } from './components/quiver/typography';
 import { Button } from './components/ui/button';
 
