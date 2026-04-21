@@ -202,6 +202,13 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
 
+    - name: Create sidecar placeholder
+      run: |
+        mkdir -p src-tauri/binaries
+        TARGET_TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
+        touch "src-tauri/binaries/quiver-${TARGET_TRIPLE}"
+        chmod +x "src-tauri/binaries/quiver-${TARGET_TRIPLE}"
+
     - name: Format check
       run: |
         cd src-tauri
@@ -306,6 +313,13 @@ jobs:
 
     - name: Install frontend dependencies
       run: bun install
+
+    - name: Create sidecar placeholder
+      run: |
+        mkdir -p src-tauri/binaries
+        TARGET_TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
+        touch "src-tauri/binaries/quiver-${TARGET_TRIPLE}"
+        chmod +x "src-tauri/binaries/quiver-${TARGET_TRIPLE}"
 
     - name: Build Tauri backend
       run: |
