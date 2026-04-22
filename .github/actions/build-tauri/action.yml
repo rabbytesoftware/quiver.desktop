@@ -1,0 +1,107 @@
+name: 'Build Tauri App'
+description: 'Fetch quiver sidecar and build Tauri app for the current platform'
+
+inputs:
+  quiver-version:
+    description: 'Quiver core release version tag (e.g. v0.1.0)'
+    required: true
+  rust-version:
+    description: 'Rust toolchain version'
+    required: false
+    default: '1.85'
+  bun-version:
+    description: 'Bun version'
+    required: false
+    default: 'latest'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Determine platform and sidecar name
+      id: platform
+      shell: bash
+      run: |
+        case "${{ runner.os }}" in
+          Linux)
+            echo "quiver_binary=quiver-linux-amd64" >> $GITHUB_OUTPUT
+            echo "target_triple=x86_64-unknown-linux-gnu" >> $GITHUB_OUTPUT
+            echo "extension=" >> $GITHUB_OUTPUT
+            ;;
+          macOS)
+            echo "quiver_binary=quiver-darwin-arm64" >> $GITHUB_OUTPUT
+            echo "target_triple=aarch64-apple-darwin" >> $GITHUB_OUTPUT
+            echo "extension=" >> $GITHUB_OUTPUT
+            ;;
+          Windows)
+            echo "quiver_binary=quiver-windows-amd64.exe" >> $GITHUB_OUTPUT
+            echo "target_triple=x86_64-pc-windows-msvc" >> $GITHUB_OUTPUT
+            echo "extension=.exe" >> $GITHUB_OUTPUT
+            ;;
+        esac
+
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev \
+          build-essential curl wget file \
+          libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+    - name: Set up Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ inputs.rust-version }}
+
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ inputs.bun-version }}
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          src-tauri/target/
+        key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-release-
+
+    - name: Fetch quiver sidecar binary
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        mkdir -p src-tauri/binaries
+        gh release download "${{ inputs.quiver-version }}" \
+          --repo rabbytesoftware/quiver \
+          --pattern "${{ steps.platform.outputs.quiver_binary }}" \
+          --dir src-tauri/binaries
+
+        SIDECAR_NAME="quiver-${{ steps.platform.outputs.target_triple }}${{ steps.platform.outputs.extension }}"
+        mv "src-tauri/binaries/${{ steps.platform.outputs.quiver_binary }}" \
+           "src-tauri/binaries/${SIDECAR_NAME}"
+        chmod +x "src-tauri/binaries/${SIDECAR_NAME}"
+
+        echo "✅ Sidecar ready: ${SIDECAR_NAME}"
+        ls -la src-tauri/binaries/
+
+    - name: Install frontend dependencies
+      shell: bash
+      run: bun install
+
+    - name: Build frontend
+      shell: bash
+      run: bun run build
+
+    - name: Install Tauri CLI
+      shell: bash
+      run: cargo install tauri-cli --version "^2" --locked
+
+    - name: Build Tauri app
+      shell: bash
+      run: cargo tauri build

@@ -1,14 +1,1 @@
-node_modules/
-dist/
-build/
-src-tauri/target/
-coverage/
-*.lock
-bun.lockb
-.git/
-.github/
-.vscode/
-.idea/
-*.min.js
-*.min.css
-
+src/routeTree.gen.ts
