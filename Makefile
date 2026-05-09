@@ -3,12 +3,30 @@
 	fmt-check-rust fmt-rust lint-rust audit-rust \
 	code-quality-frontend code-quality-rust \
 	build-frontend build-rust build \
+	fetch-sidecar dev build-app \
 	test-rust coverage-rust \
 	pr-checks clean
 
 .DEFAULT_GOAL := help
 
-CARGO := $(shell command -v cargo 2> /dev/null || echo ~/.cargo/bin/cargo)
+CARGO        := $(shell command -v cargo 2> /dev/null || echo ~/.cargo/bin/cargo)
+TARGET_TRIPLE := $(shell rustc -vV 2>/dev/null | grep '^host:' | awk '{print $$2}')
+_CORE_VERSION := $(shell cat CORE_VERSION 2>/dev/null | tr -d '[:space:]')
+
+# Map target triple → quiver.core release binary name
+ifeq ($(TARGET_TRIPLE),aarch64-apple-darwin)
+  QUIVER_BINARY := quiver-darwin-arm64
+else ifeq ($(TARGET_TRIPLE),x86_64-apple-darwin)
+  QUIVER_BINARY := quiver-darwin-amd64
+else ifeq ($(TARGET_TRIPLE),x86_64-unknown-linux-gnu)
+  QUIVER_BINARY := quiver-linux-amd64
+else ifeq ($(TARGET_TRIPLE),x86_64-pc-windows-msvc)
+  QUIVER_BINARY := quiver-windows-amd64.exe
+else
+  QUIVER_BINARY := quiver-$(TARGET_TRIPLE)
+endif
+
+SIDECAR_PATH := src-tauri/binaries/quiver-$(TARGET_TRIPLE)
 
 help:
 	@echo "Quiver Desktop - Makefile Commands"
@@ -36,8 +54,11 @@ help:
 	@echo ""
 	@echo "🔨 Build:"
 	@echo "  make build-frontend        - Build frontend"
-	@echo "  make build-rust            - Build Tauri backend"
-	@echo "  make build                 - Build both frontend and Rust"
+	@echo "  make build-rust            - Build Tauri backend (debug)"
+	@echo "  make build                 - Build both frontend and Rust (debug)"
+	@echo "  make fetch-sidecar         - Download quiver.core sidecar binary for this platform"
+	@echo "  make dev                   - Start Tauri dev environment (fetches sidecar if needed)"
+	@echo "  make build-app             - Build full Tauri app installer for this platform"
 	@echo ""
 	@echo "🧪 Testing:"
 	@echo "  make test-rust             - Run Rust tests"
@@ -132,6 +153,30 @@ build-rust:
 
 build: build-frontend build-rust
 	@echo "✅ All builds completed successfully!"
+
+fetch-sidecar:
+	@echo "📥 Fetching quiver.core sidecar ($(_CORE_VERSION)) for $(TARGET_TRIPLE)..."
+	@if [ -z "$(_CORE_VERSION)" ]; then echo "❌ CORE_VERSION file is missing or empty" && exit 1; fi
+	@mkdir -p src-tauri/binaries
+	@gh release download "$(_CORE_VERSION)" \
+		--repo rabbytesoftware/quiver.core \
+		--pattern "$(QUIVER_BINARY)" \
+		--dir src-tauri/binaries \
+		--clobber
+	@mv "src-tauri/binaries/$(QUIVER_BINARY)" "$(SIDECAR_PATH)"
+	@chmod +x "$(SIDECAR_PATH)"
+	@echo "✅ Sidecar ready: $(SIDECAR_PATH)"
+
+dev:
+	@if [ ! -f "$(SIDECAR_PATH)" ]; then $(MAKE) fetch-sidecar; fi
+	@echo "🚀 Starting Tauri dev environment..."
+	@$(CARGO) tauri dev
+
+build-app:
+	@$(MAKE) fetch-sidecar
+	@echo "📦 Building Tauri app for $(TARGET_TRIPLE)..."
+	@$(CARGO) tauri build
+	@echo "✅ App built — check src-tauri/target/release/bundle/"
 
 test-rust:
 	@echo "🧪 Running Rust tests..."
