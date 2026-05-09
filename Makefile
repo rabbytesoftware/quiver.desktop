@@ -9,6 +9,8 @@
 
 .DEFAULT_GOAL := help
 
+BUN          := $(shell command -v bun 2>/dev/null || echo $(HOME)/.bun/bin/bun)
+BUNX         := $(shell command -v bunx 2>/dev/null || echo $(HOME)/.bun/bin/bunx)
 CARGO        := $(shell command -v cargo 2>/dev/null || ls $(HOME)/.rustup/toolchains/*/bin/cargo 2>/dev/null | head -1 || echo $(HOME)/.cargo/bin/cargo)
 RUSTC        := $(shell command -v rustc 2>/dev/null || ls $(HOME)/.rustup/toolchains/*/bin/rustc 2>/dev/null | head -1 || echo $(HOME)/.cargo/bin/rustc)
 TARGET_TRIPLE := $(shell $(RUSTC) -vV 2>/dev/null | grep '^host:' | awk '{print $$2}')
@@ -73,7 +75,7 @@ help:
 
 deps-frontend:
 	@echo "📦 Installing frontend dependencies..."
-	@bun install
+	@$(BUN) install
 	@echo "✅ Frontend dependencies installed"
 
 deps-rust:
@@ -85,32 +87,32 @@ deps: deps-frontend deps-rust
 
 fmt-check-frontend:
 	@echo "🎨 Checking frontend formatting..."
-	@bunx prettier --check "src/**/*.{ts,tsx,js,jsx}" || (echo "❌ Frontend formatting check failed. Run 'make fmt-frontend' to fix." && exit 1)
+	@$(BUNX) prettier --check "src/**/*.{ts,tsx,js,jsx}" || (echo "❌ Frontend formatting check failed. Run 'make fmt-frontend' to fix." && exit 1)
 	@echo "✅ Frontend formatting is correct"
 
 fmt-frontend:
 	@echo "🎨 Fixing frontend formatting..."
-	@bunx prettier --write "src/**/*.{ts,tsx,js,jsx}" --ignore-pattern "src/routeTree.gen.ts"
+	@$(BUNX) prettier --write "src/**/*.{ts,tsx,js,jsx}" --ignore-pattern "src/routeTree.gen.ts"
 	@echo "✅ Frontend formatted successfully"
 
 lint-frontend:
 	@echo "🔍 Running ESLint..."
-	@bunx eslint "src/**/*.{ts,tsx,js,jsx}" || (echo "❌ ESLint check failed" && exit 1)
+	@$(BUNX) eslint "src/**/*.{ts,tsx,js,jsx}" || (echo "❌ ESLint check failed" && exit 1)
 	@echo "✅ ESLint passed"
 
 lint-frontend-fix:
 	@echo "🔧 Running ESLint with auto-fix..."
-	@bunx eslint "src/**/*.{ts,tsx,js,jsx}" --fix
+	@$(BUNX) eslint "src/**/*.{ts,tsx,js,jsx}" --fix
 	@echo "✅ ESLint auto-fix completed"
 
 typecheck-frontend:
 	@echo "🔍 Running TypeScript type checking..."
-	@bunx tsc --noEmit || (echo "❌ Type checking failed" && exit 1)
+	@$(BUNX) tsc --noEmit || (echo "❌ Type checking failed" && exit 1)
 	@echo "✅ Type checking passed"
 
 audit-frontend:
 	@echo "🔒 Running frontend security audit..."
-	@bun audit || (echo "⚠️  Security vulnerabilities found" && exit 1)
+	@$(BUN) audit || (echo "⚠️  Security vulnerabilities found" && exit 1)
 	@echo "✅ Security audit passed"
 
 code-quality-frontend: fmt-check-frontend lint-frontend typecheck-frontend
@@ -142,7 +144,7 @@ code-quality-rust: fmt-check-rust lint-rust audit-rust
 
 build-frontend:
 	@echo "🔨 Building frontend..."
-	@bun run build || (echo "❌ Frontend build failed" && exit 1)
+	@$(BUN) run build || (echo "❌ Frontend build failed" && exit 1)
 	@if [ ! -d "dist" ]; then echo "❌ dist/ folder not found after build" && exit 1; fi
 	@echo "✅ Frontend built successfully"
 	@ls -lh dist/
@@ -171,12 +173,12 @@ fetch-sidecar:
 dev:
 	@if [ ! -f "$(SIDECAR_PATH)" ]; then $(MAKE) fetch-sidecar; fi
 	@echo "🚀 Starting Tauri dev environment..."
-	@bunx tauri dev
+	@PATH="$(dir $(CARGO)):$(dir $(BUN)):$$PATH" $(BUN) run tauri dev
 
 build-app:
 	@$(MAKE) fetch-sidecar
 	@echo "📦 Building Tauri app for $(TARGET_TRIPLE)..."
-	@bunx tauri build
+	@PATH="$(dir $(CARGO)):$(dir $(BUN)):$$PATH" $(BUN) run tauri build
 	@echo "✅ App built — check src-tauri/target/release/bundle/"
 
 test-rust:
@@ -249,4 +251,3 @@ clean:
 	@rm -rf coverage/
 	@rm -rf node_modules/.cache/
 	@echo "✅ Cleaned successfully"
-
