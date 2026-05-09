@@ -25,3 +25,6 @@ dist-ssr
 
 # Sidecar binaries (fetched during release, not committed)
 src-tauri/binaries/quiver-*
+
+# AI tooling artifacts — never commit
+docs/superpowers/
