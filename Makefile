@@ -171,12 +171,12 @@ fetch-sidecar:
 dev:
 	@if [ ! -f "$(SIDECAR_PATH)" ]; then $(MAKE) fetch-sidecar; fi
 	@echo "🚀 Starting Tauri dev environment..."
-	@$(CARGO) tauri dev
+	@bunx tauri dev
 
 build-app:
 	@$(MAKE) fetch-sidecar
 	@echo "📦 Building Tauri app for $(TARGET_TRIPLE)..."
-	@$(CARGO) tauri build
+	@bunx tauri build
 	@echo "✅ App built — check src-tauri/target/release/bundle/"
 
 test-rust:
