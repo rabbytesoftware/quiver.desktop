@@ -1,36 +1,56 @@
-# Quiver
+<p align="center">
+  <img src=".github/quiver.svg" alt="Quiver" width="450" />
+  <br/>
+  <em>Software distribution without a middleman.</em>
+</p>
 
-Quiver is a **multi-platform, multi-paradigm package manager** - probably the only one you'll ever need! It's designed to make complex installation processes quick and easy for both technical and non-technical users, while keeping systems well-contained and manageable.
+Software distribution remains a fragmented and technically demanding process for both developers and end users. Existing solutions are platform-specific, require technical knowledge, and maintain some degree of centralized control — leaving a gap for an open, accessible, and truly cross-platform alternative.
 
-## What is Quiver?
+Quiver is a truly decentralized, cross-platform, open-source application store. Developers publish software in under five minutes by hosting a single file (a declarative manifest) on any Git-compatible repository, with no approval process, no fees. End users install any published application in two clicks through an intuitive visual interface, without technical knowledge. The platform runs as a local service on each machine, enabling remote management of multiple hosts from a single desktop interface.
 
-Quiver is a universal package manager that handles networking, publishes a REST API for package management, and (most importantly) downloads and manages packages across any platform. Each package (called an "Arrow") can be anything from game servers to development tools, web applications, or system utilities—all managed within the same app.
+#### What's in this repo
 
-Quiver makes hard and long install processes quick and easy, keeps your systems well-contained without risky custom wizard software, and provides a global, multi-OS app store that allows anyone to upload content without borders.
-
-## Current Development Status
-
-Quiver is currently under heavy development, and we're aiming to deploy a demo by the end of **February 2026**. The demo will feature a simple real-time chat application, which will be released exclusively to our beta tester channels.
+`quiver.desktop` is the visual interface for Quiver — a Tauri application built with React and TypeScript that lets users browse, install, and manage Arrows through a native desktop UI, and remotely manage multiple hosts from a single window. The core engine lives in a separate repository.
 
 ---
 
 ## Contributing
 
-Quiver is open-source, and we welcome contributions from the community! Whether you're interested in developing packages, improving the core app, or helping with documentation, we'd love to have you on board.
+Quiver is open-source and we welcome contributions from the community — whether that's improving the UI, adding features, or anything in between.
+
+### Common commands
+
+| Command | Description |
+|---|---|
+| `make deps` | Install all dependencies (frontend + Rust) |
+| `make deps-frontend` | Install frontend dependencies (bun) |
+| `make deps-rust` | Download Rust dependencies |
+| `make build` | Build both frontend and Tauri backend |
+| `make fmt-frontend` | Fix frontend formatting with Prettier |
+| `make lint-frontend` | Run ESLint |
+| `make typecheck-frontend` | Run TypeScript type checking |
+| `make fmt-rust` | Fix Rust formatting |
+| `make lint-rust` | Run Clippy |
+| `make test-rust` | Run Rust tests |
+| `make coverage-rust` | Run tests with coverage (≥80%) |
+
+Before opening a PR, always run:
+
+```bash
+make pr-checks
+```
+
+This runs the full validation suite — formatting, linting, type checking, build, and tests. Run `make help` to see all available targets.
 
 ---
 
 ## License
 
-Quiver is licensed under the [GPL-3.0](LICENSE). Feel free to use, modify, and distribute it as you see fit.
+Quiver is licensed under the [GPL-3.0](LICENSE).
 
 ---
 
 ## Stay Connected
 
-Follow us for updates and announcements:
-
 - [Rabbyte GitHub](https://github.com/rabbytesoftware)
 - [char2cs](https://char2cs.net)
-
-For now, you can explore the codebase structure and contribute to the development.
