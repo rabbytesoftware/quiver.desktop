@@ -111,6 +111,7 @@ jobs:
               echo "  - refactor/name (→ develop)"
               echo "  - hotfix/name (→ master)"
               echo "  - beta/YY.M or beta/YY.M.P (→ master)"
+              echo "  - backport/DATE-VERSION (→ develop)"
               exit 1
               ;;
           esac
