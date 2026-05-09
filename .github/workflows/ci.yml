@@ -91,15 +91,15 @@ jobs:
                 exit 1
               fi
               ;;
-            release/*)
+            beta/*)
               if [ "$TARGET_BRANCH" != "master" ]; then
-                echo "❌ Release branches can only target 'master', not '$TARGET_BRANCH'"
+                echo "❌ Beta branches can only target 'master', not '$TARGET_BRANCH'"
                 exit 1
               fi
-              MERGE_BASE=$(git merge-base origin/develop HEAD)
-              DEVELOP_HEAD=$(git rev-parse origin/develop)
-              if [ "$MERGE_BASE" != "$DEVELOP_HEAD" ]; then
-                echo "❌ Release branches must be created from the latest 'develop' branch"
+              ;;
+            backport/*)
+              if [ "$TARGET_BRANCH" != "develop" ]; then
+                echo "❌ Backport branches can only target 'develop', not '$TARGET_BRANCH'"
                 exit 1
               fi
               ;;
@@ -110,7 +110,8 @@ jobs:
               echo "  - fix/name (→ develop)"
               echo "  - refactor/name (→ develop)"
               echo "  - hotfix/name (→ master)"
-              echo "  - release/yyyy-mm-dd (develop → master)"
+              echo "  - beta/YY.M or beta/YY.M.P (→ master)"
+              echo "  - backport/DATE-VERSION (→ develop)"
               exit 1
               ;;
           esac
@@ -119,6 +120,28 @@ jobs:
         }
 
         validate_branch
+
+  validate-core-version:
+    name: Validate CORE_VERSION
+    runs-on: ubuntu-latest
+    needs: validate-branch
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Validate CORE_VERSION exists on quiver.core
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        CORE_VERSION=$(node -p "require('./package.json').quiver.coreVersion")
+        echo "Validating quiver.core release: ${CORE_VERSION}"
+        gh release view "$CORE_VERSION" --repo rabbytesoftware/quiver.core || {
+          echo "❌ quiver.core release ${CORE_VERSION} not found. Update CORE_VERSION to a published release before merging."
+          exit 1
+        }
+        echo "✅ quiver.core release ${CORE_VERSION} exists"
 
   code-quality-frontend:
     name: Code Quality - Frontend

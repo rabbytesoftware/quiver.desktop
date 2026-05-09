@@ -3,12 +3,33 @@
 	fmt-check-rust fmt-rust lint-rust audit-rust \
 	code-quality-frontend code-quality-rust \
 	build-frontend build-rust build \
+	fetch-sidecar dev build-app \
 	test-rust coverage-rust \
 	pr-checks clean
 
 .DEFAULT_GOAL := help
 
-CARGO := $(shell command -v cargo 2> /dev/null || echo ~/.cargo/bin/cargo)
+BUN          := $(shell command -v bun 2>/dev/null || echo $(HOME)/.bun/bin/bun)
+BUNX         := $(shell command -v bunx 2>/dev/null || echo $(HOME)/.bun/bin/bunx)
+CARGO        := $(shell command -v cargo 2>/dev/null || ls $(HOME)/.rustup/toolchains/*/bin/cargo 2>/dev/null | head -1 || echo $(HOME)/.cargo/bin/cargo)
+RUSTC        := $(shell command -v rustc 2>/dev/null || ls $(HOME)/.rustup/toolchains/*/bin/rustc 2>/dev/null | head -1 || echo $(HOME)/.cargo/bin/rustc)
+TARGET_TRIPLE := $(shell $(RUSTC) -vV 2>/dev/null | grep '^host:' | awk '{print $$2}')
+_CORE_VERSION := $(shell node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]')
+
+# Map target triple → quiver.core release binary name
+ifeq ($(TARGET_TRIPLE),aarch64-apple-darwin)
+  QUIVER_BINARY := quiver-darwin-arm64
+else ifeq ($(TARGET_TRIPLE),x86_64-apple-darwin)
+  QUIVER_BINARY := quiver-darwin-amd64
+else ifeq ($(TARGET_TRIPLE),x86_64-unknown-linux-gnu)
+  QUIVER_BINARY := quiver-linux-amd64
+else ifeq ($(TARGET_TRIPLE),x86_64-pc-windows-msvc)
+  QUIVER_BINARY := quiver-windows-amd64.exe
+else
+  QUIVER_BINARY := quiver-$(TARGET_TRIPLE)
+endif
+
+SIDECAR_PATH := src-tauri/binaries/quiver-$(TARGET_TRIPLE)
 
 help:
 	@echo "Quiver Desktop - Makefile Commands"
@@ -36,8 +57,11 @@ help:
 	@echo ""
 	@echo "🔨 Build:"
 	@echo "  make build-frontend        - Build frontend"
-	@echo "  make build-rust            - Build Tauri backend"
-	@echo "  make build                 - Build both frontend and Rust"
+	@echo "  make build-rust            - Build Tauri backend (debug)"
+	@echo "  make build                 - Build both frontend and Rust (debug)"
+	@echo "  make fetch-sidecar         - Download quiver.core sidecar binary for this platform"
+	@echo "  make dev                   - Start Tauri dev environment (fetches sidecar if needed)"
+	@echo "  make build-app             - Build full Tauri app installer for this platform"
 	@echo ""
 	@echo "🧪 Testing:"
 	@echo "  make test-rust             - Run Rust tests"
@@ -51,7 +75,7 @@ help:
 
 deps-frontend:
 	@echo "📦 Installing frontend dependencies..."
-	@bun install
+	@$(BUN) install
 	@echo "✅ Frontend dependencies installed"
 
 deps-rust:
@@ -63,32 +87,32 @@ deps: deps-frontend deps-rust
 
 fmt-check-frontend:
 	@echo "🎨 Checking frontend formatting..."
-	@bunx prettier --check "src/**/*.{ts,tsx,js,jsx}" || (echo "❌ Frontend formatting check failed. Run 'make fmt-frontend' to fix." && exit 1)
+	@$(BUNX) prettier --check "src/**/*.{ts,tsx,js,jsx}" || (echo "❌ Frontend formatting check failed. Run 'make fmt-frontend' to fix." && exit 1)
 	@echo "✅ Frontend formatting is correct"
 
 fmt-frontend:
 	@echo "🎨 Fixing frontend formatting..."
-	@bunx prettier --write "src/**/*.{ts,tsx,js,jsx}" --ignore-pattern "src/routeTree.gen.ts"
+	@$(BUNX) prettier --write "src/**/*.{ts,tsx,js,jsx}" --ignore-pattern "src/routeTree.gen.ts"
 	@echo "✅ Frontend formatted successfully"
 
 lint-frontend:
 	@echo "🔍 Running ESLint..."
-	@bunx eslint "src/**/*.{ts,tsx,js,jsx}" || (echo "❌ ESLint check failed" && exit 1)
+	@$(BUNX) eslint "src/**/*.{ts,tsx,js,jsx}" || (echo "❌ ESLint check failed" && exit 1)
 	@echo "✅ ESLint passed"
 
 lint-frontend-fix:
 	@echo "🔧 Running ESLint with auto-fix..."
-	@bunx eslint "src/**/*.{ts,tsx,js,jsx}" --fix
+	@$(BUNX) eslint "src/**/*.{ts,tsx,js,jsx}" --fix
 	@echo "✅ ESLint auto-fix completed"
 
 typecheck-frontend:
 	@echo "🔍 Running TypeScript type checking..."
-	@bunx tsc --noEmit || (echo "❌ Type checking failed" && exit 1)
+	@$(BUNX) tsc --noEmit || (echo "❌ Type checking failed" && exit 1)
 	@echo "✅ Type checking passed"
 
 audit-frontend:
 	@echo "🔒 Running frontend security audit..."
-	@bun audit || (echo "⚠️  Security vulnerabilities found" && exit 1)
+	@$(BUN) audit || (echo "⚠️  Security vulnerabilities found" && exit 1)
 	@echo "✅ Security audit passed"
 
 code-quality-frontend: fmt-check-frontend lint-frontend typecheck-frontend
@@ -120,7 +144,7 @@ code-quality-rust: fmt-check-rust lint-rust audit-rust
 
 build-frontend:
 	@echo "🔨 Building frontend..."
-	@bun run build || (echo "❌ Frontend build failed" && exit 1)
+	@$(BUN) run build || (echo "❌ Frontend build failed" && exit 1)
 	@if [ ! -d "dist" ]; then echo "❌ dist/ folder not found after build" && exit 1; fi
 	@echo "✅ Frontend built successfully"
 	@ls -lh dist/
@@ -132,6 +156,30 @@ build-rust:
 
 build: build-frontend build-rust
 	@echo "✅ All builds completed successfully!"
+
+fetch-sidecar:
+	@echo "📥 Fetching quiver.core sidecar ($(_CORE_VERSION)) for $(TARGET_TRIPLE)..."
+	@if [ -z "$(_CORE_VERSION)" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi
+	@mkdir -p src-tauri/binaries
+	@gh release download "$(_CORE_VERSION)" \
+		--repo rabbytesoftware/quiver.core \
+		--pattern "$(QUIVER_BINARY)" \
+		--dir src-tauri/binaries \
+		--clobber
+	@mv "src-tauri/binaries/$(QUIVER_BINARY)" "$(SIDECAR_PATH)"
+	@chmod +x "$(SIDECAR_PATH)"
+	@echo "✅ Sidecar ready: $(SIDECAR_PATH)"
+
+dev:
+	@if [ ! -f "$(SIDECAR_PATH)" ]; then $(MAKE) fetch-sidecar; fi
+	@echo "🚀 Starting Tauri dev environment..."
+	@PATH="$(dir $(CARGO)):$(dir $(BUN)):$$PATH" $(BUN) run tauri dev
+
+build-app:
+	@$(MAKE) fetch-sidecar
+	@echo "📦 Building Tauri app for $(TARGET_TRIPLE)..."
+	@PATH="$(dir $(CARGO)):$(dir $(BUN)):$$PATH" $(BUN) run tauri build
+	@echo "✅ App built — check src-tauri/target/release/bundle/"
 
 test-rust:
 	@echo "🧪 Running Rust tests..."
@@ -160,16 +208,25 @@ coverage-rust:
 pr-checks:
 	@echo "🚀 Running all PR validation checks..."
 	@echo ""
-	@echo "Step 1/4: Code Quality Checks"
+	@echo "Step 1/5: CORE_VERSION Validation"
+	@echo "=============================="
+	@CORE_VERSION=$$(node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]'); \
+	if [ -z "$$CORE_VERSION" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi; \
+	echo "Checking quiver.core release: $$CORE_VERSION"; \
+	gh release view "$$CORE_VERSION" --repo rabbytesoftware/quiver.core --json tagName --jq '.tagName' >/dev/null || \
+	  (echo "❌ quiver.core release $$CORE_VERSION not found" && exit 1); \
+	echo "✅ quiver.core release $$CORE_VERSION exists"
+	@echo ""
+	@echo "Step 2/5: Code Quality Checks"
 	@echo "=============================="
 	@$(MAKE) code-quality-frontend
 	@$(MAKE) code-quality-rust
 	@echo ""
-	@echo "Step 2/4: Build Validation"
+	@echo "Step 3/5: Build Validation"
 	@echo "=============================="
 	@$(MAKE) build
 	@echo ""
-	@echo "Step 3/4: Test Coverage"
+	@echo "Step 4/5: Test Coverage"
 	@echo "=============================="
 	@$(MAKE) coverage-rust
 	@echo ""
@@ -178,6 +235,7 @@ pr-checks:
 	@echo "=============================="
 	@echo ""
 	@echo "📋 Summary:"
+	@echo "  ✅ quiver.core release exists"
 	@echo "  ✅ Frontend code quality checks passed"
 	@echo "  ✅ Rust code quality checks passed"
 	@echo "  ✅ Frontend builds successfully"
@@ -193,4 +251,3 @@ clean:
 	@rm -rf coverage/
 	@rm -rf node_modules/.cache/
 	@echo "✅ Cleaned successfully"
-

@@ -78,7 +78,7 @@ runs:
       run: |
         mkdir -p src-tauri/binaries
         gh release download "${{ inputs.quiver-version }}" \
-          --repo rabbytesoftware/quiver \
+          --repo rabbytesoftware/quiver.core \
           --pattern "${{ steps.platform.outputs.quiver_binary }}" \
           --dir src-tauri/binaries
 
