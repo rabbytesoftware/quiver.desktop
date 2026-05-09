@@ -135,7 +135,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        CORE_VERSION=$(cat CORE_VERSION)
+        CORE_VERSION=$(node -p "require('./package.json').quiver.coreVersion")
         echo "Validating quiver.core release: ${CORE_VERSION}"
         gh release view "$CORE_VERSION" --repo rabbytesoftware/quiver.core || {
           echo "❌ quiver.core release ${CORE_VERSION} not found. Update CORE_VERSION to a published release before merging."

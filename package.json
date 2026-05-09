@@ -20,6 +20,9 @@
     "react-dom": "^19.2.5",
     "tailwindcss": "^4.2.4"
   },
+  "quiver": {
+    "coreVersion": "stable-26.5"
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@tanstack/react-query-devtools": "^5.99.2",

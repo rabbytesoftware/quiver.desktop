@@ -11,7 +11,7 @@
 
 CARGO        := $(shell command -v cargo 2> /dev/null || echo ~/.cargo/bin/cargo)
 TARGET_TRIPLE := $(shell rustc -vV 2>/dev/null | grep '^host:' | awk '{print $$2}')
-_CORE_VERSION := $(shell cat CORE_VERSION 2>/dev/null | tr -d '[:space:]')
+_CORE_VERSION := $(shell node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]')
 
 # Map target triple → quiver.core release binary name
 ifeq ($(TARGET_TRIPLE),aarch64-apple-darwin)

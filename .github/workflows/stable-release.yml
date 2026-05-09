@@ -36,7 +36,7 @@ jobs:
     - name: Read CORE_VERSION
       id: version
       run: |
-        CORE_VERSION=$(cat CORE_VERSION)
+        CORE_VERSION=$(node -p "require('./package.json').quiver.coreVersion")
         echo "CORE_VERSION=${CORE_VERSION}" >> "$GITHUB_OUTPUT"
 
     - name: Validate CORE_VERSION
