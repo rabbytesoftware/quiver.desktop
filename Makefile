@@ -156,7 +156,7 @@ build: build-frontend build-rust
 
 fetch-sidecar:
 	@echo "📥 Fetching quiver.core sidecar ($(_CORE_VERSION)) for $(TARGET_TRIPLE)..."
-	@if [ -z "$(_CORE_VERSION)" ]; then echo "❌ CORE_VERSION file is missing or empty" && exit 1; fi
+	@if [ -z "$(_CORE_VERSION)" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi
 	@mkdir -p src-tauri/binaries
 	@gh release download "$(_CORE_VERSION)" \
 		--repo rabbytesoftware/quiver.core \
@@ -205,16 +205,25 @@ coverage-rust:
 pr-checks:
 	@echo "🚀 Running all PR validation checks..."
 	@echo ""
-	@echo "Step 1/4: Code Quality Checks"
+	@echo "Step 1/5: CORE_VERSION Validation"
+	@echo "=============================="
+	@CORE_VERSION=$$(node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]'); \
+	if [ -z "$$CORE_VERSION" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi; \
+	echo "Checking quiver.core release: $$CORE_VERSION"; \
+	gh release view "$$CORE_VERSION" --repo rabbytesoftware/quiver.core --json tagName --jq '.tagName' >/dev/null || \
+	  (echo "❌ quiver.core release $$CORE_VERSION not found" && exit 1); \
+	echo "✅ quiver.core release $$CORE_VERSION exists"
+	@echo ""
+	@echo "Step 2/5: Code Quality Checks"
 	@echo "=============================="
 	@$(MAKE) code-quality-frontend
 	@$(MAKE) code-quality-rust
 	@echo ""
-	@echo "Step 2/4: Build Validation"
+	@echo "Step 3/5: Build Validation"
 	@echo "=============================="
 	@$(MAKE) build
 	@echo ""
-	@echo "Step 3/4: Test Coverage"
+	@echo "Step 4/5: Test Coverage"
 	@echo "=============================="
 	@$(MAKE) coverage-rust
 	@echo ""
@@ -223,6 +232,7 @@ pr-checks:
 	@echo "=============================="
 	@echo ""
 	@echo "📋 Summary:"
+	@echo "  ✅ quiver.core release exists"
 	@echo "  ✅ Frontend code quality checks passed"
 	@echo "  ✅ Rust code quality checks passed"
 	@echo "  ✅ Frontend builds successfully"
