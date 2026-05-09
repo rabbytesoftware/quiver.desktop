@@ -191,6 +191,9 @@ jobs:
   backport:
     name: Backport to Develop
     needs: [prepare, publish]
+    permissions:
+      contents: write
+      pull-requests: write
     uses: ./.github/workflows/backport.yml
     secrets: inherit
     with:

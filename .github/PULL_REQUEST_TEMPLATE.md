@@ -6,7 +6,7 @@
 - [ ] ✨ New feature (feature/*)
 - [ ] 🔧 Enhancement (enhancement/*)
 - [ ] 🚑 Hotfix (hotfix/*)
-- [ ] 🚀 Release (release/*)
+- [ ] 🚀 Pre-release (beta/YY.M for master, backport/DATE-VERSION for develop)
 
 ## Related Issues
 Closes #(issue number)
@@ -31,7 +31,7 @@ Closes #(issue number)
 - [ ] Coverage requirements met (`make test-coverage`)
 - [ ] No linting errors (`make lint`)
 - [ ] Security scan passes (`make security`)
-- [ ] Branch name follows convention (enhancement/*, feature/*, fix/*, hotfix/*, release/*)
+- [ ] Branch name follows convention (enhancement/*, feature/*, fix/*, hotfix/*, beta/YY.M for master, backport/DATE-VERSION for develop)
 
 ## Screenshots/Logs (if applicable)
 <!-- Add screenshots or relevant logs -->
