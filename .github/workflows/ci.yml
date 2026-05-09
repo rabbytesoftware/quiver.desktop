@@ -121,6 +121,28 @@ jobs:
 
         validate_branch
 
+  validate-core-version:
+    name: Validate CORE_VERSION
+    runs-on: ubuntu-latest
+    needs: validate-branch
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Validate CORE_VERSION exists on quiver.core
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        CORE_VERSION=$(cat CORE_VERSION)
+        echo "Validating quiver.core release: ${CORE_VERSION}"
+        gh release view "$CORE_VERSION" --repo rabbytesoftware/quiver.core || {
+          echo "❌ quiver.core release ${CORE_VERSION} not found. Update CORE_VERSION to a published release before merging."
+          exit 1
+        }
+        echo "✅ quiver.core release ${CORE_VERSION} exists"
+
   code-quality-frontend:
     name: Code Quality - Frontend
     runs-on: ubuntu-latest
