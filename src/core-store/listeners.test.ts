@@ -1,23 +1,27 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { listen } from '@tauri-apps/api/core';
+import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vitest';
+import { listen } from '@tauri-apps/api/event';
 import { setupListeners } from './listeners';
 import { useArrowStore } from './store';
 import type { ArrowListItem } from '@/domain/arrow';
 
-vi.mock('@tauri-apps/api/core');
+vi.mock('@tauri-apps/api/event', () => ({
+    listen: vi.fn(() => Promise.resolve(() => {})),
+}));
+
+const mockListen = listen as MockedFunction<typeof listen>;
 
 const makeArrow = (ns: string): ArrowListItem => ({
     namespace: ns, name: 'X', version: '1.0', state: 'ready', active_run: null, last_outcome: null,
 });
 
 beforeEach(() => {
-    vi.mocked(listen).mockReset();
-    vi.mocked(listen).mockResolvedValue(() => {});
+    mockListen.mockReset();
+    mockListen.mockResolvedValue(() => {});
     useArrowStore.setState({ arrows: new Map(), status: 'starting' });
 });
 
 function captureHandler(eventName: string): (payload: unknown) => void {
-    const calls = vi.mocked(listen).mock.calls;
+    const calls = mockListen.mock.calls;
     const call = calls.find(([name]) => name === eventName);
     if (!call) throw new Error(`No listener registered for ${eventName}`);
     return (payload) => (call[1] as (e: { payload: unknown; event: string; id: number; windowLabel: string }) => void)({ payload, event: eventName, id: 0, windowLabel: '' });
@@ -26,7 +30,7 @@ function captureHandler(eventName: string): (payload: unknown) => void {
 describe('setupListeners', () => {
     it('registers handlers for all four events', async () => {
         await setupListeners();
-        const registeredEvents = vi.mocked(listen).mock.calls.map(([name]) => name);
+        const registeredEvents = mockListen.mock.calls.map(([name]) => name);
         expect(registeredEvents).toContain('core://status');
         expect(registeredEvents).toContain('arrow://hydrate');
         expect(registeredEvents).toContain('arrow://remove');

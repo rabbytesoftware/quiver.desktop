@@ -1,4 +1,4 @@
-import { listen } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { useArrowStore } from './store';
 import type { ArrowListItem } from '@/domain/arrow';
 import type { CoreStatus } from './store';

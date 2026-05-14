@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement } from 'react';
@@ -8,7 +8,11 @@ import {
     useRegisterArrow, useRemoveArrow, useFollowCollection, useUnfollowCollection,
 } from './mutations';
 
-vi.mock('@tauri-apps/api/core');
+vi.mock('@tauri-apps/api/core', () => ({
+    invoke: vi.fn(),
+}));
+
+const mockInvoke = invoke as MockedFunction<typeof invoke>;
 
 function wrapper() {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -17,7 +21,7 @@ function wrapper() {
 }
 
 beforeEach(() => {
-    vi.mocked(invoke).mockResolvedValue(undefined);
+    mockInvoke.mockResolvedValue(undefined as never);
 });
 
 describe('useInstall', () => {
