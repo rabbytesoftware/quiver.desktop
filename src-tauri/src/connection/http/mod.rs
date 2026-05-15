@@ -6,7 +6,6 @@ use bytes::Bytes;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
 
-
 #[derive(Debug, Error)]
 pub enum HttpError {
 	#[error("request failed: {0}")]
@@ -154,8 +153,7 @@ fn urlencoded(namespace: &str) -> String {
 }
 
 fn build_arrow_values(items: Vec<ArrowListResponseItem>) -> Vec<serde_json::Value> {
-	items
-		.into_iter()
+	items.into_iter()
 		.flat_map(|arrow| {
 			let ns = arrow.namespace.clone();
 			let name = arrow.name.clone();
