@@ -6,7 +6,6 @@ use bytes::Bytes;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
 
-use crate::connection::types::{ArrowListItem, ArrowState};
 
 #[derive(Debug, Error)]
 pub enum HttpError {
@@ -53,10 +52,10 @@ impl HttpClient {
 		self.transport.get_bytes("/health").await.map(|_| ())
 	}
 
-	pub async fn fetch_arrows(&self) -> Result<Vec<ArrowListItem>, HttpError> {
+	pub async fn fetch_arrows(&self) -> Result<Vec<serde_json::Value>, HttpError> {
 		let items: Vec<ArrowListResponseItem> =
 			self.get_json("/v0/arrow?user_installed=true").await?;
-		Ok(to_arrow_list_items(items))
+		Ok(build_arrow_values(items))
 	}
 
 	pub async fn install(
@@ -140,7 +139,7 @@ struct InstalledVersion {
 	#[serde(rename = "ref")]
 	installed_ref: String,
 	version: String,
-	state: ArrowState,
+	state: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -154,18 +153,21 @@ fn urlencoded(namespace: &str) -> String {
 	namespace.replace('/', "%2F")
 }
 
-fn to_arrow_list_items(items: Vec<ArrowListResponseItem>) -> Vec<ArrowListItem> {
-	items.into_iter()
+fn build_arrow_values(items: Vec<ArrowListResponseItem>) -> Vec<serde_json::Value> {
+	items
+		.into_iter()
 		.flat_map(|arrow| {
 			let ns = arrow.namespace.clone();
 			let name = arrow.name.clone();
-			arrow.versions.into_iter().map(move |v| ArrowListItem {
-				namespace: format!("{}@{}", ns, v.installed_ref),
-				name: name.clone(),
-				version: v.version,
-				state: v.state,
-				active_run: None,
-				last_outcome: None,
+			arrow.versions.into_iter().map(move |v| {
+				serde_json::json!({
+					"namespace": format!("{}@{}", ns, v.installed_ref),
+					"name": name,
+					"version": v.version,
+					"state": v.state,
+					"active_run": null,
+					"last_outcome": null,
+				})
 			})
 		})
 		.collect()
@@ -231,7 +233,7 @@ mod tests {
 		let client = HttpClient::new(MockTransport::new(vec![json]));
 		let items = client.fetch_arrows().await.unwrap();
 		assert_eq!(items.len(), 1);
-		assert_eq!(items[0].namespace, "github.com/user/repo@v1.0.0");
+		assert_eq!(items[0]["namespace"], "github.com/user/repo@v1.0.0");
 	}
 
 	#[tokio::test]
