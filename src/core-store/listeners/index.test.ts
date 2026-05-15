@@ -48,7 +48,7 @@ describe('setupListeners', () => {
 		const events = mockListen.mock.calls.map(([name]) => name);
 		expect(events).toContain('core://status');
 		expect(events).toContain('arrow://hydrate');
-		expect(events).toContain('arrow://remove');
+		expect(events).toContain('arrow://event');
 		expect(events).toContain('runtime://update');
 	});
 
@@ -71,11 +71,30 @@ describe('setupListeners', () => {
 		expect(useArrowStore.getState().arrows.get('ns@v1')).toBeDefined();
 	});
 
-	it('arrow://remove deletes arrow', async () => {
+	it('arrow://event removed deletes arrow', async () => {
 		useArrowStore.getState().upsertArrow(makeArrow('ns@v1'));
 		await setupListeners();
-		captureHandler('arrow://remove')({ namespace: 'ns@v1' });
+		captureHandler('arrow://event')({ event: 'removed', namespace: 'ns@v1' });
 		expect(useArrowStore.getState().arrows.get('ns@v1')).toBeUndefined();
+	});
+
+	it('arrow://event upserted adds new arrow with default state', async () => {
+		await setupListeners();
+		captureHandler('arrow://event')({ event: 'upserted', namespace: 'ns@v2', name: 'MyArrow', version: '2.0' });
+		const arrow = useArrowStore.getState().arrows.get('ns@v2');
+		expect(arrow).toBeDefined();
+		expect(arrow?.name).toBe('MyArrow');
+		expect(arrow?.state).toBe('ready');
+		expect(arrow?.active_run).toBeNull();
+		expect(arrow?.last_outcome).toBeNull();
+	});
+
+	it('arrow://event upserted preserves existing state', async () => {
+		useArrowStore.getState().upsertArrow({ ...makeArrow('ns@v1'), state: 'running' });
+		await setupListeners();
+		captureHandler('arrow://event')({ event: 'upserted', namespace: 'ns@v1', name: 'X', version: '1.1' });
+		expect(useArrowStore.getState().arrows.get('ns@v1')?.state).toBe('running');
+		expect(useArrowStore.getState().arrows.get('ns@v1')?.version).toBe('1.1');
 	});
 
 	it('runtime://update applies state change', async () => {
@@ -85,7 +104,7 @@ describe('setupListeners', () => {
 			namespace: 'ns@v1',
 			state: 'running',
 			active_run: { method: '_execute', variables: {}, steps: [] },
-			last_outcome: null,
+			last_return: null,
 		});
 		expect(useArrowStore.getState().arrows.get('ns@v1')?.state).toBe('running');
 	});

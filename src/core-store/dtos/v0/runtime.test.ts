@@ -20,8 +20,14 @@ describe('toRuntimeUpdate', () => {
 		expect(result.active_run).toEqual(run);
 	});
 
-	it('defaults last_outcome to null when absent', () => {
+	it('defaults last_outcome to null when last_return absent', () => {
 		const result = toRuntimeUpdate({ namespace: 'ns@v1', state: 'ready' });
 		expect(result.last_outcome).toBeNull();
+	});
+
+	it('maps last_return wire field to last_outcome domain field', () => {
+		const lastReturn = { method: '_install', outcome: 'success' as const, variables: {}, steps: [] };
+		const result = toRuntimeUpdate({ namespace: 'ns@v1', state: 'ready', last_return: lastReturn });
+		expect(result.last_outcome).toEqual(lastReturn);
 	});
 });
