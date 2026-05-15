@@ -66,7 +66,7 @@ describe('useCollections', () => {
 	beforeEach(() => {
 		queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 		vi.mocked(http.fetchCollections).mockResolvedValue([
-			{ namespace: 'col/ns', name: 'Col', description: '', tags: [], arrow_count: 1, followed: false },
+			{ namespace: 'col/ns', name: 'Col', description: '', arrows: [] },
 		]);
 	});
 
@@ -85,14 +85,8 @@ describe('useCollectionDetail', () => {
 		vi.mocked(http.fetchCollectionDetail).mockResolvedValue({
 			namespace: 'col/ns',
 			name: 'Col',
-			version: '1.0.0',
 			description: '',
-			url: '',
-			maintainers: [],
-			tags: [],
-			media: {},
 			arrows: [],
-			followed: false,
 		});
 	});
 

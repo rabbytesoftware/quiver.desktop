@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
-import type { ArrowDetailDTO } from '@/domain/arrow';
-import type { CollectionDetailDTO, CollectionListItemDTO } from '@/domain/collection';
+import type { ArrowDetailDTO } from './dtos/v0/arrow';
+import type { CollectionDetailDTO, CollectionListItemDTO } from './dtos/v0/collection';
 
 import { fetchArrowDetail, fetchCollections, fetchCollectionDetail } from './http';
 

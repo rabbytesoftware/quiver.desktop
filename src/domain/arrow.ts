@@ -33,13 +33,6 @@ export interface LastOutcome {
 	outcome: 'success' | 'failed' | 'cancelled';
 }
 
-export interface LastReturn {
-	method: string;
-	outcome: 'success' | 'failed' | 'cancelled';
-	variables: Record<string, string>;
-	steps: StepProgress[];
-}
-
 /** The global store entry — merged catalog + runtime view. Key: versioned namespace (base@ref). */
 export interface ArrowListItem {
 	namespace: string;
@@ -50,36 +43,9 @@ export interface ArrowListItem {
 	last_outcome: LastOutcome | null;
 }
 
-export interface InstalledVersion {
-	ref: string;
-	version: string;
-	state: ArrowState;
-	installed_at: string;
-	constraint?: string;
-}
-
-/** Shape of GET /arrow list response items — used for initial hydration. */
-export interface ArrowListResponse {
+export interface RuntimeUpdate {
 	namespace: string;
-	name: string;
-	description: string;
-	tags: string[];
-	versions: InstalledVersion[];
-}
-
-/** Shape of GET /arrow/{ns} detail response. */
-export interface ArrowDetailDTO {
-	namespace: string;
-	name: string;
-	version: string;
-	description: string;
-	license: string;
 	state: ArrowState;
-	tags: string[];
-	installed_ref: string;
-	installed_at: string;
-	installed_constraint: string;
-	user_installed: boolean;
 	active_run: ActiveRun | null;
-	last_return: LastReturn | null;
+	last_outcome: LastOutcome | null;
 }
