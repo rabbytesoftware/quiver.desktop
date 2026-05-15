@@ -35,3 +35,6 @@ cocoa = "0.26"
 
 [dev-dependencies]
 wiremock = "0.6"
+
+[lints.clippy]
+cognitive_complexity = "warn"

@@ -6,6 +6,7 @@ import { RouterProvider, createRouter } from '@tanstack/react-router';
 import ReactDOM from 'react-dom/client';
 
 import { setupListeners } from '@/core-store';
+
 import { routeTree } from './routeTree.gen';
 
 setupListeners();
