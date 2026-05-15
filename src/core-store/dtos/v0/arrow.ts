@@ -1,4 +1,4 @@
-import type { ArrowListItem, ArrowState, ActiveRun, LastOutcome, StepProgress } from '@/domain/arrow';
+import type { ArrowListItem, ArrowState, ActiveRun, StepProgress } from '@/domain/arrow';
 
 export interface InstalledVersionDTO {
 	ref: string;
