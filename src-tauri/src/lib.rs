@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod connection;
 pub mod core_client;
 
 use core_client::CoreClient;
