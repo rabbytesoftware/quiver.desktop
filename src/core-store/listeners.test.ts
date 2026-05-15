@@ -5,7 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import type { ArrowListItem } from '@/domain/arrow';
 
 import { setupListeners } from './listeners';
-import { useArrowStore } from './store';
+import { useArrowStore } from './store/arrows';
 
 vi.mock('@tauri-apps/api/event', () => ({
 	listen: vi.fn(() => Promise.resolve(() => {})),

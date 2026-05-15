@@ -1,5 +1,5 @@
-import type { ArrowDetailDTO } from './dtos/v0/arrow';
-import type { CollectionDetailDTO, CollectionListItemDTO } from './dtos/v0/collection';
+import type { ArrowDetailDTO } from '../dtos/v0/arrow';
+import type { CollectionDetailDTO, CollectionListItemDTO } from '../dtos/v0/collection';
 
 const DEFAULT_BASE_URL = 'http://localhost:6982';
 

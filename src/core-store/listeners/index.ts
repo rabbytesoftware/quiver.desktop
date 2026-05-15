@@ -2,12 +2,15 @@ import { listen } from '@tauri-apps/api/event';
 
 import type { ArrowListItem } from '@/domain/arrow';
 
-import { useArrowStore } from './store';
-import type { CoreStatus } from './store';
+import { useArrowStore } from '../store/arrows';
+import type { CoreStatus } from '../store/arrows';
 
 export async function setupListeners(): Promise<void> {
 	await listen<{ status: CoreStatus }>('core://status', (e) => {
 		useArrowStore.getState().setStatus(e.payload.status);
+		if (e.payload.status === 'starting') {
+			useArrowStore.getState().resetArrows();
+		}
 	});
 
 	await listen<ArrowListItem[]>('arrow://hydrate', (e) => {

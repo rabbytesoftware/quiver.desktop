@@ -19,6 +19,7 @@ interface ArrowStore {
 	hydrateArrows: (items: ArrowListItem[]) => void;
 	applyRuntimeUpdate: (payload: RuntimeUpdatePayload) => void;
 	setStatus: (status: CoreStatus) => void;
+	resetArrows: () => void;
 }
 
 export const useArrowStore = create<ArrowStore>((set) => ({
@@ -63,4 +64,6 @@ export const useArrowStore = create<ArrowStore>((set) => ({
 		}),
 
 	setStatus: (status) => set({ status }),
+
+	resetArrows: () => set({ arrows: new Map() }),
 }));

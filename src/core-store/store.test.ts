@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import type { ArrowListItem } from '@/domain';
 
-import { useArrowStore } from './store';
+import { useArrowStore } from './store/arrows';
 
 const makeArrow = (namespace: string): ArrowListItem => ({
 	namespace,
