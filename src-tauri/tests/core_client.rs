@@ -36,8 +36,8 @@ async fn fetch_arrows_returns_list_items() {
 	let items = client.fetch_arrows().await.unwrap();
 
 	assert_eq!(items.len(), 1);
-	assert_eq!(items[0].namespace, "github.com/user/repo@v1.0.0");
-	assert_eq!(items[0].name, "My Arrow");
+	assert_eq!(items[0]["namespace"], "github.com/user/repo@v1.0.0");
+	assert_eq!(items[0]["name"], "My Arrow");
 }
 
 #[tokio::test]
