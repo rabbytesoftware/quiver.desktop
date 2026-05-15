@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type { ArrowListItem } from '@/domain';
 
 import { useArrowStore } from './store/arrows';
+import { useStatusStore } from './store/status';
 
 const makeArrow = (namespace: string): ArrowListItem => ({
 	namespace,
@@ -14,7 +15,8 @@ const makeArrow = (namespace: string): ArrowListItem => ({
 });
 
 beforeEach(() => {
-	useArrowStore.setState({ arrows: new Map(), status: 'starting' });
+	useArrowStore.setState({ arrows: new Map() });
+	useStatusStore.setState({ status: 'starting' });
 });
 
 describe('upsertArrow', () => {
@@ -90,7 +92,7 @@ describe('applyRuntimeUpdate', () => {
 
 describe('setStatus', () => {
 	it('updates core status', () => {
-		useArrowStore.getState().setStatus('ready');
-		expect(useArrowStore.getState().status).toBe('ready');
+		useStatusStore.getState().setStatus('ready');
+		expect(useStatusStore.getState().status).toBe('ready');
 	});
 });

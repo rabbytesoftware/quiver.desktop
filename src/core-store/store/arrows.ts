@@ -2,8 +2,6 @@ import { create } from 'zustand';
 
 import type { ArrowListItem } from '@/domain/arrow';
 
-export type CoreStatus = 'starting' | 'ready' | 'disconnected';
-
 interface RuntimeUpdatePayload {
 	namespace: string;
 	state: ArrowListItem['state'];
@@ -13,18 +11,15 @@ interface RuntimeUpdatePayload {
 
 interface ArrowStore {
 	arrows: Map<string, ArrowListItem>;
-	status: CoreStatus;
 	upsertArrow: (item: ArrowListItem) => void;
 	removeArrow: (namespace: string) => void;
 	hydrateArrows: (items: ArrowListItem[]) => void;
 	applyRuntimeUpdate: (payload: RuntimeUpdatePayload) => void;
-	setStatus: (status: CoreStatus) => void;
 	resetArrows: () => void;
 }
 
 export const useArrowStore = create<ArrowStore>((set) => ({
 	arrows: new Map(),
-	status: 'starting',
 
 	upsertArrow: (item) =>
 		set((s) => {
@@ -62,8 +57,6 @@ export const useArrowStore = create<ArrowStore>((set) => ({
 			});
 			return { arrows: next };
 		}),
-
-	setStatus: (status) => set({ status }),
 
 	resetArrows: () => set({ arrows: new Map() }),
 }));

@@ -1,5 +1,5 @@
 export { useArrowStore } from './store/arrows';
-export type { CoreStatus } from './store/arrows';
+export { useStatusStore } from './store/status';
 export { useConnectionStore, loadConnections } from './connection';
 export { setupListeners } from './listeners';
 export { useArrowDetail, useCollections, useCollectionDetail, queryKeys } from './queries';

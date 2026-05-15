@@ -6,6 +6,7 @@ import type { ArrowListItem } from '@/domain/arrow';
 
 import { setupListeners } from './listeners';
 import { useArrowStore } from './store/arrows';
+import { useStatusStore } from './store/status';
 
 vi.mock('@tauri-apps/api/event', () => ({
 	listen: vi.fn(() => Promise.resolve(() => {})),
@@ -25,7 +26,8 @@ const makeArrow = (ns: string): ArrowListItem => ({
 beforeEach(() => {
 	mockListen.mockReset();
 	mockListen.mockResolvedValue(() => {});
-	useArrowStore.setState({ arrows: new Map(), status: 'starting' });
+	useArrowStore.setState({ arrows: new Map() });
+	useStatusStore.setState({ status: 'starting' });
 });
 
 function captureHandler(eventName: string): (payload: unknown) => void {
@@ -54,7 +56,7 @@ describe('setupListeners', () => {
 	it('core://status updates store status', async () => {
 		await setupListeners();
 		captureHandler('core://status')({ status: 'ready' });
-		expect(useArrowStore.getState().status).toBe('ready');
+		expect(useStatusStore.getState().status).toBe('ready');
 	});
 
 	it('arrow://hydrate adds arrows to store', async () => {
