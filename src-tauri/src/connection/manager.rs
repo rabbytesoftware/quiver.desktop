@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use tauri::AppHandle;
+use tauri_plugin_store::StoreExt;
 use tokio::sync::RwLock;
 
 use crate::connection::local::LocalConnection;
@@ -121,15 +122,23 @@ async fn build_connection(
 	Ok(Box::new(conn))
 }
 
-// ── Persistence helpers (stubs — wired in Task 15) ───────────────────────────
+// ── Persistence helpers ───────────────────────────────────────────────────────
 
-async fn load_remote_configs(_app: &AppHandle) -> Vec<ConnectionConfig> {
-	vec![]
+async fn load_remote_configs(app: &AppHandle) -> Vec<ConnectionConfig> {
+	let store = match app.store("connections.json") {
+		Ok(s) => s,
+		Err(_) => return vec![],
+	};
+	let value = match store.get(STORE_KEY) {
+		Some(v) => v,
+		None => return vec![],
+	};
+	serde_json::from_value(value).unwrap_or_default()
 }
 
-async fn save_remote_configs(
-	_app: &AppHandle,
-	_configs: &[ConnectionConfig],
-) -> Result<(), String> {
-	Ok(())
+async fn save_remote_configs(app: &AppHandle, configs: &[ConnectionConfig]) -> Result<(), String> {
+	let store = app.store("connections.json").map_err(|e| e.to_string())?;
+	let value = serde_json::to_value(configs).map_err(|e| e.to_string())?;
+	store.set(STORE_KEY, value);
+	store.save().map_err(|e| e.to_string())
 }
