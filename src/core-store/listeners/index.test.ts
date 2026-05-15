@@ -4,9 +4,9 @@ import { listen } from '@tauri-apps/api/event';
 
 import type { ArrowListItem } from '@/domain/arrow';
 
-import { setupListeners } from './listeners';
-import { useArrowStore } from './store/arrows';
-import { useStatusStore } from './store/status';
+import { setupListeners } from './index';
+import { useArrowStore } from '../store/arrows';
+import { useStatusStore } from '../store/status';
 
 vi.mock('@tauri-apps/api/event', () => ({
 	listen: vi.fn(() => Promise.resolve(() => {})),
@@ -31,9 +31,8 @@ beforeEach(() => {
 });
 
 function captureHandler(eventName: string): (payload: unknown) => void {
-	const calls = mockListen.mock.calls;
-	const call = calls.find(([name]) => name === eventName);
-	if (!call) throw new Error(`No listener registered for ${eventName}`);
+	const call = mockListen.mock.calls.find(([name]) => name === eventName);
+	if (!call) throw new Error(`No listener for ${eventName}`);
 	return (payload) =>
 		(call[1] as (e: { payload: unknown; event: string; id: number; windowLabel: string }) => void)({
 			payload,
@@ -46,26 +45,33 @@ function captureHandler(eventName: string): (payload: unknown) => void {
 describe('setupListeners', () => {
 	it('registers handlers for all four events', async () => {
 		await setupListeners();
-		const registeredEvents = mockListen.mock.calls.map(([name]) => name);
-		expect(registeredEvents).toContain('core://status');
-		expect(registeredEvents).toContain('arrow://hydrate');
-		expect(registeredEvents).toContain('arrow://remove');
-		expect(registeredEvents).toContain('runtime://update');
+		const events = mockListen.mock.calls.map(([name]) => name);
+		expect(events).toContain('core://status');
+		expect(events).toContain('arrow://hydrate');
+		expect(events).toContain('arrow://remove');
+		expect(events).toContain('runtime://update');
 	});
 
-	it('core://status updates store status', async () => {
+	it('core://status updates status store', async () => {
 		await setupListeners();
 		captureHandler('core://status')({ status: 'ready' });
 		expect(useStatusStore.getState().status).toBe('ready');
 	});
 
-	it('arrow://hydrate adds arrows to store', async () => {
+	it('core://status starting resets arrow store', async () => {
+		useArrowStore.getState().upsertArrow(makeArrow('ns@v1'));
+		await setupListeners();
+		captureHandler('core://status')({ status: 'starting' });
+		expect(useArrowStore.getState().arrows.size).toBe(0);
+	});
+
+	it('arrow://hydrate adds arrows', async () => {
 		await setupListeners();
 		captureHandler('arrow://hydrate')([makeArrow('ns@v1')]);
 		expect(useArrowStore.getState().arrows.get('ns@v1')).toBeDefined();
 	});
 
-	it('arrow://remove deletes arrow from store', async () => {
+	it('arrow://remove deletes arrow', async () => {
 		useArrowStore.getState().upsertArrow(makeArrow('ns@v1'));
 		await setupListeners();
 		captureHandler('arrow://remove')({ namespace: 'ns@v1' });
