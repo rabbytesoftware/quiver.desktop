@@ -91,8 +91,8 @@ impl ConnectionManager {
 		save_remote_configs(app, &configs).await
 	}
 
-	pub fn http(&self) -> Arc<crate::connection::http::HttpClient> {
-		self.active.blocking_read().http()
+	pub async fn http(&self) -> Arc<crate::connection::http::HttpClient> {
+		self.active.read().await.http()
 	}
 }
 

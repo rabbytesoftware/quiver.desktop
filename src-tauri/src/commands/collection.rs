@@ -1,12 +1,13 @@
-use crate::core_client::CoreClient;
+use crate::connection::ConnectionManager;
 use tauri::State;
 
 #[tauri::command]
 pub async fn follow_collection(
-	state: State<'_, CoreClient>,
+	state: State<'_, ConnectionManager>,
 	namespace: String,
 ) -> Result<(), String> {
-	state.http
+	state.http()
+		.await
 		.follow_collection(&namespace)
 		.await
 		.map_err(|e| e.to_string())
@@ -14,10 +15,11 @@ pub async fn follow_collection(
 
 #[tauri::command]
 pub async fn unfollow_collection(
-	state: State<'_, CoreClient>,
+	state: State<'_, ConnectionManager>,
 	namespace: String,
 ) -> Result<(), String> {
-	state.http
+	state.http()
+		.await
 		.unfollow_collection(&namespace)
 		.await
 		.map_err(|e| e.to_string())

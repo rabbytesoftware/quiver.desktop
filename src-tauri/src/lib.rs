@@ -1,8 +1,8 @@
 pub mod commands;
 pub mod connection;
-pub mod core_client;
 
-use core_client::CoreClient;
+use connection::ConnectionManager;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -10,12 +10,11 @@ pub fn run() {
 		.plugin(tauri_plugin_store::Builder::default().build())
 		.plugin(tauri_plugin_shell::init())
 		.plugin(tauri_plugin_opener::init())
-		.manage(CoreClient::new())
+		.manage(ConnectionManager::new())
 		.setup(|app| {
 			let handle = app.handle().clone();
-			let client = CoreClient::new();
 			tauri::async_runtime::spawn(async move {
-				client.start(handle).await;
+				handle.state::<ConnectionManager>().start(handle.clone()).await;
 			});
 			Ok(())
 		})
@@ -28,6 +27,11 @@ pub fn run() {
 			commands::runtime::uninstall,
 			commands::runtime::execute,
 			commands::runtime::stop,
+			commands::connection::list_connections,
+			commands::connection::add_connection,
+			commands::connection::remove_connection,
+			commands::connection::switch_connection,
+			commands::connection::rename_connection,
 		])
 		.run(tauri::generate_context!())
 		.expect("error while running tauri application");
