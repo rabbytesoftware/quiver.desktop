@@ -298,7 +298,7 @@ invoke('add_connection', {
 }): Promise<ConnectionConfig>
 ```
 
-Persists the connection metadata to the store and the token to the OS keychain. Negotiates API version via `GET /version` against the remote host before returning.
+Persists the connection metadata to the store and the token to the OS keychain. Negotiates API version via `GET /versions` against the remote host before returning. Picks the highest version in `api.supported` that the desktop can speak; falls back to `v0` on 404.
 
 **`remove_connection`**
 
