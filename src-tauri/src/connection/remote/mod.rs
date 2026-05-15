@@ -107,7 +107,6 @@ impl QuiverConnection for RemoteConnection {
 
 		WsManager::new(
 			WsTarget::Tcp(self.transport.base_ws_url()),
-			Arc::clone(&self.http),
 			Arc::new(app.clone()),
 		)
 		.start();

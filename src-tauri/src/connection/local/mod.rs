@@ -82,7 +82,6 @@ impl QuiverConnection for LocalConnection {
 
 		WsManager::new(
 			WsTarget::Unix(self.socket_path.clone()),
-			Arc::clone(&self.http),
 			Arc::new(app.clone()),
 		)
 		.start();
