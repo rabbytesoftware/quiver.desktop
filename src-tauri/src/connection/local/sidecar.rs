@@ -14,7 +14,9 @@ pub struct SidecarManager {
 
 impl SidecarManager {
 	pub fn new(socket_path: impl Into<String>) -> Self {
-		Self { socket_path: socket_path.into() }
+		Self {
+			socket_path: socket_path.into(),
+		}
 	}
 
 	pub fn socket_path(&self) -> &str {

@@ -38,7 +38,9 @@ pub async fn run_runtime_ws<E: Emitter>(target: WsTarget, emitter: Arc<E>) {
 		match &target {
 			WsTarget::Tcp(base) => {
 				let url = format!("{}/v0/runtime", base);
-				if let Ok((mut ws, _)) = tokio_tungstenite::connect_async(&url).await {
+				if let Ok((mut ws, _)) =
+					tokio_tungstenite::connect_async(&url).await
+				{
 					run_ws_loop(&mut ws, emitter.as_ref()).await;
 				}
 			}
@@ -60,7 +62,9 @@ where
 	while let Some(msg) = ws.next().await {
 		match msg {
 			Ok(Message::Text(text)) => {
-				if let Ok(parsed) = serde_json::from_str::<RuntimeWsMessage>(&text.to_string()) {
+				if let Ok(parsed) =
+					serde_json::from_str::<RuntimeWsMessage>(&text.to_string())
+				{
 					emitter.emit_runtime_update(to_runtime_update(parsed));
 				}
 			}

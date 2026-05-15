@@ -1,4 +1,4 @@
-use crate::connection::{ConnectionManager, types::ConnectionConfig};
+use crate::connection::{types::ConnectionConfig, ConnectionManager};
 use tauri::{AppHandle, State};
 
 #[tauri::command]

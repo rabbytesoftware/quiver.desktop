@@ -2,7 +2,10 @@ use crate::connection::ConnectionManager;
 use tauri::State;
 
 #[tauri::command]
-pub async fn register_arrow(state: State<'_, ConnectionManager>, namespace: String) -> Result<(), String> {
+pub async fn register_arrow(
+	state: State<'_, ConnectionManager>,
+	namespace: String,
+) -> Result<(), String> {
 	state.http()
 		.await
 		.register_arrow(&namespace)
@@ -11,7 +14,10 @@ pub async fn register_arrow(state: State<'_, ConnectionManager>, namespace: Stri
 }
 
 #[tauri::command]
-pub async fn remove_arrow(state: State<'_, ConnectionManager>, namespace: String) -> Result<(), String> {
+pub async fn remove_arrow(
+	state: State<'_, ConnectionManager>,
+	namespace: String,
+) -> Result<(), String> {
 	state.http()
 		.await
 		.remove_arrow(&namespace)

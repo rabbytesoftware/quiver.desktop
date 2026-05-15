@@ -1,9 +1,9 @@
 mod common;
 
-use std::sync::Arc;
 use quiverdesktop_lib::connection::http::{HttpClient, HttpTransport};
 use quiverdesktop_lib::connection::remote::{transport::RemoteTransport, RemoteConnection};
 use quiverdesktop_lib::connection::types::QuiverConnection;
+use std::sync::Arc;
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -129,14 +129,9 @@ async fn version_negotiation_picks_supported_version() {
 		.mount(&server)
 		.await;
 
-	let conn = RemoteConnection::new(
-		"id".into(),
-		"name".into(),
-		server.uri(),
-		"".into(),
-	)
-	.await
-	.unwrap();
+	let conn = RemoteConnection::new("id".into(), "name".into(), server.uri(), "".into())
+		.await
+		.unwrap();
 
 	assert_eq!(conn.config().api_version, "v0");
 }
@@ -146,14 +141,9 @@ async fn version_negotiation_falls_back_on_404() {
 	let server = MockServer::start().await;
 	// No /versions mock mounted — wiremock returns 404 by default
 
-	let conn = RemoteConnection::new(
-		"id".into(),
-		"name".into(),
-		server.uri(),
-		"".into(),
-	)
-	.await
-	.unwrap();
+	let conn = RemoteConnection::new("id".into(), "name".into(), server.uri(), "".into())
+		.await
+		.unwrap();
 
 	assert_eq!(conn.config().api_version, "v0");
 }

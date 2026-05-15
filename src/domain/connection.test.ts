@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { localConnection, LOCAL_CONNECTION_ID } from './connection';
 
 describe('localConnection', () => {

@@ -20,6 +20,7 @@ export default defineConfig({
             exclude: [
                 'src/routeTree.gen.ts',
                 'src/main.tsx',
+                'src/routes/**',
                 'src/**/*.test.ts',
                 'src/**/*.test.tsx',
                 'src/__mocks__/**',

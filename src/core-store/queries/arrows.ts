@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
 import type { ArrowDetailDTO } from '../dtos/v0/arrow';
-
 import { fetchArrowDetail } from '../http';
 import { queryKeys } from './index';
 

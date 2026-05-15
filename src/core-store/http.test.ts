@@ -31,6 +31,19 @@ describe('fetchArrowDetail', () => {
 		vi.stubGlobal('fetch', mockFetch(null, false));
 		await expect(fetchArrowDetail('ns@v1', 'http://localhost:6982')).rejects.toThrow('api error');
 	});
+
+	it('throws Unknown error when error field is null', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({
+				ok: false,
+				json: () => Promise.resolve({ success: false, data: undefined, error: null }),
+			}),
+		);
+		await expect(fetchArrowDetail('ns@v1', 'http://localhost:6982')).rejects.toThrow(
+			'Unknown error',
+		);
+	});
 });
 
 describe('fetchCollections', () => {

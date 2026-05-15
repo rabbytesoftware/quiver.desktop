@@ -3,10 +3,10 @@ import { listen } from '@tauri-apps/api/event';
 import type { ArrowListItem } from '@/domain/arrow';
 import type { ConnectionStatus } from '@/domain/connection';
 
-import { useArrowStore } from '../store/arrows';
-import { useStatusStore } from '../store/status';
 import type { RuntimeUpdateDTO } from '../dtos/v0/runtime';
 import { toRuntimeUpdate } from '../dtos/v0/runtime';
+import { useArrowStore } from '../store/arrows';
+import { useStatusStore } from '../store/status';
 
 export async function setupListeners(): Promise<void> {
 	await listen<{ status: ConnectionStatus }>('core://status', (e) => {

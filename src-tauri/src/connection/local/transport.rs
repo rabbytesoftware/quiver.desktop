@@ -14,7 +14,9 @@ pub struct LocalTransport {
 
 impl LocalTransport {
 	pub fn new(socket_path: impl Into<String>) -> Self {
-		Self { socket_path: socket_path.into() }
+		Self {
+			socket_path: socket_path.into(),
+		}
 	}
 
 	fn uri(&self, path: &str) -> hyper::Uri {
@@ -82,10 +84,7 @@ impl HttpTransport for LocalTransport {
 pub async fn connect_unix_ws(
 	socket_path: &str,
 	path: &str,
-) -> Result<
-	tokio_tungstenite::WebSocketStream<tokio::net::UnixStream>,
-	WsError,
-> {
+) -> Result<tokio_tungstenite::WebSocketStream<tokio::net::UnixStream>, WsError> {
 	let stream = tokio::net::UnixStream::connect(socket_path)
 		.await
 		.map_err(WsError::Io)?;

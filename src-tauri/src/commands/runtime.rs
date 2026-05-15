@@ -44,5 +44,9 @@ pub async fn execute(
 
 #[tauri::command]
 pub async fn stop(state: State<'_, ConnectionManager>, namespace: String) -> Result<(), String> {
-	state.http().await.stop(&namespace).await.map_err(|e| e.to_string())
+	state.http()
+		.await
+		.stop(&namespace)
+		.await
+		.map_err(|e| e.to_string())
 }

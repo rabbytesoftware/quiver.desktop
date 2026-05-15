@@ -20,6 +20,12 @@ pub struct LocalConnection {
 	socket_path: String,
 }
 
+impl Default for LocalConnection {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 impl LocalConnection {
 	pub fn new() -> Self {
 		let socket_path = default_socket_path();

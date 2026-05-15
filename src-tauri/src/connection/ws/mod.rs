@@ -14,7 +14,11 @@ pub struct WsManager<E: Emitter> {
 
 impl<E: Emitter + 'static> WsManager<E> {
 	pub fn new(target: WsTarget, http: Arc<HttpClient>, emitter: Arc<E>) -> Self {
-		Self { target, http, emitter }
+		Self {
+			target,
+			http,
+			emitter,
+		}
 	}
 
 	pub fn start(self) {

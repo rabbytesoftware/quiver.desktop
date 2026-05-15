@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
 import type { CollectionDetailDTO, CollectionListItemDTO } from '../dtos/v0/collection';
-
 import { fetchCollections, fetchCollectionDetail } from '../http';
 import { queryKeys } from './index';
 

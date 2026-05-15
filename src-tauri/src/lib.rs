@@ -14,7 +14,9 @@ pub fn run() {
 		.setup(|app| {
 			let handle = app.handle().clone();
 			tauri::async_runtime::spawn(async move {
-				handle.state::<ConnectionManager>().start(handle.clone()).await;
+				handle.state::<ConnectionManager>()
+					.start(handle.clone())
+					.await;
 			});
 			Ok(())
 		})

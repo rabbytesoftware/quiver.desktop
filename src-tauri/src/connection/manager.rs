@@ -15,9 +15,17 @@ pub struct ConnectionManager {
 	active: RwLock<Box<dyn QuiverConnection>>,
 }
 
+impl Default for ConnectionManager {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 impl ConnectionManager {
 	pub fn new() -> Self {
-		Self { active: RwLock::new(Box::new(LocalConnection::new())) }
+		Self {
+			active: RwLock::new(Box::new(LocalConnection::new())),
+		}
 	}
 
 	pub async fn start(&self, app: AppHandle) {
@@ -103,10 +111,7 @@ impl ConnectionManager {
 	}
 }
 
-async fn build_connection(
-	app: &AppHandle,
-	id: &str,
-) -> Result<Box<dyn QuiverConnection>, String> {
+async fn build_connection(app: &AppHandle, id: &str) -> Result<Box<dyn QuiverConnection>, String> {
 	if id == "local" {
 		return Ok(Box::new(LocalConnection::new()));
 	}
