@@ -124,6 +124,7 @@ pub trait QuiverConnection: Send + Sync {
 	async fn teardown(&self);
 	fn http(&self) -> Arc<HttpClient>;
 	fn config(&self) -> &ConnectionConfig;
+	fn set_name(&mut self, name: String);
 }
 
 // ── Emitter trait ────────────────────────────────────────────────────────────

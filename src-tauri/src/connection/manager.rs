@@ -68,9 +68,10 @@ impl ConnectionManager {
 
 	pub async fn switch_connection(&self, app: &AppHandle, id: &str) -> Result<(), String> {
 		let new_conn = build_connection(app, id).await?;
-		self.active.read().await.teardown().await;
-		*self.active.write().await = new_conn;
-		self.active.read().await.start(app).await;
+		let mut guard = self.active.write().await;
+		guard.teardown().await;
+		*guard = new_conn;
+		guard.start(app).await;
 		Ok(())
 	}
 
@@ -85,10 +86,16 @@ impl ConnectionManager {
 		}
 		let mut configs = load_remote_configs(app).await;
 		match configs.iter_mut().find(|c| c.id == id) {
-			Some(cfg) => cfg.name = name,
+			Some(cfg) => cfg.name = name.clone(),
 			None => return Err(format!("connection {id} not found")),
 		}
-		save_remote_configs(app, &configs).await
+		save_remote_configs(app, &configs).await?;
+		// Keep active in-memory config in sync
+		let mut guard = self.active.write().await;
+		if guard.config().id == id {
+			guard.set_name(name);
+		}
+		Ok(())
 	}
 
 	pub async fn http(&self) -> Arc<crate::connection::http::HttpClient> {

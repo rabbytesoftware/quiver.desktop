@@ -91,4 +91,8 @@ impl QuiverConnection for LocalConnection {
 	fn config(&self) -> &ConnectionConfig {
 		&self.config
 	}
+
+	fn set_name(&mut self, name: String) {
+		self.config.name = name;
+	}
 }

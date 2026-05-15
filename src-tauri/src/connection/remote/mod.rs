@@ -122,6 +122,10 @@ impl QuiverConnection for RemoteConnection {
 	fn config(&self) -> &ConnectionConfig {
 		&self.config
 	}
+
+	fn set_name(&mut self, name: String) {
+		self.config.name = name;
+	}
 }
 
 // ── Tests (expose negotiate_version for integration tests) ───────────────────
