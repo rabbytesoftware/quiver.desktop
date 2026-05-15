@@ -7,7 +7,7 @@ The IPC bridge is the contract between the Rust backend and the TypeScript front
 The bridge has two directions:
 
 - **Events** (Rust → TypeScript): Rust emits typed JSON payloads that TypeScript subscribes to. Used for all reactive state updates — connection status, arrow catalog changes, and runtime transitions.
-- **Commands** (TypeScript → Rust): TypeScript calls named Rust functions via `invoke()`. Used for all mutations — installing, uninstalling, executing, registering, following, and managing connections.
+- **Commands** (TypeScript → Rust): TypeScript calls named Rust functions via `invoke()`. Used for all mutations and on-demand queries.
 
 The TypeScript frontend never connects directly to quiver.core. All quiver.core interaction is owned by Rust. TypeScript's only job is to maintain state from events and dispatch commands.
 
@@ -33,9 +33,9 @@ flowchart LR
     end
 
     subgraph TypeScript
-        LS[listeners/\nevent wiring]
-        ST[Zustand store\nglobal state]
-        MU[mutations/\ninvoke wrappers]
+        LS[lib/connection/listeners\nevent wiring]
+        ST[Zustand stores\nglobal state]
+        MU[lib/core-store/mutations\ninvoke wrappers]
     end
 
     CC -->|emit| EVT --> LS --> ST
@@ -57,15 +57,15 @@ Events are emitted by the Rust `Emitter` trait, implemented on `AppHandle`. All 
 | Event | When emitted | Frequency |
 |---|---|---|
 | `core://status` | Connection start, ready, disconnect, or switch | Low — lifecycle only |
-| `arrow://hydrate` | Startup hydration and after any catalog structural change | Low — user-triggered |
-| `arrow://remove` | Arrow tombstoned (`removed: true` on WS push) | Low — user-triggered |
+| `arrow://event` | Arrow upserted or removed on the catalog WS | Low — user-triggered |
 | `runtime://update` | Every ArrowRuntime WS push from quiver.core | High — every step transition |
+| `connection://changed` | Any connection mutation (add, remove, switch, rename) | Low — user-triggered |
 
 ---
 
 ### 2.2 `core://status`
 
-Emitted when the active connection lifecycle state changes. TypeScript uses this to show a connection indicator in the UI. Also emitted at the start of a connection switch — TypeScript wipes the arrow store on `starting` and re-hydrates from the incoming connection's events.
+Emitted when the active connection lifecycle state changes. TypeScript uses this to show a connection indicator in the UI. On `starting`, TypeScript wipes the arrow store. On `ready`, TypeScript calls `get_arrows()` and `get_connections()` to hydrate.
 
 **Payload:**
 
@@ -77,7 +77,7 @@ Emitted when the active connection lifecycle state changes. TypeScript uses this
 
 ```
 ConnectionManager starts  → emit { status: "starting" }
-Health check passes       → emit { status: "ready" }
+Health check passes       → emit { status: "ready" }   ← TS hydrates here
 Connection lost           → emit { status: "disconnected" }
 ```
 
@@ -85,55 +85,37 @@ Connection lost           → emit { status: "disconnected" }
 
 ```
 switch_connection called  → teardown active WS
-                          → emit { status: "starting" }   ← TypeScript wipes store here
-New connection starts     → emit { status: "ready" }
+                          → emit { status: "starting" }   ← TS wipes store here
+New connection starts     → emit { status: "ready" }      ← TS hydrates here
 ```
 
 ---
 
-### 2.3 `arrow://hydrate`
+### 2.3 `arrow://event`
 
-Emitted in chunks of up to 100 items. TypeScript merges each chunk into the store without wiping existing entries. Emitted on two occasions:
-
-1. **Startup** — after sidecar is ready, Rust fetches `GET /v0/arrow?user_installed=true` and streams the result in 100-item chunks.
-2. **Catalog change** — after any `arrow.added` or structural WS event, Rust re-fetches the full list and re-emits all chunks.
+Emitted on every message from the `/v0/arrow` WebSocket channel. Covers both upserts and removals. TypeScript performs an O(1) map update keyed on `namespace`.
 
 **Payload:**
-
-```typescript
-ArrowListItem[]   // up to 100 items per event
-```
-
-Where `ArrowListItem` is:
 
 ```typescript
 {
-    namespace:    string        // versioned: "github.com/user/repo@v1.0.0"
-    name:         string
-    version:      string
-    state:        ArrowState
-    active_run:   ActiveRun | null
-    last_outcome: LastOutcome | null
+    event:        "upserted" | "removed"
+    namespace:    string           // versioned: "github.com/user/repo@v1.0.0"
+    name?:        string
+    description?: string
+    tags?:        string[]
+    icon?:        string | null
+    banner?:      string | null
 }
 ```
 
-**Note:** `active_run` is `null` in hydration payloads — the list endpoint does not carry execution state. The runtime WS fills it in immediately after. The gap is milliseconds.
+For `removed` events, only `namespace` is present. For `upserted` events, all fields are present.
+
+`icon` and `banner` are available after quiver.core PR #184 lands.
 
 ---
 
-### 2.4 `arrow://remove`
-
-Emitted when the Arrow WS channel pushes a message with `removed: true`. TypeScript removes the entry from the store by namespace key.
-
-**Payload:**
-
-```typescript
-{ namespace: string }   // versioned namespace: "github.com/user/repo@v1.0.0"
-```
-
----
-
-### 2.5 `runtime://update`
+### 2.4 `runtime://update`
 
 Emitted on every message from the `/v0/runtime` WebSocket channel. This is the highest-frequency event — it fires on every state transition and step advancement. TypeScript performs an O(1) map update; no diffing, no re-renders for unrelated arrows.
 
@@ -141,10 +123,10 @@ Emitted on every message from the `/v0/runtime` WebSocket channel. This is the h
 
 ```typescript
 {
-    namespace:    string        // versioned: "github.com/user/repo@v1.0.0"
-    state:        ArrowState
-    active_run:   ActiveRun | null
-    last_outcome: LastOutcome | null   // slim — method + outcome only, no steps
+    namespace:   string        // versioned: "github.com/user/repo@v1.0.0"
+    state:       ArrowState
+    active_run:  ActiveRun | null
+    last_return: Return | null   // slim — method + outcome only, no steps
 }
 ```
 
@@ -155,19 +137,62 @@ absent | installing | updating | ready | running |
 stopping | draining | detached | uninstalling | removed | outdated
 ```
 
-`last_outcome` carries only `{ method, outcome }` — the full step history of a completed execution is fetched on demand via `GET /v0/arrow/{ns}` when the user opens the detail view.
+`last_return` carries only `{ method, outcome }` — the full step history of a completed execution is fetched on demand via `get_arrow_detail` when the user opens the detail view.
 
 ---
 
-## 3. Commands (TypeScript → Rust)
+### 2.5 `connection://changed`
 
-Commands are invoked via `invoke(commandName, args)` from `@tauri-apps/api/core`. All commands are async. On success they resolve to `void`. On failure they reject with a `string` error message from Rust.
+Emitted after every connection mutation — add, remove, switch, or rename. TypeScript never derives connection state independently; this event is the single source of truth.
 
-TypeScript never calls quiver.core HTTP endpoints for mutations — all writes go through Rust commands.
+**Payload:**
 
-### 3.1 Command Catalog
+```typescript
+{
+    connections: ConnectionConfig[]
+    active_id:   string
+}
+```
 
-**quiver.core commands** — proxied through the active connection:
+---
+
+## 3. TypeScript Store
+
+`useArrowStore` holds one merged entry per versioned namespace, built from two channels:
+
+```typescript
+interface ArrowEntry {
+    // from arrow://event / get_arrows()
+    namespace:   string
+    name:        string
+    description: string
+    tags:        string[]
+    icon:        string | null
+    banner:      string | null
+    version:     string
+    state:       ArrowState      // overwritten by runtime://update on each push
+
+    // from runtime://update
+    active_run:  ActiveRun | null
+    last_return: Return | null
+}
+```
+
+An entry may exist with display fields but no runtime fields (runtime update not yet received). The UI must tolerate this state without crashing.
+
+`useConnectionStore` holds `{ connections: ConnectionConfig[], activeId: string }`, updated only from `connection://changed` events and the initial `get_connections()` response.
+
+---
+
+## 4. Commands (TypeScript → Rust)
+
+Commands are invoked via `invoke(commandName, args)` from `@tauri-apps/api/core`. All commands are async. On success they resolve to the specified return type. On failure they reject with a structured `CommandError`.
+
+TypeScript never calls quiver.core HTTP endpoints directly — all reads and writes go through Rust commands.
+
+### 4.1 Command Catalog
+
+**quiver.core mutation commands** — proxied through the active connection:
 
 | Command | HTTP method | quiver.core endpoint |
 |---|---|---|
@@ -180,11 +205,18 @@ TypeScript never calls quiver.core HTTP endpoints for mutations — all writes g
 | `follow_collection` | POST | `/v0/collection/{ns}/follow` |
 | `unfollow_collection` | DELETE | `/v0/collection/{ns}/follow` |
 
+**quiver.core query commands** — proxied through the active connection:
+
+| Command | HTTP method | quiver.core endpoint | Returns |
+|---|---|---|---|
+| `get_arrows` | GET | `/v0/arrow?user_installed=true` | `ArrowEntry[]` (slim) |
+| `get_arrow_detail` | GET | `/v0/arrow/{ns}` | `ArrowDetailDTO` |
+
 **Connection management commands** — handled entirely in Rust, do not call quiver.core:
 
 | Command | Returns | Description |
 |---|---|---|
-| `list_connections` | `ConnectionConfig[]` | All configured connections (no tokens) |
+| `get_connections` | `{ connections, active_id }` | Current connection list and active ID |
 | `add_connection` | `ConnectionConfig` | Persist new remote connection |
 | `remove_connection` | `void` | Delete connection metadata and token |
 | `switch_connection` | `void` | Tear down active, start new connection |
@@ -192,13 +224,13 @@ TypeScript never calls quiver.core HTTP endpoints for mutations — all writes g
 
 ---
 
-### 3.2 Runtime commands
+### 4.2 Runtime commands
 
 **`install`**
 
 ```typescript
 invoke('install', {
-    namespace: string,              // versioned namespace
+    namespace: string,
     variables?: Record<string, string>
 }): Promise<void>
 ```
@@ -219,7 +251,7 @@ invoke('uninstall', {
 ```typescript
 invoke('execute', {
     namespace: string,
-    method:    string,              // "_execute", "_update", or a custom method name
+    method:    string,    // "_execute", "_update", or a custom method name
     variables?: Record<string, string>
 }): Promise<void>
 ```
@@ -234,31 +266,45 @@ invoke('stop', {
 
 ---
 
-### 3.3 Arrow commands
+### 4.3 Arrow commands
 
 **`register_arrow`**
 
 ```typescript
 invoke('register_arrow', {
-    namespace: string               // versioned namespace
+    namespace: string
 }): Promise<void>
 ```
-
-Triggers `POST /v0/arrow/{ns}`. Synchronous — quiver.core confirms registration before returning.
 
 **`remove_arrow`**
 
 ```typescript
 invoke('remove_arrow', {
-    namespace: string               // must include @ref (e.g. github.com/user/repo@v1.0.0)
+    namespace: string    // must include @ref (e.g. github.com/user/repo@v1.0.0)
 }): Promise<void>
 ```
 
-Triggers `DELETE /v0/arrow/{ns}`. Synchronous.
+**`get_arrows`**
+
+```typescript
+invoke('get_arrows'): Promise<ArrowEntry[]>
+```
+
+Returns the slim arrow list — display fields and current `state` per versioned namespace. Called on `core://status: ready` and on-demand for resync.
+
+**`get_arrow_detail`**
+
+```typescript
+invoke('get_arrow_detail', {
+    namespace: string
+}): Promise<ArrowDetailDTO>
+```
+
+Returns the full detail for a single arrow including targets, requirements, dependencies, and full `last_return`. Not stored — fetched when the user opens a detail view.
 
 ---
 
-### 3.4 Collection commands
+### 4.4 Collection commands
 
 **`follow_collection`**
 
@@ -278,15 +324,15 @@ invoke('unfollow_collection', {
 
 ---
 
-### 3.5 Connection commands
+### 4.5 Connection commands
 
-**`list_connections`**
+**`get_connections`**
 
 ```typescript
-invoke('list_connections'): Promise<ConnectionConfig[]>
+invoke('get_connections'): Promise<{ connections: ConnectionConfig[], active_id: string }>
 ```
 
-Returns all configured connections. Tokens are never included. The local connection is always first in the list.
+Returns the full connection list and active ID. Called on `core://status: ready` and on-demand for resync. Supersedes `list_connections`.
 
 **`add_connection`**
 
@@ -318,7 +364,7 @@ invoke('switch_connection', {
 }): Promise<void>
 ```
 
-Tears down the active connection and starts the new one. Emits `core://status: starting` immediately, then `core://status: ready` once the new connection is hydrated.
+Tears down the active connection and starts the new one. Emits `core://status: starting` immediately, then `core://status: ready` once the new connection is ready.
 
 **`rename_connection`**
 
@@ -331,22 +377,32 @@ invoke('rename_connection', {
 
 ---
 
-## 4. Error Model
+## 5. Error Model
 
-Rust maps quiver.core HTTP errors to string messages before returning them to TypeScript. TypeScript receives a rejected `Promise<string>`.
+All Rust commands return a structured error on failure. TypeScript receives a rejected `Promise<CommandError>`.
 
-| quiver.core status | Rust behaviour | TypeScript sees |
+```typescript
+interface CommandError {
+    code:    number   // HTTP status code
+    message: string   // human-readable, safe to display
+}
+```
+
+| code | source | meaning |
 |---|---|---|
-| 202 Accepted | Resolve `Ok(())` | Promise resolves |
-| 4xx Client error | `Err(response body or status)` | Promise rejects with message string |
-| 5xx Server error | `Err("internal error")` | Promise rejects with message string |
-| Network failure | `Err("request failed: ...")` | Promise rejects with message string |
+| 400 | quiver.core | invalid namespace |
+| 404 | quiver.core | not found / method not found |
+| 409 | quiver.core | already exists / cyclic dependency |
+| 422 | quiver.core | state violation / missing variable / invalid manifest / platform not supported |
+| 502 | quiver.core | fetch failed (manifest registry unreachable) |
+| 503 | Rust | connection-level failure (socket unreachable, sidecar crash) |
+| 500 | quiver.core | internal error |
 
 TanStack `useMutation` surfaces the rejection via its `error` field. State transitions triggered by a rejected command are not reflected in the store — the WS runtime channel is the authoritative source of state, not the command response.
 
 ---
 
-## 5. Startup Sequence
+## 6. Startup Sequence
 
 ```mermaid
 sequenceDiagram
@@ -354,17 +410,22 @@ sequenceDiagram
     participant Rust as Rust (ConnectionManager)
     participant Core as quiver.core (local Unix socket)
 
-    TS->>TS: setupListeners() — register all 4 event handlers
+    TS->>TS: setupListeners() — register all event handlers
     Rust->>TS: core://status { status: "starting" }
+    TS->>TS: wipe arrow store
     Rust->>Core: spawn sidecar
     Rust->>Core: GET /health (poll until 200)
-    Rust->>Core: GET /v0/arrow?user_installed=true
-    Core-->>Rust: ArrowListResponse[]
-    Rust->>TS: arrow://hydrate (chunk 1 of N)
-    Rust->>TS: arrow://hydrate (chunk 2 of N)
-    Rust->>TS: core://status { status: "ready" }
     Rust->>Core: WS connect /v0/arrow
     Rust->>Core: WS connect /v0/runtime
+    Rust->>TS: core://status { status: "ready" }
+    TS->>Rust: get_arrows()
+    Rust->>Core: GET /v0/arrow?user_installed=true
+    Core-->>Rust: ArrowListResponse
+    Rust-->>TS: ArrowEntry[]
+    TS->>TS: hydrate arrow store
+    TS->>Rust: get_connections()
+    Rust-->>TS: { connections, active_id }
+    TS->>TS: hydrate connection store
     Core-->>Rust: runtime WS pushes (ongoing)
     Rust->>TS: runtime://update (ongoing)
 ```
@@ -373,7 +434,7 @@ TypeScript must call `setupListeners()` before the Rust startup sequence emits i
 
 ---
 
-## 6. Namespace Encoding
+## 7. Namespace Encoding
 
 Namespaces passed to commands contain `/` characters. Rust percent-encodes them before appending to quiver.core URLs (`/` → `%2F`). TypeScript passes raw versioned namespaces to `invoke()` — no encoding needed on the TypeScript side.
 
