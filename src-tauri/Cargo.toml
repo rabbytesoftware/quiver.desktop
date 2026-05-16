@@ -30,6 +30,7 @@ tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 futures-util = "0.3"
 thiserror = "1"
 log = "0.4"
+tauri-plugin-log = "2"
 async-trait = "0.1"
 hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "tokio"] }
