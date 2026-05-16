@@ -6,7 +6,7 @@ on:
     types: [ opened, synchronize, reopened, ready_for_review ]
 
 env:
-  RUST_VERSION: '1.85'
+  RUST_VERSION: 'stable'
   BUN_VERSION: 'latest'
 
 jobs:
