@@ -16,6 +16,23 @@ pub fn run() {
 		.manage(ConnectionManager::new())
 		.setup(|app| {
 			let handle = app.handle().clone();
+
+			#[cfg(target_os = "macos")]
+			if let Some(window) = app.get_webview_window("main") {
+				use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+				if let Err(e) = apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None) {
+					log::warn!("vibrancy failed: {e}");
+				}
+			}
+
+			#[cfg(target_os = "windows")]
+			if let Some(window) = app.get_webview_window("main") {
+				use window_vibrancy::apply_acrylic;
+				if let Err(e) = apply_acrylic(&window, Some((18, 18, 18, 125))) {
+					log::warn!("acrylic failed: {e}");
+				}
+			}
+
 			tauri::async_runtime::spawn(async move {
 				handle.state::<ConnectionManager>()
 					.start(handle.clone())
