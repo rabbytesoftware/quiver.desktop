@@ -14,6 +14,7 @@ BUN          := $(shell command -v bun 2>/dev/null || echo $(HOME)/.bun/bin/bun)
 BUNX         := $(shell command -v bunx 2>/dev/null || echo $(HOME)/.bun/bin/bunx)
 CARGO        := $(shell command -v cargo 2>/dev/null || ls $(HOME)/.rustup/toolchains/*/bin/cargo 2>/dev/null | head -1 || echo $(HOME)/.cargo/bin/cargo)
 RUSTC        := $(shell command -v rustc 2>/dev/null || ls $(HOME)/.rustup/toolchains/*/bin/rustc 2>/dev/null | head -1 || echo $(HOME)/.cargo/bin/rustc)
+export PATH  := $(dir $(CARGO)):$(PATH)
 TARGET_TRIPLE := $(shell $(RUSTC) -vV 2>/dev/null | grep '^host:' | awk '{print $$2}')
 _CORE_VERSION := $(shell node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]')
 
