@@ -149,3 +149,21 @@ async fn version_negotiation_falls_back_on_404() {
 
 	assert_eq!(conn.config().api_version, "v0");
 }
+
+#[tokio::test]
+async fn remove_arrow_sends_delete_to_correct_path() {
+	let server = MockServer::start().await;
+	Mock::given(method("DELETE"))
+		.and(path("/v0/arrow/github.com%2Fuser%2Frepo@v1.0.0"))
+		.respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+		    "success": true, "data": null, "error": null
+		})))
+		.mount(&server)
+		.await;
+
+	let client = make_client(&server.uri());
+	assert!(client
+		.remove_arrow("github.com/user/repo@v1.0.0")
+		.await
+		.is_ok());
+}

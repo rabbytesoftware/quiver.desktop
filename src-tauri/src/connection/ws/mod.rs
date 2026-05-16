@@ -1,4 +1,5 @@
 pub mod arrow;
+pub mod connector;
 pub mod runtime;
 
 use std::sync::Arc;

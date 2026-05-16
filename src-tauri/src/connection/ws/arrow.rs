@@ -3,17 +3,13 @@ use std::sync::Arc;
 use futures_util::{Stream, StreamExt};
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::connection::local::transport::connect_unix_ws;
 use crate::connection::types::{Emitter, WsTarget};
-
-type WsStream = Box<
-	dyn Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin + Send,
->;
+use crate::connection::ws::connector;
 
 pub async fn run_arrow_ws<E: Emitter>(target: WsTarget, emitter: Arc<E>) {
 	loop {
 		log::debug!("[ws/arrow] connecting");
-		if let Some(mut ws) = open(&target, "/v0/arrow").await {
+		if let Some(mut ws) = connector::open(&target, "/v0/arrow").await {
 			log::info!("[ws/arrow] connected");
 			run_ws_loop(&mut ws, emitter.as_ref()).await;
 			log::info!("[ws/arrow] disconnected — reconnecting in 500ms");
@@ -21,22 +17,6 @@ pub async fn run_arrow_ws<E: Emitter>(target: WsTarget, emitter: Arc<E>) {
 			log::debug!("[ws/arrow] connection failed — retrying in 500ms");
 		}
 		tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-	}
-}
-
-async fn open(target: &WsTarget, path: &str) -> Option<WsStream> {
-	match target {
-		WsTarget::Tcp(base) => {
-			let url = format!("{}{}", base, path);
-			tokio_tungstenite::connect_async(&url)
-				.await
-				.ok()
-				.map(|(ws, _)| Box::new(ws) as WsStream)
-		}
-		WsTarget::Unix(p) => connect_unix_ws(p, path)
-			.await
-			.ok()
-			.map(|ws| Box::new(ws) as WsStream),
 	}
 }
 

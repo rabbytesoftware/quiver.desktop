@@ -455,9 +455,12 @@ jobs:
             'src/commands/*.rs' \
             'src/connection/local/mod.rs' \
             'src/connection/local/sidecar.rs' \
+            'src/connection/local/transport.rs' \
             'src/connection/remote/mod.rs' \
             'src/connection/manager.rs' \
             'src/connection/mod.rs' \
+            'src/connection/tauri_emitter.rs' \
+            'src/connection/ws/connector.rs' \
             'src/connection/ws/mod.rs' \
           --verbose
 

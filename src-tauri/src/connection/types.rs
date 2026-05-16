@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter as TauriEmitter};
+use tauri::AppHandle;
 
 use crate::connection::http::{HttpClient, HttpError};
 
@@ -50,29 +50,6 @@ pub trait Emitter: Send + Sync + 'static {
 	fn emit_arrow_event(&self, payload: serde_json::Value);
 	fn emit_runtime_update(&self, payload: serde_json::Value);
 	fn emit_connection_changed(&self, payload: serde_json::Value);
-}
-
-impl Emitter for AppHandle {
-	fn emit_core_status(&self, status: CoreStatus) {
-		TauriEmitter::emit(
-			self,
-			"core://status",
-			serde_json::json!({ "status": status }),
-		)
-		.ok();
-	}
-
-	fn emit_arrow_event(&self, payload: serde_json::Value) {
-		TauriEmitter::emit(self, "arrow://event", payload).ok();
-	}
-
-	fn emit_runtime_update(&self, payload: serde_json::Value) {
-		TauriEmitter::emit(self, "runtime://update", payload).ok();
-	}
-
-	fn emit_connection_changed(&self, payload: serde_json::Value) {
-		TauriEmitter::emit(self, "connection://changed", payload).ok();
-	}
 }
 
 // ── Command error ─────────────────────────────────────────────────────────────

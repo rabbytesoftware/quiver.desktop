@@ -1,6 +1,7 @@
 mod common;
 
 use quiverdesktop_lib::connection::types::{CoreStatus, Emitter, WsTarget};
+use quiverdesktop_lib::connection::ws::arrow::run_arrow_ws;
 use quiverdesktop_lib::connection::ws::runtime::run_runtime_ws;
 use std::sync::{Arc, Mutex};
 
@@ -70,6 +71,63 @@ async fn runtime_ws_reconnects_after_disconnect() {
 		tokio::time::timeout(
 			std::time::Duration::from_millis(700),
 			run_runtime_ws(WsTarget::Tcp(ws_url), emitter),
+		)
+		.await
+		.ok();
+	});
+
+	handle.await.ok();
+}
+
+#[tokio::test]
+async fn arrow_ws_emits_event_on_message() {
+	let port = common::free_port();
+	let msg = serde_json::json!({
+	    "event": "upserted",
+	    "namespace": "github.com/user/repo@v1.0.0",
+	    "name": "repo",
+	    "version": "v1.0.0"
+	})
+	.to_string();
+
+	common::spawn_ws_server(port, vec![msg]).await;
+	tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+	let emitter = Arc::new(CaptureEmitter::default());
+	let emitter_clone = Arc::clone(&emitter);
+	let ws_url = common::ws_base_url(port);
+
+	let handle = tokio::spawn(async move {
+		tokio::time::timeout(
+			std::time::Duration::from_secs(2),
+			run_arrow_ws(WsTarget::Tcp(ws_url), emitter_clone),
+		)
+		.await
+		.ok();
+	});
+
+	tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+	handle.abort();
+
+	let events = emitter.arrow_events.lock().unwrap();
+	assert!(!events.is_empty());
+	assert_eq!(events[0]["event"], "upserted");
+	assert_eq!(events[0]["namespace"], "github.com/user/repo@v1.0.0");
+}
+
+#[tokio::test]
+async fn arrow_ws_reconnects_after_disconnect() {
+	let port = common::free_port();
+	common::spawn_ws_server(port, vec![]).await;
+	tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+
+	let emitter = Arc::new(CaptureEmitter::default());
+	let ws_url = common::ws_base_url(port);
+
+	let handle = tokio::spawn(async move {
+		tokio::time::timeout(
+			std::time::Duration::from_millis(700),
+			run_arrow_ws(WsTarget::Tcp(ws_url), emitter),
 		)
 		.await
 		.ok();

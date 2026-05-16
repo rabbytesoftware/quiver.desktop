@@ -238,4 +238,55 @@ mod tests {
 		let client = HttpClient::new(MockTransport::new(vec!["ok"]));
 		assert!(client.health().await.is_ok());
 	}
+
+	#[tokio::test]
+	async fn uninstall_returns_ok() {
+		let client = HttpClient::new(MockTransport::new(vec![]));
+		assert!(client
+			.uninstall("github.com/user/repo@v1.0.0", Default::default())
+			.await
+			.is_ok());
+	}
+
+	#[tokio::test]
+	async fn execute_returns_ok() {
+		let client = HttpClient::new(MockTransport::new(vec![]));
+		assert!(client
+			.execute("github.com/user/repo@v1.0.0", "run", Default::default())
+			.await
+			.is_ok());
+	}
+
+	#[tokio::test]
+	async fn stop_returns_ok() {
+		let client = HttpClient::new(MockTransport::new(vec![]));
+		assert!(client.stop("github.com/user/repo@v1.0.0").await.is_ok());
+	}
+
+	#[tokio::test]
+	async fn remove_arrow_returns_ok() {
+		let client = HttpClient::new(MockTransport::new(vec![]));
+		assert!(client
+			.remove_arrow("github.com/user/repo@v1.0.0")
+			.await
+			.is_ok());
+	}
+
+	#[tokio::test]
+	async fn follow_collection_returns_ok() {
+		let client = HttpClient::new(MockTransport::new(vec![]));
+		assert!(client
+			.follow_collection("github.com/user/collection@v1.0.0")
+			.await
+			.is_ok());
+	}
+
+	#[tokio::test]
+	async fn unfollow_collection_returns_ok() {
+		let client = HttpClient::new(MockTransport::new(vec![]));
+		assert!(client
+			.unfollow_collection("github.com/user/collection@v1.0.0")
+			.await
+			.is_ok());
+	}
 }
