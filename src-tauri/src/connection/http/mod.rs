@@ -50,7 +50,7 @@ impl HttpClient {
 	}
 
 	pub async fn health(&self) -> Result<(), HttpError> {
-		self.transport.get_bytes("/health").await.map(|_| ())
+		self.transport.get_bytes("/v0/health").await.map(|_| ())
 	}
 
 	pub async fn fetch_arrows(&self) -> Result<serde_json::Value, HttpError> {
