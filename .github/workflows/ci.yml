@@ -404,17 +404,21 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
-          const t = summary.total;
-          const pct = (v) => `${v.pct.toFixed(2)}%`;
+          const lcov = fs.readFileSync('coverage/lcov.info', 'utf8');
+
+          const sum = (re) => [...lcov.matchAll(re)].reduce((a, m) => a + parseInt(m[1]), 0);
+          const lf = sum(/^LF:(\d+)/mg),  lh = sum(/^LH:(\d+)/mg);
+          const fnf = sum(/^FNF:(\d+)/mg), fnh = sum(/^FNH:(\d+)/mg);
+          const brf = sum(/^BRF:(\d+)/mg), brh = sum(/^BRH:(\d+)/mg);
+          const pct = (h, f) => f > 0 ? `${(h / f * 100).toFixed(2)}%` : 'N/A';
 
           const body = [
             '<!-- coverage-ts -->',
             '## TypeScript Coverage',
             '',
-            '| Statements | Branches | Functions | Lines |',
-            '|-----------|----------|-----------|-------|',
-            `| ${pct(t.statements)} | ${pct(t.branches)} | ${pct(t.functions)} | ${pct(t.lines)} |`,
+            '| Branches | Functions | Lines |',
+            '|----------|-----------|-------|',
+            `| ${pct(brh, brf)} | ${pct(fnh, fnf)} | ${pct(lh, lf)} |`,
           ].join('\n');
 
           const comments = await github.rest.issues.listComments({
