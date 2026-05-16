@@ -26,12 +26,14 @@ interface ConnectionChangedPayload {
 }
 
 async function hydrateAll(): Promise<void> {
+	/* v8 ignore next */
 	if (import.meta.env.DEV) console.log('[core-store] hydrateAll — pulling get_arrows + get_connections');
 	const [arrows, connectionState] = await Promise.all([
 		invoke<ArrowListResponseItemDTO[]>('get_arrows'),
 		invoke<{ connections: import('@/domain/connection').ConnectionConfig[]; active_id: string }>('get_connections'),
 	]);
 	const items = toArrowListItems(arrows);
+	/* v8 ignore next 2 */
 	if (import.meta.env.DEV)
 		console.log(`[core-store] hydrated ${items.length} arrows, active connection: ${connectionState.active_id}`);
 	for (const item of items) {
@@ -42,6 +44,7 @@ async function hydrateAll(): Promise<void> {
 
 export async function setupListeners(): Promise<void> {
 	await listen<{ status: import('@/domain/connection').ConnectionStatus }>('core://status', async (e) => {
+		/* v8 ignore next */
 		if (import.meta.env.DEV) console.log(`[core-store] core://status → ${e.payload.status}`);
 		useStatusStore.getState().setStatus(e.payload.status);
 		if (e.payload.status === 'starting') {
@@ -53,6 +56,7 @@ export async function setupListeners(): Promise<void> {
 	});
 
 	await listen<ArrowEventPayload>('arrow://event', (e) => {
+		/* v8 ignore next */
 		if (import.meta.env.DEV) console.log(`[core-store] arrow://event → ${e.payload.event} ${e.payload.namespace}`);
 		const { event, namespace, name = '', description = '', tags = [], icon = null, banner = null } = e.payload;
 		if (event === 'removed') {
@@ -80,6 +84,7 @@ export async function setupListeners(): Promise<void> {
 	});
 
 	await listen<ConnectionChangedPayload>('connection://changed', (e) => {
+		/* v8 ignore next 3 */
 		if (import.meta.env.DEV)
 			console.log(
 				`[core-store] connection://changed → active: ${e.payload.active_id}, count: ${e.payload.connections.length}`

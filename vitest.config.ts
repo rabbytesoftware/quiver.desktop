@@ -24,6 +24,7 @@ export default defineConfig({
                 'src/**/*.test.ts',
                 'src/**/*.test.tsx',
                 'src/__mocks__/**',
+                'src/**/{store,mutations}/index.ts',
             ],
         },
     },

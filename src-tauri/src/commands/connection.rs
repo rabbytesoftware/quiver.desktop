@@ -5,7 +5,10 @@ use crate::connection::types::{CommandError, ConnectionConfig, Emitter};
 use crate::connection::ConnectionManager;
 
 fn conn_err(msg: String) -> CommandError {
-	CommandError { code: 503, message: msg }
+	CommandError {
+		code: 503,
+		message: msg,
+	}
 }
 
 async fn emit_connection_changed(app: &AppHandle, state: &ConnectionManager) {
@@ -28,7 +31,10 @@ pub async fn get_connections(
 	state: State<'_, ConnectionManager>,
 ) -> Result<ConnectionsState, CommandError> {
 	let (connections, active_id) = state.get_connections(&app).await;
-	Ok(ConnectionsState { connections, active_id })
+	Ok(ConnectionsState {
+		connections,
+		active_id,
+	})
 }
 
 #[tauri::command]
@@ -39,7 +45,10 @@ pub async fn add_connection(
 	url: String,
 	token: String,
 ) -> Result<ConnectionConfig, CommandError> {
-	let config = state.add_connection(&app, name, url, token).await.map_err(conn_err)?;
+	let config = state
+		.add_connection(&app, name, url, token)
+		.await
+		.map_err(conn_err)?;
 	emit_connection_changed(&app, &state).await;
 	Ok(config)
 }
@@ -72,7 +81,9 @@ pub async fn rename_connection(
 	id: String,
 	name: String,
 ) -> Result<(), CommandError> {
-	state.rename_connection(&app, &id, name).await.map_err(conn_err)?;
+	state.rename_connection(&app, &id, name)
+		.await
+		.map_err(conn_err)?;
 	emit_connection_changed(&app, &state).await;
 	Ok(())
 }

@@ -86,7 +86,11 @@ async fn negotiate_version(http: &HttpClient) -> String {
 #[async_trait]
 impl QuiverConnection for RemoteConnection {
 	async fn start(&self, app: &AppHandle) {
-		log::info!("[remote] starting — url: {:?}, api: {}", self.config.url, self.config.api_version);
+		log::info!(
+			"[remote] starting — url: {:?}, api: {}",
+			self.config.url,
+			self.config.api_version
+		);
 		app.emit_core_status(CoreStatus::Starting);
 
 		if let Err(e) = self.http.health().await {

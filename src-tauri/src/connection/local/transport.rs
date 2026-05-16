@@ -44,7 +44,10 @@ impl HttpTransport for LocalTransport {
 			.map_err(|e| HttpError::Request(e.to_string()))?
 			.to_bytes();
 		if code >= 400 {
-			return Err(HttpError::Api { code, message: parse_api_error(&body) });
+			return Err(HttpError::Api {
+				code,
+				message: parse_api_error(&body),
+			});
 		}
 		Ok(body)
 	}
@@ -71,7 +74,10 @@ impl HttpTransport for LocalTransport {
 			.await
 			.map_err(|e| HttpError::Request(e.to_string()))?
 			.to_bytes();
-		Err(HttpError::Api { code, message: parse_api_error(&body_bytes) })
+		Err(HttpError::Api {
+			code,
+			message: parse_api_error(&body_bytes),
+		})
 	}
 
 	async fn delete(&self, path: &str) -> Result<(), HttpError> {
@@ -94,7 +100,10 @@ impl HttpTransport for LocalTransport {
 			.await
 			.map_err(|e| HttpError::Request(e.to_string()))?
 			.to_bytes();
-		Err(HttpError::Api { code, message: parse_api_error(&body_bytes) })
+		Err(HttpError::Api {
+			code,
+			message: parse_api_error(&body_bytes),
+		})
 	}
 }
 

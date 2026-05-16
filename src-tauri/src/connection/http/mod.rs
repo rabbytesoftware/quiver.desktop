@@ -57,7 +57,10 @@ impl HttpClient {
 		self.get_json("/v0/arrow?user_installed=true").await
 	}
 
-	pub async fn get_arrow_detail(&self, namespace: &str) -> Result<serde_json::Value, HttpError> {
+	pub async fn get_arrow_detail(
+		&self,
+		namespace: &str,
+	) -> Result<serde_json::Value, HttpError> {
 		let path = format!("/v0/arrow/{}", urlencoded(namespace));
 		self.get_json(&path).await
 	}
@@ -144,7 +147,9 @@ fn urlencoded(namespace: &str) -> String {
 
 pub(crate) fn parse_api_error(bytes: &[u8]) -> String {
 	#[derive(serde::Deserialize)]
-	struct Envelope { error: Option<String> }
+	struct Envelope {
+		error: Option<String>,
+	}
 	serde_json::from_slice::<Envelope>(bytes)
 		.ok()
 		.and_then(|e| e.error)
@@ -209,7 +214,10 @@ mod tests {
 	async fn get_arrow_detail_returns_raw_data() {
 		let json = r#"{"success":true,"data":{"namespace":"github.com/user/repo@v1.0.0","name":"My Arrow","state":"ready","active_run":null,"last_return":null}}"#;
 		let client = HttpClient::new(MockTransport::new(vec![json]));
-		let data = client.get_arrow_detail("github.com/user/repo@v1.0.0").await.unwrap();
+		let data = client
+			.get_arrow_detail("github.com/user/repo@v1.0.0")
+			.await
+			.unwrap();
 		assert_eq!(data["namespace"], "github.com/user/repo@v1.0.0");
 		assert_eq!(data["state"], "ready");
 	}

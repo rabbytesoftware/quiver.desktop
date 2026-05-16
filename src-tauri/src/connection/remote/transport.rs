@@ -49,9 +49,15 @@ impl HttpTransport for RemoteTransport {
 			.await
 			.map_err(|e| HttpError::Request(e.to_string()))?;
 		let code = resp.status().as_u16();
-		let bytes = resp.bytes().await.map_err(|e| HttpError::Request(e.to_string()))?;
+		let bytes = resp
+			.bytes()
+			.await
+			.map_err(|e| HttpError::Request(e.to_string()))?;
 		if code >= 400 {
-			return Err(HttpError::Api { code, message: parse_api_error(&bytes) });
+			return Err(HttpError::Api {
+				code,
+				message: parse_api_error(&bytes),
+			});
 		}
 		Ok(bytes)
 	}
@@ -68,8 +74,14 @@ impl HttpTransport for RemoteTransport {
 		if resp.status().is_success() {
 			return Ok(());
 		}
-		let bytes = resp.bytes().await.map_err(|e| HttpError::Request(e.to_string()))?;
-		Err(HttpError::Api { code, message: parse_api_error(&bytes) })
+		let bytes = resp
+			.bytes()
+			.await
+			.map_err(|e| HttpError::Request(e.to_string()))?;
+		Err(HttpError::Api {
+			code,
+			message: parse_api_error(&bytes),
+		})
 	}
 
 	async fn delete(&self, path: &str) -> Result<(), HttpError> {
@@ -83,8 +95,14 @@ impl HttpTransport for RemoteTransport {
 		if resp.status().is_success() {
 			return Ok(());
 		}
-		let bytes = resp.bytes().await.map_err(|e| HttpError::Request(e.to_string()))?;
-		Err(HttpError::Api { code, message: parse_api_error(&bytes) })
+		let bytes = resp
+			.bytes()
+			.await
+			.map_err(|e| HttpError::Request(e.to_string()))?;
+		Err(HttpError::Api {
+			code,
+			message: parse_api_error(&bytes),
+		})
 	}
 }
 

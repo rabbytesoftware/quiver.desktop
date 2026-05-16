@@ -7,9 +7,7 @@ use crate::connection::local::transport::connect_unix_ws;
 use crate::connection::types::{Emitter, WsTarget};
 
 type WsStream = Box<
-	dyn Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>
-		+ Unpin
-		+ Send,
+	dyn Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin + Send,
 >;
 
 pub async fn run_runtime_ws<E: Emitter>(target: WsTarget, emitter: Arc<E>) {
@@ -35,12 +33,10 @@ async fn open(target: &WsTarget, path: &str) -> Option<WsStream> {
 				.ok()
 				.map(|(ws, _)| Box::new(ws) as WsStream)
 		}
-		WsTarget::Unix(p) => {
-			connect_unix_ws(p, path)
-				.await
-				.ok()
-				.map(|ws| Box::new(ws) as WsStream)
-		}
+		WsTarget::Unix(p) => connect_unix_ws(p, path)
+			.await
+			.ok()
+			.map(|ws| Box::new(ws) as WsStream),
 	}
 }
 
@@ -97,8 +93,7 @@ mod tests {
 	async fn runtime_update_is_forwarded_to_emitter() {
 		let emitter = MockEmitter::new();
 		let json = r#"{"namespace":"ns@v1","state":"running","active_run":null,"last_return":null}"#;
-		let messages: Vec<Result<Message, Error>> =
-			vec![Ok(Message::Text(json.into()))];
+		let messages: Vec<Result<Message, Error>> = vec![Ok(Message::Text(json.into()))];
 		run_ws_loop(&mut stream::iter(messages), emitter.as_ref()).await;
 		let updates = emitter.updates.lock().unwrap();
 		assert_eq!(updates.len(), 1);
@@ -119,10 +114,8 @@ mod tests {
 	async fn close_message_stops_the_loop() {
 		let emitter = MockEmitter::new();
 		let json = r#"{"namespace":"ns@v1","state":"running"}"#;
-		let messages: Vec<Result<Message, Error>> = vec![
-			Ok(Message::Close(None)),
-			Ok(Message::Text(json.into())),
-		];
+		let messages: Vec<Result<Message, Error>> =
+			vec![Ok(Message::Close(None)), Ok(Message::Text(json.into()))];
 		run_ws_loop(&mut stream::iter(messages), emitter.as_ref()).await;
 		assert!(emitter.updates.lock().unwrap().is_empty());
 	}

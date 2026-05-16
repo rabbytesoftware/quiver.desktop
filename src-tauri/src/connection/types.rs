@@ -54,7 +54,12 @@ pub trait Emitter: Send + Sync + 'static {
 
 impl Emitter for AppHandle {
 	fn emit_core_status(&self, status: CoreStatus) {
-		TauriEmitter::emit(self, "core://status", serde_json::json!({ "status": status })).ok();
+		TauriEmitter::emit(
+			self,
+			"core://status",
+			serde_json::json!({ "status": status }),
+		)
+		.ok();
 	}
 
 	fn emit_arrow_event(&self, payload: serde_json::Value) {
@@ -81,9 +86,15 @@ pub struct CommandError {
 impl From<HttpError> for CommandError {
 	fn from(e: HttpError) -> Self {
 		match e {
-			HttpError::Request(msg) => CommandError { code: 503, message: msg },
+			HttpError::Request(msg) => CommandError {
+				code: 503,
+				message: msg,
+			},
 			HttpError::Api { code, message } => CommandError { code, message },
-			HttpError::Parse(e) => CommandError { code: 500, message: e.to_string() },
+			HttpError::Parse(e) => CommandError {
+				code: 500,
+				message: e.to_string(),
+			},
 		}
 	}
 }
@@ -102,7 +113,10 @@ mod tests {
 
 	#[test]
 	fn command_error_serializes_code_and_message() {
-		let err = CommandError { code: 404, message: "not found".into() };
+		let err = CommandError {
+			code: 404,
+			message: "not found".into(),
+		};
 		let json = serde_json::to_value(&err).unwrap();
 		assert_eq!(json["code"], 404);
 		assert_eq!(json["message"], "not found");
@@ -118,7 +132,11 @@ mod tests {
 	#[test]
 	fn command_error_from_http_api_error_preserves_code() {
 		use crate::connection::http::HttpError;
-		let err: CommandError = HttpError::Api { code: 422, message: "state violation".into() }.into();
+		let err: CommandError = HttpError::Api {
+			code: 422,
+			message: "state violation".into(),
+		}
+		.into();
 		assert_eq!(err.code, 422);
 		assert_eq!(err.message, "state violation");
 	}

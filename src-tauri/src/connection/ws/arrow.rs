@@ -7,9 +7,7 @@ use crate::connection::local::transport::connect_unix_ws;
 use crate::connection::types::{Emitter, WsTarget};
 
 type WsStream = Box<
-	dyn Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>
-		+ Unpin
-		+ Send,
+	dyn Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin + Send,
 >;
 
 pub async fn run_arrow_ws<E: Emitter>(target: WsTarget, emitter: Arc<E>) {
@@ -35,12 +33,10 @@ async fn open(target: &WsTarget, path: &str) -> Option<WsStream> {
 				.ok()
 				.map(|(ws, _)| Box::new(ws) as WsStream)
 		}
-		WsTarget::Unix(p) => {
-			connect_unix_ws(p, path)
-				.await
-				.ok()
-				.map(|ws| Box::new(ws) as WsStream)
-		}
+		WsTarget::Unix(p) => connect_unix_ws(p, path)
+			.await
+			.ok()
+			.map(|ws| Box::new(ws) as WsStream),
 	}
 }
 
@@ -97,8 +93,7 @@ mod tests {
 	async fn upserted_event_is_forwarded_to_emitter() {
 		let emitter = MockEmitter::new();
 		let json = r#"{"event":"upserted","namespace":"github.com/foo/bar@v1.0.0","name":"bar","version":"v1.0.0"}"#;
-		let messages: Vec<Result<Message, Error>> =
-			vec![Ok(Message::Text(json.into()))];
+		let messages: Vec<Result<Message, Error>> = vec![Ok(Message::Text(json.into()))];
 		run_ws_loop(&mut stream::iter(messages), emitter.as_ref()).await;
 		let events = emitter.events.lock().unwrap();
 		assert_eq!(events.len(), 1);
@@ -109,10 +104,8 @@ mod tests {
 	#[tokio::test]
 	async fn removed_event_is_forwarded_to_emitter() {
 		let emitter = MockEmitter::new();
-		let json =
-			r#"{"event":"removed","namespace":"github.com/foo/bar@v1.0.0"}"#;
-		let messages: Vec<Result<Message, Error>> =
-			vec![Ok(Message::Text(json.into()))];
+		let json = r#"{"event":"removed","namespace":"github.com/foo/bar@v1.0.0"}"#;
+		let messages: Vec<Result<Message, Error>> = vec![Ok(Message::Text(json.into()))];
 		run_ws_loop(&mut stream::iter(messages), emitter.as_ref()).await;
 		let events = emitter.events.lock().unwrap();
 		assert_eq!(events.len(), 1);
@@ -132,10 +125,8 @@ mod tests {
 	async fn close_message_stops_the_loop() {
 		let emitter = MockEmitter::new();
 		let json = r#"{"event":"upserted"}"#;
-		let messages: Vec<Result<Message, Error>> = vec![
-			Ok(Message::Close(None)),
-			Ok(Message::Text(json.into())),
-		];
+		let messages: Vec<Result<Message, Error>> =
+			vec![Ok(Message::Close(None)), Ok(Message::Text(json.into()))];
 		run_ws_loop(&mut stream::iter(messages), emitter.as_ref()).await;
 		assert!(emitter.events.lock().unwrap().is_empty());
 	}
