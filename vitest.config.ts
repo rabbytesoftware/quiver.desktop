@@ -1,0 +1,36 @@
+import { defineConfig } from 'vitest/config';
+import path from 'path';
+
+export default defineConfig({
+    test: {
+        environment: 'jsdom',
+        globals: true,
+        setupFiles: ['@testing-library/jest-dom/vitest'],
+        coverage: {
+            provider: 'v8',
+            reporter: ['text', 'lcov', 'html'],
+            reportsDirectory: './coverage',
+            thresholds: {
+                lines: 95,
+                functions: 95,
+                branches: 95,
+                statements: 95,
+            },
+            include: ['src/**/*.ts', 'src/**/*.tsx'],
+            exclude: [
+                'src/routeTree.gen.ts',
+                'src/main.tsx',
+                'src/routes/**',
+                'src/**/*.test.ts',
+                'src/**/*.test.tsx',
+                'src/__mocks__/**',
+                'src/**/{store,mutations}/index.ts',
+            ],
+        },
+    },
+    resolve: {
+        alias: {
+            '@': path.resolve(__dirname, './src'),
+        },
+    },
+});

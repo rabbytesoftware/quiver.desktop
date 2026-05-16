@@ -55,6 +55,8 @@ export default [
 			'object-curly-spacing': 'off',
 			'array-bracket-spacing': 'off',
 
+			'max-depth': ['error', 3],
+
 			'@typescript-eslint/no-unused-vars': ['error', {
 				argsIgnorePattern: '^_',
 				varsIgnorePattern: '^_',
