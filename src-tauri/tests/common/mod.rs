@@ -1,9 +1,10 @@
+#![allow(dead_code)]
+
 use futures_util::SinkExt;
 use std::net::TcpListener;
 use tokio::net::TcpListener as AsyncTcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-#[allow(dead_code)]
 pub fn free_port() -> u16 {
 	TcpListener::bind("127.0.0.1:0")
 		.unwrap()
