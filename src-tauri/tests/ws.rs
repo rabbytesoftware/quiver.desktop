@@ -8,20 +8,17 @@ use std::sync::{Arc, Mutex};
 struct CaptureEmitter {
 	runtime_updates: Mutex<Vec<serde_json::Value>>,
 	arrow_events: Mutex<Vec<serde_json::Value>>,
-	hydrated: Mutex<Vec<Vec<serde_json::Value>>>,
 }
 
 impl Emitter for CaptureEmitter {
 	fn emit_core_status(&self, _: CoreStatus) {}
-	fn emit_arrow_hydrate(&self, items: Vec<serde_json::Value>) {
-		self.hydrated.lock().unwrap().push(items);
-	}
 	fn emit_arrow_event(&self, value: serde_json::Value) {
 		self.arrow_events.lock().unwrap().push(value);
 	}
 	fn emit_runtime_update(&self, payload: serde_json::Value) {
 		self.runtime_updates.lock().unwrap().push(payload);
 	}
+	fn emit_connection_changed(&self, _: serde_json::Value) {}
 }
 
 #[tokio::test]

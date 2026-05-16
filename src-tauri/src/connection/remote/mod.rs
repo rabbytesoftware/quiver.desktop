@@ -94,15 +94,6 @@ impl QuiverConnection for RemoteConnection {
 			return;
 		}
 
-		match self.http.fetch_arrows().await {
-			Ok(items) => {
-				for chunk in items.chunks(100) {
-					app.emit_arrow_hydrate(chunk.to_vec());
-				}
-			}
-			Err(e) => log::warn!("initial hydration failed: {e}"),
-		}
-
 		app.emit_core_status(CoreStatus::Ready);
 
 		WsManager::new(

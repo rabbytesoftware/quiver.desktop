@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use reqwest::Client;
 
-use crate::connection::http::{HttpError, HttpTransport};
+use crate::connection::http::{parse_api_error, HttpError, HttpTransport};
 
 pub struct RemoteTransport {
 	client: Client,
@@ -48,34 +48,43 @@ impl HttpTransport for RemoteTransport {
 			.send()
 			.await
 			.map_err(|e| HttpError::Request(e.to_string()))?;
-		resp.error_for_status_ref()
-			.map_err(|e| HttpError::Request(e.to_string()))?;
-		resp.bytes()
-			.await
-			.map_err(|e| HttpError::Request(e.to_string()))
+		let code = resp.status().as_u16();
+		let bytes = resp.bytes().await.map_err(|e| HttpError::Request(e.to_string()))?;
+		if code >= 400 {
+			return Err(HttpError::Api { code, message: parse_api_error(&bytes) });
+		}
+		Ok(bytes)
 	}
 
 	async fn post_json(&self, path: &str, body: serde_json::Value) -> Result<(), HttpError> {
-		self.client
+		let resp = self
+			.client
 			.post(self.http_url(path))
 			.json(&body)
 			.send()
 			.await
-			.map_err(|e| HttpError::Request(e.to_string()))?
-			.error_for_status()
 			.map_err(|e| HttpError::Request(e.to_string()))?;
-		Ok(())
+		let code = resp.status().as_u16();
+		if resp.status().is_success() {
+			return Ok(());
+		}
+		let bytes = resp.bytes().await.map_err(|e| HttpError::Request(e.to_string()))?;
+		Err(HttpError::Api { code, message: parse_api_error(&bytes) })
 	}
 
 	async fn delete(&self, path: &str) -> Result<(), HttpError> {
-		self.client
+		let resp = self
+			.client
 			.delete(self.http_url(path))
 			.send()
 			.await
-			.map_err(|e| HttpError::Request(e.to_string()))?
-			.error_for_status()
 			.map_err(|e| HttpError::Request(e.to_string()))?;
-		Ok(())
+		let code = resp.status().as_u16();
+		if resp.status().is_success() {
+			return Ok(());
+		}
+		let bytes = resp.bytes().await.map_err(|e| HttpError::Request(e.to_string()))?;
+		Err(HttpError::Api { code, message: parse_api_error(&bytes) })
 	}
 }
 

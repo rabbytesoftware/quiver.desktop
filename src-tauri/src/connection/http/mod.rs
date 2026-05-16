@@ -10,8 +10,8 @@ use thiserror::Error;
 pub enum HttpError {
 	#[error("request failed: {0}")]
 	Request(String),
-	#[error("api error: {0}")]
-	Api(String),
+	#[error("api error: {code} {message}")]
+	Api { code: u16, message: String },
 	#[error("parse error: {0}")]
 	Parse(#[from] serde_json::Error),
 }
@@ -43,18 +43,23 @@ impl HttpClient {
 	async fn get_json<T: DeserializeOwned>(&self, path: &str) -> Result<T, HttpError> {
 		let bytes = self.transport.get_bytes(path).await?;
 		let envelope: ApiEnvelope<T> = serde_json::from_slice(&bytes)?;
-		envelope.data
-			.ok_or_else(|| HttpError::Api(envelope.error.unwrap_or_default()))
+		envelope.data.ok_or_else(|| HttpError::Api {
+			code: 500,
+			message: envelope.error.unwrap_or_default(),
+		})
 	}
 
 	pub async fn health(&self) -> Result<(), HttpError> {
 		self.transport.get_bytes("/health").await.map(|_| ())
 	}
 
-	pub async fn fetch_arrows(&self) -> Result<Vec<serde_json::Value>, HttpError> {
-		let items: Vec<ArrowListResponseItem> =
-			self.get_json("/v0/arrow?user_installed=true").await?;
-		Ok(build_arrow_values(items))
+	pub async fn fetch_arrows(&self) -> Result<serde_json::Value, HttpError> {
+		self.get_json("/v0/arrow?user_installed=true").await
+	}
+
+	pub async fn get_arrow_detail(&self, namespace: &str) -> Result<serde_json::Value, HttpError> {
+		let path = format!("/v0/arrow/{}", urlencoded(namespace));
+		self.get_json(&path).await
 	}
 
 	pub async fn install(
@@ -133,42 +138,17 @@ struct ApiEnvelope<T> {
 	data: Option<T>,
 }
 
-#[derive(serde::Deserialize)]
-struct InstalledVersion {
-	#[serde(rename = "ref")]
-	installed_ref: String,
-	version: String,
-	state: String,
-}
-
-#[derive(serde::Deserialize)]
-struct ArrowListResponseItem {
-	namespace: String,
-	name: String,
-	versions: Vec<InstalledVersion>,
-}
-
 fn urlencoded(namespace: &str) -> String {
 	namespace.replace('/', "%2F")
 }
 
-fn build_arrow_values(items: Vec<ArrowListResponseItem>) -> Vec<serde_json::Value> {
-	items.into_iter()
-		.flat_map(|arrow| {
-			let ns = arrow.namespace.clone();
-			let name = arrow.name.clone();
-			arrow.versions.into_iter().map(move |v| {
-				serde_json::json!({
-					"namespace": format!("{}@{}", ns, v.installed_ref),
-					"name": name,
-					"version": v.version,
-					"state": v.state,
-					"active_run": null,
-					"last_outcome": null,
-				})
-			})
-		})
-		.collect()
+pub(crate) fn parse_api_error(bytes: &[u8]) -> String {
+	#[derive(serde::Deserialize)]
+	struct Envelope { error: Option<String> }
+	serde_json::from_slice::<Envelope>(bytes)
+		.ok()
+		.and_then(|e| e.error)
+		.unwrap_or_else(|| "unknown error".into())
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -226,12 +206,23 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn fetch_arrows_builds_versioned_keys() {
+	async fn get_arrow_detail_returns_raw_data() {
+		let json = r#"{"success":true,"data":{"namespace":"github.com/user/repo@v1.0.0","name":"My Arrow","state":"ready","active_run":null,"last_return":null}}"#;
+		let client = HttpClient::new(MockTransport::new(vec![json]));
+		let data = client.get_arrow_detail("github.com/user/repo@v1.0.0").await.unwrap();
+		assert_eq!(data["namespace"], "github.com/user/repo@v1.0.0");
+		assert_eq!(data["state"], "ready");
+	}
+
+	#[tokio::test]
+	async fn fetch_arrows_returns_raw_data() {
 		let json = r#"{"success":true,"data":[{"namespace":"github.com/user/repo","name":"My Arrow","versions":[{"ref":"v1.0.0","version":"1.0.0","state":"ready"}]}]}"#;
 		let client = HttpClient::new(MockTransport::new(vec![json]));
-		let items = client.fetch_arrows().await.unwrap();
+		let data = client.fetch_arrows().await.unwrap();
+		let items = data.as_array().unwrap();
 		assert_eq!(items.len(), 1);
-		assert_eq!(items[0]["namespace"], "github.com/user/repo@v1.0.0");
+		assert_eq!(items[0]["namespace"], "github.com/user/repo");
+		assert!(items[0]["versions"].is_array());
 	}
 
 	#[tokio::test]

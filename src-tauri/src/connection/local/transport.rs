@@ -6,7 +6,7 @@ use hyper_util::client::legacy::Client;
 use hyperlocal::{UnixConnector, Uri as UnixUri};
 use tokio_tungstenite::tungstenite::Error as WsError;
 
-use crate::connection::http::{HttpError, HttpTransport};
+use crate::connection::http::{parse_api_error, HttpError, HttpTransport};
 
 pub struct LocalTransport {
 	socket_path: String,
@@ -36,12 +36,17 @@ impl HttpTransport for LocalTransport {
 			.request(req)
 			.await
 			.map_err(|e| HttpError::Request(e.to_string()))?;
+		let code = resp.status().as_u16();
 		let body = resp
 			.into_body()
 			.collect()
 			.await
-			.map_err(|e| HttpError::Request(e.to_string()))?;
-		Ok(body.to_bytes())
+			.map_err(|e| HttpError::Request(e.to_string()))?
+			.to_bytes();
+		if code >= 400 {
+			return Err(HttpError::Api { code, message: parse_api_error(&body) });
+		}
+		Ok(body)
 	}
 
 	async fn post_json(&self, path: &str, body: serde_json::Value) -> Result<(), HttpError> {
@@ -56,10 +61,17 @@ impl HttpTransport for LocalTransport {
 			.request(req)
 			.await
 			.map_err(|e| HttpError::Request(e.to_string()))?;
-		if !resp.status().is_success() {
-			return Err(HttpError::Request(format!("HTTP {}", resp.status())));
+		let code = resp.status().as_u16();
+		if resp.status().is_success() {
+			return Ok(());
 		}
-		Ok(())
+		let body_bytes = resp
+			.into_body()
+			.collect()
+			.await
+			.map_err(|e| HttpError::Request(e.to_string()))?
+			.to_bytes();
+		Err(HttpError::Api { code, message: parse_api_error(&body_bytes) })
 	}
 
 	async fn delete(&self, path: &str) -> Result<(), HttpError> {
@@ -72,10 +84,17 @@ impl HttpTransport for LocalTransport {
 			.request(req)
 			.await
 			.map_err(|e| HttpError::Request(e.to_string()))?;
-		if !resp.status().is_success() {
-			return Err(HttpError::Request(format!("HTTP {}", resp.status())));
+		let code = resp.status().as_u16();
+		if resp.status().is_success() {
+			return Ok(());
 		}
-		Ok(())
+		let body_bytes = resp
+			.into_body()
+			.collect()
+			.await
+			.map_err(|e| HttpError::Request(e.to_string()))?
+			.to_bytes();
+		Err(HttpError::Api { code, message: parse_api_error(&body_bytes) })
 	}
 }
 

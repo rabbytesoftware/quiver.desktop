@@ -1,3 +1,4 @@
+use crate::connection::types::CommandError;
 use crate::connection::ConnectionManager;
 use tauri::State;
 
@@ -5,22 +6,22 @@ use tauri::State;
 pub async fn follow_collection(
 	state: State<'_, ConnectionManager>,
 	namespace: String,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
 	state.http()
 		.await
 		.follow_collection(&namespace)
 		.await
-		.map_err(|e| e.to_string())
+		.map_err(CommandError::from)
 }
 
 #[tauri::command]
 pub async fn unfollow_collection(
 	state: State<'_, ConnectionManager>,
 	namespace: String,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
 	state.http()
 		.await
 		.unfollow_collection(&namespace)
 		.await
-		.map_err(|e| e.to_string())
+		.map_err(CommandError::from)
 }

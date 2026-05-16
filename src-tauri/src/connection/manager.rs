@@ -38,6 +38,15 @@ impl ConnectionManager {
 		list
 	}
 
+	pub async fn get_connections(&self, app: &AppHandle) -> (Vec<ConnectionConfig>, String) {
+		let active = self.active.read().await;
+		let active_id = active.config().id.clone();
+		let mut list = vec![active.config().clone()];
+		drop(active);
+		list.extend(load_remote_configs(app).await);
+		(list, active_id)
+	}
+
 	pub async fn add_connection(
 		&self,
 		app: &AppHandle,

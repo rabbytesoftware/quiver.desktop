@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter as TauriEmitter};
 
-use crate::connection::http::HttpClient;
+use crate::connection::http::{HttpClient, HttpError};
 
 // ── Connection config ─────────────────────────────────────────────────────────
 
@@ -47,25 +47,14 @@ pub trait QuiverConnection: Send + Sync {
 
 pub trait Emitter: Send + Sync + 'static {
 	fn emit_core_status(&self, status: CoreStatus);
-	/// Bulk-hydrate arrows at startup from HTTP fetch.
-	fn emit_arrow_hydrate(&self, items: Vec<serde_json::Value>);
-	/// Forward a raw arrow WS event (upserted or removed) to TypeScript.
 	fn emit_arrow_event(&self, payload: serde_json::Value);
 	fn emit_runtime_update(&self, payload: serde_json::Value);
+	fn emit_connection_changed(&self, payload: serde_json::Value);
 }
 
 impl Emitter for AppHandle {
 	fn emit_core_status(&self, status: CoreStatus) {
-		TauriEmitter::emit(
-			self,
-			"core://status",
-			serde_json::json!({ "status": status }),
-		)
-		.ok();
-	}
-
-	fn emit_arrow_hydrate(&self, items: Vec<serde_json::Value>) {
-		TauriEmitter::emit(self, "arrow://hydrate", items).ok();
+		TauriEmitter::emit(self, "core://status", serde_json::json!({ "status": status })).ok();
 	}
 
 	fn emit_arrow_event(&self, payload: serde_json::Value) {
@@ -74,6 +63,28 @@ impl Emitter for AppHandle {
 
 	fn emit_runtime_update(&self, payload: serde_json::Value) {
 		TauriEmitter::emit(self, "runtime://update", payload).ok();
+	}
+
+	fn emit_connection_changed(&self, payload: serde_json::Value) {
+		TauriEmitter::emit(self, "connection://changed", payload).ok();
+	}
+}
+
+// ── Command error ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct CommandError {
+	pub code: u16,
+	pub message: String,
+}
+
+impl From<HttpError> for CommandError {
+	fn from(e: HttpError) -> Self {
+		match e {
+			HttpError::Request(msg) => CommandError { code: 503, message: msg },
+			HttpError::Api { code, message } => CommandError { code, message },
+			HttpError::Parse(e) => CommandError { code: 500, message: e.to_string() },
+		}
 	}
 }
 
@@ -87,5 +98,28 @@ mod tests {
 	fn core_status_serializes_to_snake_case() {
 		let json = serde_json::to_string(&CoreStatus::Disconnected).unwrap();
 		assert_eq!(json, r#""disconnected""#);
+	}
+
+	#[test]
+	fn command_error_serializes_code_and_message() {
+		let err = CommandError { code: 404, message: "not found".into() };
+		let json = serde_json::to_value(&err).unwrap();
+		assert_eq!(json["code"], 404);
+		assert_eq!(json["message"], "not found");
+	}
+
+	#[test]
+	fn command_error_from_http_request_error_uses_503() {
+		use crate::connection::http::HttpError;
+		let err: CommandError = HttpError::Request("socket closed".into()).into();
+		assert_eq!(err.code, 503);
+	}
+
+	#[test]
+	fn command_error_from_http_api_error_preserves_code() {
+		use crate::connection::http::HttpError;
+		let err: CommandError = HttpError::Api { code: 422, message: "state violation".into() }.into();
+		assert_eq!(err.code, 422);
+		assert_eq!(err.message, "state violation");
 	}
 }

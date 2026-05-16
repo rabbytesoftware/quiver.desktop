@@ -1,44 +1,57 @@
 use std::sync::Arc;
 
-use futures_util::StreamExt;
+use futures_util::{Stream, StreamExt};
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::connection::local::transport::connect_unix_ws;
 use crate::connection::types::{Emitter, WsTarget};
 
+type WsStream = Box<
+	dyn Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>
+		+ Unpin
+		+ Send,
+>;
+
 pub async fn run_runtime_ws<E: Emitter>(target: WsTarget, emitter: Arc<E>) {
 	loop {
-		match &target {
-			WsTarget::Tcp(base) => {
-				let url = format!("{}/v0/runtime", base);
-				if let Ok((mut ws, _)) =
-					tokio_tungstenite::connect_async(&url).await
-				{
-					run_ws_loop(&mut ws, emitter.as_ref()).await;
-				}
-			}
-			WsTarget::Unix(path) => {
-				if let Ok(mut ws) = connect_unix_ws(path, "/v0/runtime").await {
-					run_ws_loop(&mut ws, emitter.as_ref()).await;
-				}
-			}
+		if let Some(mut ws) = open(&target, "/v0/runtime").await {
+			run_ws_loop(&mut ws, emitter.as_ref()).await;
 		}
 		tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 	}
 }
 
-async fn run_ws_loop<S, E>(ws: &mut tokio_tungstenite::WebSocketStream<S>, emitter: &E)
+async fn open(target: &WsTarget, path: &str) -> Option<WsStream> {
+	match target {
+		WsTarget::Tcp(base) => {
+			let url = format!("{}{}", base, path);
+			tokio_tungstenite::connect_async(&url)
+				.await
+				.ok()
+				.map(|(ws, _)| Box::new(ws) as WsStream)
+		}
+		WsTarget::Unix(p) => {
+			connect_unix_ws(p, path)
+				.await
+				.ok()
+				.map(|ws| Box::new(ws) as WsStream)
+		}
+	}
+}
+
+async fn run_ws_loop<S, E>(ws: &mut S, emitter: &E)
 where
-	S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+	S: Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin,
 	E: Emitter,
 {
 	while let Some(msg) = ws.next().await {
 		match msg {
 			Ok(Message::Text(text)) => {
-				if let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
-				{
-					emitter.emit_runtime_update(value);
-				}
+				let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
+				else {
+					continue;
+				};
+				emitter.emit_runtime_update(value);
 			}
 			Ok(Message::Close(_)) | Err(_) => break,
 			_ => {}
@@ -49,12 +62,63 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::connection::types::CoreStatus;
+	use futures_util::stream;
+	use std::sync::Mutex;
+	use tokio_tungstenite::tungstenite::Error;
 
-	#[test]
-	fn valid_json_is_forwarded_as_value() {
+	struct MockEmitter {
+		updates: Mutex<Vec<serde_json::Value>>,
+	}
+
+	impl MockEmitter {
+		fn new() -> Arc<Self> {
+			Arc::new(Self {
+				updates: Mutex::new(vec![]),
+			})
+		}
+	}
+
+	impl Emitter for MockEmitter {
+		fn emit_core_status(&self, _: CoreStatus) {}
+		fn emit_arrow_event(&self, _: serde_json::Value) {}
+		fn emit_runtime_update(&self, value: serde_json::Value) {
+			self.updates.lock().unwrap().push(value);
+		}
+		fn emit_connection_changed(&self, _: serde_json::Value) {}
+	}
+
+	#[tokio::test]
+	async fn runtime_update_is_forwarded_to_emitter() {
+		let emitter = MockEmitter::new();
 		let json = r#"{"namespace":"ns@v1","state":"running","active_run":null,"last_return":null}"#;
-		let value: serde_json::Value = serde_json::from_str(json).unwrap();
-		assert_eq!(value["namespace"], "ns@v1");
-		assert_eq!(value["state"], "running");
+		let messages: Vec<Result<Message, Error>> =
+			vec![Ok(Message::Text(json.into()))];
+		run_ws_loop(&mut stream::iter(messages), emitter.as_ref()).await;
+		let updates = emitter.updates.lock().unwrap();
+		assert_eq!(updates.len(), 1);
+		assert_eq!(updates[0]["namespace"], "ns@v1");
+		assert_eq!(updates[0]["state"], "running");
+	}
+
+	#[tokio::test]
+	async fn invalid_json_is_silently_dropped() {
+		let emitter = MockEmitter::new();
+		let messages: Vec<Result<Message, Error>> =
+			vec![Ok(Message::Text("not json".into()))];
+		run_ws_loop(&mut stream::iter(messages), emitter.as_ref()).await;
+		assert!(emitter.updates.lock().unwrap().is_empty());
+	}
+
+	#[tokio::test]
+	async fn close_message_stops_the_loop() {
+		let emitter = MockEmitter::new();
+		let json = r#"{"namespace":"ns@v1","state":"running"}"#;
+		let messages: Vec<Result<Message, Error>> = vec![
+			Ok(Message::Close(None)),
+			Ok(Message::Text(json.into())),
+		];
+		run_ws_loop(&mut stream::iter(messages), emitter.as_ref()).await;
+		assert!(emitter.updates.lock().unwrap().is_empty());
 	}
 }

@@ -1,3 +1,4 @@
+use crate::connection::types::CommandError;
 use crate::connection::ConnectionManager;
 use std::collections::HashMap;
 use tauri::State;
@@ -7,12 +8,12 @@ pub async fn install(
 	state: State<'_, ConnectionManager>,
 	namespace: String,
 	variables: Option<HashMap<String, String>>,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
 	state.http()
 		.await
 		.install(&namespace, variables.unwrap_or_default())
 		.await
-		.map_err(|e| e.to_string())
+		.map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -20,12 +21,12 @@ pub async fn uninstall(
 	state: State<'_, ConnectionManager>,
 	namespace: String,
 	variables: Option<HashMap<String, String>>,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
 	state.http()
 		.await
 		.uninstall(&namespace, variables.unwrap_or_default())
 		.await
-		.map_err(|e| e.to_string())
+		.map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -34,19 +35,22 @@ pub async fn execute(
 	namespace: String,
 	method: String,
 	variables: Option<HashMap<String, String>>,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
 	state.http()
 		.await
 		.execute(&namespace, &method, variables.unwrap_or_default())
 		.await
-		.map_err(|e| e.to_string())
+		.map_err(CommandError::from)
 }
 
 #[tauri::command]
-pub async fn stop(state: State<'_, ConnectionManager>, namespace: String) -> Result<(), String> {
+pub async fn stop(
+	state: State<'_, ConnectionManager>,
+	namespace: String,
+) -> Result<(), CommandError> {
 	state.http()
 		.await
 		.stop(&namespace)
 		.await
-		.map_err(|e| e.to_string())
+		.map_err(CommandError::from)
 }
