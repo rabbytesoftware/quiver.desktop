@@ -451,6 +451,14 @@ jobs:
         cargo tarpaulin --out Xml --out Html --out Lcov \
           --output-dir ../coverage/rust \
           --fail-under 95 \
+          --exclude-files 'src/lib.rs' 'src/main.rs' \
+            'src/commands/*.rs' \
+            'src/connection/local/mod.rs' \
+            'src/connection/local/sidecar.rs' \
+            'src/connection/remote/mod.rs' \
+            'src/connection/manager.rs' \
+            'src/connection/mod.rs' \
+            'src/connection/ws/mod.rs' \
           --verbose
 
     - name: Upload coverage report

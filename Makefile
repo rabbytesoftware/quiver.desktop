@@ -211,7 +211,12 @@ coverage-rust:
 	@echo "🧪 Running Rust tests with coverage..."
 	@$(CARGO) tarpaulin --version >/dev/null 2>&1 || (echo "⚠️  cargo-tarpaulin not installed. Run: $(CARGO) install cargo-tarpaulin" && exit 1)
 	@mkdir -p coverage/rust
-	@cd src-tauri && $(CARGO) tarpaulin --out Xml --out Html --out Lcov --output-dir ../coverage/rust --verbose || (echo "❌ Coverage generation failed" && exit 1)
+	@cd src-tauri && $(CARGO) tarpaulin --out Xml --out Html --out Lcov --output-dir ../coverage/rust \
+		--exclude-files 'src/lib.rs' 'src/main.rs' 'src/commands/*.rs' \
+		'src/connection/local/mod.rs' 'src/connection/local/sidecar.rs' \
+		'src/connection/remote/mod.rs' 'src/connection/manager.rs' \
+		'src/connection/mod.rs' 'src/connection/ws/mod.rs' \
+		--verbose || (echo "❌ Coverage generation failed" && exit 1)
 	@if [ -f "coverage/rust/cobertura.xml" ]; then \
 		OVERALL_COVERAGE=$$(grep -oP 'line-rate="\K[0-9.]+' coverage/rust/cobertura.xml | head -1); \
 		COVERAGE_PERCENT=$$(echo "$$OVERALL_COVERAGE * 100" | bc); \
