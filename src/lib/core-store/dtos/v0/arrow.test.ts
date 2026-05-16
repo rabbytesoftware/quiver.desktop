@@ -3,15 +3,17 @@ import { toArrowListItems, type ArrowListResponseItemDTO } from './arrow';
 
 describe('toArrowListItems', () => {
 	it('maps slim fields from list response', () => {
-		const input: ArrowListResponseItemDTO[] = [{
-			namespace: 'github.com/user/repo',
-			name: 'My Arrow',
-			description: 'A test arrow',
-			tags: ['cli'],
-			icon: 'https://example.com/icon.png',
-			banner: null,
-			versions: [{ ref: 'v1.0.0', version: '1.0.0', state: 'ready' }],
-		}];
+		const input: ArrowListResponseItemDTO[] = [
+			{
+				namespace: 'github.com/user/repo',
+				name: 'My Arrow',
+				description: 'A test arrow',
+				tags: ['cli'],
+				icon: 'https://example.com/icon.png',
+				banner: null,
+				versions: [{ ref: 'v1.0.0', version: '1.0.0', state: 'ready' }],
+			},
+		];
 		const result = toArrowListItems(input);
 		expect(result).toHaveLength(1);
 		expect(result[0].namespace).toBe('github.com/user/repo@v1.0.0');
@@ -26,29 +28,33 @@ describe('toArrowListItems', () => {
 	});
 
 	it('defaults icon and banner to null when absent', () => {
-		const input: ArrowListResponseItemDTO[] = [{
-			namespace: 'github.com/user/repo',
-			name: 'Arrow',
-			description: '',
-			tags: [],
-			versions: [{ ref: 'v1', version: '1.0.0', state: 'ready' }],
-		}];
+		const input: ArrowListResponseItemDTO[] = [
+			{
+				namespace: 'github.com/user/repo',
+				name: 'Arrow',
+				description: '',
+				tags: [],
+				versions: [{ ref: 'v1', version: '1.0.0', state: 'ready' }],
+			},
+		];
 		const result = toArrowListItems(input);
 		expect(result[0].icon).toBeNull();
 		expect(result[0].banner).toBeNull();
 	});
 
 	it('expands multiple versions into separate entries', () => {
-		const input: ArrowListResponseItemDTO[] = [{
-			namespace: 'github.com/user/repo',
-			name: 'Arrow',
-			description: '',
-			tags: [],
-			versions: [
-				{ ref: 'v1.0.0', version: '1.0.0', state: 'ready' },
-				{ ref: 'v2.0.0', version: '2.0.0', state: 'absent' },
-			],
-		}];
+		const input: ArrowListResponseItemDTO[] = [
+			{
+				namespace: 'github.com/user/repo',
+				name: 'Arrow',
+				description: '',
+				tags: [],
+				versions: [
+					{ ref: 'v1.0.0', version: '1.0.0', state: 'ready' },
+					{ ref: 'v2.0.0', version: '2.0.0', state: 'absent' },
+				],
+			},
+		];
 		const result = toArrowListItems(input);
 		expect(result).toHaveLength(2);
 		expect(result[0].namespace).toBe('github.com/user/repo@v1.0.0');

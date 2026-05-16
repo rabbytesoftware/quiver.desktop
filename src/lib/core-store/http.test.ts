@@ -38,11 +38,9 @@ describe('fetchArrowDetail', () => {
 			vi.fn().mockResolvedValue({
 				ok: false,
 				json: () => Promise.resolve({ success: false, data: undefined, error: null }),
-			}),
+			})
 		);
-		await expect(fetchArrowDetail('ns@v1', 'http://localhost:6982')).rejects.toThrow(
-			'Unknown error',
-		);
+		await expect(fetchArrowDetail('ns@v1', 'http://localhost:6982')).rejects.toThrow('Unknown error');
 	});
 });
 

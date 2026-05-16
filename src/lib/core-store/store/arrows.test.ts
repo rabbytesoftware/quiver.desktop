@@ -3,15 +3,15 @@ import { useArrowStore } from './arrows';
 import type { ArrowEntry } from '@/domain/arrow';
 
 const entry = (): ArrowEntry => ({
-	namespace:   'github.com/foo/bar@v1',
-	name:        'bar',
+	namespace: 'github.com/foo/bar@v1',
+	name: 'bar',
 	description: 'A bar arrow',
-	tags:        ['cli'],
-	icon:        null,
-	banner:      null,
-	version:     '1.0.0',
-	state:       'ready',
-	active_run:  null,
+	tags: ['cli'],
+	icon: null,
+	banner: null,
+	version: '1.0.0',
+	state: 'ready',
+	active_run: null,
 	last_return: null,
 });
 
@@ -42,9 +42,9 @@ describe('applyRuntimeUpdate', () => {
 	it('patches state and runtime fields', () => {
 		useArrowStore.getState().upsertArrow(entry());
 		useArrowStore.getState().applyRuntimeUpdate({
-			namespace:   'github.com/foo/bar@v1',
-			state:       'running',
-			active_run:  { method: 'execute', variables: {}, steps: [] },
+			namespace: 'github.com/foo/bar@v1',
+			state: 'running',
+			active_run: { method: 'execute', variables: {}, steps: [] },
 			last_return: null,
 		});
 		const e = useArrowStore.getState().arrows.get('github.com/foo/bar@v1')!;
@@ -58,9 +58,9 @@ describe('applyRuntimeUpdate', () => {
 			last_return: { method: 'execute', outcome: 'success' },
 		});
 		useArrowStore.getState().applyRuntimeUpdate({
-			namespace:   'github.com/foo/bar@v1',
-			state:       'ready',
-			active_run:  null,
+			namespace: 'github.com/foo/bar@v1',
+			state: 'ready',
+			active_run: null,
 			last_return: null,
 		});
 		const e = useArrowStore.getState().arrows.get('github.com/foo/bar@v1')!;
@@ -69,7 +69,10 @@ describe('applyRuntimeUpdate', () => {
 
 	it('is a no-op for unknown namespace', () => {
 		useArrowStore.getState().applyRuntimeUpdate({
-			namespace: 'unknown@v1', state: 'running', active_run: null, last_return: null,
+			namespace: 'unknown@v1',
+			state: 'running',
+			active_run: null,
+			last_return: null,
 		});
 		expect(useArrowStore.getState().arrows.size).toBe(0);
 	});

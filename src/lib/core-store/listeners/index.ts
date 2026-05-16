@@ -10,34 +10,33 @@ import { useStatusStore } from '../store/status';
 import { useConnectionStore } from '@/lib/connection/store';
 
 interface ArrowEventPayload {
-	event:        string;
-	namespace:    string;
-	name?:        string;
+	event: string;
+	namespace: string;
+	name?: string;
 	description?: string;
-	tags?:        string[];
-	icon?:        string | null;
-	banner?:      string | null;
+	tags?: string[];
+	icon?: string | null;
+	banner?: string | null;
 }
 
 interface ConnectionChangedPayload {
 	connections: import('@/domain/connection').ConnectionConfig[];
-	active_id:   string;
+	active_id: string;
 }
 
 async function hydrateAll(): Promise<void> {
 	if (import.meta.env.DEV) console.log('[core-store] hydrateAll — pulling get_arrows + get_connections');
 	const [arrows, connectionState] = await Promise.all([
 		invoke<ArrowListResponseItemDTO[]>('get_arrows'),
-		invoke<{ connections: import('@/domain/connection').ConnectionConfig[], active_id: string }>('get_connections'),
+		invoke<{ connections: import('@/domain/connection').ConnectionConfig[]; active_id: string }>('get_connections'),
 	]);
 	const items = toArrowListItems(arrows);
-	if (import.meta.env.DEV) console.log(`[core-store] hydrated ${items.length} arrows, active connection: ${connectionState.active_id}`);
+	if (import.meta.env.DEV)
+		console.log(`[core-store] hydrated ${items.length} arrows, active connection: ${connectionState.active_id}`);
 	for (const item of items) {
 		useArrowStore.getState().upsertArrow(item);
 	}
-	useConnectionStore
-		.getState()
-		.setFromEvent(connectionState.connections, connectionState.active_id);
+	useConnectionStore.getState().setFromEvent(connectionState.connections, connectionState.active_id);
 }
 
 export async function setupListeners(): Promise<void> {
@@ -67,9 +66,9 @@ export async function setupListeners(): Promise<void> {
 				tags,
 				icon,
 				banner,
-				version:     existing?.version ?? '',
-				state:       existing?.state ?? 'ready',
-				active_run:  existing?.active_run ?? null,
+				version: existing?.version ?? '',
+				state: existing?.state ?? 'ready',
+				active_run: existing?.active_run ?? null,
 				last_return: existing?.last_return ?? null,
 			});
 		}
@@ -80,9 +79,10 @@ export async function setupListeners(): Promise<void> {
 	});
 
 	await listen<ConnectionChangedPayload>('connection://changed', (e) => {
-		if (import.meta.env.DEV) console.log(`[core-store] connection://changed → active: ${e.payload.active_id}, count: ${e.payload.connections.length}`);
-		useConnectionStore
-			.getState()
-			.setFromEvent(e.payload.connections, e.payload.active_id);
+		if (import.meta.env.DEV)
+			console.log(
+				`[core-store] connection://changed → active: ${e.payload.active_id}, count: ${e.payload.connections.length}`
+			);
+		useConnectionStore.getState().setFromEvent(e.payload.connections, e.payload.active_id);
 	});
 }

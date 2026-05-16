@@ -46,7 +46,7 @@ async fn fetch_arrows_returns_list_items() {
 async fn health_returns_ok_on_200() {
 	let server = MockServer::start().await;
 	Mock::given(method("GET"))
-		.and(path("/health"))
+		.and(path("/v0/health"))
 		.respond_with(
 			ResponseTemplate::new(200)
 				.set_body_json(serde_json::json!({"status": "ok"})),

@@ -11,9 +11,9 @@ vi.mock('@tauri-apps/api/core', () => ({
 vi.mock('../store/arrows', () => ({
 	useArrowStore: {
 		getState: () => ({
-			resetArrows:        vi.fn(),
-			upsertArrow:        vi.fn(),
-			removeArrow:        vi.fn(),
+			resetArrows: vi.fn(),
+			upsertArrow: vi.fn(),
+			removeArrow: vi.fn(),
 			applyRuntimeUpdate: vi.fn(),
 		}),
 	},

@@ -4,12 +4,12 @@ import type { ConnectionConfig } from '@/domain/connection';
 
 interface ConnectionState {
 	connections: ConnectionConfig[];
-	activeId:    string;
+	activeId: string;
 	setFromEvent: (connections: ConnectionConfig[], activeId: string) => void;
 }
 
 export const useConnectionStore = create<ConnectionState>((set) => ({
-	connections:  [],
-	activeId:     'local',
+	connections: [],
+	activeId: 'local',
 	setFromEvent: (connections, activeId) => set({ connections, activeId }),
 }));

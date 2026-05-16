@@ -3,11 +3,11 @@ import { create } from 'zustand';
 import type { ArrowEntry, RuntimeUpdate } from '@/domain/arrow';
 
 interface ArrowStore {
-	arrows:             Map<string, ArrowEntry>;
-	upsertArrow:        (item: ArrowEntry) => void;
-	removeArrow:        (namespace: string) => void;
+	arrows: Map<string, ArrowEntry>;
+	upsertArrow: (item: ArrowEntry) => void;
+	removeArrow: (namespace: string) => void;
 	applyRuntimeUpdate: (payload: RuntimeUpdate) => void;
-	resetArrows:        () => void;
+	resetArrows: () => void;
 }
 
 export const useArrowStore = create<ArrowStore>((set) => ({
@@ -34,8 +34,8 @@ export const useArrowStore = create<ArrowStore>((set) => ({
 			const next = new Map(s.arrows);
 			next.set(payload.namespace, {
 				...existing,
-				state:       payload.state,
-				active_run:  payload.active_run,
+				state: payload.state,
+				active_run: payload.active_run,
 				last_return: payload.last_return ?? existing.last_return,
 			});
 			return { arrows: next };

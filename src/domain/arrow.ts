@@ -35,22 +35,22 @@ export interface LastReturn {
 
 /** Merged catalog + runtime view. Key: versioned namespace (base@ref). */
 export interface ArrowEntry {
-	namespace:   string;
-	name:        string;
+	namespace: string;
+	name: string;
 	description: string;
-	tags:        string[];
-	icon:        string | null;
-	banner:      string | null;
-	version:     string;
-	state:       ArrowState;
-	active_run:  ActiveRun | null;
+	tags: string[];
+	icon: string | null;
+	banner: string | null;
+	version: string;
+	state: ArrowState;
+	active_run: ActiveRun | null;
 	last_return: LastReturn | null;
 }
 
 export interface RuntimeUpdate {
-	namespace:   string;
-	state:       ArrowState;
-	active_run:  ActiveRun | null;
+	namespace: string;
+	state: ArrowState;
+	active_run: ActiveRun | null;
 	last_return: LastReturn | null;
 }
 
