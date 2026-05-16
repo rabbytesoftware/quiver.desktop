@@ -1,6 +1,5 @@
 export { useArrowStore } from './store/arrows';
 export { useStatusStore } from './store/status';
-export { useConnectionStore, loadConnections } from './connection';
 export { setupListeners } from './listeners';
 export { useArrowDetail, useCollections, useCollectionDetail, queryKeys } from './queries';
 export { useInstall, useUninstall, useExecute, useStop } from './mutations/runtime';

@@ -358,3 +358,104 @@ jobs:
           exit 1
         fi
         echo "✅ Tauri binary built successfully"
+
+  test-coverage-frontend:
+    name: Test Coverage - Frontend (≥95%)
+    runs-on: ubuntu-latest
+    needs: [code-quality-frontend]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ env.BUN_VERSION }}
+
+    - name: Cache Bun dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.bun/install/cache
+          node_modules
+        key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-
+
+    - name: Install dependencies
+      run: bun install
+
+    - name: Run tests with coverage
+      run: bun run test:coverage
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: frontend-coverage
+        path: coverage/
+
+  test-coverage-rust:
+    name: Test Coverage - Rust (≥95%)
+    runs-on: ubuntu-latest
+    needs: [code-quality-rust]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev \
+          build-essential \
+          curl \
+          wget \
+          file \
+          libssl-dev \
+          libayatana-appindicator3-dev \
+          librsvg2-dev
+
+    - name: Set up Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          src-tauri/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Create sidecar placeholder
+      run: |
+        mkdir -p src-tauri/binaries
+        TARGET_TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
+        touch "src-tauri/binaries/quiver-${TARGET_TRIPLE}"
+        chmod +x "src-tauri/binaries/quiver-${TARGET_TRIPLE}"
+
+    - name: Install cargo-tarpaulin
+      run: cargo install cargo-tarpaulin --locked
+
+    - name: Run tests with coverage
+      run: |
+        cd src-tauri
+        cargo tarpaulin --out Xml --out Html --out Lcov \
+          --output-dir ../coverage/rust \
+          --fail-under 95 \
+          --verbose
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: rust-coverage
+        path: coverage/rust/

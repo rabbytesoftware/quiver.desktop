@@ -5,11 +5,13 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import ReactDOM from 'react-dom/client';
 
-import { setupListeners } from '@/core-store';
+import { setupListeners } from '@/lib/core-store';
+import { setupConnectionListeners } from '@/lib/connection';
 
 import { routeTree } from './routeTree.gen';
 
 setupListeners();
+setupConnectionListeners();
 
 const queryClient = new QueryClient({
 	defaultOptions: {

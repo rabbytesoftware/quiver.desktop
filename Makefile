@@ -4,6 +4,7 @@
 	code-quality-frontend code-quality-rust \
 	build-frontend build-rust build \
 	fetch-sidecar dev build-app \
+	test-frontend coverage-frontend \
 	test-rust coverage-rust \
 	pr-checks clean
 
@@ -64,8 +65,10 @@ help:
 	@echo "  make build-app             - Build full Tauri app installer for this platform"
 	@echo ""
 	@echo "🧪 Testing:"
+	@echo "  make test-frontend         - Run TypeScript tests"
+	@echo "  make coverage-frontend     - Run TypeScript tests with coverage (≥95%)"
 	@echo "  make test-rust             - Run Rust tests"
-	@echo "  make coverage-rust         - Run tests with coverage (≥80%)"
+	@echo "  make coverage-rust         - Run Rust tests with coverage (≥95%)"
 	@echo ""
 	@echo "✅ CI/PR:"
 	@echo "  make pr-checks             - Run all CI steps locally"
@@ -181,6 +184,22 @@ build-app:
 	@PATH="$(dir $(CARGO)):$(dir $(BUN)):$$PATH" $(BUN) run tauri build
 	@echo "✅ App built — check src-tauri/target/release/bundle/"
 
+test-frontend:
+	@echo "🧪 Running TypeScript tests..."
+	@$(BUN) run test || (echo "❌ TypeScript tests failed" && exit 1)
+	@echo "✅ TypeScript tests passed"
+
+coverage-frontend:
+	@echo "🧪 Running TypeScript tests with coverage..."
+	@mkdir -p coverage/frontend
+	@$(BUN) run test:coverage -- --coverage.reportsDirectory=coverage/frontend 2>&1 | tee /tmp/ts-coverage.txt; \
+	if grep -q "ERROR: Coverage" /tmp/ts-coverage.txt; then \
+		echo "❌ TypeScript coverage is below required 95%"; \
+		exit 1; \
+	fi
+	@echo "✅ TypeScript coverage meets requirement (≥95%)"
+	@echo "📊 TypeScript coverage report: coverage/frontend/index.html"
+
 test-rust:
 	@echo "🧪 Running Rust tests..."
 	@cd src-tauri && $(CARGO) test || (echo "❌ Rust tests failed" && exit 1)
@@ -189,26 +208,26 @@ test-rust:
 coverage-rust:
 	@echo "🧪 Running Rust tests with coverage..."
 	@$(CARGO) tarpaulin --version >/dev/null 2>&1 || (echo "⚠️  cargo-tarpaulin not installed. Run: $(CARGO) install cargo-tarpaulin" && exit 1)
-	@mkdir -p coverage
-	@cd src-tauri && $(CARGO) tarpaulin --out Xml --out Html --out Lcov --output-dir ../coverage --verbose || (echo "❌ Coverage generation failed" && exit 1)
-	@if [ -f "coverage/cobertura.xml" ]; then \
-		OVERALL_COVERAGE=$$(grep -oP 'line-rate="\K[0-9.]+' coverage/cobertura.xml | head -1); \
+	@mkdir -p coverage/rust
+	@cd src-tauri && $(CARGO) tarpaulin --out Xml --out Html --out Lcov --output-dir ../coverage/rust --verbose || (echo "❌ Coverage generation failed" && exit 1)
+	@if [ -f "coverage/rust/cobertura.xml" ]; then \
+		OVERALL_COVERAGE=$$(grep -oP 'line-rate="\K[0-9.]+' coverage/rust/cobertura.xml | head -1); \
 		COVERAGE_PERCENT=$$(echo "$$OVERALL_COVERAGE * 100" | bc); \
 		echo "Overall coverage: $${COVERAGE_PERCENT}%"; \
-		if [ $$(echo "$$OVERALL_COVERAGE < 0.80" | bc -l) -eq 1 ]; then \
-			echo "❌ Overall coverage $${COVERAGE_PERCENT}% is below required 80%"; \
+		if [ $$(echo "$$OVERALL_COVERAGE < 0.95" | bc -l) -eq 1 ]; then \
+			echo "❌ Overall coverage $${COVERAGE_PERCENT}% is below required 95%"; \
 			exit 1; \
 		fi; \
-		echo "✅ Overall coverage $${COVERAGE_PERCENT}% meets requirement (≥80%)"; \
+		echo "✅ Overall coverage $${COVERAGE_PERCENT}% meets requirement (≥95%)"; \
 	else \
 		echo "⚠️  Coverage file not found, skipping coverage check"; \
 	fi
-	@echo "📊 Coverage report: coverage/index.html"
+	@echo "📊 Rust coverage report: coverage/rust/index.html"
 
 pr-checks:
 	@echo "🚀 Running all PR validation checks..."
 	@echo ""
-	@echo "Step 1/5: CORE_VERSION Validation"
+	@echo "Step 1/6: CORE_VERSION Validation"
 	@echo "=============================="
 	@CORE_VERSION=$$(node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]'); \
 	if [ -z "$$CORE_VERSION" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi; \
@@ -217,16 +236,20 @@ pr-checks:
 	  (echo "❌ quiver.core release $$CORE_VERSION not found" && exit 1); \
 	echo "✅ quiver.core release $$CORE_VERSION exists"
 	@echo ""
-	@echo "Step 2/5: Code Quality Checks"
+	@echo "Step 2/6: Code Quality Checks"
 	@echo "=============================="
 	@$(MAKE) code-quality-frontend
 	@$(MAKE) code-quality-rust
 	@echo ""
-	@echo "Step 3/5: Build Validation"
+	@echo "Step 3/6: Build Validation"
 	@echo "=============================="
 	@$(MAKE) build
 	@echo ""
-	@echo "Step 4/5: Test Coverage"
+	@echo "Step 4/6: TypeScript Test Coverage (≥95%)"
+	@echo "=============================="
+	@$(MAKE) coverage-frontend
+	@echo ""
+	@echo "Step 5/6: Rust Test Coverage (≥95%)"
 	@echo "=============================="
 	@$(MAKE) coverage-rust
 	@echo ""
@@ -240,7 +263,8 @@ pr-checks:
 	@echo "  ✅ Rust code quality checks passed"
 	@echo "  ✅ Frontend builds successfully"
 	@echo "  ✅ Tauri backend builds successfully"
-	@echo "  ✅ Rust test coverage ≥ 80%"
+	@echo "  ✅ TypeScript test coverage ≥ 95%"
+	@echo "  ✅ Rust test coverage ≥ 95%"
 	@echo ""
 	@echo "🎉 Your PR is ready for submission!"
 

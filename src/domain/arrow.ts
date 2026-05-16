@@ -28,24 +28,34 @@ export interface ActiveRun {
 	steps: StepProgress[];
 }
 
-export interface LastOutcome {
+export interface LastReturn {
 	method: string;
 	outcome: 'success' | 'failed' | 'cancelled';
 }
 
-/** The global store entry — merged catalog + runtime view. Key: versioned namespace (base@ref). */
-export interface ArrowListItem {
-	namespace: string;
-	name: string;
-	version: string;
-	state: ArrowState;
-	active_run: ActiveRun | null;
-	last_outcome: LastOutcome | null;
+/** Merged catalog + runtime view. Key: versioned namespace (base@ref). */
+export interface ArrowEntry {
+	namespace:   string;
+	name:        string;
+	description: string;
+	tags:        string[];
+	icon:        string | null;
+	banner:      string | null;
+	version:     string;
+	state:       ArrowState;
+	active_run:  ActiveRun | null;
+	last_return: LastReturn | null;
 }
 
 export interface RuntimeUpdate {
-	namespace: string;
-	state: ArrowState;
-	active_run: ActiveRun | null;
-	last_outcome: LastOutcome | null;
+	namespace:   string;
+	state:       ArrowState;
+	active_run:  ActiveRun | null;
+	last_return: LastReturn | null;
 }
+
+/** @deprecated Use ArrowEntry */
+export type ArrowListItem = ArrowEntry;
+
+/** @deprecated Use LastReturn */
+export type LastOutcome = LastReturn;
