@@ -167,3 +167,49 @@ async fn remove_arrow_sends_delete_to_correct_path() {
 		.await
 		.is_ok());
 }
+
+#[tokio::test]
+async fn post_returns_api_error_on_4xx() {
+	let server = MockServer::start().await;
+	Mock::given(method("POST"))
+		.and(path("/v0/runtime/github.com%2Fuser%2Frepo@v1.0.0/install"))
+		.respond_with(
+			ResponseTemplate::new(400)
+				.set_body_json(serde_json::json!({ "error": "invalid state" })),
+		)
+		.mount(&server)
+		.await;
+
+	let client = make_client(&server.uri());
+	let err = client
+		.install("github.com/user/repo@v1.0.0", Default::default())
+		.await
+		.unwrap_err();
+	assert!(matches!(
+		err,
+		quiverdesktop_lib::connection::http::HttpError::Api { .. }
+	));
+}
+
+#[tokio::test]
+async fn delete_returns_api_error_on_4xx() {
+	let server = MockServer::start().await;
+	Mock::given(method("DELETE"))
+		.and(path("/v0/arrow/github.com%2Fuser%2Frepo@v1.0.0"))
+		.respond_with(
+			ResponseTemplate::new(404)
+				.set_body_json(serde_json::json!({ "error": "not found" })),
+		)
+		.mount(&server)
+		.await;
+
+	let client = make_client(&server.uri());
+	let err = client
+		.remove_arrow("github.com/user/repo@v1.0.0")
+		.await
+		.unwrap_err();
+	assert!(matches!(
+		err,
+		quiverdesktop_lib::connection::http::HttpError::Api { .. }
+	));
+}

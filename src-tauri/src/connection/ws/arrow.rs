@@ -28,14 +28,14 @@ where
 	while let Some(msg) = ws.next().await {
 		match msg {
 			Ok(Message::Text(text)) => {
-				let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
-				else {
-					continue;
-				};
-				emitter.emit_arrow_event(value);
+				match serde_json::from_str::<serde_json::Value>(&text) {
+					Ok(value) => emitter.emit_arrow_event(value),
+					Err(_) => continue,
+				}
 			}
-			Ok(Message::Close(_)) | Err(_) => break,
-			_ => {}
+			Ok(Message::Close(_)) => break,
+			Err(_) => break,
+			_ => continue,
 		}
 	}
 }
@@ -109,5 +109,27 @@ mod tests {
 			vec![Ok(Message::Close(None)), Ok(Message::Text(json.into()))];
 		run_ws_loop(&mut stream::iter(messages), emitter.as_ref()).await;
 		assert!(emitter.events.lock().unwrap().is_empty());
+	}
+
+	#[tokio::test]
+	async fn ws_error_stops_the_loop() {
+		let emitter = MockEmitter::new();
+		let messages: Vec<Result<Message, Error>> = vec![
+			Err(Error::ConnectionClosed),
+			Ok(Message::Text(r#"{}"#.into())),
+		];
+		run_ws_loop(&mut stream::iter(messages), emitter.as_ref()).await;
+		assert!(emitter.events.lock().unwrap().is_empty());
+	}
+
+	#[tokio::test]
+	async fn non_text_message_is_skipped() {
+		let emitter = MockEmitter::new();
+		let messages: Vec<Result<Message, Error>> = vec![
+			Ok(Message::Binary(vec![1, 2, 3].into())),
+			Ok(Message::Text(r#"{"event":"upserted"}"#.into())),
+		];
+		run_ws_loop(&mut stream::iter(messages), emitter.as_ref()).await;
+		assert_eq!(emitter.events.lock().unwrap().len(), 1);
 	}
 }

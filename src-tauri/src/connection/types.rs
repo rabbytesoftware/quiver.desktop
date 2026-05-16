@@ -117,4 +117,12 @@ mod tests {
 		assert_eq!(err.code, 422);
 		assert_eq!(err.message, "state violation");
 	}
+
+	#[test]
+	fn command_error_from_http_parse_error_uses_500() {
+		use crate::connection::http::HttpError;
+		let json_err = serde_json::from_str::<serde_json::Value>("not json").unwrap_err();
+		let err: CommandError = HttpError::Parse(json_err).into();
+		assert_eq!(err.code, 500);
+	}
 }
