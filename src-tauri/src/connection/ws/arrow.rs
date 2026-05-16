@@ -14,8 +14,13 @@ type WsStream = Box<
 
 pub async fn run_arrow_ws<E: Emitter>(target: WsTarget, emitter: Arc<E>) {
 	loop {
+		log::debug!("[ws/arrow] connecting");
 		if let Some(mut ws) = open(&target, "/v0/arrow").await {
+			log::info!("[ws/arrow] connected");
 			run_ws_loop(&mut ws, emitter.as_ref()).await;
+			log::info!("[ws/arrow] disconnected — reconnecting in 500ms");
+		} else {
+			log::debug!("[ws/arrow] connection failed — retrying in 500ms");
 		}
 		tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 	}

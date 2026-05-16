@@ -55,22 +55,26 @@ fn default_socket_path() -> String {
 #[async_trait]
 impl QuiverConnection for LocalConnection {
 	async fn start(&self, app: &AppHandle) {
+		log::info!("[local] starting — socket: {}", self.socket_path);
 		app.emit_core_status(CoreStatus::Starting);
 
 		if let Err(e) = self.sidecar.spawn(app).await {
-			log::error!("failed to spawn sidecar: {e}");
+			log::error!("[local] sidecar spawn failed: {e}");
 			app.emit_core_status(CoreStatus::Disconnected);
 			return;
 		}
+		log::info!("[local] sidecar spawned, waiting for ready");
 
 		if let Err(e) = self.sidecar.wait_for_ready(&self.http).await {
-			log::error!("sidecar not ready: {e}");
+			log::error!("[local] sidecar health check failed: {e}");
 			app.emit_core_status(CoreStatus::Disconnected);
 			return;
 		}
+		log::info!("[local] sidecar ready — emitting core://status: ready");
 
 		app.emit_core_status(CoreStatus::Ready);
 
+		log::info!("[local] starting WS manager");
 		WsManager::new(
 			WsTarget::Unix(self.socket_path.clone()),
 			Arc::new(app.clone()),

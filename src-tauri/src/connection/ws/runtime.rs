@@ -14,8 +14,13 @@ type WsStream = Box<
 
 pub async fn run_runtime_ws<E: Emitter>(target: WsTarget, emitter: Arc<E>) {
 	loop {
+		log::debug!("[ws/runtime] connecting");
 		if let Some(mut ws) = open(&target, "/v0/runtime").await {
+			log::info!("[ws/runtime] connected");
 			run_ws_loop(&mut ws, emitter.as_ref()).await;
+			log::info!("[ws/runtime] disconnected — reconnecting in 500ms");
+		} else {
+			log::debug!("[ws/runtime] connection failed — retrying in 500ms");
 		}
 		tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 	}
