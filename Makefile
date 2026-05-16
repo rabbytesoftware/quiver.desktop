@@ -171,6 +171,8 @@ fetch-sidecar:
 		--clobber
 	@mv "src-tauri/binaries/$(QUIVER_BINARY)" "$(SIDECAR_PATH)"
 	@chmod +x "$(SIDECAR_PATH)"
+	@mkdir -p src-tauri/target/debug/binaries
+	@cp "$(SIDECAR_PATH)" "src-tauri/target/debug/binaries/quiver-$(TARGET_TRIPLE)"
 	@echo "✅ Sidecar ready: $(SIDECAR_PATH)"
 
 dev:
