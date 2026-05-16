@@ -1,5 +1,7 @@
-import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
+import { useConnectionStore } from '@/lib/connection/store';
 
 import type { ArrowListResponseItemDTO } from '../dtos/v0/arrow';
 import { toArrowListItems } from '../dtos/v0/arrow';
@@ -7,7 +9,6 @@ import type { RuntimeUpdateDTO } from '../dtos/v0/runtime';
 import { toRuntimeUpdate } from '../dtos/v0/runtime';
 import { useArrowStore } from '../store/arrows';
 import { useStatusStore } from '../store/status';
-import { useConnectionStore } from '@/lib/connection/store';
 
 interface ArrowEventPayload {
 	event: string;

@@ -31,8 +31,9 @@ vi.mock('@/lib/connection/store', () => ({
 	},
 }));
 
-import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
 import { setupListeners } from './index';
 
 beforeEach(() => vi.clearAllMocks());

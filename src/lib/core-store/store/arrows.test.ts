@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useArrowStore } from './arrows';
+
 import type { ArrowEntry } from '@/domain/arrow';
+
+import { useArrowStore } from './arrows';
 
 const entry = (): ArrowEntry => ({
 	namespace: 'github.com/foo/bar@v1',
