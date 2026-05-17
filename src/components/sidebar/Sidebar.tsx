@@ -1,4 +1,5 @@
 import { useUIStore } from '@/store/ui'
+import { WindowControls } from './WindowControls'
 import { NavBar } from './NavBar'
 import { ArrowList } from './ArrowList'
 
@@ -15,12 +16,7 @@ export function Sidebar() {
         className="flex flex-shrink-0 items-center px-2.5 py-2.5"
         data-tauri-drag-region
       >
-        {/* Window controls placeholder */}
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-full bg-[#FE5F57]" />
-          <div className="h-3 w-3 rounded-full bg-[#FEBC2E]" />
-          <div className="h-3 w-3 rounded-full bg-[#27C840]" />
-        </div>
+        <WindowControls />
 
         {/* Server icon — decorative placeholder */}
         <div className="ml-2 flex items-center text-sidebar-foreground opacity-35">
