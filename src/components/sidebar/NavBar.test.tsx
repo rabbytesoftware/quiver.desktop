@@ -40,7 +40,7 @@ describe('NavBar', () => {
     useArrowStore.getState().upsertArrow(makeArrow('github.com/char2cs/quiver', 'quiver'))
     useUIStore.setState({ navMode: 'arrow', selectedNamespace: 'github.com/char2cs/quiver' })
     render(<NavBar />)
-    expect(screen.getByText('github.com/char2cs/quiver')).toBeInTheDocument()
+    expect(screen.getByText('quiver')).toBeInTheDocument()
   })
 
   it('calls goHome when home button is clicked', async () => {

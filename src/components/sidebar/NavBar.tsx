@@ -14,7 +14,7 @@ export function NavBar() {
 
   const contextLabel =
     navMode === 'arrow' && selectedNamespace
-      ? (arrows.get(selectedNamespace)?.namespace ?? selectedNamespace)
+      ? (arrows.get(selectedNamespace)?.name ?? selectedNamespace)
       : 'Home'
 
   useEffect(() => {
