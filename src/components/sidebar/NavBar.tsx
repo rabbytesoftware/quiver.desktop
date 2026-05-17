@@ -31,14 +31,14 @@ export function NavBar() {
   }
 
   return (
-    <div className="flex flex-shrink-0 items-center border-y border-white/[0.06]">
+    <div className="flex flex-shrink-0 items-center border-y border-sidebar-border">
       {/* Home button */}
       <button
         aria-label="Home"
-        className={`flex h-[30px] w-7 flex-shrink-0 cursor-pointer items-center justify-center border-r border-white/[0.06] transition-colors ${
+        className={`flex h-[30px] w-7 flex-shrink-0 cursor-pointer items-center justify-center border-r border-sidebar-border text-sidebar-foreground transition-colors ${
           navMode === 'home'
-            ? 'bg-white/[0.08] opacity-100'
-            : 'opacity-40 hover:bg-white/[0.06] hover:opacity-75'
+            ? 'bg-sidebar-accent opacity-100'
+            : 'opacity-40 hover:bg-sidebar-accent hover:opacity-75'
         }`}
         onMouseDown={(e) => {
           // Prevent blur on the search input from firing before click
@@ -49,7 +49,7 @@ export function NavBar() {
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
           <path
             d="M2 7L8 2L14 7V14H10V10H6V14H2V7Z"
-            stroke="white"
+            stroke="currentColor"
             strokeWidth="1.4"
             strokeLinejoin="round"
           />
@@ -60,19 +60,19 @@ export function NavBar() {
       <div
         data-testid="nav-bar"
         className={`flex h-[30px] flex-1 cursor-text items-center gap-1.5 px-2 transition-colors ${
-          isSearch ? 'bg-white/95' : ''
+          isSearch ? 'bg-background' : ''
         }`}
         onClick={activateSearch}
       >
         {!isSearch && (
-          <span className="flex-1 select-none truncate text-[11px] text-white/50">
+          <span className="flex-1 select-none truncate text-[11px] text-sidebar-foreground/50">
             {contextLabel}
           </span>
         )}
         <input
           ref={inputRef}
           aria-hidden={!isSearch}
-          className={`min-w-0 flex-1 border-none bg-transparent text-[11px] text-black/80 outline-none placeholder-black/35 ${
+          className={`min-w-0 flex-1 border-none bg-transparent text-[11px] text-foreground outline-none placeholder:text-foreground/35 ${
             isSearch ? 'block' : 'hidden'
           }`}
           placeholder="Search anything"
@@ -82,21 +82,10 @@ export function NavBar() {
           }}
         />
         {/* Search icon — decorative */}
-        <div className={`flex flex-shrink-0 items-center ${isSearch ? 'opacity-50' : 'opacity-38'}`}>
+        <div className={`flex flex-shrink-0 items-center ${isSearch ? 'text-foreground/50' : 'text-sidebar-foreground/40'}`}>
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-            <circle
-              cx="6.5"
-              cy="6.5"
-              r="4.5"
-              stroke={isSearch ? 'black' : 'white'}
-              strokeWidth="1.4"
-            />
-            <path
-              d="M10 10L14 14"
-              stroke={isSearch ? 'black' : 'white'}
-              strokeWidth="1.4"
-              strokeLinecap="round"
-            />
+            <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.4" />
+            <path d="M10 10L14 14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
           </svg>
         </div>
       </div>

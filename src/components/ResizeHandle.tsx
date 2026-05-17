@@ -26,7 +26,7 @@ export function ResizeHandle() {
 
   return (
     <div
-      className="w-[3px] flex-shrink-0 cursor-col-resize bg-white/[0.05] transition-colors hover:bg-white/[0.18]"
+      className="w-[3px] flex-shrink-0 cursor-col-resize bg-sidebar-border transition-colors hover:bg-sidebar-foreground/20"
       onMouseDown={onMouseDown}
     />
   )

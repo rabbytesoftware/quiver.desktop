@@ -8,7 +8,7 @@ export function Sidebar() {
 
   return (
     <div
-      className="flex flex-shrink-0 flex-col overflow-hidden"
+      className="flex flex-shrink-0 flex-col overflow-hidden bg-sidebar"
       style={{ width: sidebarWidth }}
     >
       {/* Top nav — drag region */}
@@ -19,21 +19,21 @@ export function Sidebar() {
         <WindowControls />
 
         {/* Server icon — decorative placeholder */}
-        <div className="ml-2 flex items-center opacity-35">
+        <div className="ml-2 flex items-center text-sidebar-foreground opacity-35">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-            <rect x="1" y="2" width="14" height="4" rx="1" stroke="white" strokeWidth="1.3" />
-            <rect x="1" y="9" width="14" height="4" rx="1" stroke="white" strokeWidth="1.3" />
-            <circle cx="12.5" cy="4" r="1" fill="white" />
-            <circle cx="12.5" cy="11" r="1" fill="white" />
+            <rect x="1" y="2" width="14" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" />
+            <rect x="1" y="9" width="14" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" />
+            <circle cx="12.5" cy="4" r="1" fill="currentColor" />
+            <circle cx="12.5" cy="11" r="1" fill="currentColor" />
           </svg>
         </div>
 
         {/* Options icon — decorative, pushed right */}
-        <div className="ml-auto flex items-center opacity-35">
+        <div className="ml-auto flex items-center text-sidebar-foreground opacity-35">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="3" r="1.2" fill="white" />
-            <circle cx="8" cy="8" r="1.2" fill="white" />
-            <circle cx="8" cy="13" r="1.2" fill="white" />
+            <circle cx="8" cy="3" r="1.2" fill="currentColor" />
+            <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+            <circle cx="8" cy="13" r="1.2" fill="currentColor" />
           </svg>
         </div>
       </div>
