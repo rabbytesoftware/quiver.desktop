@@ -8,7 +8,7 @@ export function Sidebar() {
 
   return (
     <div
-      className="flex flex-shrink-0 flex-col overflow-hidden bg-sidebar"
+      className="flex flex-shrink-0 flex-col overflow-hidden"
       style={{ width: sidebarWidth }}
     >
       {/* Top nav — drag region */}
