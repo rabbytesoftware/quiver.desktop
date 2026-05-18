@@ -1,0 +1,108 @@
+<h2>How wide should the sidebar be?</h2>
+<p class="subtitle">The Penpot design is 489×336px with an 88px sidebar (~18%). The Tauri window is 800×600px. Two natural ways to scale:</p>
+
+<div class="split" style="gap:24px; margin-top: 24px;">
+
+  <!-- Option A: Proportional ~18% -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="padding:0; overflow:hidden; cursor:pointer;">
+    <div style="padding:10px 14px 6px; border-bottom:1px solid rgba(255,255,255,0.08);">
+      <div class="letter" style="display:inline-block; margin-right:8px;">A</div>
+      <strong>Proportional — 144px</strong>
+      <p style="margin:4px 0 0; font-size:12px; opacity:0.6;">Keep ~18% ratio from the design. Feels tighter, more compact, closer to the original.</p>
+    </div>
+    <!-- Mini window mockup -->
+    <div style="display:flex; height:200px; background:#1a1a1a; font-size:10px; position:relative;">
+      <!-- Sidebar -->
+      <div style="width:26%; background:rgba(60,60,60,0.9); display:flex; flex-direction:column; padding:6px 0; box-sizing:border-box; border-right:1px solid rgba(255,255,255,0.08);">
+        <!-- Traffic lights -->
+        <div style="display:flex; gap:4px; padding:4px 7px 8px;">
+          <div style="width:7px;height:7px;border-radius:50%;background:#FE5F57;"></div>
+          <div style="width:7px;height:7px;border-radius:50%;background:#FEBC2E;"></div>
+          <div style="width:7px;height:7px;border-radius:50%;background:#27C840;"></div>
+        </div>
+        <!-- Search -->
+        <div style="margin:0 6px 6px; background:rgba(255,255,255,0.08); border-radius:3px; padding:3px 5px; display:flex; align-items:center; gap:4px;">
+          <span style="opacity:0.4; font-size:8px;">⌕</span>
+          <span style="opacity:0.35; font-size:8px;">Search anything</span>
+        </div>
+        <!-- Arrow list -->
+        <div style="flex:1; overflow:hidden; display:flex; flex-direction:column; gap:1px; padding: 0 4px;">
+          <div style="padding:3px 4px; border-radius:2px; color:rgba(255,255,255,0.75); display:flex; align-items:center; gap:4px;">
+            <div style="width:10px;height:10px;background:#F5A623;border-radius:2px;flex-shrink:0;"></div>
+            <span style="font-size:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Quiver</span>
+          </div>
+          <div style="padding:3px 4px; border-radius:2px; background:white; color:rgba(0,0,0,0.75); display:flex; align-items:center; gap:4px;">
+            <div style="width:10px;height:10px;background:#F5A623;border-radius:2px;flex-shrink:0;"></div>
+            <div>
+              <div style="font-size:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Quiver</div>
+              <div style="font-size:6px; opacity:0.5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">github.com/char2cs/quiver</div>
+            </div>
+          </div>
+          <div style="padding:3px 4px; border-radius:2px; color:rgba(255,255,255,0.75); display:flex; align-items:center; gap:4px;">
+            <div style="width:10px;height:10px;background:#F5A623;border-radius:2px;flex-shrink:0;"></div>
+            <span style="font-size:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Quiver</span>
+          </div>
+          <div style="padding:3px 4px; border-radius:2px; color:rgba(255,255,255,0.75); display:flex; align-items:center; gap:4px;">
+            <div style="width:10px;height:10px;background:#F5A623;border-radius:2px;flex-shrink:0;"></div>
+            <span style="font-size:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Quiver</span>
+          </div>
+        </div>
+      </div>
+      <!-- Main content -->
+      <div style="flex:1; background:#222222;"></div>
+    </div>
+    <div style="padding:6px 14px 10px; font-size:11px; opacity:0.5;">144px sidebar / 656px content</div>
+  </div>
+
+  <!-- Option B: Fixed wider 200px -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="padding:0; overflow:hidden; cursor:pointer;">
+    <div style="padding:10px 14px 6px; border-bottom:1px solid rgba(255,255,255,0.08);">
+      <div class="letter" style="display:inline-block; margin-right:8px;">B</div>
+      <strong>Fixed — 200px</strong>
+      <p style="margin:4px 0 0; font-size:12px; opacity:0.6;">Wider sidebar. Arrow names fit fully, subtitle text readable. More breathing room.</p>
+    </div>
+    <!-- Mini window mockup -->
+    <div style="display:flex; height:200px; background:#1a1a1a; font-size:10px; position:relative;">
+      <!-- Sidebar -->
+      <div style="width:36%; background:rgba(60,60,60,0.9); display:flex; flex-direction:column; padding:6px 0; box-sizing:border-box; border-right:1px solid rgba(255,255,255,0.08);">
+        <!-- Traffic lights -->
+        <div style="display:flex; gap:4px; padding:4px 7px 8px;">
+          <div style="width:7px;height:7px;border-radius:50%;background:#FE5F57;"></div>
+          <div style="width:7px;height:7px;border-radius:50%;background:#FEBC2E;"></div>
+          <div style="width:7px;height:7px;border-radius:50%;background:#27C840;"></div>
+        </div>
+        <!-- Search -->
+        <div style="margin:0 6px 6px; background:rgba(255,255,255,0.08); border-radius:3px; padding:3px 5px; display:flex; align-items:center; gap:4px;">
+          <span style="opacity:0.4; font-size:8px;">⌕</span>
+          <span style="opacity:0.35; font-size:8px;">Search anything</span>
+        </div>
+        <!-- Arrow list -->
+        <div style="flex:1; overflow:hidden; display:flex; flex-direction:column; gap:1px; padding: 0 6px;">
+          <div style="padding:3px 5px; border-radius:2px; color:rgba(255,255,255,0.75); display:flex; align-items:center; gap:5px;">
+            <div style="width:12px;height:12px;background:#F5A623;border-radius:2px;flex-shrink:0;"></div>
+            <span style="font-size:9px;">Quiver</span>
+          </div>
+          <div style="padding:3px 5px; border-radius:2px; background:white; color:rgba(0,0,0,0.75); display:flex; align-items:center; gap:5px;">
+            <div style="width:12px;height:12px;background:#F5A623;border-radius:2px;flex-shrink:0;"></div>
+            <div>
+              <div style="font-size:9px;">Quiver</div>
+              <div style="font-size:7px; opacity:0.5;">github.com/char2cs/quiver</div>
+            </div>
+          </div>
+          <div style="padding:3px 5px; border-radius:2px; color:rgba(255,255,255,0.75); display:flex; align-items:center; gap:5px;">
+            <div style="width:12px;height:12px;background:#F5A623;border-radius:2px;flex-shrink:0;"></div>
+            <span style="font-size:9px;">Quiver</span>
+          </div>
+          <div style="padding:3px 5px; border-radius:2px; color:rgba(255,255,255,0.75); display:flex; align-items:center; gap:5px;">
+            <div style="width:12px;height:12px;background:#F5A623;border-radius:2px;flex-shrink:0;"></div>
+            <span style="font-size:9px;">Quiver</span>
+          </div>
+        </div>
+      </div>
+      <!-- Main content -->
+      <div style="flex:1; background:#222222;"></div>
+    </div>
+    <div style="padding:6px 14px 10px; font-size:11px; opacity:0.5;">200px sidebar / 600px content</div>
+  </div>
+
+</div>

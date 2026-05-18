@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Quiver Layout v3</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1a1a2e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+    padding: 32px;
+    color: white;
+  }
+
+  h2 { font-size: 18px; margin-bottom: 6px; text-align: center; }
+  .subtitle { color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; margin-bottom: 24px; line-height: 1.6; }
+
+  /* Desktop dot-pattern bg */
+  .desktop {
+    background: radial-gradient(circle, rgba(255,255,255,0.13) 1px, transparent 1px);
+    background-size: 5px 5px;
+    background-color: #0e0e0e;
+    border-radius: 14px;
+    padding: 24px;
+    width: 100%;
+    max-width: 820px;
+  }
+
+  /* App window — only outer has border-radius */
+  .app-window {
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    height: 440px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.08);
+  }
+
+  /* ─── Sidebar ─── */
+  .sidebar {
+    width: 200px;
+    min-width: 120px;
+    max-width: 340px;
+    background: rgba(44,44,48,0.96);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  /* Top nav row: traffic lights + server icon + options icon */
+  .top-nav {
+    display: flex;
+    align-items: center;
+    padding: 10px 10px 8px;
+    gap: 0;
+    flex-shrink: 0;
+    cursor: grab;
+    position: relative;
+  }
+  .traffic-lights { display: flex; gap: 5px; align-items: center; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+  .dot-red    { background: #FE5F57; }
+  .dot-yellow { background: #FEBC2E; }
+  .dot-green  { background: #27C840; }
+
+  /* Server icon — immediately after traffic lights */
+  .server-icon {
+    margin-left: 10px;
+    opacity: 0.35;
+    display: flex; align-items: center;
+  }
+  /* Options icon — pushed to far right */
+  .options-icon {
+    margin-left: auto;
+    opacity: 0.35;
+    display: flex; align-items: center;
+  }
+  .top-nav svg { display: block; }
+
+  /* ─── Nav/Search bar ─── */
+  /* Full sidebar width, NO border-radius, sits flush */
+  .navbar-row {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* Home button: left of the bar */
+  .home-btn {
+    width: 28px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid rgba(255,255,255,0.06);
+    flex-shrink: 0;
+    cursor: pointer;
+    opacity: 0.4;
+    transition: opacity 0.1s, background 0.1s;
+  }
+  .home-btn:hover { opacity: 0.75; background: rgba(255,255,255,0.06); }
+  .home-btn.active { opacity: 1; background: rgba(255,255,255,0.08); }
+
+  /* The combined nav/search pill — no border-radius */
+  .navbar {
+    flex: 1;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px 0 8px;
+    gap: 5px;
+    background: transparent;
+    transition: background 0.15s;
+    position: relative;
+    cursor: text;
+    overflow: hidden;
+  }
+  .navbar.active {
+    background: rgba(255,255,255,0.92);
+  }
+
+  /* Context label (shown when not searching) */
+  .nav-context {
+    flex: 1;
+    font-size: 11px;
+    color: rgba(255,255,255,0.5);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    user-select: none;
+  }
+  .navbar.active .nav-context { display: none; }
+
+  /* Search input (shown when active) */
+  .nav-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 11px;
+    color: rgba(0,0,0,0.8);
+    font-family: inherit;
+    display: none;
+    min-width: 0;
+  }
+  .navbar.active .nav-input { display: block; }
+
+  /* Search icon — right side */
+  .search-icon {
+    flex-shrink: 0;
+    opacity: 0.38;
+    display: flex; align-items: center;
+    pointer-events: none;
+  }
+  .navbar.active .search-icon { opacity: 0.45; }
+  .navbar.active .search-icon path,
+  .navbar.active .search-icon circle { stroke: rgba(0,0,0,0.5); }
+
+  /* ─── Arrow list ─── */
+  .arrow-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    /* NO gap — items are flush */
+  }
+
+  .arrow-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 8px;
+    cursor: pointer;
+    min-height: 26px;
+    border-radius: 0;          /* NO inner rounding */
+    transition: background 0.08s;
+    position: relative;
+    overflow: hidden;
+  }
+  .arrow-item:hover:not(.selected) {
+    background: rgba(255,255,255,0.07);
+  }
+  .arrow-item.selected {
+    background: #ffffff;
+  }
+
+  .arrow-icon {
+    width: 16px; height: 16px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    background: #F5A623;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px;
+  }
+  .arrow-label { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .arrow-name {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+  }
+  .arrow-item.selected .arrow-name { color: rgba(0,0,0,0.8); }
+
+  /* Subtitle: ONLY visible on selected + hover */
+  .arrow-sub {
+    display: none;
+    font-size: 9px;
+    color: rgba(0,0,0,0.45);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+  }
+  .arrow-item.selected:hover .arrow-sub {
+    display: block;
+  }
+
+  /* ─── Resize handle ─── */
+  .resize-handle {
+    width: 3px;
+    background: rgba(255,255,255,0.05);
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background 0.15s;
+    position: relative;
+  }
+  .resize-handle::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 14px;
+    left: -5px;
+  }
+  .resize-handle:hover, .resize-handle.dragging {
+    background: rgba(255,255,255,0.18);
+  }
+
+  /* ─── Main content ─── */
+  .main-content {
+    flex: 1;
+    background: #222222;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.07);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* ─── Legend ─── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 28px;
+    margin-top: 16px;
+  }
+  .legend-item {
+    font-size: 11px;
+    color: rgba(255,255,255,0.45);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .legend-item .dot-label {
+    width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.3);
+  }
+</style>
+</head>
+<body>
+
+<h2>Quiver — Scaffold Layout v4</h2>
+<p class="subtitle">
+  Hover nav bar to search · select arrow to highlight · hover selected arrow to see namespace<br>
+  Drag ↔ handle to resize sidebar · no inner rounded corners
+</p>
+
+<div class="desktop">
+  <div class="app-window" id="appWindow">
+
+    <!-- ─── Sidebar ─── -->
+    <div class="sidebar" id="sidebar">
+
+      <!-- Top nav -->
+      <div class="top-nav">
+        <div class="traffic-lights">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+        </div>
+        <!-- Server icon -->
+        <div class="server-icon">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <rect x="1" y="2" width="14" height="4" rx="1" stroke="white" stroke-width="1.3"/>
+            <rect x="1" y="9" width="14" height="4" rx="1" stroke="white" stroke-width="1.3"/>
+            <circle cx="12.5" cy="4" r="1" fill="white"/>
+            <circle cx="12.5" cy="11" r="1" fill="white"/>
+          </svg>
+        </div>
+        <!-- Options icon -->
+        <div class="options-icon">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="3" r="1.2" fill="white"/>
+            <circle cx="8" cy="8" r="1.2" fill="white"/>
+            <circle cx="8" cy="13" r="1.2" fill="white"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Nav / Search bar -->
+      <div class="navbar-row">
+        <!-- Home button -->
+        <div class="home-btn" id="homeBtn" title="Go home" onclick="goHome()">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+            <path d="M2 7L8 2L14 7V14H10V10H6V14H2V7Z" stroke="white" stroke-width="1.4" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <!-- Bar -->
+        <div class="navbar" id="navbar">
+          <span class="nav-context" id="navContext">Home</span>
+          <input class="nav-input" id="navInput" type="text" placeholder="Search anything" autocomplete="off" />
+          <div class="search-icon">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <circle cx="6.5" cy="6.5" r="4.5" stroke="white" stroke-width="1.4"/>
+              <path d="M10 10L14 14" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow list -->
+      <div class="arrow-list" id="arrowList"></div>
+    </div>
+
+    <!-- Resize handle -->
+    <div class="resize-handle" id="resizeHandle"></div>
+
+    <!-- Main content -->
+    <div class="main-content">content area</div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="dot-label"></div> Outer window: border-radius 8px only</div>
+    <div class="legend-item"><div class="dot-label"></div> Nav bar: home button + context/search + 🔍</div>
+    <div class="legend-item"><div class="dot-label"></div> Arrow items: flush, no rounding</div>
+    <div class="legend-item"><div class="dot-label"></div> Subtitle: selected + hover only</div>
+  </div>
+</div>
+
+<script>
+// ── Arrow data — every arrow has a namespace ──
+const arrows = [
+  { name: 'Quiver',        ns: 'github.com/char2cs/quiver' },
+  { name: 'quiver-ui',     ns: 'github.com/char2cs/quiver-ui' },
+  { name: 'experiments',   ns: 'github.com/char2cs/quiver.experiments' },
+  { name: 'dotfiles',      ns: 'github.com/mateo/dotfiles' },
+  { name: 'dev-tools',     ns: 'github.com/mateo/dev-tools' },
+  { name: 'nvim-config',   ns: 'github.com/someone/nvim-config' },
+  { name: 'zsh-extras',    ns: 'github.com/someone/zsh-extras' },
+  { name: 'fonts',         ns: 'github.com/nerd/fonts' },
+  { name: 'cli-helpers',   ns: 'github.com/utils/cli-helpers' },
+  { name: 'scripts',       ns: 'github.com/utils/scripts' },
+];
+
+let selectedIdx = -1; // nothing selected by default
+
+const list = document.getElementById('arrowList');
+const navContext = document.getElementById('navContext');
+const homeBtn = document.getElementById('homeBtn');
+
+function renderItems() {
+  list.innerHTML = '';
+  arrows.forEach((arrow, i) => {
+    const el = document.createElement('div');
+    el.className = 'arrow-item' + (i === selectedIdx ? ' selected' : '');
+    el.innerHTML = `
+      <div class="arrow-icon">🏹</div>
+      <div class="arrow-label">
+        <span class="arrow-name">${arrow.name}</span>
+        ${arrow.ns ? `<span class="arrow-sub">${arrow.ns}</span>` : ''}
+      </div>`;
+    el.addEventListener('click', () => {
+      selectedIdx = i;
+      renderItems();
+      // Update nav context to show namespace (or name if no ns)
+      navContext.textContent = arrow.ns || arrow.name;
+      homeBtn.classList.remove('active');
+    });
+    list.appendChild(el);
+  });
+}
+
+function goHome() {
+  selectedIdx = -1;
+  renderItems();
+  navContext.textContent = 'Home';
+  homeBtn.classList.add('active');
+}
+
+// Initialize
+homeBtn.classList.add('active');
+renderItems();
+
+// ── Nav/Search bar: hover activates, mouseleave + no text deactivates ──
+const navbar = document.getElementById('navbar');
+const navInput = document.getElementById('navInput');
+let isHovering = false;
+
+function setActive(on) {
+  if (on) {
+    navbar.classList.add('active');
+    navInput.focus();
+  } else {
+    navbar.classList.remove('active');
+    navInput.blur();
+    // Restore context if input was cleared
+    if (!navInput.value) {
+      navContext.textContent = selectedIdx >= 0
+        ? (arrows[selectedIdx].ns || arrows[selectedIdx].name)
+        : 'Home';
+    }
+  }
+}
+
+navbar.addEventListener('mouseenter', () => { isHovering = true; setActive(true); });
+navbar.addEventListener('mouseleave', () => {
+  isHovering = false;
+  if (!navInput.value) setActive(false);
+});
+navInput.addEventListener('blur', () => {
+  if (!isHovering && !navInput.value) setActive(false);
+});
+navInput.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { navInput.value = ''; setActive(false); }
+});
+
+// ── Sidebar resize ──
+const handle = document.getElementById('resizeHandle');
+const sidebar = document.getElementById('sidebar');
+let resizing = false, startX = 0, startW = 0;
+
+handle.addEventListener('mousedown', e => {
+  resizing = true; startX = e.clientX; startW = sidebar.offsetWidth;
+  handle.classList.add('dragging');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+});
+document.addEventListener('mousemove', e => {
+  if (!resizing) return;
+  sidebar.style.width = Math.min(340, Math.max(120, startW + e.clientX - startX)) + 'px';
+});
+document.addEventListener('mouseup', () => {
+  if (!resizing) return;
+  resizing = false;
+  handle.classList.remove('dragging');
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+});
+</script>
+</body>
+</html>

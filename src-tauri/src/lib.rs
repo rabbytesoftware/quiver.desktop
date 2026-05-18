@@ -3,10 +3,12 @@ pub mod connection;
 
 use connection::ConnectionManager;
 use tauri::Manager;
+use tauri_plugin_decorum::WebviewWindowExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
 	tauri::Builder::default()
+		.plugin(tauri_plugin_decorum::init())
 		.plugin(tauri_plugin_log::Builder::new()
 			.level(log::LevelFilter::Info)
 			.build())
@@ -17,19 +19,25 @@ pub fn run() {
 		.setup(|app| {
 			let handle = app.handle().clone();
 
-			#[cfg(target_os = "macos")]
 			if let Some(window) = app.get_webview_window("main") {
-				use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-				if let Err(e) = apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, Some(10.0)) {
-					log::warn!("vibrancy failed: {e}");
-				}
-			}
+				window.create_overlay_titlebar().unwrap();
 
-			#[cfg(target_os = "windows")]
-			if let Some(window) = app.get_webview_window("main") {
-				use window_vibrancy::apply_acrylic;
-				if let Err(e) = apply_acrylic(&window, Some((18, 18, 18, 125))) {
-					log::warn!("acrylic failed: {e}");
+				#[cfg(target_os = "macos")]
+				{
+					use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+					if let Err(e) = apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, Some(10.0)) {
+						log::warn!("vibrancy failed: {e}");
+					}
+					// x=12 aligns with standard macOS inset; y=16 centers in the 38px drag bar
+					window.set_traffic_lights_inset(12.0, 16.0).unwrap();
+				}
+
+				#[cfg(target_os = "windows")]
+				{
+					use window_vibrancy::apply_acrylic;
+					if let Err(e) = apply_acrylic(&window, Some((18, 18, 18, 125))) {
+						log::warn!("acrylic failed: {e}");
+					}
 				}
 			}
 

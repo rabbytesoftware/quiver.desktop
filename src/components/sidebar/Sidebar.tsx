@@ -1,5 +1,4 @@
 import { useUIStore } from '@/store/ui'
-import { WindowControls } from './WindowControls'
 import { NavBar } from './NavBar'
 import { ArrowList } from './ArrowList'
 
@@ -11,13 +10,11 @@ export function Sidebar() {
       className="flex flex-shrink-0 flex-col overflow-hidden"
       style={{ width: sidebarWidth }}
     >
-      {/* Top nav — drag region */}
+      {/* Top nav — drag region; pl-[76px] reserves space for the native traffic lights */}
       <div
-        className="flex flex-shrink-0 items-center px-2.5 py-2.5"
+        className="flex flex-shrink-0 items-center py-2.5 pr-2.5 pl-[76px]"
         data-tauri-drag-region
       >
-        <WindowControls />
-
         {/* Server icon — decorative placeholder */}
         <div className="ml-2 flex items-center text-sidebar-foreground opacity-35">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
