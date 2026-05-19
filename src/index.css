@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -46,9 +46,9 @@
 	--color-info-foreground: var(--info-foreground);
 	--color-info: var(--info);
 	--color-destructive-foreground: var(--destructive-foreground);
-  @keyframes skeleton {
-  to {
-    background-position: -200% 0;
+	@keyframes skeleton {
+		to {
+			background-position: -200% 0;
 		}
 	}
 }
@@ -145,15 +145,6 @@
 	body {
 		height: 100%;
 		background: transparent;
-	}
-
-	#root {
-		height: 100%;
-		border-radius: 10px;
-		overflow: hidden;
-		background-image: radial-gradient(circle, color-mix(in srgb, var(--background) 25%, transparent) 1.25px, transparent 1.25px);
-		background-size: 5px 5px;
-		@apply text-foreground;
 	}
 
 	[data-tauri-drag-region]:active {
