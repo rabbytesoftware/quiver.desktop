@@ -26,7 +26,8 @@
     "zustand": "^5.0.13"
   },
   "quiver": {
-    "coreVersion": "beta-26.5-4"
+    "_comment": "TODO(quiver-shell): `nightly` is a rolling tag — quiver.core deletes and recreates it on every push to develop, so a build pinned to it is not reproducible. CI only checks that the tag exists, which `nightly` always does, so nothing here blocks it reaching develop. Swap this for a real beta-*/stable-* tag before merging.",
+    "coreVersion": "nightly"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

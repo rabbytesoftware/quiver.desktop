@@ -1,9 +1,16 @@
+# cargo shells out to rustc, and rustc is only reachable through the toolchain
+# directory when the caller's shell has not sourced ~/.cargo/env — which is the
+# normal case for a non-interactive `make` (and for CI). Exporting PATH once here
+# rather than per-recipe is what keeps `make test-rust` from dying on
+# "could not execute process `rustc -vV`" while `make dev` works.
+export PATH := $(HOME)/.bun/bin:$(HOME)/.cargo/bin:$(PATH)
+
 .PHONY: help deps deps-frontend deps-rust \
 	fmt-check-frontend fmt-frontend lint-frontend typecheck-frontend audit-frontend \
 	fmt-check-rust fmt-rust lint-rust audit-rust \
 	code-quality-frontend code-quality-rust \
 	build-frontend build-rust build \
-	fetch-sidecar dev build-app \
+	fetch-sidecar dev build-app dev-bundle icon \
 	test-frontend coverage-frontend \
 	test-rust coverage-rust \
 	pr-checks clean
@@ -62,7 +69,9 @@ help:
 	@echo "  make build-rust            - Build Tauri backend (debug)"
 	@echo "  make build                 - Build both frontend and Rust (debug)"
 	@echo "  make fetch-sidecar         - Download quiver.core sidecar binary for this platform"
+	@echo "  make icon                  - Compile quiver.icon → Assets.car + .icns (macOS 26+)"
 	@echo "  make dev                   - Start Tauri dev environment (fetches sidecar if needed)"
+	@echo "  make dev-bundle            - Build + open a debug .app (real icon, no hot reload)"
 	@echo "  make build-app             - Build full Tauri app installer for this platform"
 	@echo ""
 	@echo "🧪 Testing:"
@@ -161,6 +170,10 @@ build-rust:
 build: build-frontend build-rust
 	@echo "✅ All builds completed successfully!"
 
+# The target/debug/quiver copy at the end is for `tauri dev`, which runs the
+# binary straight out of target/debug — and the shell plugin resolves a sidecar
+# as dirname(current_exe)/<name>, so an unbundled run looks for it right there.
+# `tauri build` needs no such help: the bundler copies from src-tauri/binaries.
 fetch-sidecar:
 	@echo "📥 Fetching quiver.core sidecar ($(_CORE_VERSION)) for $(TARGET_TRIPLE)..."
 	@if [ -z "$(_CORE_VERSION)" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi
@@ -172,19 +185,40 @@ fetch-sidecar:
 		--clobber
 	@mv "src-tauri/binaries/$(QUIVER_BINARY)" "$(SIDECAR_PATH)"
 	@chmod +x "$(SIDECAR_PATH)"
-	@mkdir -p src-tauri/target/debug/binaries
-	@cp "$(SIDECAR_PATH)" "src-tauri/target/debug/binaries/quiver"
+	@mkdir -p src-tauri/target/debug
+	@cp "$(SIDECAR_PATH)" "src-tauri/target/debug/quiver"
 	@echo "✅ Sidecar ready: $(SIDECAR_PATH)"
 
 dev:
 	@if [ ! -f "$(SIDECAR_PATH)" ]; then $(MAKE) fetch-sidecar; fi
 	@echo "🚀 Starting Tauri dev environment..."
-	@PATH="$(dir $(CARGO)):$(dir $(BUN)):$$PATH" $(BUN) run tauri dev
+	@$(BUN) run tauri dev
+
+# Deliberately NOT wired into tauri.conf.json's beforeBuildCommand: that runs
+# through the platform's own shell, and requiring `bash` there would make
+# Windows builds depend on Git Bash being on PATH. The icon only means anything
+# on macOS, so the callers that need it ask for it — here and in CI.
+icon:
+	@echo "🎨 Compiling quiver.icon → Assets.car + quiver.icns..."
+	@bash icons-compiler/compile-icon.sh
+	@echo "✅ Icon artifacts in src-tauri/icons/"
+
+# `tauri dev` runs the binary straight out of target/ and never produces a
+# .app, so it never shows the real icon, the Info.plist, or the bundled
+# sidecar. This is the target to reach for when checking any of those. No hot
+# reload — rerun it after changing source.
+dev-bundle:
+	@if [ ! -f "$(SIDECAR_PATH)" ]; then $(MAKE) fetch-sidecar; fi
+	@$(MAKE) icon
+	@echo "📦 Building debug .app bundle..."
+	@$(BUN) run tauri build --debug --bundles app
+	@open src-tauri/target/debug/bundle/macos/Quiver.app
 
 build-app:
 	@$(MAKE) fetch-sidecar
+	@$(MAKE) icon
 	@echo "📦 Building Tauri app for $(TARGET_TRIPLE)..."
-	@PATH="$(dir $(CARGO)):$(dir $(BUN)):$$PATH" $(BUN) run tauri build
+	@$(BUN) run tauri build
 	@echo "✅ App built — check src-tauri/target/release/bundle/"
 
 test-frontend:
@@ -213,7 +247,7 @@ coverage-rust:
 	@$(CARGO) tarpaulin --version >/dev/null 2>&1 || (echo "⚠️  cargo-tarpaulin not installed. Run: $(CARGO) install cargo-tarpaulin" && exit 1)
 	@mkdir -p coverage/rust
 	@cd src-tauri && $(CARGO) tarpaulin --out Xml --out Html --out Lcov --output-dir ../coverage/rust \
-		--exclude-files 'src/lib.rs' 'src/main.rs' 'src/commands/*.rs' \
+		--exclude-files 'src/lib.rs' 'src/main.rs' 'src/commands/*.rs' 'src/menu.rs' \
 		'src/connection/local/mod.rs' 'src/connection/local/sidecar.rs' \
 		'src/connection/local/transport.rs' \
 		'src/connection/remote/mod.rs' 'src/connection/manager.rs' \
