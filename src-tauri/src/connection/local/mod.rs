@@ -48,6 +48,7 @@ pub fn pick_free_port() -> Result<u16, String> {
 	Ok(port)
 }
 
+#[cfg(unix)]
 fn default_socket_path() -> String {
 	let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
 	format!("{}/.quiver/quiver.sock", home)

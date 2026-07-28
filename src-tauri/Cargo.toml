@@ -38,7 +38,6 @@ async-trait = "0.1"
 hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "tokio"] }
 http-body-util = "0.1"
-hyperlocal = "0.9"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 uuid = { version = "1", features = ["v4"] }
 bytes = "1"

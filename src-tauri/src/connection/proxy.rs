@@ -32,9 +32,9 @@ const PROXY_TIMEOUT: Duration = Duration::from_secs(300);
 /// Same constant, shortened under test. `tokio`'s `test-util` feature (needed
 /// to pause the clock and jump straight to a timer) isn't enabled in this
 /// crate and Task 5 does not get to add it — Cargo.toml is off-limits here, a
-/// later task platform-gates `hyperlocal` in it. A real but tiny wait is the
-/// remaining option that neither touches Cargo.toml nor costs the suite an
-/// actual five minutes.
+/// later task deletes `hyperlocal` from it instead. A real but tiny wait is
+/// the remaining option that neither touches Cargo.toml nor costs the suite
+/// an actual five minutes.
 #[cfg(test)]
 const PROXY_TIMEOUT: Duration = Duration::from_millis(20);
 
