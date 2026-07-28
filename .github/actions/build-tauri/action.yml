@@ -1,14 +1,14 @@
 name: 'Build Tauri App'
-description: 'Fetch quiver sidecar and build Tauri app for the current platform'
+description: 'Fetch the quiver.core sidecar and build the Tauri app for the current platform'
 
 inputs:
   quiver-version:
-    description: 'Quiver core release version tag (e.g. v0.1.0)'
+    description: 'quiver.core release tag to fetch the sidecar from (e.g. stable-26.5.1)'
     required: true
   rust-version:
     description: 'Rust toolchain version'
     required: false
-    default: '1.85'
+    default: '1.88'
   bun-version:
     description: 'Bun version'
     required: false
@@ -17,28 +17,6 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Determine platform and sidecar name
-      id: platform
-      shell: bash
-      run: |
-        case "${{ runner.os }}" in
-          Linux)
-            echo "quiver_binary=quiver-linux-amd64" >> $GITHUB_OUTPUT
-            echo "target_triple=x86_64-unknown-linux-gnu" >> $GITHUB_OUTPUT
-            echo "extension=" >> $GITHUB_OUTPUT
-            ;;
-          macOS)
-            echo "quiver_binary=quiver-darwin-arm64" >> $GITHUB_OUTPUT
-            echo "target_triple=aarch64-apple-darwin" >> $GITHUB_OUTPUT
-            echo "extension=" >> $GITHUB_OUTPUT
-            ;;
-          Windows)
-            echo "quiver_binary=quiver-windows-amd64.exe" >> $GITHUB_OUTPUT
-            echo "target_triple=x86_64-pc-windows-msvc" >> $GITHUB_OUTPUT
-            echo "extension=.exe" >> $GITHUB_OUTPUT
-            ;;
-        esac
-
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
       shell: bash
@@ -52,6 +30,9 @@ runs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: ${{ inputs.rust-version }}
+        # macOS ships a universal binary, which cargo can only produce by
+        # building each arch and lipo-ing them — so both targets must exist.
+        target: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
@@ -71,7 +52,12 @@ runs:
         restore-keys: |
           ${{ runner.os }}-cargo-release-
 
-    - name: Fetch quiver sidecar binary
+    # macOS gets BOTH architectures lipo'd into one sidecar. Fetching only
+    # arm64 (as this action used to) produces a DMG that installs happily on an
+    # Intel Mac and then fails to start its daemon — the app looks fine right
+    # up until it needs the backend.
+    - name: Fetch quiver.core sidecar (macOS, universal)
+      if: runner.os == 'macOS'
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
@@ -79,29 +65,88 @@ runs:
         mkdir -p src-tauri/binaries
         gh release download "${{ inputs.quiver-version }}" \
           --repo rabbytesoftware/quiver.core \
-          --pattern "${{ steps.platform.outputs.quiver_binary }}" \
-          --dir src-tauri/binaries
+          --pattern 'quiver-darwin-arm64' --pattern 'quiver-darwin-amd64' \
+          --dir src-tauri/binaries --clobber
 
-        SIDECAR_NAME="quiver-${{ steps.platform.outputs.target_triple }}${{ steps.platform.outputs.extension }}"
-        mv "src-tauri/binaries/${{ steps.platform.outputs.quiver_binary }}" \
-           "src-tauri/binaries/${SIDECAR_NAME}"
-        chmod +x "src-tauri/binaries/${SIDECAR_NAME}"
+        mv src-tauri/binaries/quiver-darwin-arm64 src-tauri/binaries/quiver-aarch64-apple-darwin
+        mv src-tauri/binaries/quiver-darwin-amd64 src-tauri/binaries/quiver-x86_64-apple-darwin
 
-        echo "✅ Sidecar ready: ${SIDECAR_NAME}"
-        ls -la src-tauri/binaries/
+        # `cargo tauri build --target universal-apple-darwin` looks for a single
+        # sidecar named for the universal triple. It does NOT lipo the two
+        # arch-specific ones on its own.
+        lipo -create \
+          src-tauri/binaries/quiver-aarch64-apple-darwin \
+          src-tauri/binaries/quiver-x86_64-apple-darwin \
+          -output src-tauri/binaries/quiver-universal-apple-darwin
+
+        chmod +x src-tauri/binaries/quiver-*
+        lipo -info src-tauri/binaries/quiver-universal-apple-darwin
+
+    - name: Fetch quiver.core sidecar (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        mkdir -p src-tauri/binaries
+        gh release download "${{ inputs.quiver-version }}" \
+          --repo rabbytesoftware/quiver.core \
+          --pattern 'quiver-linux-amd64' \
+          --dir src-tauri/binaries --clobber
+        mv src-tauri/binaries/quiver-linux-amd64 \
+           src-tauri/binaries/quiver-x86_64-unknown-linux-gnu
+        chmod +x src-tauri/binaries/quiver-x86_64-unknown-linux-gnu
+
+    - name: Fetch quiver.core sidecar (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        mkdir -p src-tauri/binaries
+        gh release download "${{ inputs.quiver-version }}" \
+          --repo rabbytesoftware/quiver.core \
+          --pattern 'quiver-windows-amd64.exe' \
+          --dir src-tauri/binaries --clobber
+        mv src-tauri/binaries/quiver-windows-amd64.exe \
+           src-tauri/binaries/quiver-x86_64-pc-windows-msvc.exe
 
     - name: Install frontend dependencies
       shell: bash
-      run: bun install
+      run: bun install --frozen-lockfile
 
-    - name: Build frontend
-      shell: bash
-      run: bun run build
+    - uses: cargo-bins/cargo-binstall@main
 
-    - name: Install Tauri CLI
+    - name: Install tauri-cli
       shell: bash
-      run: cargo install tauri-cli --version "^2" --locked
+      run: cargo binstall tauri-cli@^2 --no-confirm --locked
 
-    - name: Build Tauri app
+    # macOS only, and a self-skipping no-op unless Xcode 26+ is selected. The
+    # job must run on `macos-26`: macOS 15's newest Xcode is 26.3, whose actool
+    # CRASHES on our .icon (CompileAssetCatalogVariant exit 65).
+    - name: Compile the Tahoe adaptive icon
+      if: runner.os == 'macOS'
       shell: bash
-      run: cargo tauri build
+      run: bash icons-compiler/compile-icon.sh
+
+    - name: Build Tauri app (macOS universal DMG)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: bash scripts/build-macos-dmg.sh
+
+    # bundle.macOS.files points at icons/Assets.car, which only ever exists
+    # after the macOS icon step. Clear the mapping so the bundler doesn't trip
+    # over a file that was never going to be there on this platform.
+    - name: Build Tauri app (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        cargo tauri build --bundles appimage,deb \
+          --config '{"bundle":{"macOS":{"files":{}}}}'
+
+    - name: Build Tauri app (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        cargo tauri build --bundles msi,nsis \
+          --config '{"bundle":{"macOS":{"files":{}}}}'

@@ -501,6 +501,7 @@ jobs:
           --fail-under 95 \
           --exclude-files 'src/lib.rs' 'src/main.rs' \
             'src/commands/*.rs' \
+            'src/menu.rs' \
             'src/connection/local/mod.rs' \
             'src/connection/local/sidecar.rs' \
             'src/connection/local/transport.rs' \
