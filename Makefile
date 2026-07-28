@@ -255,10 +255,8 @@ coverage-rust:
 	@cd src-tauri && $(CARGO) tarpaulin --out Xml --out Html --out Lcov --output-dir ../coverage/rust \
 		--exclude-files 'src/lib.rs' 'src/main.rs' 'src/commands/*.rs' 'src/menu.rs' 'src/fdlimit/sys.rs' \
 		'src/connection/local/mod.rs' 'src/connection/local/sidecar.rs' \
-		'src/connection/local/transport.rs' \
 		'src/connection/remote/mod.rs' 'src/connection/manager.rs' \
 		'src/connection/mod.rs' 'src/connection/tauri_emitter.rs' \
-		'src/connection/ws/connector.rs' 'src/connection/ws/mod.rs' \
 		--verbose || (echo "❌ Coverage generation failed" && exit 1)
 	@if [ ! -f "coverage/rust/cobertura.xml" ]; then \
 		echo "❌ Coverage report missing — cannot verify the threshold"; \

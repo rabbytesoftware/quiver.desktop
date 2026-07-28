@@ -115,8 +115,8 @@ impl ConnectionManager {
 		Ok(())
 	}
 
-	pub async fn http(&self) -> Arc<crate::connection::http::HttpClient> {
-		self.active.read().await.http()
+	pub async fn transport(&self) -> Arc<dyn crate::connection::transport::Transport> {
+		self.active.read().await.transport()
 	}
 }
 

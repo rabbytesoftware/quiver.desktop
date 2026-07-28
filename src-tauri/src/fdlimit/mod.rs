@@ -6,15 +6,14 @@
 //! thing, so the app is left at 256 unless it asks for more.
 //!
 //! That is a real ceiling here, not a theoretical one. Every call the frontend
-//! makes reaches quiver.core as a unix-socket connection owned by *this*
-//! process (`connection::local::transport`), and the two event streams in
-//! `connection::ws` hold a socket each for the life of the app, redialling
-//! every 500ms whenever the daemon is not up yet. So the app's descriptor use
-//! tracks the frontend's traffic and the daemon's availability, not its own
-//! modest needs. Once the ceiling is reached, `connect()` fails with `EMFILE`,
-//! which `HttpClient::health` cannot tell apart from a daemon that never
-//! started — so the app reports the backend as down over an entirely local
-//! fault.
+//! makes reaches quiver.core as a connection owned by *this* process, dialled
+//! through the active connection's [`crate::connection::transport::Transport`]
+//! (a unix socket locally, a TCP/TLS socket for a remote or Windows-local
+//! daemon). So the app's descriptor use tracks the frontend's traffic and the
+//! daemon's availability, not its own modest needs. Once the ceiling is
+//! reached, `connect()` fails with `EMFILE`, which a health check cannot tell
+//! apart from a daemon that never started — so the app reports the backend as
+//! down over an entirely local fault.
 //!
 //! The decision logic lives here and is tested through [`raise_with`]. The
 //! syscalls it drives live in [`sys`], which is excluded from coverage because

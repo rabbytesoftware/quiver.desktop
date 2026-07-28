@@ -12,14 +12,6 @@ impl Emitter for AppHandle {
 		.ok();
 	}
 
-	fn emit_arrow_event(&self, payload: serde_json::Value) {
-		TauriEmitter::emit(self, "arrow://event", payload).ok();
-	}
-
-	fn emit_runtime_update(&self, payload: serde_json::Value) {
-		TauriEmitter::emit(self, "runtime://update", payload).ok();
-	}
-
 	fn emit_connection_changed(&self, payload: serde_json::Value) {
 		TauriEmitter::emit(self, "connection://changed", payload).ok();
 	}

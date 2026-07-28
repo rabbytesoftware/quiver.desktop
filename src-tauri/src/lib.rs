@@ -63,16 +63,6 @@ pub fn run() {
 			Ok(())
 		})
 		.invoke_handler(tauri::generate_handler![
-			commands::arrow::register_arrow,
-			commands::arrow::remove_arrow,
-			commands::arrow::get_arrows,
-			commands::arrow::get_arrow_detail,
-			commands::collection::follow_collection,
-			commands::collection::unfollow_collection,
-			commands::runtime::install,
-			commands::runtime::uninstall,
-			commands::runtime::execute,
-			commands::runtime::stop,
 			commands::connection::get_connections,
 			commands::connection::add_connection,
 			commands::connection::remove_connection,
