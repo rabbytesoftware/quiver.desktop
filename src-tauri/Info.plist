@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!--
+      Tauri merges this into the generated Info.plist on macOS.
+
+      CFBundleIconName is how the system finds the adaptive icon inside
+      Resources/Assets.car; it must match ASSETCATALOG_COMPILER_APPICON_NAME in
+      icons-compiler.xcodeproj, which is also the name of the .icon bundle.
+      Without it macOS ignores Assets.car entirely and silently falls back to
+      CFBundleIconFile (the classic .icns), which looks correct on Sequoia and
+      flat/wrong on Tahoe.
+    -->
+    <key>CFBundleIconName</key>
+    <string>quiver</string>
+  </dict>
+</plist>
