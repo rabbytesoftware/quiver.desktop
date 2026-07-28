@@ -1,5 +1,6 @@
 pub mod local;
 pub mod manager;
+pub mod proxy;
 pub mod remote;
 pub mod tauri_emitter;
 pub mod transport;
