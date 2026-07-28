@@ -2,9 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/quiver.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri + Preact + Typescript</title>
+    <title>Quiver</title>
     <script>
       (function () {
         var mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -16,7 +16,13 @@
     </script>
   </head>
 
-  <body data-tauri-drag-region>
+  <!--
+    No data-tauri-drag-region on <body>: it made the entire window draggable,
+    which was harmless only while there was no UI to click. The drag region now
+    lives on the Titlebar strip (src/components/titlebar.tsx), so dragging works
+    where a user expects it and content below stays interactive.
+  -->
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

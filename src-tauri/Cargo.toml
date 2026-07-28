@@ -18,7 +18,10 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["macos-private-api"] }
+# No "macos-private-api": that feature exists to allow transparent windows, and
+# Quiver's shell is opaque. Tauri cross-checks this list against the allowlist
+# implied by tauri.conf.json, so it has to come out alongside macOSPrivateApi.
+tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-store = "2"
@@ -39,14 +42,27 @@ hyperlocal = "0.9"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 uuid = { version = "1", features = ["v4"] }
 bytes = "1"
-window-vibrancy = "0.5"
-tauri-plugin-decorum = "1.1.0"
+# Dev-only: lets the Tauri MCP server drive and inspect the webview over
+# WebSocket :9223. Registered behind cfg(debug_assertions) in lib.rs so it is
+# never active in a release build. Keep the minor version paired with
+# @hypothesi/tauri-mcp-server in .mcp.json — they ship as a matched set.
+tauri-plugin-mcp-bridge = "0.12"
 
-[target."cfg(target_os = \"macos\")".dependencies]
-cocoa = "0.26"
+# Raising RLIMIT_NOFILE at startup (see src/fdlimit.rs). The macOS-only `cocoa`
+# crate that used to sit here was never referenced from any source file — the
+# native work this crate does now goes through tauri::menu and libc instead.
+[target."cfg(unix)".dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 wiremock = "0.6"
 
 [lints.clippy]
 cognitive_complexity = "warn"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

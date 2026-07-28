@@ -2,6 +2,7 @@
 import { createRootRoute, Outlet } from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 
+import { Titlebar } from '../components/titlebar';
 import '../index.css';
 
 export const Route = createRootRoute({
@@ -10,8 +11,9 @@ export const Route = createRootRoute({
 
 function RootLayout() {
 	return (
-		<div className="flex h-full">
-			<main className="flex-1 overflow-hidden">
+		<div className="flex h-screen flex-col overflow-hidden">
+			<Titlebar />
+			<main className="min-h-0 flex-1 overflow-auto">
 				<Outlet />
 			</main>
 			<TanStackRouterDevtools position="bottom-right" />

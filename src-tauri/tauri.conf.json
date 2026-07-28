@@ -10,15 +10,21 @@
 		"frontendDist": "../dist"
 	},
 	"app": {
-		"macOSPrivateApi": true,
 		"windows": [
 			{
 				"title": "Quiver",
-				"width": 1024,
-				"height": 1024,
-				"transparent": true,
+				"width": 1200,
+				"height": 800,
+				"minWidth": 800,
+				"minHeight": 600,
+				"resizable": true,
 				"titleBarStyle": "Overlay",
-				"hiddenTitle": true
+				"hiddenTitle": true,
+				"trafficLightPosition": {
+					"x": 12,
+					"y": 18
+				},
+				"backgroundThrottling": "disabled"
 			}
 		],
 		"security": {
