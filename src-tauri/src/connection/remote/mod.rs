@@ -84,6 +84,12 @@ async fn negotiate_version(transport: &dyn Transport) -> String {
 		None => return "v0".into(),
 	};
 
+	// Only one known version exists so far, and every fallback branch above
+	// also returns "v0" — so no test can tell "negotiated v0" apart from
+	// "negotiation never ran, defaulted to v0" by inspecting this return
+	// value alone until a second entry lands here. See
+	// tests/remote_connection.rs for how that's worked around today (asserting
+	// the request was made, not what it returned).
 	let known = ["v0"];
 	for version in known.iter().rev() {
 		if data.api.supported.iter().any(|s| s == version) {
