@@ -1,3 +1,4 @@
+pub mod bridge;
 pub mod local;
 pub mod manager;
 pub mod proxy;

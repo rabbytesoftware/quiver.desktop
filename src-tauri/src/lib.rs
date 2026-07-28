@@ -4,10 +4,12 @@ pub mod fdlimit;
 #[cfg(target_os = "macos")]
 pub mod menu;
 
+use connection::bridge::{open_bridge, WsBridgeManager};
 use connection::proxy::proxy_once;
 use connection::ConnectionManager;
 use tauri::http::Request;
-use tauri::{Manager, Runtime, UriSchemeContext, UriSchemeResponder};
+use tauri::ipc::Channel;
+use tauri::{Manager, Runtime, State, UriSchemeContext, UriSchemeResponder};
 
 // Injected at document-start on EVERY page load, before any frontend JS runs.
 // A reload wipes `window.__QUIVER__`, and without it the frontend falls back
@@ -60,6 +62,44 @@ fn handle_request<R: Runtime>(
 	});
 }
 
+/// Open a WebSocket to whatever connection is active for `path` (a full
+/// `/v0/...` route) and stream its frames to `on_message`.
+///
+/// The Tauri-shaped wrapper around `bridge::open_bridge`: it resolves the
+/// transport PER OPEN, so a stream opened after a connection switch dials the
+/// new peer with nothing to re-register. Excluded from coverage along with the
+/// rest of this file — everything worth asserting lives in `bridge.rs`.
+#[tauri::command]
+async fn ws_open(
+	conn_id: String,
+	path: String,
+	on_message: Channel<String>,
+	manager: State<'_, WsBridgeManager>,
+	connections: State<'_, ConnectionManager>,
+) -> Result<(), String> {
+	let transport = connections.transport().await;
+	open_bridge(transport.as_ref(), conn_id, path, on_message, &manager)
+		.await
+		.map(|_reader| ())
+}
+
+/// Send a raw text frame (the JSON the frontend wants to publish) to the daemon.
+#[tauri::command]
+async fn ws_send(
+	conn_id: String,
+	data: String,
+	manager: State<'_, WsBridgeManager>,
+) -> Result<(), String> {
+	manager.send(&conn_id, data)
+}
+
+/// Close the WebSocket leg for a connection.
+#[tauri::command]
+async fn ws_close(conn_id: String, manager: State<'_, WsBridgeManager>) -> Result<(), String> {
+	manager.close(&conn_id);
+	Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
 	// Before anything opens a descriptor: this process dials quiver.core over a
@@ -101,6 +141,21 @@ pub fn run() {
 	}
 
 	builder.manage(ConnectionManager::new())
+		.manage(WsBridgeManager::new())
+		// A page load orphans every bridged connection the outgoing page owned:
+		// its JS is gone and will never close ids it no longer remembers, and
+		// the new page opens its own. Nothing else can notice — a `Channel`
+		// keeps working across a reload, because a reloaded page is the same
+		// webview — so if we do not retire them here, their reader tasks park
+		// on sockets nobody will ever read again and hold a descriptor apiece
+		// for the life of the app. See `connection::bridge`'s module doc,
+		// teardown path (3).
+		.on_page_load(|webview, payload| {
+			if payload.event() != tauri::webview::PageLoadEvent::Started {
+				return;
+			}
+			webview.app_handle().state::<WsBridgeManager>().close_all();
+		})
 		.setup(move |app| {
 			// Report the descriptor ceiling now that a logger exists. It is the
 			// first number to reach for when the app cannot dial quiver.core.
@@ -123,6 +178,9 @@ pub fn run() {
 			commands::connection::remove_connection,
 			commands::connection::switch_connection,
 			commands::connection::rename_connection,
+			ws_open,
+			ws_send,
+			ws_close,
 		])
 		.run(tauri::generate_context!())
 		.expect("error while running tauri application");
