@@ -196,6 +196,13 @@ mod tests {
 	/// and dropping is how we learn a free number.
 	#[test]
 	fn pick_free_port_returns_a_usable_port() {
+		// Two real listeners — `pick_free_port`'s and this test's — in the same
+		// process as `connection::bridge`'s descriptor count, so this takes the
+		// crate-wide guard like every other socket test. `blocking_lock` rather
+		// than `.await`: this one is synchronous, and there is no runtime here
+		// for the async form to belong to.
+		let _serialised = crate::FD_TESTS.blocking_lock();
+
 		let port = pick_free_port().expect("must find a free port");
 		assert!(port > 0);
 		std::net::TcpListener::bind(("127.0.0.1", port))

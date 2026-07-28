@@ -404,16 +404,33 @@ mod tests {
 	async fn daemon_initiated_closes_do_not_leak_file_descriptors() {
 		let _serialised = crate::FD_TESTS.lock().await;
 
-		const CYCLES: usize = 20;
+		/// Enough closes that a leak on a FRACTION of them still separates the
+		/// two halves, which is the lever that sets how small a leak this test
+		/// can see: for one descriptor every `N`th close the halves' medians
+		/// differ by `CYCLES / 2N`, so `CYCLES` buys sensitivity directly.
+		/// Measured cost: the test runs in 60-90ms here against 10-20ms at 20
+		/// cycles, and the whole suite goes from ~0.05s to ~0.10s.
+		const CYCLES: usize = 200;
 
-		/// How much the count may drift across the run without being a leak.
-		/// The leak is one descriptor per connection, which puts CYCLES/2 = 10
-		/// between the two halves' medians; the drift this suite's own
-		/// concurrency produces measures 4 at `RUST_TEST_THREADS=24` (see
-		/// `median`). 6 clears the measured noise with margin and still leaves
-		/// the signal comfortably above it — a bridge that leaks on even every
-		/// SECOND close is caught.
-		const DRIFT: usize = 6;
+		/// How much the count may drift across the run without being called a
+		/// leak. Measured, by forcing this to 0 and running the full suite at
+		/// `RUST_TEST_THREADS=24`: the growth is 0 every time — the median of
+		/// 100 samples does not move for the transient dips this suite's own
+		/// concurrency produces, only for a sustained shift, and the one shift
+		/// there is (the other socket tests piling up on `crate::FD_TESTS`)
+		/// saturates within the first cycles, i.e. inside the first half. So 2
+		/// is margin for a slower or busier CI machine, not headroom this
+		/// machine needs.
+		///
+		/// Together these catch a leak of one descriptor in every 37 closes
+		/// (20/20 runs; 1 in 38 escapes, 0/15) — measured by bisecting the leak
+		/// rate, not derived; see the task report for the table. Integer medians
+		/// make the boundary a step rather than the ratio arithmetic suggests,
+		/// which is why it is measured. The setting they replace (20 cycles, drift 6)
+		/// needed SEVEN leaks per TEN closes: a bridge leaking on half of the
+		/// 215 closes in this test's own header would have stranded 107
+		/// descriptors and passed.
+		const DRIFT: usize = 2;
 
 		let (listener, transport) = listening().await;
 		let manager = WsBridgeManager::new();

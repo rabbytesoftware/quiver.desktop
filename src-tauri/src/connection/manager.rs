@@ -132,11 +132,18 @@ impl ConnectionManager {
 /// did before `on_page_load` retired them (see `connection::bridge`, teardown
 /// paths (2) and (3)).
 ///
-/// Streams first, connection second. Tearing the connection down first kills the
-/// sockets under the readers, and a reader that sees its socket die announces
-/// `WS_CLOSE_SENTINEL` — which tells the shim to RECONNECT, mid-switch, to the
-/// peer being switched away from. Retiring them first cancels them silently, so
-/// the frontend hears about the switch once, from the switch.
+/// Streams first, connection second — as intent, not as a demonstrated property.
+/// Today the order cannot matter: both `teardown()` implementations
+/// (`local::LocalConnection`, `remote::RemoteConnection`) are empty, this is their
+/// only caller, and swapping these two lines leaves the whole suite green. Nothing
+/// tests the ordering, and this comment should not pretend otherwise.
+///
+/// It is written this way for the day `teardown()` stops being a no-op — killing
+/// the sidecar, dropping a TLS session. Then it takes the streams' sockets down
+/// with it, and a reader that sees its socket die announces `WS_CLOSE_SENTINEL`,
+/// which tells the shim to RECONNECT, mid-switch, to the peer being switched away
+/// from. Retiring first cancels those readers silently. Whoever gives `teardown()`
+/// a body owns writing the test that makes this ordering real.
 ///
 /// It is a free function rather than two lines inline because
 /// `switch_connection` needs an `AppHandle` from its first line onwards and so
