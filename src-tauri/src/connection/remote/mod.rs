@@ -152,29 +152,40 @@ impl QuiverConnection for RemoteConnection {
 mod tests {
 	use super::*;
 	use crate::connection::transport::{TransportError, WsStream};
-	use std::sync::Mutex;
 	use tauri::http::{Request, Response};
 
-	/// A `Transport` double that answers every `request()` with a canned status
-	/// and body, so `negotiate_version`'s fallback branches can be driven
-	/// without a real peer. `open_ws` is never exercised by these tests, so it
-	/// always errors.
+	/// A `Transport` double that answers every `request()` the same way, so
+	/// `negotiate_version`'s fallback branches can be driven without a real
+	/// peer. `open_ws` is never exercised by these tests, so it always errors.
+	enum StubMode {
+		/// A response the peer actually sent — status + body.
+		Status(u16, String),
+		/// The peer was never reached at all (dead host, dropped connection).
+		Unreachable,
+	}
+
 	struct StubTransport {
-		status: u16,
-		body: Mutex<String>,
+		mode: StubMode,
 	}
 
 	impl StubTransport {
 		fn ok(body: &str) -> Self {
 			Self {
-				status: 200,
-				body: Mutex::new(body.into()),
+				mode: StubMode::Status(200, body.into()),
 			}
 		}
 		fn not_found() -> Self {
 			Self {
-				status: 404,
-				body: Mutex::new("".into()),
+				mode: StubMode::Status(404, "".into()),
+			}
+		}
+		/// Mirrors what a real `Transport` returns when the peer can't be
+		/// reached at all — as opposed to `not_found()`, which is the peer
+		/// answering with a 404. Both must fall back to "v0", but only one of
+		/// them goes through `negotiate_version`'s `Err(_) => ...` arm.
+		fn unreachable() -> Self {
+			Self {
+				mode: StubMode::Unreachable,
 			}
 		}
 	}
@@ -185,11 +196,15 @@ mod tests {
 			&self,
 			_req: Request<Vec<u8>>,
 		) -> Result<Response<Vec<u8>>, TransportError> {
-			let body = self.body.lock().unwrap().clone();
-			Response::builder()
-				.status(self.status)
-				.body(body.into_bytes())
-				.map_err(|e| TransportError::Protocol(e.to_string()))
+			match &self.mode {
+				StubMode::Status(status, body) => Response::builder()
+					.status(*status)
+					.body(body.clone().into_bytes())
+					.map_err(|e| TransportError::Protocol(e.to_string())),
+				StubMode::Unreachable => {
+					Err(TransportError::Connect("connection refused".into()))
+				}
+			}
 		}
 
 		async fn open_ws(&self, _path: &str) -> Result<WsStream, TransportError> {
@@ -210,6 +225,18 @@ mod tests {
 	#[tokio::test]
 	async fn negotiate_version_falls_back_on_404() {
 		let transport = StubTransport::not_found();
+		let v = negotiate_version(&transport).await;
+		assert_eq!(v, "v0");
+	}
+
+	/// The case that fires when a user adds a connection to a dead host: the
+	/// transport never reaches the peer at all (`Err(TransportError::Connect)`),
+	/// which is a distinct code path from `not_found()`'s `Ok` with a 404
+	/// status — both must land on the same "v0" fallback, but only this one
+	/// exercises `negotiate_version`'s `Err(_) => return "v0"` arm.
+	#[tokio::test]
+	async fn negotiate_version_falls_back_when_the_peer_is_unreachable() {
+		let transport = StubTransport::unreachable();
 		let v = negotiate_version(&transport).await;
 		assert_eq!(v, "v0");
 	}
