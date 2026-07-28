@@ -76,9 +76,20 @@ describe('apiFetch', () => {
 		expect(isNotFoundError(err)).toBe(true);
 	});
 
-	it('treats 202 and 204 as success with no payload', async () => {
+	it('treats 204 as success with no payload', async () => {
 		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
 		await expect(apiFetch('/v0/arrow/x', { method: 'DELETE' })).resolves.toBeUndefined();
+	});
+
+	// A 204 body is forced null by the HTTP spec, so a 204 always satisfies
+	// the `body === null` fallback too — that check alone can't prove the
+	// `res.status === 202` literal does anything. A 202 is free to carry a
+	// body, so give it one that doesn't match the success envelope: if the
+	// 202 branch were ever mistyped (e.g. to 203), this would fall through
+	// to the envelope check, see `body?.success` as undefined, and throw.
+	it('treats 202 as success even with a non-envelope body', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ queued: true }, 202)));
+		await expect(apiFetch('/v0/arrow/x', { method: 'POST' })).resolves.toBeUndefined();
 	});
 
 	it('gives up after the configured attempts', async () => {

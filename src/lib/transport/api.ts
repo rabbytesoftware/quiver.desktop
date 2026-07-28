@@ -66,11 +66,7 @@ function isProxyFailure(res: Response): boolean {
 	return (res.status === 502 || res.status === 504) && res.headers.get(PROXY_ERROR_HEADER) === 'error';
 }
 
-export async function apiFetch<T>(
-	path: string,
-	init?: RequestInit,
-	retry: RetryConfig = DEFAULT_RETRY
-): Promise<T> {
+export async function apiFetch<T>(path: string, init?: RequestInit, retry: RetryConfig = DEFAULT_RETRY): Promise<T> {
 	const maxAttempts = isIdempotentRead(init) ? Math.max(1, retry.attempts) : 1;
 	const sleep = retry.sleep ?? defaultSleep;
 
