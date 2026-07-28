@@ -40,8 +40,8 @@ pub trait Transport: Send + Sync {
 }
 
 // pub mod http;
-// #[cfg(unix)]
-// pub mod unix;
+#[cfg(unix)]
+pub mod unix;
 // Uncommented as Tasks 2 (http) and 3 (unix) land.
 
 #[cfg(test)]
