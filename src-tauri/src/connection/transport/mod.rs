@@ -39,10 +39,9 @@ pub trait Transport: Send + Sync {
 	async fn open_ws(&self, path: &str) -> Result<WsStream, TransportError>;
 }
 
-// pub mod http;
+pub mod http;
 #[cfg(unix)]
 pub mod unix;
-// Uncommented as Tasks 2 (http) and 3 (unix) land.
 
 #[cfg(test)]
 mod tests {
