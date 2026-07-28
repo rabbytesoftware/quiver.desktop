@@ -24,8 +24,15 @@ impl SidecarManager {
 	}
 
 	pub async fn spawn(&self, app: &AppHandle) -> Result<(), String> {
+		// `sidecar(name)` resolves to `dirname(current_exe)/name`, so the
+		// argument must be the bare binary name, NOT the `binaries/quiver`
+		// path from tauri.conf.json's externalBin. The bundler places the
+		// sidecar beside the main executable (Contents/MacOS/quiver on macOS),
+		// so "binaries/quiver" resolves to Contents/MacOS/binaries/quiver and
+		// fails with ENOENT in every bundled build. `tauri dev` runs
+		// unbundled and never catches it — use `make dev-bundle` for that.
 		app.shell()
-			.sidecar("binaries/quiver")
+			.sidecar("quiver")
 			.map_err(|e| e.to_string())?
 			.args(["daemon", "--host", "unix://"])
 			.spawn()
