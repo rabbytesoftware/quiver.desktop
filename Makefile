@@ -253,25 +253,35 @@ coverage-rust:
 	@$(CARGO) tarpaulin --version >/dev/null 2>&1 || (echo "⚠️  cargo-tarpaulin not installed. Run: $(CARGO) install cargo-tarpaulin" && exit 1)
 	@mkdir -p coverage/rust
 	@cd src-tauri && $(CARGO) tarpaulin --out Xml --out Html --out Lcov --output-dir ../coverage/rust \
-		--exclude-files 'src/lib.rs' 'src/main.rs' 'src/commands/*.rs' 'src/menu.rs' \
+		--exclude-files 'src/lib.rs' 'src/main.rs' 'src/commands/*.rs' 'src/menu.rs' 'src/fdlimit/sys.rs' \
 		'src/connection/local/mod.rs' 'src/connection/local/sidecar.rs' \
 		'src/connection/local/transport.rs' \
 		'src/connection/remote/mod.rs' 'src/connection/manager.rs' \
 		'src/connection/mod.rs' 'src/connection/tauri_emitter.rs' \
 		'src/connection/ws/connector.rs' 'src/connection/ws/mod.rs' \
 		--verbose || (echo "❌ Coverage generation failed" && exit 1)
-	@if [ -f "coverage/rust/cobertura.xml" ]; then \
-		OVERALL_COVERAGE=$$(grep -oP 'line-rate="\K[0-9.]+' coverage/rust/cobertura.xml | head -1); \
-		COVERAGE_PERCENT=$$(echo "$$OVERALL_COVERAGE * 100" | bc); \
-		echo "Overall coverage: $${COVERAGE_PERCENT}%"; \
-		if [ $$(echo "$$OVERALL_COVERAGE < 0.95" | bc -l) -eq 1 ]; then \
-			echo "❌ Overall coverage $${COVERAGE_PERCENT}% is below required 95%"; \
-			exit 1; \
-		fi; \
-		echo "✅ Overall coverage $${COVERAGE_PERCENT}% meets requirement (≥95%)"; \
-	else \
-		echo "⚠️  Coverage file not found, skipping coverage check"; \
+	@if [ ! -f "coverage/rust/cobertura.xml" ]; then \
+		echo "❌ Coverage report missing — cannot verify the threshold"; \
+		exit 1; \
 	fi
+	@# grep -o so each attribute lands on its own line and `head -1` can take the
+	# root <coverage> element's rate — the overall one. Matching with a sed
+	# address instead would be wrong: tarpaulin writes the XML on a single line,
+	# and a greedy `.*line-rate="..."` then captures the LAST attribute on it
+	# (some package's "1"), reporting 100% for a run that was not. That is the
+	# same false-pass this target already had once, via `grep -oP`.
+	@OVERALL_COVERAGE=$$(grep -o 'line-rate="[0-9.]*"' coverage/rust/cobertura.xml | head -1 | sed 's/[^0-9.]//g'); \
+	if [ -z "$$OVERALL_COVERAGE" ]; then \
+		echo "❌ Could not parse line-rate from the coverage report"; \
+		exit 1; \
+	fi; \
+	COVERAGE_PERCENT=$$(echo "$$OVERALL_COVERAGE * 100" | bc); \
+	echo "Overall coverage: $${COVERAGE_PERCENT}%"; \
+	if [ $$(echo "$$OVERALL_COVERAGE < 0.95" | bc -l) -eq 1 ]; then \
+		echo "❌ Overall coverage $${COVERAGE_PERCENT}% is below required 95%"; \
+		exit 1; \
+	fi; \
+	echo "✅ Overall coverage $${COVERAGE_PERCENT}% meets requirement (≥95%)"
 	@echo "📊 Rust coverage report: coverage/rust/index.html"
 
 pr-checks:
@@ -281,10 +291,16 @@ pr-checks:
 	@echo "=============================="
 	@CORE_VERSION=$$(node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]'); \
 	if [ -z "$$CORE_VERSION" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi; \
+	case "$$CORE_VERSION" in \
+	  nightly|latest|main|master|develop|HEAD) \
+	    echo "❌ '$$CORE_VERSION' is a rolling tag, not an immutable release."; \
+	    echo "   Pin quiver.coreVersion to a specific beta-*/stable-* tag."; \
+	    exit 1 ;; \
+	esac; \
 	echo "Checking quiver.core release: $$CORE_VERSION"; \
 	gh release view "$$CORE_VERSION" --repo rabbytesoftware/quiver.core --json tagName --jq '.tagName' >/dev/null || \
 	  (echo "❌ quiver.core release $$CORE_VERSION not found" && exit 1); \
-	echo "✅ quiver.core release $$CORE_VERSION exists"
+	echo "✅ quiver.core release $$CORE_VERSION exists and is immutable"
 	@echo ""
 	@echo "Step 2/6: Code Quality Checks"
 	@echo "=============================="

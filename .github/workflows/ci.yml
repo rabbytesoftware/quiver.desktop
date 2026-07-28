@@ -137,11 +137,25 @@ jobs:
       run: |
         CORE_VERSION=$(node -p "require('./package.json').quiver.coreVersion")
         echo "Validating quiver.core release: ${CORE_VERSION}"
+
+        # An existence check alone is not enough. `nightly` is a rolling tag —
+        # quiver.core deletes and recreates it on every push to its develop — so
+        # it always exists and would sail through, while pinning to it makes the
+        # build unreproducible: the same desktop commit bundles a different
+        # daemon depending on the day it was built.
+        case "$CORE_VERSION" in
+          nightly|latest|main|master|develop|HEAD)
+            echo "❌ '${CORE_VERSION}' is a rolling tag, not an immutable release."
+            echo "   Pin quiver.coreVersion to a specific beta-*/stable-* tag."
+            exit 1
+            ;;
+        esac
+
         gh release view "$CORE_VERSION" --repo rabbytesoftware/quiver.core || {
           echo "❌ quiver.core release ${CORE_VERSION} not found. Update CORE_VERSION to a published release before merging."
           exit 1
         }
-        echo "✅ quiver.core release ${CORE_VERSION} exists"
+        echo "✅ quiver.core release ${CORE_VERSION} exists and is immutable"
 
   code-quality-frontend:
     name: Code Quality - Frontend
@@ -502,6 +516,7 @@ jobs:
           --exclude-files 'src/lib.rs' 'src/main.rs' \
             'src/commands/*.rs' \
             'src/menu.rs' \
+            'src/fdlimit/sys.rs' \
             'src/connection/local/mod.rs' \
             'src/connection/local/sidecar.rs' \
             'src/connection/local/transport.rs' \
