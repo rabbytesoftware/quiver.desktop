@@ -114,7 +114,7 @@ impl Transport for UnixTransport {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use tokio::io::AsyncWriteExt;
+	use tokio::io::{AsyncReadExt, AsyncWriteExt};
 	use tokio::net::UnixListener;
 
 	/// Short path: sun_path is capped at 104 bytes and macOS $TMPDIR is long.
@@ -222,25 +222,55 @@ mod tests {
 	}
 
 	// --- Coverage for branches the 5 tests above the brief specifies don't
-	// reach: the request-target fallback, and every reachable failure point
-	// downstream of a successful connect. `handshake`'s and both `.body()`
-	// builders' `map_err`s are not exercised below because they have no
-	// black-box trigger — HTTP/1 handshake does no I/O, and every builder
-	// input here is already a valid, parsed value, so those arms are
-	// unreachable short of injecting a broken stream.
+	// reach: the request-target fallback (which, in turn, surfaces the
+	// request-builder's own `map_err`), and every other reachable failure
+	// point downstream of a successful connect. `handshake`'s `map_err` and
+	// the response-builder's `map_err` are not exercised below because they
+	// have no black-box trigger — HTTP/1 handshake does no I/O, and the
+	// response builder only ever receives an already-valid `StatusCode`, so
+	// those two arms are unreachable short of injecting a broken stream.
 
 	/// A request target with no `path_and_query` (e.g. a CONNECT-style
-	/// authority-form URI) falls back to the bare path instead of panicking.
+	/// authority-form URI) exercises the `unwrap_or_else` fallback to
+	/// `req.uri().path()` — which, for that URI form, is always `""`. That
+	/// value never reaches the peer: building the outgoing request with an
+	/// empty target fails immediately, before `send_request` is even called.
+	/// Standing up a real listener and observing zero bytes read (rather
+	/// than trusting `Err` alone) is what ties this assertion to the
+	/// fallback's actual output — an unrelated failure (e.g. a bad
+	/// `socket_path`) wouldn't get this far to write anything either, but it
+	/// also wouldn't leave a listener sitting there having accepted a
+	/// connection that then received nothing.
 	#[tokio::test]
-	async fn a_uri_without_a_path_and_query_falls_back_to_the_bare_path() {
-		let t = UnixTransport::new("/tmp/qvx-definitely-not-here.sock");
+	async fn a_uri_without_a_path_and_query_fails_to_build_a_request() {
+		let sock = test_socket("fallback");
+		let listener = serve(&sock);
+		let t = UnixTransport::new(sock.to_string_lossy().to_string());
+
 		let req = Request::builder()
 			.method("GET")
 			.uri("localhost:1234") // authority-form: no path_and_query
 			.body(Vec::new())
 			.unwrap();
-		let err = t.request(req).await.unwrap_err();
-		assert!(matches!(err, TransportError::Connect(_)), "got {err:?}");
+
+		let capture = async {
+			let (mut s, _) = listener.accept().await.expect("accept");
+			let mut buf = [0u8; 16];
+			s.read(&mut buf).await.unwrap_or(0)
+		};
+
+		let (resp, bytes_received) = tokio::join!(t.request(req), capture);
+
+		assert_eq!(
+			bytes_received, 0,
+			"the empty fallback target must never reach the wire"
+		);
+		let err = resp.unwrap_err();
+		assert!(
+			matches!(&err, TransportError::Protocol(msg) if msg.contains("empty")),
+			"got {err:?}"
+		);
+		let _ = std::fs::remove_file(&sock);
 	}
 
 	/// A response cut short of its promised `Content-Length` is a protocol
