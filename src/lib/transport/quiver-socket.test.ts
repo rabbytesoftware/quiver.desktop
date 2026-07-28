@@ -22,6 +22,16 @@ describe('QuiverWebSocket', () => {
 		ws.onopen = opened;
 		await vi.waitFor(() => expect(opened).toHaveBeenCalled());
 		expect(ws.readyState).toBe(QuiverWebSocket.OPEN);
+		expect(invoke).toHaveBeenCalledWith('ws_open', expect.objectContaining({ connId: expect.any(String) }));
+	});
+
+	// Self-referential guard against drift: everything else in this file only
+	// compares against the imported binding, which would stay green even if the
+	// literal itself silently changed (a bad merge, a typo). This pins the
+	// actual byte value against bridge.rs's WS_CLOSE_SENTINEL independently of
+	// the import.
+	it('is the exact sentinel bridge.rs sends, independent of the import', () => {
+		expect(WS_CLOSE_SENTINEL).toBe('\u0000quiver-ws-close');
 	});
 
 	it('surfaces a frame as a MessageEvent-shaped object', async () => {
@@ -81,7 +91,10 @@ describe('QuiverWebSocket', () => {
 	it('sends through ws_send', async () => {
 		const ws = new QuiverWebSocket('/v0/arrow');
 		ws.send('{"hello":1}');
-		expect(invoke).toHaveBeenCalledWith('ws_send', expect.objectContaining({ data: '{"hello":1}' }));
+		expect(invoke).toHaveBeenCalledWith(
+			'ws_send',
+			expect.objectContaining({ connId: expect.any(String), data: '{"hello":1}' })
+		);
 	});
 
 	it('closes eagerly once already open, not deferred', async () => {
