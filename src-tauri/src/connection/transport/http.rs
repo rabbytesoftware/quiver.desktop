@@ -10,7 +10,7 @@
 //! path, recorded in the design doc, not something this module can fix.
 
 use async_trait::async_trait;
-use tauri::http::{Request, Response};
+use tauri::http::{self, Request, Response};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
@@ -69,16 +69,36 @@ impl Transport for HttpTransport {
 			.body(body);
 
 		for (name, value) in parts.headers.iter() {
+			// The inbound Host (e.g. from the `quiver://localhost` scheme
+			// callers dial through) names the *local* proxy, not the remote
+			// peer this transport actually talks to — forwarding it verbatim
+			// would address the request to the wrong virtual host on any
+			// vhosted/proxied deployment, and reqwest will not override an
+			// explicitly-set Host. Let reqwest derive the correct one from
+			// the target URL instead.
+			if *name == http::header::HOST {
+				continue;
+			}
 			out = out.header(name, value);
 		}
 		if let Some(auth) = self.auth_header() {
 			out = out.header(reqwest::header::AUTHORIZATION, auth);
 		}
 
-		let resp = out
-			.send()
-			.await
-			.map_err(|e| TransportError::Connect(e.to_string()))?;
+		let resp = out.send().await.map_err(|e| {
+			// `send()` spans both the connect phase and everything after a
+			// connection is established (e.g. a peer that accepts then hangs
+			// up before responding). Only the former is actually a Connect
+			// failure — collapsing both into Connect would make this
+			// transport disagree with unix.rs, whose equivalent split
+			// (`UnixStream::connect` vs. `send_request`) already keeps them
+			// distinct.
+			if e.is_connect() {
+				TransportError::Connect(e.to_string())
+			} else {
+				TransportError::Protocol(e.to_string())
+			}
+		})?;
 		let status = resp.status();
 		let headers = resp.headers().clone();
 		let bytes = resp
@@ -268,6 +288,28 @@ mod tests {
 		assert!(matches!(err, TransportError::Protocol(_)), "got {err:?}");
 	}
 
+	/// `send()` spans both the connect phase and everything after a
+	/// connection is established. A peer that accepts the TCP connection and
+	/// then closes before sending a byte back must surface as `Protocol`, not
+	/// `Connect` — `reqwest::Error::is_connect()` is `false` for this case,
+	/// matching unix.rs's identical distinction between `UnixStream::connect`
+	/// (Connect) and `send_request` (Protocol), and its equivalent test
+	/// (`a_peer_that_closes_before_reading_is_a_protocol_error`).
+	#[tokio::test]
+	async fn a_peer_that_accepts_then_closes_before_responding_is_a_protocol_error() {
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let addr = listener.local_addr().unwrap();
+		let t = HttpTransport::new(format!("http://{addr}"), None);
+
+		let server = async {
+			let (s, _) = listener.accept().await.unwrap();
+			drop(s);
+		};
+		let (resp, _) = tokio::join!(t.request(get("/v0/health")), server);
+		let err = resp.unwrap_err();
+		assert!(matches!(err, TransportError::Protocol(_)), "got {err:?}");
+	}
+
 	#[tokio::test]
 	async fn open_ws_against_a_dead_port_is_a_connect_error() {
 		// `.unwrap_err()` needs `Ok`'s type to be `Debug`, and `WsStream`
@@ -386,6 +428,51 @@ mod tests {
 		assert!(
 			lower.contains("authorization: bearer s3cr3t"),
 			"got {raw:?}"
+		);
+	}
+
+	/// The inbound `Host` header (as set by callers dialing through the
+	/// `quiver://localhost` URI scheme) names the local proxy, not the remote
+	/// peer this transport actually talks to. Forwarding it verbatim would
+	/// silently address the request to the wrong virtual host on any
+	/// vhosted/proxied deployment — and reqwest will not override an
+	/// explicitly-set Host — so `request()` must drop it and let reqwest
+	/// derive the correct one from the target URL instead.
+	#[tokio::test]
+	async fn an_inbound_host_header_is_not_forwarded_to_the_remote_peer() {
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let addr = listener.local_addr().unwrap();
+		let t = HttpTransport::new(format!("http://{addr}"), None);
+
+		let req = Request::builder()
+			.method("GET")
+			.uri("quiver://localhost/v0/health")
+			.header("host", "localhost")
+			.body(Vec::new())
+			.unwrap();
+
+		let capture = async {
+			let (mut sock, _) = listener.accept().await.expect("accept");
+			let mut buf = [0u8; 512];
+			let n = sock.read(&mut buf).await.unwrap_or(0);
+			let raw = String::from_utf8_lossy(&buf[..n]).to_string();
+			let _ = sock
+				.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+				.await;
+			let _ = sock.shutdown().await;
+			raw
+		};
+
+		let (resp, raw) = tokio::join!(t.request(req), capture);
+		assert!(resp.is_ok());
+		let lower = raw.to_lowercase();
+		assert!(
+			lower.contains(format!("host: {addr}").to_lowercase().as_str()),
+			"expected Host to be the peer's own authority, got {raw:?}"
+		);
+		assert!(
+			!lower.contains("host: localhost"),
+			"inbound Host header must not be forwarded verbatim, got {raw:?}"
 		);
 	}
 
