@@ -233,6 +233,25 @@ mod tests {
 		assert!(items[0]["versions"].is_array());
 	}
 
+	/// An envelope can be well-formed JSON and still carry no data — that is
+	/// how quiver.core reports a handled failure. Without this arm the caller
+	/// would get a deserialisation error instead of the daemon's own message,
+	/// which is the difference between "the arrow is unknown" and "the desktop
+	/// app is broken".
+	#[tokio::test]
+	async fn envelope_without_data_surfaces_the_daemons_error() {
+		let json = r#"{"success":false,"error":"arrow not found","data":null}"#;
+		let client = HttpClient::new(MockTransport::new(vec![json]));
+		let err = client.fetch_arrows().await.unwrap_err();
+		match err {
+			HttpError::Api { code, message } => {
+				assert_eq!(code, 500);
+				assert_eq!(message, "arrow not found");
+			}
+			other => panic!("expected Api, got {other:?}"),
+		}
+	}
+
 	#[tokio::test]
 	async fn health_returns_ok_on_any_response() {
 		let client = HttpClient::new(MockTransport::new(vec!["ok"]));
