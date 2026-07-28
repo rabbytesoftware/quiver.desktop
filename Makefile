@@ -1,10 +1,3 @@
-# cargo shells out to rustc, and rustc is only reachable through the toolchain
-# directory when the caller's shell has not sourced ~/.cargo/env — which is the
-# normal case for a non-interactive `make` (and for CI). Exporting PATH once here
-# rather than per-recipe is what keeps `make test-rust` from dying on
-# "could not execute process `rustc -vV`" while `make dev` works.
-export PATH := $(HOME)/.bun/bin:$(HOME)/.cargo/bin:$(PATH)
-
 .PHONY: help deps deps-frontend deps-rust \
 	fmt-check-frontend fmt-frontend lint-frontend typecheck-frontend audit-frontend \
 	fmt-check-rust fmt-rust lint-rust audit-rust \
@@ -21,7 +14,20 @@ BUN          := $(shell command -v bun 2>/dev/null || echo $(HOME)/.bun/bin/bun)
 BUNX         := $(shell command -v bunx 2>/dev/null || echo $(HOME)/.bun/bin/bunx)
 CARGO        := $(shell command -v cargo 2>/dev/null || ls $(HOME)/.rustup/toolchains/*/bin/cargo 2>/dev/null | head -1 || echo $(HOME)/.cargo/bin/cargo)
 RUSTC        := $(shell command -v rustc 2>/dev/null || ls $(HOME)/.rustup/toolchains/*/bin/rustc 2>/dev/null | head -1 || echo $(HOME)/.cargo/bin/rustc)
-export PATH  := $(dir $(CARGO)):$(PATH)
+# cargo shells out to rustc, and rustc is only reachable through the toolchain
+# directory when the caller's shell has not sourced ~/.cargo/env — the normal
+# case for a non-interactive `make`, and for CI. Exporting once here rather than
+# per-recipe is what keeps `make test-rust` from dying on "could not execute
+# process `rustc -vV`" while `make dev` works. bun is here for the same reason:
+# the recipes call it by bare name.
+#
+# ~/.cargo/bin comes BEFORE $(dir $(CARGO)) on purpose. That directory holds the
+# rustup shims, which dispatch to the *default* toolchain. $(dir $(CARGO)) is
+# only a fallback, and a poor one to lead with: when `command -v cargo` misses,
+# CARGO falls back to `ls ~/.rustup/toolchains/*/bin/cargo | head -1`, which
+# picks whichever toolchain sorts first — 1.85 on this machine, old enough that
+# some dependency refuses to build with it.
+export PATH  := $(HOME)/.bun/bin:$(HOME)/.cargo/bin:$(dir $(CARGO)):$(PATH)
 TARGET_TRIPLE := $(shell $(RUSTC) -vV 2>/dev/null | grep '^host:' | awk '{print $$2}')
 _CORE_VERSION := $(shell node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]')
 
