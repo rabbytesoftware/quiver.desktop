@@ -150,6 +150,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn forwards_a_request_and_returns_the_whole_response() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let sock = test_socket("ok");
 		let listener = serve(&sock);
 		let t = UnixTransport::new(sock.to_string_lossy().to_string());
@@ -173,6 +175,8 @@ mod tests {
 	/// (meaningful) from a dead socket (retryable).
 	#[tokio::test]
 	async fn a_daemon_error_status_is_a_response_not_an_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let sock = test_socket("404");
 		let listener = serve(&sock);
 		let t = UnixTransport::new(sock.to_string_lossy().to_string());
@@ -191,6 +195,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn a_missing_socket_is_a_connect_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let t = UnixTransport::new("/tmp/qvx-definitely-not-here.sock");
 		let err = t.request(get("/v0/health")).await.unwrap_err();
 		assert!(matches!(err, TransportError::Connect(_)), "got {err:?}");
@@ -198,6 +204,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn open_ws_on_a_missing_socket_is_a_connect_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let t = UnixTransport::new("/tmp/qvx-definitely-not-here.sock");
 		// `.unwrap_err()` needs the `Ok` type to be `Debug`, and `WsStream`
 		// (a `WebSocketStream<Box<dyn AsyncReadWrite>>`) isn't. `.err().unwrap()`
@@ -208,6 +216,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn open_ws_completes_the_upgrade_against_a_real_peer() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let sock = test_socket("ws");
 		let listener = UnixListener::bind(&sock).unwrap();
 		let t = UnixTransport::new(sock.to_string_lossy().to_string());
@@ -243,6 +253,8 @@ mod tests {
 	/// connection that then received nothing.
 	#[tokio::test]
 	async fn a_uri_without_a_path_and_query_fails_to_build_a_request() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let sock = test_socket("fallback");
 		let listener = serve(&sock);
 		let t = UnixTransport::new(sock.to_string_lossy().to_string());
@@ -277,6 +289,8 @@ mod tests {
 	/// error, not a panic or a silently truncated body.
 	#[tokio::test]
 	async fn a_truncated_body_is_a_protocol_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let sock = test_socket("trunc");
 		let listener = serve(&sock);
 		let t = UnixTransport::new(sock.to_string_lossy().to_string());
@@ -299,6 +313,8 @@ mod tests {
 	/// mangled into a different route.
 	#[tokio::test]
 	async fn an_invalid_ws_path_is_a_protocol_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let sock = test_socket("wsbadpath");
 		let _listener = UnixListener::bind(&sock).unwrap();
 		let t = UnixTransport::new(sock.to_string_lossy().to_string());
@@ -312,6 +328,8 @@ mod tests {
 	/// the WebSocket handshake fails the upgrade with a protocol error.
 	#[tokio::test]
 	async fn a_peer_that_closes_before_the_upgrade_is_a_protocol_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let sock = test_socket("wsclose");
 		let listener = UnixListener::bind(&sock).unwrap();
 		let t = UnixTransport::new(sock.to_string_lossy().to_string());
@@ -330,6 +348,8 @@ mod tests {
 	/// request fails to send it with a protocol error, rather than hanging.
 	#[tokio::test]
 	async fn a_peer_that_closes_before_reading_is_a_protocol_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let sock = test_socket("closefast");
 		let listener = UnixListener::bind(&sock).unwrap();
 		let t = UnixTransport::new(sock.to_string_lossy().to_string());

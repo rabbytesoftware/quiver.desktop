@@ -263,14 +263,11 @@ mod tests {
 	use std::time::Duration;
 	use tokio::net::TcpListener;
 
-	/// `open_fds()` reads process-wide state, so two descriptor-counting tests
-	/// running concurrently see each other's sockets and flake. Crowbar
-	/// serialised these against a shared `test_support::fd_tests()` guard;
-	/// quiver has no such module, so the guard lives here. Every test that opens
-	/// a socket takes it, not just the counting one — the others open and close
-	/// sockets of their own, which is exactly the noise the count cannot
-	/// tolerate.
-	static FD_TESTS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+	// Every test below that opens a socket takes `crate::FD_TESTS`, the
+	// crate-wide guard — not just the one that counts descriptors. `open_fds()`
+	// is process-wide, so a listener held by ANY concurrent test lands in the
+	// count; see the guard's own doc for what that cost when it was scoped to
+	// this module alone.
 
 	/// File descriptors this process holds open (`/dev/fd` on macOS, a symlink to
 	/// `/proc/self/fd` on Linux). Process-wide, and therefore only meaningful while
@@ -279,24 +276,21 @@ mod tests {
 		std::fs::read_dir("/dev/fd").map(|d| d.count()).unwrap_or(0)
 	}
 
-	/// `FD_TESTS` serialises this module, but the rest of the crate's suite runs
-	/// beside it and opens sockets of its own, which `open_fds()` cannot tell from
-	/// this test's. That noise is transient — those descriptors come back when
-	/// those tests end — whereas a leaked one never does. So a count above the
-	/// steady state that SETTLES was somebody else's socket, and one that will not
-	/// settle is the leak. Waiting it out is what keeps this assertion about the
-	/// bridge rather than about what else the suite happened to be doing; without
-	/// it the test fails roughly one run in twelve, on deltas of 1-5 descriptors
-	/// against a leak that shows up as 19.
-	async fn settled_fds(steady_state: usize) -> usize {
-		let deadline = std::time::Instant::now() + Duration::from_secs(5);
-		loop {
-			let fds = open_fds();
-			if fds <= steady_state || std::time::Instant::now() >= deadline {
-				return fds;
-			}
-			tokio::time::sleep(Duration::from_millis(20)).await;
-		}
+	/// The middle reading of a run of descriptor counts.
+	///
+	/// No single count is trustworthy, even with `crate::FD_TESTS` held: every
+	/// `#[tokio::test]` in this binary holds an IO driver (a kqueue and a wakeup
+	/// pipe) for as long as it runs, and the guard makes the OTHER socket tests
+	/// sit there blocked — holding theirs — for as long as the counting one runs.
+	/// Measured at `RUST_TEST_THREADS=24`: a single run reads 103 descriptors
+	/// throughout and dips to 99 once or twice as unrelated tests come and go.
+	/// The median discards both the dips and any spike, and taking one per half
+	/// of the run turns the question into "did the count GROW", which is what a
+	/// leak actually looks like — an absolute reading is not.
+	fn median(counts: &[usize]) -> usize {
+		let mut sorted = counts.to_vec();
+		sorted.sort_unstable();
+		sorted[sorted.len() / 2]
 	}
 
 	/// A transport pointed at a live loopback listener. TCP rather than a unix
@@ -374,7 +368,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn daemon_initiated_close_retires_the_connection() {
-		let _serialised = FD_TESTS.lock().await;
+		let _serialised = crate::FD_TESTS.lock().await;
 
 		let (listener, transport) = listening().await;
 		let manager = WsBridgeManager::new();
@@ -408,13 +402,22 @@ mod tests {
 	/// descriptor table does.
 	#[tokio::test]
 	async fn daemon_initiated_closes_do_not_leak_file_descriptors() {
-		let _serialised = FD_TESTS.lock().await;
+		let _serialised = crate::FD_TESTS.lock().await;
 
 		const CYCLES: usize = 20;
 
+		/// How much the count may drift across the run without being a leak.
+		/// The leak is one descriptor per connection, which puts CYCLES/2 = 10
+		/// between the two halves' medians; the drift this suite's own
+		/// concurrency produces measures 4 at `RUST_TEST_THREADS=24` (see
+		/// `median`). 6 clears the measured noise with margin and still leaves
+		/// the signal comfortably above it — a bridge that leaks on even every
+		/// SECOND close is caught.
+		const DRIFT: usize = 6;
+
 		let (listener, transport) = listening().await;
 		let manager = WsBridgeManager::new();
-		let mut steady_state = 0;
+		let mut counts = Vec::with_capacity(CYCLES);
 
 		// Every cycle is one reconnect: the shim opens a fresh conn_id, the daemon closes it.
 		for i in 0..CYCLES {
@@ -430,19 +433,20 @@ mod tests {
 			opened.unwrap();
 			rx.await.unwrap();
 
-			// After the first cycle the runtime's own descriptors are all allocated, so this
-			// is the level a leak-free bridge must return to every time.
-			if i == 0 {
-				steady_state = open_fds();
-			}
+			// Sampled after the connection is fully retired — the sentinel is sent only
+			// once both split halves are gone — so a leak-free cycle returns to the level
+			// the previous one started from, and a leaking one does not.
+			counts.push(open_fds());
 		}
 
-		let after = settled_fds(steady_state).await;
+		let (early, late) = counts.split_at(CYCLES / 2);
+		let growth = median(late).saturating_sub(median(early));
 		assert!(
-			after <= steady_state,
-			"{CYCLES} daemon-initiated closes leaked file descriptors: {steady_state} -> {after}. \
-			 Once the app's limit is reached quiver.core cannot be dialled at all — which the \
-			 health watchdog reads as a dead backend and kills a daemon that was never unhealthy."
+			growth <= DRIFT,
+			"{CYCLES} daemon-initiated closes leaked file descriptors: the count grew by \
+			 {growth} across the run ({early:?} then {late:?}). Once the app's limit is \
+			 reached quiver.core cannot be dialled at all — which the health watchdog reads \
+			 as a dead backend and kills a daemon that was never unhealthy."
 		);
 	}
 
@@ -456,7 +460,7 @@ mod tests {
 	/// that opens one.
 	#[tokio::test]
 	async fn explicit_close_releases_the_socket_against_a_daemon_that_never_reacts() {
-		let _serialised = FD_TESTS.lock().await;
+		let _serialised = crate::FD_TESTS.lock().await;
 
 		let (listener, transport) = listening().await;
 		spawn_wedged_daemon(listener);
@@ -486,7 +490,7 @@ mod tests {
 	/// a permanently stranded socket.
 	#[tokio::test]
 	async fn close_all_retires_connections_a_reloaded_page_abandoned() {
-		let _serialised = FD_TESTS.lock().await;
+		let _serialised = crate::FD_TESTS.lock().await;
 
 		let (listener, transport) = listening().await;
 		spawn_wedged_daemon(listener);
@@ -533,7 +537,7 @@ mod tests {
 	/// it must be skipped, and must NOT be mistaken for the stream ending.
 	#[tokio::test]
 	async fn text_frames_reach_the_sink_verbatim_and_other_frames_are_skipped() {
-		let _serialised = FD_TESTS.lock().await;
+		let _serialised = crate::FD_TESTS.lock().await;
 
 		const FRAME: &str = r#"{"id":"a","name":"arrow"}"#;
 
@@ -596,7 +600,7 @@ mod tests {
 	/// never wrote it.
 	#[tokio::test]
 	async fn a_frame_sent_by_the_webview_reaches_the_daemon_verbatim() {
-		let _serialised = FD_TESTS.lock().await;
+		let _serialised = crate::FD_TESTS.lock().await;
 
 		const FRAME: &str = r#"{"op":"subscribe","id":"a"}"#;
 
@@ -674,7 +678,7 @@ mod tests {
 	/// never existed would accept `ws_send` calls forever and never deliver one.
 	#[tokio::test]
 	async fn a_dial_that_fails_leaves_no_connection_behind() {
-		let _serialised = FD_TESTS.lock().await;
+		let _serialised = crate::FD_TESTS.lock().await;
 
 		let (listener, transport) = listening().await;
 		drop(listener); // the port is now both free and known-unused
@@ -708,7 +712,7 @@ mod tests {
 	/// end the writer.
 	#[tokio::test]
 	async fn a_writer_whose_socket_died_stops_draining() {
-		let _serialised = FD_TESTS.lock().await;
+		let _serialised = crate::FD_TESTS.lock().await;
 
 		let (listener, transport) = listening().await;
 		// Resets the connection rather than closing it cleanly: after an RST both

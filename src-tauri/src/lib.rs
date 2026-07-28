@@ -4,6 +4,24 @@ pub mod fdlimit;
 #[cfg(target_os = "macos")]
 pub mod menu;
 
+/// Serialises every test in this crate that opens a socket.
+///
+/// `connection::bridge`'s descriptor-leak regression test counts this process's
+/// open file descriptors, which is process-wide state: a listener stood up by
+/// any other test lands in the same count — in its baseline as well as in its
+/// final read. That is not hypothetical. With the guard scoped to `bridge.rs`
+/// alone, a deliberately reintroduced 19-descriptor leak went UNDETECTED in 4
+/// of 20 parallel runs, because the baseline was taken while a dozen of the
+/// transport tests' sockets were open and the leak fitted inside that noise.
+/// So every test that opens a socket takes this, exactly as Crowbar's
+/// `fd_tests()` does.
+///
+/// It lives in the crate root because that is the one module every test module
+/// can name. `tokio::sync::Mutex` because the holders are all `async`, and
+/// because it cannot be poisoned by a test that fails while holding it.
+#[cfg(test)]
+pub(crate) static FD_TESTS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 use connection::bridge::{open_bridge, WsBridgeManager};
 use connection::proxy::proxy_once;
 use connection::ConnectionManager;

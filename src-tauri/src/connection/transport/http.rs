@@ -252,6 +252,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn forwards_a_request_and_returns_the_whole_response() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let t = serving("HTTP/1.1 200 OK\r\nContent-Length: 15\r\n\r\n{\"status\":\"ok\"}")
 			.await;
 		let resp = t.request(get("/v0/health")).await.expect("must succeed");
@@ -261,6 +263,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn a_daemon_error_status_is_a_response_not_an_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let t = serving("HTTP/1.1 500 Oops\r\nContent-Length: 2\r\n\r\n{}").await;
 		assert_eq!(
 			t.request(get("/v0/arrow")).await.expect("not Err").status(),
@@ -270,6 +274,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn an_unreachable_host_is_a_connect_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let err = unreachable()
 			.await
 			.request(get("/v0/health"))
@@ -280,6 +286,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn a_truncated_body_is_a_protocol_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let err = truncates_its_body(200)
 			.await
 			.request(get("/v0/arrow"))
@@ -297,6 +305,8 @@ mod tests {
 	/// (`a_peer_that_closes_before_reading_is_a_protocol_error`).
 	#[tokio::test]
 	async fn a_peer_that_accepts_then_closes_before_responding_is_a_protocol_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
 		let addr = listener.local_addr().unwrap();
 		let t = HttpTransport::new(format!("http://{addr}"), None);
@@ -312,6 +322,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn open_ws_against_a_dead_port_is_a_connect_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		// `.unwrap_err()` needs `Ok`'s type to be `Debug`, and `WsStream`
 		// (`WebSocketStream<Box<dyn AsyncReadWrite>>`) isn't. `.err().unwrap()`
 		// drops the `Ok` value instead of formatting it, sidestepping that
@@ -327,6 +339,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn open_ws_completes_the_upgrade_against_a_real_peer() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
 		let addr = listener.local_addr().unwrap();
 		let t = HttpTransport::new(format!("http://{addr}"), None);
@@ -358,6 +372,8 @@ mod tests {
 	/// that some request succeeded.
 	#[tokio::test]
 	async fn a_uri_without_a_path_and_query_falls_back_to_the_bare_base_url() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
 		let addr = listener.local_addr().unwrap();
 		let t = HttpTransport::new(format!("http://{addr}"), None);
@@ -398,6 +414,8 @@ mod tests {
 	/// prior `.request()` call used a tokenless transport.
 	#[tokio::test]
 	async fn a_request_forwards_custom_headers_and_the_bearer_token() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
 		let addr = listener.local_addr().unwrap();
 		let t = HttpTransport::new(format!("http://{addr}"), Some("s3cr3t".into()));
@@ -440,6 +458,8 @@ mod tests {
 	/// derive the correct one from the target URL instead.
 	#[tokio::test]
 	async fn an_inbound_host_header_is_not_forwarded_to_the_remote_peer() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
 		let addr = listener.local_addr().unwrap();
 		let t = HttpTransport::new(format!("http://{addr}"), None);
@@ -502,6 +522,8 @@ mod tests {
 	/// exercises the upgrade failing against a peer that never completes it.
 	#[tokio::test]
 	async fn open_ws_sends_a_bearer_header_before_the_peer_hangs_up() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
 		let addr = listener.local_addr().unwrap();
 		let t = HttpTransport::new(format!("http://{addr}"), Some("tok123".into()));

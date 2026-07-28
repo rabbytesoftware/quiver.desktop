@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
 use tokio::sync::RwLock;
 
+use crate::connection::bridge::WsBridgeManager;
 use crate::connection::local::LocalConnection;
 use crate::connection::remote::RemoteConnection;
 use crate::connection::types::{ConnectionConfig, QuiverConnection};
@@ -84,9 +85,11 @@ impl ConnectionManager {
 	}
 
 	pub async fn switch_connection(&self, app: &AppHandle, id: &str) -> Result<(), String> {
+		// Build first: a switch that cannot be completed must leave the current
+		// connection and its streams exactly as they were.
 		let new_conn = build_connection(app, id).await?;
 		let mut guard = self.active.write().await;
-		guard.teardown().await;
+		retire_streams_and_teardown(&app.state::<WsBridgeManager>(), &**guard).await;
 		*guard = new_conn;
 		guard.start(app).await;
 		Ok(())
@@ -118,6 +121,29 @@ impl ConnectionManager {
 	pub async fn transport(&self) -> Arc<dyn crate::connection::transport::Transport> {
 		self.active.read().await.transport()
 	}
+}
+
+/// The teardown half of a connection switch: retire every bridged stream, then
+/// tear down the connection they were dialled over.
+///
+/// Every open stream belongs to the OUTGOING connection — its id addresses that
+/// peer, and the frontend reopens against the new one once the switch is done —
+/// so leaving them behind strands a socket apiece exactly the way a page reload
+/// did before `on_page_load` retired them (see `connection::bridge`, teardown
+/// paths (2) and (3)).
+///
+/// Streams first, connection second. Tearing the connection down first kills the
+/// sockets under the readers, and a reader that sees its socket die announces
+/// `WS_CLOSE_SENTINEL` — which tells the shim to RECONNECT, mid-switch, to the
+/// peer being switched away from. Retiring them first cancels them silently, so
+/// the frontend hears about the switch once, from the switch.
+///
+/// It is a free function rather than two lines inline because
+/// `switch_connection` needs an `AppHandle` from its first line onwards and so
+/// cannot be driven under test; this can.
+async fn retire_streams_and_teardown(bridge: &WsBridgeManager, outgoing: &dyn QuiverConnection) {
+	bridge.close_all();
+	outgoing.teardown().await;
 }
 
 async fn build_connection(app: &AppHandle, id: &str) -> Result<Box<dyn QuiverConnection>, String> {
@@ -162,4 +188,135 @@ async fn save_remote_configs(app: &AppHandle, configs: &[ConnectionConfig]) -> R
 	let value = serde_json::to_value(configs).map_err(|e| e.to_string())?;
 	store.set(STORE_KEY, value);
 	store.save().map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::connection::bridge::{open_bridge, FrameSink};
+	use crate::connection::transport::http::HttpTransport;
+	use crate::connection::transport::Transport;
+	use std::sync::atomic::{AtomicBool, Ordering};
+	use std::sync::Mutex;
+	use std::time::Duration;
+	use tokio::net::TcpListener;
+
+	/// Stands in for the connection being switched away from. Everything a real
+	/// one does at switch time that needs an `AppHandle` (`start`) or a live
+	/// daemon (`transport`) is out of this test's reach and out of its way.
+	struct StubConnection {
+		config: ConnectionConfig,
+		torn_down: Arc<AtomicBool>,
+	}
+
+	#[async_trait::async_trait]
+	impl QuiverConnection for StubConnection {
+		async fn start(&self, _app: &AppHandle) {
+			unreachable!(
+				"a switch's start half needs a real AppHandle; not under test here"
+			)
+		}
+
+		async fn teardown(&self) {
+			self.torn_down.store(true, Ordering::Relaxed);
+		}
+
+		fn transport(&self) -> Arc<dyn Transport> {
+			unreachable!("the outgoing connection is never dialled again")
+		}
+
+		fn config(&self) -> &ConnectionConfig {
+			&self.config
+		}
+
+		fn set_name(&mut self, name: String) {
+			self.config.name = name;
+		}
+	}
+
+	/// Records the frames a stream announced, so the test can assert on what the
+	/// frontend was NOT told.
+	struct Recorder(Arc<Mutex<Vec<String>>>);
+
+	impl FrameSink for Recorder {
+		fn send(&self, frame: String) {
+			self.0.lock().unwrap().push(frame)
+		}
+	}
+
+	/// A switch leaves every stream of the outgoing connection behind unless it
+	/// retires them: their ids address a peer the app has just left, and their
+	/// JS will never call `ws_close` for them because it reopens fresh ids
+	/// against the new connection instead. Nothing else can end them — the peer
+	/// here never reacts, which is exactly what a wedged or remote daemon looks
+	/// like — so the reader finishing IS the proof that the switch retired it,
+	/// and with it that the socket came back.
+	#[tokio::test]
+	async fn a_switch_retires_the_outgoing_connections_streams() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+		let addr = listener.local_addr().expect("addr");
+		tokio::spawn(async move {
+			if let Ok((stream, _)) = listener.accept().await {
+				if let Ok(_ws) = tokio_tungstenite::accept_async(stream).await {
+					// Upgraded, then never polled again.
+					std::future::pending::<()>().await;
+				}
+			}
+		});
+		let transport = HttpTransport::new(format!("http://{addr}"), None);
+
+		let bridge = WsBridgeManager::new();
+		let announced = Arc::new(Mutex::new(Vec::new()));
+		let reader = open_bridge(
+			&transport,
+			"c1".to_string(),
+			"/v0/x".to_string(),
+			Recorder(Arc::clone(&announced)),
+			&bridge,
+		)
+		.await
+		.expect("the stream must open");
+
+		let torn_down = Arc::new(AtomicBool::new(false));
+		let outgoing = StubConnection {
+			config: ConnectionConfig {
+				id: "local".into(),
+				name: "Local".into(),
+				kind: "local".into(),
+				url: None,
+				api_version: "v0".into(),
+			},
+			torn_down: Arc::clone(&torn_down),
+		};
+
+		retire_streams_and_teardown(&bridge, &outgoing).await;
+
+		// A timeout rather than a plain await: without the retirement this hangs
+		// forever, and a hung suite is a worse signal than a failed assertion.
+		tokio::time::timeout(Duration::from_secs(5), reader)
+			.await
+			.expect(
+				"a switch must end the outgoing connection's readers: a stream left open \
+				 holds a socket to a peer the app has switched away from, for the life of \
+				 the process",
+			)
+			.expect("the reader task must not panic");
+
+		assert!(
+			torn_down.load(Ordering::Relaxed),
+			"the outgoing connection must still be torn down"
+		);
+		// Cloned out of the mutex before asserting: `assert!` evaluates its format
+		// arguments while the condition's temporary guard is still alive, and
+		// locking a std `Mutex` twice on one thread deadlocks.
+		let announced = announced.lock().unwrap().clone();
+		assert!(
+			announced.is_empty(),
+			"a switch must retire streams silently: the close sentinel is what makes the \
+			 shim reconnect, and reconnecting mid-switch dials the peer being left. \
+			 Got {announced:?}"
+		);
+	}
 }

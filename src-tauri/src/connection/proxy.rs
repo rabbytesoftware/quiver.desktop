@@ -94,6 +94,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn relays_a_successful_response_untouched() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let t = serving("HTTP/1.1 200 OK\r\nContent-Length: 15\r\n\r\n{\"status\":\"ok\"}")
 			.await;
 		let resp = proxy_once(&t, get("/v0/health")).await;
@@ -106,6 +108,8 @@ mod tests {
 	/// daemon 404 would make the frontend retry something that will never change.
 	#[tokio::test]
 	async fn a_daemon_status_is_relayed_without_the_proxy_marker() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let t = serving("HTTP/1.1 404 Not Found\r\nContent-Length: 2\r\n\r\n{}").await;
 		let resp = proxy_once(&t, get("/v0/arrow/nope")).await;
 		assert_eq!(resp.status(), 404);
@@ -119,6 +123,8 @@ mod tests {
 	/// reached the daemon and retrying is the right response.
 	#[tokio::test]
 	async fn a_connect_failure_becomes_a_marked_502() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let resp = proxy_once(&dead().await, get("/v0/health")).await;
 		assert_eq!(resp.status(), 502);
 		assert_eq!(
@@ -129,6 +135,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn the_502_body_names_the_cause() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
 		let resp = proxy_once(&dead().await, get("/v0/health")).await;
 		let body = String::from_utf8(resp.body().clone()).unwrap();
 		assert!(
