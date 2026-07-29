@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -7,6 +8,26 @@ use tauri::AppHandle;
 use crate::connection::transport::http::HttpTransport;
 use crate::connection::transport::Transport;
 use crate::connection::types::{ConnectionConfig, CoreStatus, Emitter, QuiverConnection};
+
+/// How long the reachability probe in [`RemoteConnection::start`] may take.
+///
+/// Its own deadline, and a short one, because it cannot share the transport's:
+/// `http::REQUEST_TIMEOUT` has to sit above the proxy's 300s ceiling so that a
+/// long proxied request is bounded by the proxy rather than silently truncated
+/// here — and a probe that takes five and a half minutes to say "unreachable"
+/// is not a probe. `tokio::time::timeout` at the call site rather than a second
+/// `reqwest::Client` so that `unix::UnixTransport`, which has no reqwest client
+/// at all, is covered by the same bound.
+///
+/// This is what a switch's `prepare` step blocks on (`ConnectionManager::switch_to`),
+/// so it is also the longest a switch to a stalled peer can hold `switching`.
+#[cfg(not(test))]
+const HEALTH_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Same constant, shortened under test, for the reason `proxy::PROXY_TIMEOUT`
+/// documents: no `test-util` feature in this crate, so the wait is real.
+#[cfg(test)]
+const HEALTH_TIMEOUT: Duration = Duration::from_millis(20);
 
 pub struct RemoteConnection {
 	config: ConnectionConfig,
@@ -40,6 +61,29 @@ fn health_request() -> Result<tauri::http::Request<Vec<u8>>, String> {
 		.uri("quiver://localhost/v0/health")
 		.body(Vec::new())
 		.map_err(|e| e.to_string())
+}
+
+/// Is this peer answering right now? The probe half of [`RemoteConnection::start`],
+/// lifted out of it so it can be driven without an `AppHandle` — `start`'s other
+/// job is emitting status, which needs one.
+///
+/// Bounded by [`HEALTH_TIMEOUT`]. The unbounded version of this call is the one
+/// that wedged the app: a peer that completed a TCP handshake and then said
+/// nothing left it pending forever, under `ConnectionManager`'s write lock.
+/// The lock is gone (see `manager::ConnectionManager::switch_to`) and so is the
+/// unboundedness — either alone would have been half a fix, because a switch
+/// that never returns is still a switch the user cannot escape.
+async fn probe_health(transport: &dyn Transport) -> Result<(), String> {
+	let req = health_request()?;
+	match tokio::time::timeout(HEALTH_TIMEOUT, transport.request(req)).await {
+		Ok(Ok(resp)) if resp.status().is_success() => Ok(()),
+		Ok(Ok(resp)) => Err(format!("health check returned status {}", resp.status())),
+		Ok(Err(e)) => Err(format!("health check failed: {e}")),
+		Err(_) => Err(format!(
+			"health check timed out after {}ms",
+			HEALTH_TIMEOUT.as_millis()
+		)),
+	}
 }
 
 async fn negotiate_version(transport: &dyn Transport) -> String {
@@ -109,29 +153,13 @@ impl QuiverConnection for RemoteConnection {
 		);
 		app.emit_core_status(CoreStatus::Starting);
 
-		let req = match health_request() {
-			Ok(r) => r,
-			Err(e) => {
-				log::error!("[remote] health check failed: {e}");
-				app.emit_core_status(CoreStatus::Disconnected);
-				return;
-			}
-		};
-
-		match self.transport.request(req).await {
-			Ok(resp) if resp.status().is_success() => {
+		match probe_health(self.transport.as_ref()).await {
+			Ok(()) => {
 				log::info!("[remote] reachable — emitting core://status: ready");
 				app.emit_core_status(CoreStatus::Ready);
 			}
-			Ok(resp) => {
-				log::error!(
-					"[remote] health check returned status {}",
-					resp.status()
-				);
-				app.emit_core_status(CoreStatus::Disconnected);
-			}
 			Err(e) => {
-				log::error!("[remote] health check failed: {e}");
+				log::error!("[remote] {e}");
 				app.emit_core_status(CoreStatus::Disconnected);
 			}
 		}
@@ -168,6 +196,10 @@ mod tests {
 		Status(u16, String),
 		/// The peer was never reached at all (dead host, dropped connection).
 		Unreachable,
+		/// The peer accepted the connection and then said nothing, ever. This
+		/// is finding B's actual trigger, and the only mode whose request
+		/// cannot end on its own.
+		Stalls,
 	}
 
 	struct StubTransport {
@@ -194,6 +226,14 @@ mod tests {
 				mode: StubMode::Unreachable,
 			}
 		}
+		/// A peer that completes the TCP handshake and then goes silent. Not a
+		/// hypothetical: `reqwest::Client::new()` set no timeouts at all, so
+		/// this is what a half-dead remote core looked like from in here.
+		fn stalls() -> Self {
+			Self {
+				mode: StubMode::Stalls,
+			}
+		}
 	}
 
 	#[async_trait]
@@ -210,6 +250,7 @@ mod tests {
 				StubMode::Unreachable => {
 					Err(TransportError::Connect("connection refused".into()))
 				}
+				StubMode::Stalls => std::future::pending().await,
 			}
 		}
 
@@ -245,5 +286,49 @@ mod tests {
 		let transport = StubTransport::unreachable();
 		let v = negotiate_version(&transport).await;
 		assert_eq!(v, "v0");
+	}
+
+	// ── The reachability probe (finding B) ───────────────────────────────────
+
+	/// A peer that answers 200 is reachable, and the probe must say so — the
+	/// bound added below must not cost the working case anything.
+	#[tokio::test]
+	async fn a_peer_that_answers_is_reachable() {
+		assert!(probe_health(&StubTransport::ok("{}")).await.is_ok());
+	}
+
+	/// A 404 on `/v0/health` is a peer that is up but is not serving this API.
+	/// Reported as an error, and one that names the status, because "the URL is
+	/// wrong" and "the host is down" need different fixes.
+	#[tokio::test]
+	async fn a_peer_that_answers_with_an_error_status_names_it() {
+		let err = probe_health(&StubTransport::not_found()).await.unwrap_err();
+		assert!(err.contains("404"), "got {err:?}");
+	}
+
+	#[tokio::test]
+	async fn an_unreachable_peer_is_an_error() {
+		assert!(probe_health(&StubTransport::unreachable()).await.is_err());
+	}
+
+	/// Finding B, at its source. A peer that accepts a connection and then
+	/// stalls used to leave this call pending forever — and it ran under
+	/// `ConnectionManager`'s write lock, so it took every `quiver://` request
+	/// in the app with it. `HEALTH_TIMEOUT` is what ends it. Without the
+	/// bound this test does not fail, it HANGS, so it is wrapped: a suite that
+	/// never finishes is a worse signal than one that goes red.
+	#[tokio::test]
+	async fn a_stalled_peer_ends_at_the_health_deadline_rather_than_never() {
+		let err = tokio::time::timeout(
+			Duration::from_secs(5),
+			probe_health(&StubTransport::stalls()),
+		)
+		.await
+		.expect("the health probe must be bounded — an unbounded one wedges the app")
+		.unwrap_err();
+		assert!(
+			err.contains("timed out"),
+			"the failure must say the peer never answered; got {err:?}"
+		);
 	}
 }

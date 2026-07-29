@@ -29,22 +29,53 @@ use tauri::http::Request;
 use tauri::ipc::Channel;
 use tauri::{Manager, Runtime, State, UriSchemeContext, UriSchemeResponder};
 
-// Injected at document-start on EVERY page load, before any frontend JS runs.
-// A reload wipes `window.__QUIVER__`, and without it the frontend falls back
-// to the dev origin and dials a doomed ws://localhost:5173, which reads as
-// "backend unavailable". Hostname-guarded so it never leaks into a webview
-// showing external content.
-const QUIVER_BOOTSTRAP: &str = r#"
-(function () {
+/// The origin the frontend must dial to reach the `quiver://` scheme handler,
+/// on Windows.
+///
+/// WebView2 cannot register a non-standard URI scheme at all, so wry does not
+/// try: it registers `http://quiver.localhost` and rewrites every request back
+/// before handing it to the handler (`wry`'s `custom_protocol_workaround.rs`,
+/// `apply_uri_work_around`, turns `{scheme}://localhost/x` into
+/// `{http|https}://{scheme}.localhost/x`). A frontend that fetched
+/// `quiver://localhost/...` there would reach nothing — the whole data layer is
+/// dead — and no amount of `cargo check --target x86_64-pc-windows-msvc` can
+/// see it, because it is a string.
+///
+/// So the base is computed HERE, per platform, and injected. The frontend takes
+/// what it is given (`window.__QUIVER__.api`) and never has to know.
+#[cfg(windows)]
+const QUIVER_API_BASE: &str = "http://quiver.localhost";
+
+/// The same origin everywhere else. WKWebView (macOS/iOS) and WebKitGTK
+/// (Linux) register the scheme for real, so the custom scheme is reachable
+/// as written and wry applies no rewrite.
+#[cfg(not(windows))]
+const QUIVER_API_BASE: &str = "quiver://localhost";
+
+/// Injected at document-start on EVERY page load, before any frontend JS runs.
+///
+/// A reload wipes `window.__QUIVER__`, and without it the frontend falls back
+/// to the dev origin and dials a doomed ws://localhost:5173, which reads as
+/// "backend unavailable". Hostname-guarded so it never leaks into a webview
+/// showing external content — `quiver.localhost` is in the guard because that
+/// is the hostname the Windows work-around above produces.
+///
+/// A `format!` rather than a `const`: the API base differs per platform (see
+/// [`QUIVER_API_BASE`]), and a hardcoded literal here is exactly the defect
+/// this shape exists to prevent.
+fn quiver_bootstrap_script() -> String {
+	format!(r#"
+(function () {{
   var h = location.hostname;
-  if (h === 'localhost' || h === 'tauri.localhost') {
-    window.__QUIVER__ = Object.assign(window.__QUIVER__ || {}, {
+  if (h === 'localhost' || h === 'tauri.localhost' || h === 'quiver.localhost') {{
+    window.__QUIVER__ = Object.assign(window.__QUIVER__ || {{}}, {{
       mode: 'local',
-      api: 'quiver://localhost',
-    });
-  }
-})();
-"#;
+      api: '{QUIVER_API_BASE}',
+    }});
+  }}
+}})();
+"#)
+}
 
 /// `tauri::plugin::Builder::build()` returns `TauriPlugin<R, C>`, and `C` has
 /// no other usage site to pin it down — inline at the call site, `.plugin()`
@@ -54,7 +85,7 @@ const QUIVER_BOOTSTRAP: &str = r#"
 /// resolves it.
 fn quiver_bootstrap_plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
 	tauri::plugin::Builder::new("quiver-bootstrap")
-		.js_init_script(QUIVER_BOOTSTRAP.to_string())
+		.js_init_script(quiver_bootstrap_script())
 		.build()
 }
 
@@ -69,8 +100,16 @@ fn handle_request<R: Runtime>(
 ) {
 	let app = ctx.app_handle().clone();
 	tauri::async_runtime::spawn(async move {
-		let transport = app.state::<ConnectionManager>().transport().await;
-		let resp = proxy_once(transport.as_ref(), request).await;
+		// Handed to `proxy_once` UNRESOLVED, so the lookup happens inside its
+		// timeout. `.transport()` takes `ConnectionManager`'s read lock, and
+		// tokio's `RwLock` is fair: a reader arriving while a writer waits
+		// queues behind that writer. Awaited here instead, that wait is
+		// unbounded — no timeout in this app can reach it.
+		let resolve = {
+			let app = app.clone();
+			async move { app.state::<ConnectionManager>().transport().await }
+		};
+		let resp = proxy_once(resolve, request).await;
 		// Respond on the main thread: WKURLSchemeTask cancellation
 		// (webView:stopURLSchemeTask:) is delivered there, so responding there
 		// serialises with it. From a tokio worker it races cancellation, and a
@@ -201,4 +240,71 @@ pub fn run() {
 		])
 		.run(tauri::generate_context!())
 		.expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	/// The one thing in this file that a compiler cannot check: the API base is
+	/// a string, and a wrong one leaves the entire data layer dead on the
+	/// platform it is wrong for, silently. So the expectation is written out
+	/// per platform, in literals, rather than derived from the constant — a
+	/// test that says `QUIVER_API_BASE == QUIVER_API_BASE` guards nothing.
+	///
+	/// Breaking either side fails a build somewhere: the non-Windows literal
+	/// fails here on every developer machine and on macOS/Linux CI, the Windows
+	/// literal fails on a Windows runner.
+	#[test]
+	fn the_injected_api_base_matches_the_platform() {
+		let expected = if cfg!(windows) {
+			// WebView2 cannot register a custom scheme, so wry rewrites
+			// `quiver://localhost/x` to `http://quiver.localhost/x`. Dialling
+			// the un-rewritten form there reaches nothing at all.
+			"http://quiver.localhost"
+		} else {
+			"quiver://localhost"
+		};
+		assert_eq!(QUIVER_API_BASE, expected);
+	}
+
+	/// The constant is only useful if it actually reaches the page. The
+	/// frontend reads `window.__QUIVER__.api` and nothing else, so the script
+	/// has to carry the platform's base verbatim.
+	#[test]
+	fn the_bootstrap_script_injects_the_platform_api_base() {
+		let script = quiver_bootstrap_script();
+		assert!(
+			script.contains(&format!("api: '{QUIVER_API_BASE}'")),
+			"the bootstrap must inject the computed base; got {script}"
+		);
+		// And not the other platform's. This is what catches a base hardcoded
+		// back into the script: the wrong literal is invisible on the platform
+		// it happens to match, and fails loudly on the one it does not.
+		let wrong = if cfg!(windows) {
+			"quiver://localhost"
+		} else {
+			"http://quiver.localhost"
+		};
+		assert!(
+			!script.contains(wrong),
+			"the bootstrap must not carry another platform's API base ({wrong}); \
+			 got {script}"
+		);
+	}
+
+	/// The script only assigns `window.__QUIVER__` on hostnames this app owns.
+	/// `quiver.localhost` is one of them on Windows: it is the origin wry's
+	/// work-around serves the scheme from, so a page loaded there would
+	/// otherwise get no config at all.
+	#[test]
+	fn the_bootstrap_guard_covers_every_hostname_this_app_serves() {
+		let script = quiver_bootstrap_script();
+		for host in ["localhost", "tauri.localhost", "quiver.localhost"] {
+			assert!(
+				script.contains(&format!("'{host}'")),
+				"the hostname guard must admit {host}; got {script}"
+			);
+		}
+	}
 }

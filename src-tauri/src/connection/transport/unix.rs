@@ -104,9 +104,15 @@ impl Transport for UnixTransport {
 			.into_client_request()
 			.map_err(|e| TransportError::Protocol(e.to_string()))?;
 		let boxed: Box<dyn AsyncReadWrite> = Box::new(stream);
-		let (ws, _) = tokio_tungstenite::client_async(request, boxed)
-			.await
-			.map_err(|e| TransportError::Protocol(e.to_string()))?;
+		// The same door `http.rs` uses, so both transports resolve to one
+		// `WsStream` type. The request is always `ws://` here — a unix socket
+		// carries no TLS — so `uri_mode` picks `Mode::Plain` and this is
+		// `client_async` with an extra enum wrapper: no handshake, no
+		// certificate work, nothing on the wire that was not there before.
+		let (ws, _) =
+			tokio_tungstenite::client_async_tls_with_config(request, boxed, None, None)
+				.await
+				.map_err(|e| TransportError::Protocol(e.to_string()))?;
 		Ok(ws)
 	}
 }
@@ -208,8 +214,8 @@ mod tests {
 
 		let t = UnixTransport::new("/tmp/qvx-definitely-not-here.sock");
 		// `.unwrap_err()` needs the `Ok` type to be `Debug`, and `WsStream`
-		// (a `WebSocketStream<Box<dyn AsyncReadWrite>>`) isn't. `.err().unwrap()`
-		// drops the `Ok` value instead of formatting it, sidestepping that bound.
+		// isn't. `.err().unwrap()` drops the `Ok` value instead of formatting
+		// it, sidestepping that bound.
 		let err = t.open_ws("/v0/arrow").await.err().unwrap();
 		assert!(matches!(err, TransportError::Connect(_)), "got {err:?}");
 	}

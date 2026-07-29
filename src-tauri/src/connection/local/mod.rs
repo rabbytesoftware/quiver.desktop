@@ -35,18 +35,32 @@ impl LocalHost {
 	}
 }
 
-/// A free loopback port, learned by binding :0 and letting go.
+/// The loopback port the local daemon binds on Windows. FIXED, not picked free
+/// per construction.
 ///
-/// The daemon does not report the port it bound — its entire startup output is
-/// the gin route table and one `starting quiver daemon` line (verified against
-/// stable-26.5.1) — so the app must choose. There is a TOCTOU window between
-/// the drop and the daemon's bind; it is small, and this is the standard trade.
-pub fn pick_free_port() -> Result<u16, String> {
-	let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
-	let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-	drop(listener);
-	Ok(port)
-}
+/// `LocalConnection::new()` runs at startup AND on every switch back to local,
+/// and the port used to come from a `bind(:0)` probe — a NEW port every time.
+/// Each construction therefore spawned a daemon that could bind, on a port
+/// nothing else knew about, while the previous one kept running: switch away
+/// and back four times and Windows is hosting five daemons, four of them
+/// orphaned for the life of the session. Unix escaped this only by accident —
+/// its socket path is fixed, so the second daemon's bind fails and it exits.
+///
+/// A fixed port makes Windows behave the way unix already did, deliberately:
+/// every construction addresses the same daemon, and a second spawn fails to
+/// bind and exits instead of forking the app's view of "local". It is also the
+/// only shape a "probe before spawning" check can take here — the daemon never
+/// reports the port it bound (its whole startup output is the gin route table
+/// and one `starting quiver daemon` line, verified against stable-26.5.1), so
+/// there is no port to probe unless the app fixes it in advance.
+///
+/// The trade is a collision with an unrelated process already on 40257. That is
+/// caught rather than papered over: `SidecarManager::ensure_running` decides on
+/// `/v0/health`, which a stranger cannot answer, so the app reports the local
+/// core as unreachable instead of silently proxying to it. 40257 is
+/// quiver.core's own documented example port.
+#[cfg(windows)]
+pub const LOCAL_TCP_PORT: u16 = 40257;
 
 #[cfg(unix)]
 fn default_socket_path() -> String {
@@ -61,10 +75,7 @@ fn local_host() -> LocalHost {
 
 #[cfg(windows)]
 fn local_host() -> LocalHost {
-	// A failed pick is not fatal here: the daemon would refuse the port and the
-	// health wait would report it, which is a better error than panicking at
-	// startup. 40257 is quiver.core's own documented example port.
-	LocalHost::Tcp(pick_free_port().unwrap_or(40257))
+	LocalHost::Tcp(LOCAL_TCP_PORT)
 }
 
 #[cfg(unix)]
@@ -141,14 +152,15 @@ impl QuiverConnection for LocalConnection {
 		log::info!("[local] starting — host: {:?}", self.host);
 		app.emit_core_status(CoreStatus::Starting);
 
-		if let Err(e) = self.sidecar.spawn(app).await {
-			log::error!("[local] sidecar spawn failed: {e}");
-			app.emit_core_status(CoreStatus::Disconnected);
-			return;
-		}
-
-		if let Err(e) = self.sidecar.wait_for_ready(self.transport.as_ref()).await {
-			log::error!("[local] sidecar health check failed: {e}");
+		// `ensure_running`, not `spawn` + `wait_for_ready`: `new()` runs again
+		// on every switch back to local, and an unconditional spawn is what
+		// left Windows hosting a daemon per switch. See `LOCAL_TCP_PORT`.
+		if let Err(e) = self
+			.sidecar
+			.ensure_running(app, self.transport.as_ref())
+			.await
+		{
+			log::error!("[local] sidecar did not become ready: {e}");
 			app.emit_core_status(CoreStatus::Disconnected);
 			return;
 		}
@@ -194,21 +206,38 @@ mod tests {
 		);
 	}
 
-	/// The daemon never prints the port it bound (verified against
-	/// stable-26.5.1), so the app has to choose one and pass it in. Binding :0
-	/// and dropping is how we learn a free number.
+	/// The defect this guards: `local_host()` used to call `pick_free_port()` on
+	/// Windows, so every `LocalConnection::new()` — startup, and every switch
+	/// back to local — addressed a DIFFERENT daemon and spawned one, leaving the
+	/// previous ones running and unreachable.
+	///
+	/// Two calls, one assertion: the local daemon's address must not depend on
+	/// when it was asked for. It goes red on Windows the moment a free-port pick
+	/// comes back, and red on unix if the socket path ever picks up a nonce.
 	#[test]
-	fn pick_free_port_returns_a_usable_port() {
-		// Two real listeners — `pick_free_port`'s and this test's — in the same
-		// process as `connection::bridge`'s descriptor count, so this takes the
-		// crate-wide guard like every other socket test. `blocking_lock` rather
-		// than `.await`: this one is synchronous, and there is no runtime here
-		// for the async form to belong to.
-		let _serialised = crate::FD_TESTS.blocking_lock();
+	fn the_local_daemon_address_is_the_same_on_every_construction() {
+		assert_eq!(
+			local_host(),
+			local_host(),
+			"a local address that changes per construction spawns a daemon per \
+			 construction and orphans the last one"
+		);
+	}
 
-		let port = pick_free_port().expect("must find a free port");
-		assert!(port > 0);
-		std::net::TcpListener::bind(("127.0.0.1", port))
-			.expect("the port pick_free_port returned must actually be bindable");
+	/// And it is the address this platform is documented to use — the pairing a
+	/// compiler cannot check, written out per platform in literals rather than
+	/// derived from the thing under test.
+	#[test]
+	fn the_local_daemon_address_is_the_documented_one_for_this_platform() {
+		let host = local_host();
+		#[cfg(unix)]
+		assert!(
+			matches!(&host, LocalHost::Unix(p) if p.ends_with("/.quiver/quiver.sock")),
+			"unix addresses quiver.core's default socket; got {host:?}"
+		);
+		// The literal, not `LOCAL_TCP_PORT`: comparing the constant to itself
+		// would pass whatever it were changed to.
+		#[cfg(windows)]
+		assert_eq!(host, LocalHost::Tcp(40257), "got {host:?}");
 	}
 }

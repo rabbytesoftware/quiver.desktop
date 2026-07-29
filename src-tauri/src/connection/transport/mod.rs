@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use tauri::http::{Request, Response};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 #[derive(Debug, Error)]
 pub enum TransportError {
@@ -22,12 +22,23 @@ pub enum TransportError {
 }
 
 /// The object-safe stream every transport's WebSocket half resolves to. Boxing
-/// is what lets a unix socket and a TCP/TLS socket share one return type, so
+/// is what lets a unix socket and a TCP socket share one return type, so
 /// the bridge never learns which connection kind it is driving.
 pub trait AsyncReadWrite: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncReadWrite for T {}
 
-pub type WsStream = WebSocketStream<Box<dyn AsyncReadWrite>>;
+/// The WebSocket every transport hands back.
+///
+/// The `MaybeTlsStream` layer is not decoration: it is what
+/// `tokio_tungstenite::client_async_tls_with_config` returns, and that function
+/// is the only public door in this crate's dependency set that performs a real
+/// TLS handshake for `wss://` over a socket the CALLER opened — which both
+/// transports need, because a unix socket is not a `TcpStream` and so
+/// `connect_async` (which opens its own) cannot serve them both.
+///
+/// The `Plain` variant costs the unix and `ws://` paths nothing but a match
+/// arm: `uri_mode` picks it from the scheme, and no TLS code runs.
+pub type WsStream = WebSocketStream<MaybeTlsStream<Box<dyn AsyncReadWrite>>>;
 
 #[async_trait]
 pub trait Transport: Send + Sync {

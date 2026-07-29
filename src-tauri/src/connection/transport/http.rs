@@ -9,12 +9,88 @@
 //! reachable by any local process. That is an accepted risk of the Windows
 //! path, recorded in the design doc, not something this module can fix.
 
+use std::time::Duration;
+
 use async_trait::async_trait;
 use tauri::http::{self, Request, Response};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
 use super::{AsyncReadWrite, Transport, TransportError, WsStream};
+
+/// How long the TCP (and, for `https://`, TLS) handshake may take.
+///
+/// A peer that swallows SYNs — a machine that went away, a firewall that drops
+/// rather than rejects — otherwise leaves the connect phase hanging with no
+/// bound at all, because `reqwest::Client::new()` sets none.
+const SHIPPED_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Upper bound on one whole request, connect included.
+///
+/// Deliberately LONGER than `proxy::PROXY_TIMEOUT`'s 300s, so ordinary proxied
+/// traffic is bounded by the proxy's own ceiling and this is only ever the
+/// backstop for the paths that do not go through it (`RemoteConnection`'s
+/// health probe, `SidecarManager`'s readiness poll). A shorter value here would
+/// silently shorten every proxied request to it, and the proxy would never get
+/// to return the marked 504 the frontend knows how to retry.
+///
+/// One client with one timeout cannot serve both callers: this has to sit above
+/// 300s for proxied traffic, and a health probe that takes five and a half
+/// minutes to fail is not a health probe. So the probe gets its own, much
+/// shorter deadline at its call site (`remote::HEALTH_TIMEOUT`) rather than a
+/// second client here — a deadline at the call site also covers
+/// `unix::UnixTransport`, which has no reqwest client to configure.
+const SHIPPED_REQUEST_TIMEOUT: Duration = Duration::from_secs(330);
+
+/// What the client is actually built with. Named apart from the two above so
+/// that a test can still assert on the SHIPPED numbers while running against
+/// the millisecond stand-ins below — a `#[cfg(not(test))]` constant is
+/// invisible to the tests that most need to check it.
+#[cfg(not(test))]
+const CONNECT_TIMEOUT: Duration = SHIPPED_CONNECT_TIMEOUT;
+#[cfg(not(test))]
+const REQUEST_TIMEOUT: Duration = SHIPPED_REQUEST_TIMEOUT;
+
+/// The same two, shortened under test. `tokio`'s `test-util` feature (which
+/// would let the suite jump straight to a timer) is not enabled in this crate,
+/// so these are real waits — the same trade `proxy::PROXY_TIMEOUT` makes, and
+/// for the same reason. The ordering that matters is preserved: connect is
+/// still well under the whole-request bound, so a test can tell which fired.
+#[cfg(test)]
+const CONNECT_TIMEOUT: Duration = Duration::from_millis(250);
+#[cfg(test)]
+const REQUEST_TIMEOUT: Duration = Duration::from_millis(750);
+
+/// The TCP address to dial for a WebSocket request: the host, and the port the
+/// URI names — or the scheme's default when it names none.
+///
+/// This function exists because the obvious spelling is wrong.
+/// `TcpStream::connect(authority)` looks like it works, and does for
+/// `ws://127.0.0.1:5555`, but `ToSocketAddrs for &str` REQUIRES a `:port`: a
+/// remote configured as `https://core.example.com` produces the authority
+/// `core.example.com`, which fails at address parsing before a packet is sent —
+/// so `wss://` never even reached the TLS it also was not doing.
+///
+/// Brackets come off an IPv6 literal host: they are URI syntax, not part of the
+/// address, and `("[::1]", 443)` does not resolve.
+fn ws_target(uri: &http::Uri) -> Result<(String, u16), TransportError> {
+	// `into_client_request` (the only caller's only source of URIs) already
+	// rejects a URI with no host — tungstenite's `IntoClientRequest` returns
+	// `Error::Url(UrlError::NoHostName)` — so this arm has no reachable failure
+	// path through the public API, the way unix.rs documents its own.
+	let host = uri
+		.host()
+		.ok_or_else(|| TransportError::Protocol("ws url has no host".into()))?;
+	let host = host
+		.strip_prefix('[')
+		.and_then(|h| h.strip_suffix(']'))
+		.unwrap_or(host);
+	let port = uri.port_u16().unwrap_or(match uri.scheme_str() {
+		Some("wss") | Some("https") => 443,
+		_ => 80,
+	});
+	Ok((host.to_string(), port))
+}
 
 pub struct HttpTransport {
 	client: reqwest::Client,
@@ -27,7 +103,20 @@ impl HttpTransport {
 		// `tcp://` is quiver.core's own spelling for "plain HTTP here".
 		let base_url = base_url.into().replace("tcp://", "http://");
 		Self {
-			client: reqwest::Client::new(),
+			// `reqwest::Client::new()` sets NO timeouts whatsoever. A peer
+			// that accepts a connection and then goes silent pins the calling
+			// task forever — including `RemoteConnection::start`, which used
+			// to run under `ConnectionManager`'s write lock and so took every
+			// `quiver://` request in the app down with it.
+			client: reqwest::Client::builder()
+				.connect_timeout(CONNECT_TIMEOUT)
+				.timeout(REQUEST_TIMEOUT)
+				.build()
+				// The only documented failure is a TLS backend that will not
+				// initialise, which is a broken build rather than a runtime
+				// condition — and a transport with no client cannot do
+				// anything useful anyway.
+				.expect("reqwest's default TLS backend must initialise"),
 			base_url,
 			token,
 		}
@@ -117,11 +206,6 @@ impl Transport for HttpTransport {
 	}
 
 	async fn open_ws(&self, path: &str) -> Result<WsStream, TransportError> {
-		// TODO(wss): this dials a raw TcpStream and hands it to client_async,
-		// which performs no TLS handshake, so wss:// does not actually work
-		// yet. No current UI reaches a remote WebSocket. Fixing this needs a
-		// tokio_tungstenite::connect_async path built on the native-tls
-		// feature before remote WS ships — see Task 18's report.
 		let url = self.ws_url(path);
 		let mut request = url
 			.into_client_request()
@@ -135,25 +219,24 @@ impl Transport for HttpTransport {
 			);
 		}
 
-		// `into_client_request` above already rejects any URI lacking an
-		// authority (tungstenite's `IntoClientRequest for Uri` returns
-		// `Error::Url(UrlError::NoHostName)` in that case), so by the time
-		// we get here `authority()` is always `Some`. The `ok_or_else` below
-		// has no reachable failure path through this public API.
-		let host = request
-			.uri()
-			.authority()
-			.map(|a| a.to_string())
-			.ok_or_else(|| {
-				TransportError::Protocol("ws url has no authority".into())
-			})?;
-		let stream = TcpStream::connect(&host)
+		let (host, port) = ws_target(request.uri())?;
+		let stream = TcpStream::connect((host.as_str(), port))
 			.await
 			.map_err(|e| TransportError::Connect(e.to_string()))?;
 		let boxed: Box<dyn AsyncReadWrite> = Box::new(stream);
-		let (ws, _) = tokio_tungstenite::client_async(request, boxed)
-			.await
-			.map_err(|e| TransportError::Protocol(e.to_string()))?;
+		// `client_async_tls_with_config` rather than `client_async`: it reads
+		// the scheme off the request (`uri_mode`) and, for `wss://`, runs a
+		// real native-tls handshake against the socket — SNI and certificate
+		// verification from the system trust store included — before the
+		// WebSocket upgrade is written. `client_async` skipped all of that and
+		// spoke plaintext WS at a TLS listener.
+		//
+		// `None` connector means native-tls's own defaults, which is what we
+		// want: no custom roots, no verification turned off.
+		let (ws, _) =
+			tokio_tungstenite::client_async_tls_with_config(request, boxed, None, None)
+				.await
+				.map_err(|e| TransportError::Protocol(e.to_string()))?;
 		Ok(ws)
 	}
 }
@@ -325,9 +408,8 @@ mod tests {
 		let _serialised = crate::FD_TESTS.lock().await;
 
 		// `.unwrap_err()` needs `Ok`'s type to be `Debug`, and `WsStream`
-		// (`WebSocketStream<Box<dyn AsyncReadWrite>>`) isn't. `.err().unwrap()`
-		// drops the `Ok` value instead of formatting it, sidestepping that
-		// bound — same fix as unix.rs's equivalent test.
+		// isn't. `.err().unwrap()` drops the `Ok` value instead of formatting
+		// it, sidestepping that bound — same fix as unix.rs's equivalent test.
 		let err = unreachable()
 			.await
 			.open_ws("/v0/arrow")
@@ -512,6 +594,163 @@ mod tests {
 	async fn open_ws_with_an_invalid_token_is_a_protocol_error() {
 		let t = HttpTransport::new("http://127.0.0.1:1", Some("bad\ntoken".into()));
 		let err = t.open_ws("/v0/arrow").await.err().unwrap();
+		assert!(matches!(err, TransportError::Protocol(_)), "got {err:?}");
+	}
+
+	// ── Request timeouts (finding B) ─────────────────────────────────────────
+
+	/// `reqwest::Client::new()` sets no timeouts at all, so a peer that accepts
+	/// a connection and then never answers pinned the calling task — and its
+	/// socket — for the life of the app. `RemoteConnection::start` is one such
+	/// caller, and it used to run under `ConnectionManager`'s write lock.
+	///
+	/// Without `REQUEST_TIMEOUT` this test does not fail, it HANGS, so the
+	/// assertion is wrapped in a wait an order of magnitude longer than the
+	/// (cfg(test)-shortened) bound it is checking.
+	#[tokio::test]
+	async fn a_peer_that_accepts_and_then_says_nothing_ends_at_the_request_timeout() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let addr = listener.local_addr().unwrap();
+		let t = HttpTransport::new(format!("http://{addr}"), None);
+
+		// Accept and hold: the connection stays open, and nothing is ever
+		// written back.
+		let held = tokio::spawn(async move {
+			let (sock, _) = listener.accept().await.unwrap();
+			std::future::pending::<()>().await;
+			drop(sock);
+		});
+
+		let err = tokio::time::timeout(
+			Duration::from_secs(10),
+			t.request(get("/v0/health")),
+		)
+		.await
+		.expect(
+			"a request must be bounded: an unbounded one holds its socket and its \
+				 caller for the life of the process",
+		)
+		.expect_err("a stalled peer is not a successful response");
+		assert!(matches!(err, TransportError::Protocol(_)), "got {err:?}");
+
+		held.abort();
+	}
+
+	/// The whole-request bound has to stay ABOVE the proxy's own 300s ceiling,
+	/// or it silently truncates every long proxied request to whatever it is —
+	/// the proxy would never get to return its own marked 504, and the frontend
+	/// would see an unmarked failure it does not retry. Checked on the real
+	/// constants, not the shortened test ones.
+	#[test]
+	fn the_request_timeout_does_not_undercut_the_proxys_own_ceiling() {
+		// Re-stated rather than imported: `proxy::PROXY_TIMEOUT` is shortened
+		// under cfg(test) too, so importing it would compare two test values
+		// and prove nothing about what ships.
+		const PROXY_CEILING: Duration = Duration::from_secs(300);
+
+		assert!(
+			SHIPPED_REQUEST_TIMEOUT > PROXY_CEILING,
+			"a request timeout at or below the proxy's 300s ceiling makes the proxy's \
+			 own timeout unreachable: every long request would fail here instead, \
+			 unmarked, and the frontend does not retry an unmarked failure"
+		);
+		assert!(
+			SHIPPED_CONNECT_TIMEOUT < SHIPPED_REQUEST_TIMEOUT,
+			"the connect phase happens inside the request, so its bound must be tighter"
+		);
+		// The pair the client is actually built with keeps the same ordering,
+		// whichever pair cfg picks — otherwise a test could not tell which of
+		// the two fired.
+		assert!(CONNECT_TIMEOUT < REQUEST_TIMEOUT);
+	}
+
+	// ── WebSocket address resolution and TLS (finding E) ─────────────────────
+
+	/// The defect: `TcpStream::connect(authority)` needs a `:port`, and a
+	/// remote configured as `https://core.example.com` has none — so `wss://`
+	/// failed at ADDRESS PARSING, before a packet was sent, and never reached
+	/// the TLS it also was not doing.
+	#[test]
+	fn a_ws_url_without_a_port_defaults_to_the_schemes_own() {
+		let target = |u: &str| ws_target(&u.parse::<http::Uri>().unwrap()).unwrap();
+
+		assert_eq!(
+			target("wss://core.example.com/v0/arrow"),
+			("core.example.com".to_string(), 443),
+			"wss with no port is 443"
+		);
+		assert_eq!(
+			target("ws://core.example.com/v0/arrow"),
+			("core.example.com".to_string(), 80),
+			"ws with no port is 80"
+		);
+	}
+
+	/// An explicit port always wins over the scheme's default — the local
+	/// Windows daemon is `ws://127.0.0.1:40257`, and sending it to :80 would
+	/// break the one path that worked before.
+	#[test]
+	fn an_explicit_port_is_kept() {
+		let target = |u: &str| ws_target(&u.parse::<http::Uri>().unwrap()).unwrap();
+
+		assert_eq!(
+			target("ws://127.0.0.1:40257/v0/arrow"),
+			("127.0.0.1".to_string(), 40257)
+		);
+		assert_eq!(
+			target("wss://core.example.com:8443/v0/arrow"),
+			("core.example.com".to_string(), 8443)
+		);
+	}
+
+	/// A URI's IPv6 host arrives bracketed — that is URI syntax, not part of
+	/// the address, and `("[::1]", 443)` does not resolve.
+	#[test]
+	fn an_ipv6_host_loses_its_uri_brackets() {
+		let target = |u: &str| ws_target(&u.parse::<http::Uri>().unwrap()).unwrap();
+
+		assert_eq!(
+			target("ws://[::1]:9000/v0/arrow"),
+			("::1".to_string(), 9000)
+		);
+		assert_eq!(target("wss://[::1]/v0/arrow"), ("::1".to_string(), 443));
+	}
+
+	/// The other half of finding E: `client_async` performed no TLS handshake,
+	/// so a `wss://` dial spoke PLAINTEXT WebSocket at what was supposed to be
+	/// a TLS listener. Against a plaintext WS server that upgrade SUCCEEDS,
+	/// which is precisely the silent failure — the app would have believed it
+	/// had an encrypted stream.
+	///
+	/// Here the peer is a real, plaintext WebSocket server and the transport is
+	/// `https://`, so `ws_url` produces `wss://`. A transport that actually
+	/// negotiates TLS cannot complete this handshake; the pre-fix one completed
+	/// it happily. Revert `client_async_tls_with_config` to `client_async` and
+	/// this goes red.
+	#[tokio::test]
+	async fn a_wss_dial_refuses_to_complete_against_a_plaintext_peer() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let addr = listener.local_addr().unwrap();
+		// `https://` so `ws_url` derives `wss://` — the same derivation
+		// `ws_url_derives_wss_from_https` pins above.
+		let t = HttpTransport::new(format!("https://{addr}"), None);
+
+		let server = async {
+			if let Ok((s, _)) = listener.accept().await {
+				// A plaintext WebSocket server: it speaks HTTP, not TLS.
+				let _ = tokio_tungstenite::accept_async(s).await;
+			}
+		};
+
+		let (ws, _) = tokio::join!(t.open_ws("/v0/arrow"), server);
+		let err = ws.err().expect(
+			"a wss:// dial must not complete against a peer that never negotiated TLS: \
+			 completing it is the app believing an unencrypted stream is encrypted",
+		);
 		assert!(matches!(err, TransportError::Protocol(_)), "got {err:?}");
 	}
 

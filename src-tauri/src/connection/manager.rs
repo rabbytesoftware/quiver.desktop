@@ -1,8 +1,9 @@
+use std::future::Future;
 use std::sync::Arc;
 
 use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::connection::bridge::WsBridgeManager;
 use crate::connection::local::LocalConnection;
@@ -14,6 +15,20 @@ const STORE_KEY: &str = "connections";
 
 pub struct ConnectionManager {
 	active: RwLock<Box<dyn QuiverConnection>>,
+	/// Serialises switches.
+	///
+	/// This used to be the write half of `active`: `switch_connection` took it
+	/// before starting the new connection and released it after installing, so
+	/// no two switches could interleave. That is exactly what wedged the app —
+	/// `start()` dials a peer, a peer that accepts and then stalls holds the
+	/// write lock indefinitely, and tokio's `RwLock` is fair, so every later
+	/// READER (i.e. every `quiver://` request and every `ws_open`) queued behind
+	/// the waiting writer and never came back.
+	///
+	/// So the serialisation moved here, to a lock no reader ever touches. A
+	/// stalled `start()` now blocks nothing but other switches, which is the
+	/// one thing it is supposed to block.
+	switching: Mutex<()>,
 }
 
 impl Default for ConnectionManager {
@@ -26,10 +41,19 @@ impl ConnectionManager {
 	pub fn new() -> Self {
 		Self {
 			active: RwLock::new(Box::new(LocalConnection::new())),
+			switching: Mutex::new(()),
 		}
 	}
 
 	pub async fn start(&self, app: AppHandle) {
+		// Takes `switching` even though it changes nothing: this is a long
+		// await (the local sidecar's health wait runs to five seconds) taken
+		// under the READ lock, and the invariant that keeps tokio's fair
+		// `RwLock` harmless is that no writer is ever *waiting* on it while a
+		// reader holds it. Every writer goes through `switching` first, so a
+		// switch or a rename that lands mid-startup parks here instead of on
+		// `active.write()`, where it would stall every request in the app.
+		let _switching = self.switching.lock().await;
 		self.active.read().await.start(&app).await;
 	}
 
@@ -85,13 +109,45 @@ impl ConnectionManager {
 	}
 
 	pub async fn switch_connection(&self, app: &AppHandle, id: &str) -> Result<(), String> {
-		// Build first: a switch that cannot be completed must leave the current
-		// connection and its streams exactly as they were.
-		let new_conn = build_connection(app, id).await?;
+		let bridge = app.state::<WsBridgeManager>();
+		self.switch_to(&bridge, async move {
+			// Build first, then start, and only then hand the connection over
+			// to be installed: a switch that cannot be completed must leave the
+			// current connection and its streams exactly as they were, and
+			// `switch_to` never touches `active` until this future is Ok.
+			let conn = build_connection(app, id).await?;
+			conn.start(app).await;
+			Ok(conn)
+		})
+		.await
+	}
+
+	/// The lock discipline of a switch, with its two Tauri-shaped halves lifted
+	/// out into `prepare`: `build_connection` needs an `AppHandle` for the
+	/// store and the keyring, and `QuiverConnection::start` needs one to emit
+	/// status and to spawn the sidecar. Neither can be built under test — but
+	/// which lock is held across what is the half that wedged the app, and all
+	/// of that is here, and drivable.
+	///
+	/// Three properties, in the order they matter:
+	///
+	///   1. `switching` is held for the whole switch, so two switches cannot
+	///      interleave. It replaces the write lock in that role — see the field.
+	///   2. NO lock on `active` is held across `prepare`. It dials a peer;
+	///      a peer that accepts and then stalls makes it take forever, and a
+	///      write lock held across that blocks every subsequent reader too,
+	///      because tokio's `RwLock` is fair.
+	///   3. A failing `prepare` returns before `active` is touched at all, so
+	///      the previous connection and its streams survive the failure intact.
+	async fn switch_to<F>(&self, bridge: &WsBridgeManager, prepare: F) -> Result<(), String>
+	where
+		F: Future<Output = Result<Box<dyn QuiverConnection>, String>>,
+	{
+		let _switching = self.switching.lock().await;
+		let new_conn = prepare.await?;
 		let mut guard = self.active.write().await;
-		retire_streams_and_teardown(&app.state::<WsBridgeManager>(), &**guard).await;
+		retire_streams_and_teardown(bridge, &**guard).await;
 		*guard = new_conn;
-		guard.start(app).await;
 		Ok(())
 	}
 
@@ -110,7 +166,10 @@ impl ConnectionManager {
 			None => return Err(format!("connection {id} not found")),
 		}
 		save_remote_configs(app, &configs).await?;
-		// Keep active in-memory config in sync
+		// Keep active in-memory config in sync. `switching` first, like every
+		// other writer of `active` — see `start`: a writer that waits on the
+		// RwLock itself blocks every reader behind it.
+		let _switching = self.switching.lock().await;
 		let mut guard = self.active.write().await;
 		if guard.config().id == id {
 			guard.set_name(name);
@@ -208,12 +267,39 @@ mod tests {
 	use std::time::Duration;
 	use tokio::net::TcpListener;
 
-	/// Stands in for the connection being switched away from. Everything a real
-	/// one does at switch time that needs an `AppHandle` (`start`) or a live
-	/// daemon (`transport`) is out of this test's reach and out of its way.
+	/// Stands in for a connection either side of a switch. The one thing a real
+	/// one does that no test can reach is `start` — it needs an `AppHandle` —
+	/// and `switch_to` takes that half as a future precisely so it does not have
+	/// to be reached here.
 	struct StubConnection {
 		config: ConnectionConfig,
 		torn_down: Arc<AtomicBool>,
+		transport: Arc<dyn Transport>,
+	}
+
+	impl StubConnection {
+		/// `id` is what a test reads back to tell which connection is active.
+		/// The transport is real but points nowhere: `switch_to` never dials,
+		/// and the tests below only need `transport()` to RESOLVE — that it
+		/// resolves at all, while a switch is mid-flight, is the property
+		/// finding B is about.
+		fn new(id: &str, torn_down: Arc<AtomicBool>) -> Self {
+			Self {
+				config: ConnectionConfig {
+					id: id.into(),
+					name: id.into(),
+					kind: "local".into(),
+					url: None,
+					api_version: "v0".into(),
+				},
+				torn_down,
+				transport: Arc::new(HttpTransport::new("http://127.0.0.1:1", None)),
+			}
+		}
+
+		fn boxed(id: &str, torn_down: Arc<AtomicBool>) -> Box<dyn QuiverConnection> {
+			Box::new(Self::new(id, torn_down))
+		}
 	}
 
 	#[async_trait::async_trait]
@@ -229,7 +315,7 @@ mod tests {
 		}
 
 		fn transport(&self) -> Arc<dyn Transport> {
-			unreachable!("the outgoing connection is never dialled again")
+			Arc::clone(&self.transport)
 		}
 
 		fn config(&self) -> &ConnectionConfig {
@@ -239,6 +325,22 @@ mod tests {
 		fn set_name(&mut self, name: String) {
 			self.config.name = name;
 		}
+	}
+
+	/// A manager whose active connection is a stub, so the lock discipline can
+	/// be driven without a daemon or an `AppHandle`. `ConnectionManager::new()`
+	/// would install a real `LocalConnection` instead.
+	fn manager_with(active: Box<dyn QuiverConnection>) -> ConnectionManager {
+		ConnectionManager {
+			active: RwLock::new(active),
+			// Spelt out: this module's tests shadow `Mutex` with `std`'s, which
+			// `Recorder` below needs.
+			switching: tokio::sync::Mutex::new(()),
+		}
+	}
+
+	async fn active_id(m: &ConnectionManager) -> String {
+		m.active.read().await.config().id.clone()
 	}
 
 	/// Records the frames a stream announced, so the test can assert on what the
@@ -287,16 +389,7 @@ mod tests {
 		.expect("the stream must open");
 
 		let torn_down = Arc::new(AtomicBool::new(false));
-		let outgoing = StubConnection {
-			config: ConnectionConfig {
-				id: "local".into(),
-				name: "Local".into(),
-				kind: "local".into(),
-				url: None,
-				api_version: "v0".into(),
-			},
-			torn_down: Arc::clone(&torn_down),
-		};
+		let outgoing = StubConnection::new("local", Arc::clone(&torn_down));
 
 		retire_streams_and_teardown(&bridge, &outgoing).await;
 
@@ -324,6 +417,186 @@ mod tests {
 			"a switch must retire streams silently: the close sentinel is what makes the \
 			 shim reconnect, and reconnecting mid-switch dials the peer being left. \
 			 Got {announced:?}"
+		);
+	}
+
+	// ── The lock discipline of a switch (finding B) ──────────────────────────
+
+	/// The whole of finding B, stated as a test.
+	///
+	/// A switch's `prepare` step dials the new peer, and a peer that accepts a
+	/// connection and then stalls makes it take forever. It used to run under
+	/// `active`'s WRITE lock — so tokio's fair `RwLock` parked every subsequent
+	/// reader behind the waiting writer, and every `quiver://` request and every
+	/// `ws_open` in the app hung, past every timeout, until the app was killed.
+	///
+	/// Here `prepare` never resolves, and the manager must stay readable
+	/// throughout. Move the `active.write()` in `switch_to` back above
+	/// `prepare.await` and this stops finishing.
+	#[tokio::test]
+	async fn a_switch_that_never_finishes_preparing_still_leaves_the_app_readable() {
+		let bridge = Arc::new(WsBridgeManager::new());
+		let manager = Arc::new(manager_with(StubConnection::boxed(
+			"local",
+			Arc::new(AtomicBool::new(false)),
+		)));
+
+		let switching = tokio::spawn({
+			let manager = Arc::clone(&manager);
+			let bridge = Arc::clone(&bridge);
+			async move {
+				manager.switch_to(&bridge, async {
+					std::future::pending::<()>().await;
+					unreachable!("a stalled peer never answers")
+				})
+				.await
+			}
+		});
+
+		// Give the switch a chance to reach (and park in) its prepare step
+		// before reading, so the read really does race a switch in flight.
+		tokio::task::yield_now().await;
+
+		tokio::time::timeout(Duration::from_secs(5), manager.transport())
+			.await
+			.expect(
+				"a switch that is still dialling must not hold any lock on the active \
+				 connection: every quiver:// request in the app takes that read lock",
+			);
+
+		switching.abort();
+	}
+
+	/// A switch that cannot be completed must leave the previous connection —
+	/// and its streams — exactly as they were. `switch_to` must not touch
+	/// `active` until `prepare` has succeeded, which is why the build and start
+	/// halves live inside `prepare` rather than around it.
+	#[tokio::test]
+	async fn a_switch_whose_preparation_fails_changes_nothing() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+		let addr = listener.local_addr().expect("addr");
+		tokio::spawn(async move {
+			if let Ok((stream, _)) = listener.accept().await {
+				if let Ok(_ws) = tokio_tungstenite::accept_async(stream).await {
+					std::future::pending::<()>().await;
+				}
+			}
+		});
+
+		let bridge = WsBridgeManager::new();
+		let reader = open_bridge(
+			&HttpTransport::new(format!("http://{addr}"), None),
+			"c1".to_string(),
+			"/v0/x".to_string(),
+			Recorder(Arc::new(Mutex::new(Vec::new()))),
+			&bridge,
+		)
+		.await
+		.expect("the stream must open");
+
+		let torn_down = Arc::new(AtomicBool::new(false));
+		let manager = manager_with(StubConnection::boxed("local", Arc::clone(&torn_down)));
+
+		let err = manager
+			.switch_to(&bridge, async { Err("no such connection".to_string()) })
+			.await
+			.expect_err("a failed preparation must fail the switch");
+		assert_eq!(err, "no such connection");
+
+		assert_eq!(
+			active_id(&manager).await,
+			"local",
+			"a failed switch must leave the previous connection active"
+		);
+		assert!(
+			!torn_down.load(Ordering::Relaxed),
+			"a failed switch must not tear down the connection it failed to replace"
+		);
+		assert!(
+			!reader.is_finished(),
+			"a failed switch must leave the previous connection's streams open: the \
+			 frontend is still talking to that peer"
+		);
+
+		bridge.close_all();
+		let _ = tokio::time::timeout(Duration::from_secs(5), reader).await;
+	}
+
+	/// A successful switch installs the new connection and retires the outgoing
+	/// one — the ordering `retire_streams_and_teardown` documents, now reached
+	/// through the path production actually takes.
+	#[tokio::test]
+	async fn a_successful_switch_installs_the_new_connection_and_retires_the_old() {
+		let torn_down = Arc::new(AtomicBool::new(false));
+		let manager = manager_with(StubConnection::boxed("local", Arc::clone(&torn_down)));
+		let bridge = WsBridgeManager::new();
+
+		manager.switch_to(&bridge, async {
+			Ok(StubConnection::boxed(
+				"remote-1",
+				Arc::new(AtomicBool::new(false)),
+			))
+		})
+		.await
+		.expect("the switch must succeed");
+
+		assert_eq!(active_id(&manager).await, "remote-1");
+		assert!(
+			torn_down.load(Ordering::Relaxed),
+			"the outgoing connection must be torn down"
+		);
+	}
+
+	/// `switching` exists only to keep the serialisation the write lock used to
+	/// provide, now that the write lock is no longer held across the dialling
+	/// half of a switch. Two switches that interleave would install in an order
+	/// unrelated to the order they were asked for, and could retire the streams
+	/// of a connection the other has already replaced.
+	///
+	/// Each `prepare` records when it entered and left; overlapping intervals
+	/// are the defect. Drop the `switching` lock from `switch_to` and the two
+	/// yields below let them interleave, which turns this red.
+	#[tokio::test]
+	async fn two_switches_do_not_interleave() {
+		let bridge = Arc::new(WsBridgeManager::new());
+		let manager = Arc::new(manager_with(StubConnection::boxed(
+			"local",
+			Arc::new(AtomicBool::new(false)),
+		)));
+		let log = Arc::new(Mutex::new(Vec::<String>::new()));
+
+		let switch = |id: &'static str| {
+			let manager = Arc::clone(&manager);
+			let bridge = Arc::clone(&bridge);
+			let log = Arc::clone(&log);
+			async move {
+				manager.switch_to(&bridge, async move {
+					log.lock().unwrap().push(format!("enter {id}"));
+					// Two yields: ample opportunity for the other
+					// switch's prepare to slip in, if anything let it.
+					tokio::task::yield_now().await;
+					tokio::task::yield_now().await;
+					log.lock().unwrap().push(format!("leave {id}"));
+					Ok(StubConnection::boxed(
+						id,
+						Arc::new(AtomicBool::new(false)),
+					))
+				})
+				.await
+			}
+		};
+
+		let (a, b) = tokio::join!(switch("a"), switch("b"));
+		a.expect("switch a must succeed");
+		b.expect("switch b must succeed");
+
+		let log = log.lock().unwrap().clone();
+		assert!(
+			log == ["enter a", "leave a", "enter b", "leave b"]
+				|| log == ["enter b", "leave b", "enter a", "leave a"],
+			"switches must not interleave; got {log:?}"
 		);
 	}
 }
