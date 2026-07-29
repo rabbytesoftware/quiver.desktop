@@ -1,18 +1,72 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError, apiFetch, coreIsReachable, isNotFoundError } from './api';
+import { ApiError, apiBase, apiFetch, coreIsReachable, isNotFoundError } from './api';
 
 const NO_SLEEP = { attempts: 8, baseDelayMs: 0, maxDelayMs: 0, sleep: () => Promise.resolve() };
+
+/** What the shell injects on this machine. Written out here rather than
+ *  imported, because `api.ts` is required to hold no origin literal at all. */
+const SHELL_BASE = 'quiver://localhost';
+
+const shell = window as unknown as { __QUIVER__?: { api?: string } };
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}) {
 	return new Response(JSON.stringify(body), { status, headers });
 }
 
-describe('apiFetch', () => {
-	beforeEach(() => {
-		vi.restoreAllMocks();
+// jsdom is not the Tauri shell, so nothing injects an API origin here and every
+// call would (correctly) refuse to dial one. Stand in for the document-start
+// script — per test, the same granularity the real one has per page load.
+beforeEach(() => {
+	vi.restoreAllMocks();
+	shell.__QUIVER__ = { api: SHELL_BASE };
+});
+
+// Finding A: the reachable origin differs per platform (`quiver://localhost` on
+// macOS/Linux, `http://quiver.localhost` on Windows, where WebView2 cannot
+// register a custom scheme and wry rewrites it). A literal in `api.ts` is right
+// on two platforms and dead on the third, so the module must dial what the
+// shell hands it and refuse when handed nothing.
+describe('apiBase', () => {
+	it('dials the origin the shell injected, whatever it is', async () => {
+		// Deliberately the Windows form, which no macOS/Linux run would ever
+		// produce: if `api.ts` reintroduces a literal, or captures the origin at
+		// module load (this assignment happens long after the import), the URL
+		// below is not the one that gets fetched.
+		shell.__QUIVER__ = { api: 'http://quiver.localhost' };
+		const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, error: null, data: 'ok' }));
+		vi.stubGlobal('fetch', fetchMock);
+		await apiFetch('/v0/arrow');
+		expect(fetchMock.mock.calls[0][0]).toBe('http://quiver.localhost/v0/arrow');
 	});
 
+	it('refuses to guess an origin when the shell injected none', async () => {
+		delete shell.__QUIVER__;
+		const fetchMock = vi.fn();
+		vi.stubGlobal('fetch', fetchMock);
+		await expect(apiFetch('/v0/arrow')).rejects.toThrow(/__QUIVER__/);
+		// And says so before dialling anything: a request sent to a guessed
+		// origin is the mysterious failure this refuses to produce.
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('treats an empty injected origin as no origin', () => {
+		shell.__QUIVER__ = { api: '' };
+		// `${''}${path}` would fetch relative to the page — on a dev server that
+		// answers index.html for every path, which reads as a malformed daemon.
+		expect(() => apiBase()).toThrow(/__QUIVER__/);
+	});
+
+	it('surfaces a missing origin from coreIsReachable instead of reporting the core down', async () => {
+		delete shell.__QUIVER__;
+		vi.stubGlobal('fetch', vi.fn());
+		// `false` here would be indistinguishable from a daemon that has not
+		// started, and the app would sit on "backend unavailable" forever.
+		await expect(coreIsReachable()).rejects.toThrow(/__QUIVER__/);
+	});
+});
+
+describe('apiFetch', () => {
 	it('unwraps a successful envelope', async () => {
 		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ success: true, error: null, data: [1, 2] })));
 		await expect(apiFetch<number[]>('/v0/arrow')).resolves.toEqual([1, 2]);
@@ -106,10 +160,6 @@ describe('apiFetch', () => {
 // `ready` Tauri already dropped, so it has to answer "up" for a daemon that is
 // up and "down" for anything else, without ever waiting.
 describe('coreIsReachable', () => {
-	beforeEach(() => {
-		vi.restoreAllMocks();
-	});
-
 	// The load-bearing reason this is not `apiFetch`: /v0/health answers with a
 	// bare `{"status":"ok"}`, not the {success,error,data} envelope, so apiFetch
 	// would throw on a daemon that is perfectly healthy and the probe would

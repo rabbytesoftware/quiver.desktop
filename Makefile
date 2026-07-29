@@ -44,7 +44,21 @@ else
   QUIVER_BINARY := quiver-$(TARGET_TRIPLE)
 endif
 
-SIDECAR_PATH := src-tauri/binaries/quiver-$(TARGET_TRIPLE)
+# Tauri resolves an `externalBin` as `<name>-<target triple><exe suffix>`, and
+# the shell plugin resolves a sidecar as `dirname(current_exe)/<name><suffix>`.
+# On Windows that suffix is `.exe` in both cases, so a sidecar written without
+# it is a file neither can find — and it is invisible everywhere else, because
+# the suffix is empty on every other platform. `findstring` rather than the
+# exact triple: `aarch64-pc-windows-msvc` and the `-gnu` triples need it too.
+# (CI does not go through here; .github/actions/build-tauri names the file
+# itself. This is the local `make fetch-sidecar` / `make dev` path.)
+ifneq ($(findstring windows,$(TARGET_TRIPLE)),)
+  EXE_SUFFIX := .exe
+else
+  EXE_SUFFIX :=
+endif
+
+SIDECAR_PATH := src-tauri/binaries/quiver-$(TARGET_TRIPLE)$(EXE_SUFFIX)
 
 help:
 	@echo "Quiver Desktop - Makefile Commands"
@@ -192,7 +206,7 @@ fetch-sidecar:
 	@mv "src-tauri/binaries/$(QUIVER_BINARY)" "$(SIDECAR_PATH)"
 	@chmod +x "$(SIDECAR_PATH)"
 	@mkdir -p src-tauri/target/debug
-	@cp "$(SIDECAR_PATH)" "src-tauri/target/debug/quiver"
+	@cp "$(SIDECAR_PATH)" "src-tauri/target/debug/quiver$(EXE_SUFFIX)"
 	@echo "✅ Sidecar ready: $(SIDECAR_PATH)"
 
 dev:
