@@ -266,6 +266,101 @@ jobs:
         cargo audit
         echo "✅ Security audit passed"
 
+  # Cross-platform verification, mirroring quiver.core's test-multi-platform job.
+  #
+  # Every other job here runs on ubuntu-latest, which means the #[cfg(windows)]
+  # and #[cfg(target_os = "macos")] arms were compiled by nothing on the merge
+  # path — a Windows-only defect (e.g. the WebView2 scheme rewrite) shipped
+  # green because no runner ever built that code. Tauri's own platform split
+  # (tauri.macos.conf.json) has the same exposure.
+  #
+  # This runs the Rust and frontend suites on all three desktop targets. The
+  # heavy jobs (coverage, audit, bundling) stay on ubuntu — this is about
+  # compiling and exercising the per-platform arms, not re-measuring coverage.
+  test-cross-platform:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [code-quality-rust, code-quality-frontend]
+    strategy:
+      # One platform failing must not hide the others: a Windows-only break is
+      # exactly what this job exists to surface.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install system dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev \
+          build-essential \
+          curl \
+          wget \
+          file \
+          libssl-dev \
+          libayatana-appindicator3-dev \
+          librsvg2-dev
+
+    - name: Set up Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          src-tauri/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ env.BUN_VERSION }}
+
+    - name: Install frontend dependencies
+      run: bun install --frozen-lockfile
+
+    # tauri-build fails the build outright if an externalBin listed in
+    # tauri.conf.json is missing, so every job that compiles the crate needs a
+    # stand-in. `shell: bash` because Windows runners default to PowerShell and
+    # Git Bash is present on all three images. The .exe matters: Tauri resolves
+    # the Windows sidecar with that suffix, so a placeholder without it is not
+    # the file the build looks for.
+    - name: Create sidecar placeholder
+      shell: bash
+      run: |
+        mkdir -p src-tauri/binaries
+        TARGET_TRIPLE=$(rustc -vV | grep '^host:' | awk '{print $2}')
+        SUFFIX=""
+        case "$TARGET_TRIPLE" in *windows*) SUFFIX=".exe" ;; esac
+        touch "src-tauri/binaries/quiver-${TARGET_TRIPLE}${SUFFIX}"
+        chmod +x "src-tauri/binaries/quiver-${TARGET_TRIPLE}${SUFFIX}"
+        echo "placeholder: quiver-${TARGET_TRIPLE}${SUFFIX}"
+
+    - name: Rust tests
+      shell: bash
+      run: |
+        cd src-tauri
+        cargo test
+        echo "✅ Rust suite passed on ${{ matrix.os }}"
+
+    - name: Frontend tests
+      shell: bash
+      run: |
+        bun run test
+        echo "✅ Frontend suite passed on ${{ matrix.os }}"
+
   build-frontend:
     name: Build - Frontend
     runs-on: ubuntu-latest
