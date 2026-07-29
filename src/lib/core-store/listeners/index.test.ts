@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vitest';
 
+vi.mock('@tauri-apps/api/core', () => ({
+	invoke: vi.fn(),
+}));
+
 vi.mock('@tauri-apps/api/event', () => ({
 	listen: vi.fn(),
 }));
@@ -40,6 +44,7 @@ vi.mock('../dtos/v0/runtime', async (importOriginal) => {
 	return { ...actual, toRuntimeUpdate: vi.fn(actual.toRuntimeUpdate) };
 });
 
+import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import { getArrowsFor } from '@/lib/persistence/entity-cache';
@@ -53,6 +58,7 @@ import { toRuntimeUpdate } from '../dtos/v0/runtime';
 import { useArrowStore } from '../store/arrows';
 import { useStatusStore } from '../store/status';
 
+const mockInvoke = invoke as MockedFunction<typeof invoke>;
 const mockListen = listen as MockedFunction<typeof listen>;
 const mockSubscribeArrowStream = subscribeArrowStream as MockedFunction<typeof subscribeArrowStream>;
 const mockGetArrowsFor = getArrowsFor as MockedFunction<typeof getArrowsFor>;
@@ -96,6 +102,10 @@ beforeEach(() => {
 	mockSubscribeArrowStream.mockReturnValue(vi.fn());
 	mockGetArrowsFor.mockResolvedValue([]);
 	mockApiFetch.mockResolvedValue([]);
+	// Every `ready` self-sufficiently queries the active connection — see
+	// review finding 2 (fix round 1). Default to the same connection every
+	// existing test already assumed before that fix.
+	mockInvoke.mockResolvedValue({ connections: [], active_id: 'local' });
 	useArrowStore.getState().reset();
 	useStatusStore.setState({ status: 'starting' });
 });
@@ -134,6 +144,17 @@ describe('setupListeners', () => {
 		await setupListeners();
 		await emit('core://status', { status: 'ready' });
 		expect(subscribeArrowStream).toHaveBeenCalledWith(expect.objectContaining({ connectionId: 'local' }));
+	});
+
+	// Review finding 2 (fix round 1): `switch_connection` does not emit
+	// `connection://changed` at all (a Rust-side gap), so `ready` cannot trust
+	// that event — it must ask `get_connections` directly, every time.
+	it('queries get_connections on every ready to learn the active connection', async () => {
+		mockInvoke.mockResolvedValue({ connections: [], active_id: 'remote-9' });
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+		expect(invoke).toHaveBeenCalledWith('get_connections');
+		expect(subscribeArrowStream).toHaveBeenCalledWith(expect.objectContaining({ connectionId: 'remote-9' }));
 	});
 
 	it('also subscribes the runtime overlay endpoint when core reports ready', async () => {
@@ -181,6 +202,29 @@ describe('setupListeners', () => {
 		expect(getArrowsFor).toHaveBeenCalledWith('local');
 	});
 
+	// Review finding 5 (fix round 1): neither /v0/arrow nor /v0/runtime push
+	// anything on connect (verified against stable-26.5.1) — without this, an
+	// already-running arrow would render as 'absent' forever, since no
+	// transition frame is ever coming to correct it.
+	it("seeds the initial runtime state from the seed's versions[].state, since neither stream pushes on connect", async () => {
+		mockApiFetch.mockResolvedValue([
+			{
+				namespace: 'a',
+				name: 'a',
+				description: '',
+				tags: [],
+				versions: [{ ref: '1', version: '1', state: 'running' }],
+			},
+		]);
+		mockGetArrowsFor.mockResolvedValue([catalogRecord('a@1')]);
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+		const opts = mockSubscribeArrowStream.mock.calls[0][0];
+		await opts.seed();
+		opts.onChange?.();
+		await vi.waitFor(() => expect(useArrowStore.getState().arrows.get('a@1')?.state).toBe('running'));
+	});
+
 	it('clears the projection and stops the arrow stream when core restarts', async () => {
 		const dispose = vi.fn();
 		mockSubscribeArrowStream.mockReturnValue(dispose);
@@ -220,10 +264,19 @@ describe('setupListeners', () => {
 		expect(subscribeArrowStream).not.toHaveBeenCalled();
 	});
 
-	it('restarts the stream against the new connection on a switch', async () => {
+	// Review finding 2 (fix round 1): reproduces the REAL production sequence
+	// for a switch — ready -> starting -> ready, driven entirely by
+	// get_connections' active_id changing between calls, with NO
+	// connection://changed at all (which switch_connection does not emit).
+	// The old version of this test emitted connection://changed and relied on
+	// it, which does not reflect what Rust actually does on a switch.
+	it('restarts the stream against the new connection on a switch, without relying on connection://changed', async () => {
+		mockInvoke
+			.mockResolvedValueOnce({ connections: [], active_id: 'local' })
+			.mockResolvedValueOnce({ connections: [], active_id: 'remote-1' });
 		await setupListeners();
 		await emit('core://status', { status: 'ready' });
-		await emit('connection://changed', { connections: [], active_id: 'remote-1' });
+		await emit('core://status', { status: 'starting' });
 		await emit('core://status', { status: 'ready' });
 		expect(subscribeArrowStream).toHaveBeenLastCalledWith(expect.objectContaining({ connectionId: 'remote-1' }));
 	});

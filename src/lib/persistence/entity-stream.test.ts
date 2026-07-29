@@ -128,6 +128,72 @@ describe('entity-stream', () => {
 		]);
 	});
 
+	// The GET response nests media under `media: {icon, banner}` (Task 15). No
+	// live WS frame has been captured to confirm whether the push path matches
+	// — this pins the defensive fallback that handles it either way.
+	it('reads icon/banner from a nested media object on a live upsert frame', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({
+			event: 'upserted',
+			namespace: 'nested@1',
+			name: 'Nested',
+			description: '',
+			tags: [],
+			media: { icon: 'nested-icon.png', banner: 'nested-banner.png' },
+			version: '1',
+		});
+		await vi.waitFor(async () =>
+			expect(await getArrowsFor('local')).toEqual([
+				{
+					connectionId: 'local',
+					namespace: 'nested@1',
+					name: 'Nested',
+					description: '',
+					tags: [],
+					icon: 'nested-icon.png',
+					banner: 'nested-banner.png',
+					version: '1',
+				},
+			])
+		);
+	});
+
+	// Pins the fallback ORDER, not just that nested media works in isolation —
+	// a frame carrying both must prefer `media`, matching the GET response's
+	// confirmed shape over the unconfirmed flat one.
+	it('prefers the nested media object over flat icon/banner when a frame carries both', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({
+			event: 'upserted',
+			namespace: 'both@1',
+			name: 'Both',
+			description: '',
+			tags: [],
+			icon: 'flat-icon.png',
+			banner: 'flat-banner.png',
+			media: { icon: 'nested-icon.png', banner: 'nested-banner.png' },
+			version: '1',
+		});
+		await vi.waitFor(async () =>
+			expect(await getArrowsFor('local')).toEqual([
+				{
+					connectionId: 'local',
+					namespace: 'both@1',
+					name: 'Both',
+					description: '',
+					tags: [],
+					icon: 'nested-icon.png',
+					banner: 'nested-banner.png',
+					version: '1',
+				},
+			])
+		);
+	});
+
 	// Only `event` and `namespace` are wire-guaranteed on an 'upserted' frame
 	// (per the ArrowFrame doc comment); every other catalog field is optional
 	// and must default rather than persist `undefined`.

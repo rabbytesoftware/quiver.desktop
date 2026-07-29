@@ -18,6 +18,12 @@ const ARROW_ENDPOINT = '/v0/arrow';
  * Wire shape of a `/v0/arrow` WS frame. Only `event` and `namespace` are
  * guaranteed — the rest of the catalog fields ride along on an `'upserted'`
  * frame and are absent on a `'removed'` tombstone.
+ *
+ * `media`/flat `icon`/`banner` are BOTH declared: the GET response (verified
+ * against stable-26.5.1) nests media under `media: {icon, banner}`, but no
+ * live WS `'upserted'` frame has been captured to confirm whether the push
+ * path matches (a POST to an existing namespace 500s instead of emitting).
+ * Reading both, nested first, is correct either way and costs nothing.
  */
 interface ArrowFrame {
 	event: 'upserted' | 'removed';
@@ -27,6 +33,10 @@ interface ArrowFrame {
 	tags?: string[];
 	icon?: string | null;
 	banner?: string | null;
+	media?: {
+		icon?: string | null;
+		banner?: string | null;
+	};
 	version?: string;
 }
 
@@ -72,8 +82,8 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => v
 			name: frame.name ?? '',
 			description: frame.description ?? '',
 			tags: frame.tags ?? [],
-			icon: frame.icon ?? null,
-			banner: frame.banner ?? null,
+			icon: frame.media?.icon ?? frame.icon ?? null,
+			banner: frame.media?.banner ?? frame.banner ?? null,
 			version: frame.version ?? '',
 		});
 	}

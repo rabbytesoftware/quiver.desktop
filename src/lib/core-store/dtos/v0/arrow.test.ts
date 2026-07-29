@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { toArrowCatalogRecords } from './arrow';
+import { toArrowCatalogRecords, toInitialRuntimeUpdates } from './arrow';
 
 describe('toArrowCatalogRecords', () => {
 	it('reads icon and banner from the nested media object', () => {
@@ -74,5 +74,55 @@ describe('toArrowCatalogRecords', () => {
 			'local'
 		);
 		expect(records.map((r) => r.namespace)).toEqual(['a@1', 'a@2']);
+	});
+});
+
+describe('toInitialRuntimeUpdates', () => {
+	// Neither /v0/arrow nor /v0/runtime push anything on connect (verified
+	// against stable-26.5.1) — the seed GET's own versions[].state is the only
+	// source for a correct initial paint until the first live transition.
+	it('carries versions[].state through as the initial state', () => {
+		const updates = toInitialRuntimeUpdates([
+			{
+				namespace: 'a',
+				name: 'a',
+				description: '',
+				tags: [],
+				versions: [{ ref: '1', version: '1', state: 'running' }],
+			},
+		]);
+		expect(updates).toEqual([{ namespace: 'a@1', state: 'running', active_run: null, last_return: null }]);
+	});
+
+	it('produces one update per installed version, matching the catalog namespace scheme', () => {
+		const updates = toInitialRuntimeUpdates([
+			{
+				namespace: 'a',
+				name: 'a',
+				description: '',
+				tags: [],
+				versions: [
+					{ ref: '1', version: '1', state: 'ready' },
+					{ ref: '2', version: '2', state: 'absent' },
+				],
+			},
+		]);
+		expect(updates.map((u) => u.namespace)).toEqual(['a@1', 'a@2']);
+	});
+
+	// The list DTO has no active_run/last_return at all (detail-only fields) —
+	// both must be null, never undefined, matching RuntimeUpdate's contract.
+	it('always nulls active_run and last_return, since the list endpoint never carries them', () => {
+		const updates = toInitialRuntimeUpdates([
+			{
+				namespace: 'a',
+				name: 'a',
+				description: '',
+				tags: [],
+				versions: [{ ref: '1', version: '1', state: 'running' }],
+			},
+		]);
+		expect(updates[0].active_run).toBeNull();
+		expect(updates[0].last_return).toBeNull();
 	});
 });

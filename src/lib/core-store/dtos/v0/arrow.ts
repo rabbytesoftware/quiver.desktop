@@ -1,4 +1,4 @@
-import type { ActiveRun, ArrowState, StepProgress } from '@/domain/arrow';
+import type { ActiveRun, ArrowState, RuntimeUpdate, StepProgress } from '@/domain/arrow';
 import type { ArrowCatalogRecord } from '@/lib/persistence/schemas';
 
 export interface InstalledVersionDTO {
@@ -61,6 +61,30 @@ export function toArrowCatalogRecords(items: ArrowListResponseItemDTO[], connect
 			icon: arrow.media?.icon || null,
 			banner: arrow.media?.banner || null,
 			version: v.version,
+		}))
+	);
+}
+
+/**
+ * Initial runtime state, sourced from the SAME seed GET as the catalog.
+ *
+ * Neither `/v0/arrow` nor `/v0/runtime` push anything on connect — both are
+ * transition-only sockets (verified directly against stable-26.5.1). Without
+ * this, every installed/running arrow would render as `'absent'` forever,
+ * because the store's own neutral default has no other way to learn the
+ * current state until *something* transitions. `versions[].state` is the
+ * only place that current state exists at seed time — the list DTO carries
+ * no `active_run`/`last_return` at all (those are detail-only fields), so
+ * both are always null here; a live `/v0/runtime` frame fills them in once
+ * something actually happens.
+ */
+export function toInitialRuntimeUpdates(items: ArrowListResponseItemDTO[]): RuntimeUpdate[] {
+	return items.flatMap((arrow) =>
+		arrow.versions.map((v) => ({
+			namespace: `${arrow.namespace}@${v.ref}`,
+			state: v.state,
+			active_run: null,
+			last_return: null,
 		}))
 	);
 }
