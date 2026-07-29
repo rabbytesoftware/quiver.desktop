@@ -118,7 +118,6 @@ async fn ws_close(conn_id: String, manager: State<'_, WsBridgeManager>) -> Resul
 	Ok(())
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
 	// Before anything opens a descriptor: this process dials quiver.core over a
 	// unix socket for every frontend call and holds two long-lived event

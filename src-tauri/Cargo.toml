@@ -12,7 +12,10 @@ edition = "2021"
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "quiverdesktop_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# `rlib` only. Tauri's template also emits `staticlib` (iOS) and `cdylib`
+# (Android); Quiver is desktop-only, and building those wastes link time on
+# every `cargo build` for outputs nothing consumes.
+crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
