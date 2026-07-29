@@ -1,0 +1,162 @@
+name: Nightly
+
+# Rolling build of `develop`, published to a single `nightly` tag that is
+# deleted and recreated each run. Deliberately NOT part of the beta-/stable-
+# tag scheme in prerelease.yml and stable-release.yml — nothing here creates a
+# durable tag, and nothing downstream should ever pin to `nightly`.
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+env:
+  RUST_VERSION: '1.88'
+  BUN_VERSION: 'latest'
+
+jobs:
+  prepare:
+    name: Prepare Nightly
+    runs-on: ubuntu-latest
+    outputs:
+      core_version: ${{ steps.version.outputs.CORE_VERSION }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Read CORE_VERSION
+      id: version
+      run: |
+        CORE_VERSION=$(node -p "require('./package.json').quiver.coreVersion")
+        echo "CORE_VERSION=${CORE_VERSION}" >> "$GITHUB_OUTPUT"
+
+    - name: Validate CORE_VERSION
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        CORE_VERSION="${{ steps.version.outputs.CORE_VERSION }}"
+        echo "Validating quiver.core release: ${CORE_VERSION}"
+        gh release view "$CORE_VERSION" --repo rabbytesoftware/quiver.core || {
+          echo "❌ quiver.core release ${CORE_VERSION} not found."
+          exit 1
+        }
+        echo "✅ quiver.core release ${CORE_VERSION} exists"
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macos-26 is pinned deliberately, NOT macos-latest: the adaptive-icon
+        # step needs an Xcode whose actool can compile Icon Composer .icon
+        # assets. macOS 26 ships Xcode 26.5 which does; macOS 15's newest is
+        # Xcode 26.3.0 whose actool CRASHES on our .icon
+        # (CompileAssetCatalogVariant exit 65). macos-latest is mid-migration
+        # from 15 to 26 and lands nondeterministically on either.
+        os: [ubuntu-latest, macos-26, windows-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build Tauri app
+      uses: ./.github/actions/build-tauri
+      with:
+        quiver-version: ${{ needs.prepare.outputs.core_version }}
+        rust-version: ${{ env.RUST_VERSION }}
+        bun-version: ${{ env.BUN_VERSION }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Signing + notarization are opt-in: when these secrets are unset they
+        # expand to empty strings and the script builds an ad-hoc (unsigned)
+        # DMG. See scripts/build-macos-dmg.sh.
+        APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+        APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+    - name: Upload Linux artifacts
+      if: runner.os == 'Linux'
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-artifacts
+        path: |
+          src-tauri/target/release/bundle/appimage/*.AppImage
+          src-tauri/target/release/bundle/deb/*.deb
+        if-no-files-found: error
+
+    - name: Upload macOS artifacts
+      if: runner.os == 'macOS'
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-artifacts
+        path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+        if-no-files-found: error
+
+    - name: Upload Windows artifacts
+      if: runner.os == 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-artifacts
+        path: |
+          src-tauri/target/release/bundle/msi/*.msi
+          src-tauri/target/release/bundle/nsis/*.exe
+        if-no-files-found: error
+
+  publish:
+    name: Publish Nightly
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+        merge-multiple: true
+
+    - name: Generate SHA256SUMS
+      run: |
+        cd artifacts
+        find . -type f ! -name 'SHA256SUMS' -exec sha256sum {} \; \
+          | sed 's|\./||' > SHA256SUMS
+        cat SHA256SUMS
+
+    # The tag is rolling: delete it so the new release replaces it rather than
+    # accumulating. --cleanup-tag matters — without it the old git tag survives
+    # and the next release attaches to a stale commit.
+    - name: Delete previous nightly release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: gh release delete nightly --yes --cleanup-tag 2>/dev/null || true
+
+    - name: Publish nightly release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        FILES=$(find artifacts/ -type f | tr '\n' ' ')
+        gh release create nightly \
+          --prerelease \
+          --title "Nightly ($(git rev-parse --short HEAD))" \
+          --notes "Automated nightly build from \`develop\` — ${{ github.sha }}
+
+        Built against quiver.core \`${{ needs.prepare.outputs.core_version }}\`.
+
+        > ⚠️ Unstable build. Use at your own risk." \
+          $FILES

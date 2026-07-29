@@ -1,64 +1,128 @@
 import { describe, it, expect } from 'vitest';
 
-import { toArrowListItems, type ArrowListResponseItemDTO } from './arrow';
+import { toArrowCatalogRecords, toInitialRuntimeUpdates } from './arrow';
 
-describe('toArrowListItems', () => {
-	it('maps slim fields from list response', () => {
-		const input: ArrowListResponseItemDTO[] = [
-			{
-				namespace: 'github.com/user/repo',
-				name: 'My Arrow',
-				description: 'A test arrow',
-				tags: ['cli'],
-				icon: 'https://example.com/icon.png',
-				banner: null,
-				versions: [{ ref: 'v1.0.0', version: '1.0.0', state: 'ready' }],
-			},
-		];
-		const result = toArrowListItems(input);
-		expect(result).toHaveLength(1);
-		expect(result[0].namespace).toBe('github.com/user/repo@v1.0.0');
-		expect(result[0].name).toBe('My Arrow');
-		expect(result[0].description).toBe('A test arrow');
-		expect(result[0].tags).toEqual(['cli']);
-		expect(result[0].icon).toBe('https://example.com/icon.png');
-		expect(result[0].banner).toBeNull();
-		expect(result[0].state).toBe('ready');
-		expect(result[0].active_run).toBeNull();
-		expect(result[0].last_return).toBeNull();
+describe('toArrowCatalogRecords', () => {
+	it('reads icon and banner from the nested media object', () => {
+		// stable-26.5.1 returns {"media":{"icon":"...","banner":"..."}}, NOT flat
+		// icon/banner. The flat DTO silently produced null for every arrow.
+		const records = toArrowCatalogRecords(
+			[
+				{
+					namespace: 'github.com/x/y',
+					name: 'y',
+					description: 'd',
+					tags: ['t'],
+					media: { icon: 'i.png', banner: 'b.png' },
+					versions: [
+						{ ref: '1.0.0', version: '1.0.0', state: 'ready', installed_at: '2026-05-09T21:26:59Z' },
+					],
+				},
+			],
+			'local'
+		);
+		expect(records[0].icon).toBe('i.png');
+		expect(records[0].banner).toBe('b.png');
 	});
 
-	it('defaults icon and banner to null when absent', () => {
-		const input: ArrowListResponseItemDTO[] = [
+	it('tolerates an absent media object', () => {
+		const records = toArrowCatalogRecords(
+			[
+				{
+					namespace: 'a',
+					name: 'a',
+					description: '',
+					tags: [],
+					versions: [{ ref: '1', version: '1', state: 'ready' }],
+				},
+			],
+			'local'
+		);
+		expect(records[0].icon).toBeNull();
+	});
+
+	it('stamps every record with its connection', () => {
+		const records = toArrowCatalogRecords(
+			[
+				{
+					namespace: 'a',
+					name: 'a',
+					description: '',
+					tags: [],
+					versions: [{ ref: '1', version: '1', state: 'ready' }],
+				},
+			],
+			'remote-7'
+		);
+		expect(records[0].connectionId).toBe('remote-7');
+	});
+
+	it('produces one record per installed version', () => {
+		const records = toArrowCatalogRecords(
+			[
+				{
+					namespace: 'a',
+					name: 'a',
+					description: '',
+					tags: [],
+					versions: [
+						{ ref: '1', version: '1', state: 'ready' },
+						{ ref: '2', version: '2', state: 'absent' },
+					],
+				},
+			],
+			'local'
+		);
+		expect(records.map((r) => r.namespace)).toEqual(['a@1', 'a@2']);
+	});
+});
+
+describe('toInitialRuntimeUpdates', () => {
+	// Neither /v0/arrow nor /v0/runtime push anything on connect (verified
+	// against stable-26.5.1) — the seed GET's own versions[].state is the only
+	// source for a correct initial paint until the first live transition.
+	it('carries versions[].state through as the initial state', () => {
+		const updates = toInitialRuntimeUpdates([
 			{
-				namespace: 'github.com/user/repo',
-				name: 'Arrow',
+				namespace: 'a',
+				name: 'a',
 				description: '',
 				tags: [],
-				versions: [{ ref: 'v1', version: '1.0.0', state: 'ready' }],
+				versions: [{ ref: '1', version: '1', state: 'running' }],
 			},
-		];
-		const result = toArrowListItems(input);
-		expect(result[0].icon).toBeNull();
-		expect(result[0].banner).toBeNull();
+		]);
+		expect(updates).toEqual([{ namespace: 'a@1', state: 'running', active_run: null, last_return: null }]);
 	});
 
-	it('expands multiple versions into separate entries', () => {
-		const input: ArrowListResponseItemDTO[] = [
+	it('produces one update per installed version, matching the catalog namespace scheme', () => {
+		const updates = toInitialRuntimeUpdates([
 			{
-				namespace: 'github.com/user/repo',
-				name: 'Arrow',
+				namespace: 'a',
+				name: 'a',
 				description: '',
 				tags: [],
 				versions: [
-					{ ref: 'v1.0.0', version: '1.0.0', state: 'ready' },
-					{ ref: 'v2.0.0', version: '2.0.0', state: 'absent' },
+					{ ref: '1', version: '1', state: 'ready' },
+					{ ref: '2', version: '2', state: 'absent' },
 				],
 			},
-		];
-		const result = toArrowListItems(input);
-		expect(result).toHaveLength(2);
-		expect(result[0].namespace).toBe('github.com/user/repo@v1.0.0');
-		expect(result[1].namespace).toBe('github.com/user/repo@v2.0.0');
+		]);
+		expect(updates.map((u) => u.namespace)).toEqual(['a@1', 'a@2']);
+	});
+
+	// The list DTO has no active_run/last_return at all (detail-only fields) —
+	// both must be null, never undefined, matching RuntimeUpdate's contract.
+	it('always nulls active_run and last_return, since the list endpoint never carries them', () => {
+		const updates = toInitialRuntimeUpdates([
+			{
+				namespace: 'a',
+				name: 'a',
+				description: '',
+				tags: [],
+				versions: [{ ref: '1', version: '1', state: 'running' }],
+			},
+		]);
+		expect(updates[0].active_run).toBeNull();
+		expect(updates[0].last_return).toBeNull();
 	});
 });

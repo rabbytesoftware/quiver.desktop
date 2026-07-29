@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -46,9 +46,9 @@
 	--color-info-foreground: var(--info-foreground);
 	--color-info: var(--info);
 	--color-destructive-foreground: var(--destructive-foreground);
-  @keyframes skeleton {
-  to {
-    background-position: -200% 0;
+	@keyframes skeleton {
+		to {
+			background-position: -200% 0;
 		}
 	}
 }
@@ -141,7 +141,13 @@
 		@apply border-border outline-ring/50;
 	}
 
+	html,
 	body {
-		@apply bg-background text-foreground;
+		height: 100%;
+		background: transparent;
+	}
+
+	[data-tauri-drag-region]:active {
+		cursor: grabbing;
 	}
 }

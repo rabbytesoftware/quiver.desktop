@@ -1,15 +1,17 @@
 import { useMutation } from '@tanstack/react-query';
 
-import { invoke } from '@tauri-apps/api/core';
+import { apiFetch } from '@/lib/transport/api';
 
 export function useFollowCollection() {
 	return useMutation({
-		mutationFn: ({ namespace }: { namespace: string }) => invoke('follow_collection', { namespace }),
+		mutationFn: ({ namespace }: { namespace: string }) =>
+			apiFetch<void>(`/v0/collection/${encodeURIComponent(namespace)}/follow`, { method: 'POST' }),
 	});
 }
 
 export function useUnfollowCollection() {
 	return useMutation({
-		mutationFn: ({ namespace }: { namespace: string }) => invoke('unfollow_collection', { namespace }),
+		mutationFn: ({ namespace }: { namespace: string }) =>
+			apiFetch<void>(`/v0/collection/${encodeURIComponent(namespace)}/follow`, { method: 'DELETE' }),
 	});
 }

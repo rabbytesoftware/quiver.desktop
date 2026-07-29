@@ -13,8 +13,12 @@
 		"windows": [
 			{
 				"title": "Quiver",
-				"width": 800,
-				"height": 600
+				"width": 1200,
+				"height": 800,
+				"minWidth": 800,
+				"minHeight": 600,
+				"resizable": true,
+				"backgroundThrottling": "disabled"
 			}
 		],
 		"security": {
@@ -24,15 +28,12 @@
 	"bundle": {
 		"active": true,
 		"targets": "all",
-		"externalBin": [
-			"binaries/quiver"
-		],
-		"icon": [
-			"icons/32x32.png",
-			"icons/128x128.png",
-			"icons/128x128@2x.png",
-			"icons/icon.icns",
-			"icons/icon.ico"
-		]
+		"externalBin": ["binaries/quiver"],
+		"icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+		"macOS": {
+			"files": {
+				"Resources/Assets.car": "icons/Assets.car"
+			}
+		}
 	}
 }

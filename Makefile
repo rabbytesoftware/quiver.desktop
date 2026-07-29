@@ -3,7 +3,7 @@
 	fmt-check-rust fmt-rust lint-rust audit-rust \
 	code-quality-frontend code-quality-rust \
 	build-frontend build-rust build \
-	fetch-sidecar dev build-app \
+	fetch-sidecar dev build-app dev-bundle icon \
 	test-frontend coverage-frontend \
 	test-rust coverage-rust \
 	pr-checks clean
@@ -14,6 +14,20 @@ BUN          := $(shell command -v bun 2>/dev/null || echo $(HOME)/.bun/bin/bun)
 BUNX         := $(shell command -v bunx 2>/dev/null || echo $(HOME)/.bun/bin/bunx)
 CARGO        := $(shell command -v cargo 2>/dev/null || ls $(HOME)/.rustup/toolchains/*/bin/cargo 2>/dev/null | head -1 || echo $(HOME)/.cargo/bin/cargo)
 RUSTC        := $(shell command -v rustc 2>/dev/null || ls $(HOME)/.rustup/toolchains/*/bin/rustc 2>/dev/null | head -1 || echo $(HOME)/.cargo/bin/rustc)
+# cargo shells out to rustc, and rustc is only reachable through the toolchain
+# directory when the caller's shell has not sourced ~/.cargo/env — the normal
+# case for a non-interactive `make`, and for CI. Exporting once here rather than
+# per-recipe is what keeps `make test-rust` from dying on "could not execute
+# process `rustc -vV`" while `make dev` works. bun is here for the same reason:
+# the recipes call it by bare name.
+#
+# ~/.cargo/bin comes BEFORE $(dir $(CARGO)) on purpose. That directory holds the
+# rustup shims, which dispatch to the *default* toolchain. $(dir $(CARGO)) is
+# only a fallback, and a poor one to lead with: when `command -v cargo` misses,
+# CARGO falls back to `ls ~/.rustup/toolchains/*/bin/cargo | head -1`, which
+# picks whichever toolchain sorts first — 1.85 on this machine, old enough that
+# some dependency refuses to build with it.
+export PATH  := $(HOME)/.bun/bin:$(HOME)/.cargo/bin:$(dir $(CARGO)):$(PATH)
 TARGET_TRIPLE := $(shell $(RUSTC) -vV 2>/dev/null | grep '^host:' | awk '{print $$2}')
 _CORE_VERSION := $(shell node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]')
 
@@ -30,7 +44,60 @@ else
   QUIVER_BINARY := quiver-$(TARGET_TRIPLE)
 endif
 
-SIDECAR_PATH := src-tauri/binaries/quiver-$(TARGET_TRIPLE)
+# Tauri resolves an `externalBin` as `<name>-<target triple><exe suffix>`, and
+# the shell plugin resolves a sidecar as `dirname(current_exe)/<name><suffix>`.
+# On Windows that suffix is `.exe` in both cases, so a sidecar written without
+# it is a file neither can find — and it is invisible everywhere else, because
+# the suffix is empty on every other platform. `findstring` rather than the
+# exact triple: `aarch64-pc-windows-msvc` and the `-gnu` triples need it too.
+# (CI does not go through here; .github/actions/build-tauri names the file
+# itself. This is the local `make fetch-sidecar` / `make dev` path.)
+ifneq ($(findstring windows,$(TARGET_TRIPLE)),)
+  EXE_SUFFIX := .exe
+else
+  EXE_SUFFIX :=
+endif
+
+SIDECAR_PATH := src-tauri/binaries/quiver-$(TARGET_TRIPLE)$(EXE_SUFFIX)
+
+# Which OS this is running on, and what that costs the bundling targets.
+#
+# Three of them are macOS-only and were not saying so. `icon` shells out to
+# Xcode's `actool`, which exists nowhere else; `dev-bundle` ends in `open`, which
+# is not a command on Linux and opens a URL handler on Windows; and both `icon`
+# and `build-app` interact with `bundle.macOS.files` in tauri.conf.json, which
+# maps `icons/Assets.car` — a file only `make icon` ever produces. On Linux or
+# Windows the bundler is asked for a resource that was never going to exist.
+#
+# GUARDED rather than documented in `make help`, and deliberately: a note in the
+# help text is prose that nobody re-reads and nothing checks, so it rots the
+# first time a target changes. CI already encodes the same three facts as
+# `if: runner.os == 'macOS'` steps (.github/actions/build-tauri), and a guard
+# here is the same statement in the same form — it fires, by name, at the moment
+# it is wrong, on the machine it is wrong on.
+#
+# UNAME_S is overridable so the guard itself can be exercised from a Mac:
+# `make icon UNAME_S=Linux` must fail with the message below.
+UNAME_S := $(shell uname -s)
+
+# `bundle.macOS.files` cleared for the platforms that cannot produce its
+# contents, exactly as CI does when it builds the Linux and Windows bundles.
+ifeq ($(UNAME_S),Darwin)
+  BUNDLE_CONFIG :=
+else
+  BUNDLE_CONFIG := --config '{"bundle":{"macOS":{"files":{}}}}'
+endif
+
+# Used by the macOS-only targets. `$@` names the target the user actually typed,
+# and MACOS_ONLY_REASON is set per target below.
+define REQUIRE_MACOS
+	@if [ "$(UNAME_S)" != "Darwin" ]; then \
+		echo "❌ 'make $@' is macOS-only (this is $(UNAME_S))."; \
+		echo "   $(MACOS_ONLY_REASON)"; \
+		echo "   'make build-app' is the target that bundles on every platform."; \
+		exit 1; \
+	fi
+endef
 
 help:
 	@echo "Quiver Desktop - Makefile Commands"
@@ -61,7 +128,9 @@ help:
 	@echo "  make build-rust            - Build Tauri backend (debug)"
 	@echo "  make build                 - Build both frontend and Rust (debug)"
 	@echo "  make fetch-sidecar         - Download quiver.core sidecar binary for this platform"
+	@echo "  make icon                  - macOS only: compile quiver.icon → Assets.car + .icns (Xcode 26+)"
 	@echo "  make dev                   - Start Tauri dev environment (fetches sidecar if needed)"
+	@echo "  make dev-bundle            - macOS only: build + open a debug .app (real icon, no hot reload)"
 	@echo "  make build-app             - Build full Tauri app installer for this platform"
 	@echo ""
 	@echo "🧪 Testing:"
@@ -71,7 +140,8 @@ help:
 	@echo "  make coverage-rust         - Run Rust tests with coverage (≥95%)"
 	@echo ""
 	@echo "✅ CI/PR:"
-	@echo "  make pr-checks             - Run all CI steps locally"
+	@echo "  make pr-checks             - Run every CI check locally: quality, build, coverage"
+	@echo "                               (not the release bundling — that is 'make build-app')"
 	@echo ""
 	@echo "🧹 Cleanup:"
 	@echo "  make clean                 - Clean build artifacts"
@@ -160,6 +230,10 @@ build-rust:
 build: build-frontend build-rust
 	@echo "✅ All builds completed successfully!"
 
+# The target/debug/quiver copy at the end is for `tauri dev`, which runs the
+# binary straight out of target/debug — and the shell plugin resolves a sidecar
+# as dirname(current_exe)/<name>, so an unbundled run looks for it right there.
+# `tauri build` needs no such help: the bundler copies from src-tauri/binaries.
 fetch-sidecar:
 	@echo "📥 Fetching quiver.core sidecar ($(_CORE_VERSION)) for $(TARGET_TRIPLE)..."
 	@if [ -z "$(_CORE_VERSION)" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi
@@ -171,19 +245,61 @@ fetch-sidecar:
 		--clobber
 	@mv "src-tauri/binaries/$(QUIVER_BINARY)" "$(SIDECAR_PATH)"
 	@chmod +x "$(SIDECAR_PATH)"
-	@mkdir -p src-tauri/target/debug/binaries
-	@cp "$(SIDECAR_PATH)" "src-tauri/target/debug/binaries/quiver"
+	@mkdir -p src-tauri/target/debug
+	@cp "$(SIDECAR_PATH)" "src-tauri/target/debug/quiver$(EXE_SUFFIX)"
 	@echo "✅ Sidecar ready: $(SIDECAR_PATH)"
 
 dev:
 	@if [ ! -f "$(SIDECAR_PATH)" ]; then $(MAKE) fetch-sidecar; fi
 	@echo "🚀 Starting Tauri dev environment..."
-	@PATH="$(dir $(CARGO)):$(dir $(BUN)):$$PATH" $(BUN) run tauri dev
+	@$(BUN) run tauri dev
 
+# Deliberately NOT wired into tauri.conf.json's beforeBuildCommand: that runs
+# through the platform's own shell, and requiring `bash` there would make
+# Windows builds depend on Git Bash being on PATH. The icon only means anything
+# on macOS, so the callers that need it ask for it — here and in CI.
+icon: MACOS_ONLY_REASON := It compiles src-tauri/icons/quiver.icon with Xcode's actool.
+icon:
+	$(REQUIRE_MACOS)
+	@echo "🎨 Compiling quiver.icon → Assets.car + quiver.icns..."
+	@bash icons-compiler/compile-icon.sh
+	@echo "✅ Icon artifacts in src-tauri/icons/"
+
+# `tauri dev` runs the binary straight out of target/ and never produces a
+# .app, so it never shows the real icon, the Info.plist, or the bundled
+# sidecar. This is the target to reach for when checking any of those. No hot
+# reload — rerun it after changing source.
+#
+# macOS-only, and it always was: it builds a `.app` (a bundle format no other
+# platform has) and ends in `open`.
+dev-bundle: MACOS_ONLY_REASON := It builds a .app and opens it, and neither exists off macOS.
+dev-bundle:
+	$(REQUIRE_MACOS)
+	@if [ ! -f "$(SIDECAR_PATH)" ]; then $(MAKE) fetch-sidecar; fi
+	@$(MAKE) icon
+	@echo "📦 Building debug .app bundle..."
+	@$(BUN) run tauri build --debug --bundles app
+	@open src-tauri/target/debug/bundle/macos/Quiver.app
+
+# The one bundling target that works everywhere, which is why it is the one the
+# guard above points at. Two things differ off macOS, and both mirror
+# .github/actions/build-tauri rather than inventing a second policy:
+#
+#   * `make icon` is skipped — it is Xcode-only (see the target), and CI's icon
+#     step is `if: runner.os == 'macOS'` for the same reason;
+#   * `bundle.macOS.files` is cleared, because it maps `icons/Assets.car`, which
+#     only the icon step produces. Left set, the bundler is asked for a file that
+#     was never going to be there. CI passes the identical `--config` on its
+#     Linux and Windows builds.
 build-app:
 	@$(MAKE) fetch-sidecar
+	@if [ "$(UNAME_S)" = "Darwin" ]; then \
+		$(MAKE) icon; \
+	else \
+		echo "ℹ️  $(UNAME_S): skipping the macOS icon and clearing bundle.macOS.files"; \
+	fi
 	@echo "📦 Building Tauri app for $(TARGET_TRIPLE)..."
-	@PATH="$(dir $(CARGO)):$(dir $(BUN)):$$PATH" $(BUN) run tauri build
+	@$(BUN) run tauri build $(BUNDLE_CONFIG)
 	@echo "✅ App built — check src-tauri/target/release/bundle/"
 
 test-frontend:
@@ -212,25 +328,33 @@ coverage-rust:
 	@$(CARGO) tarpaulin --version >/dev/null 2>&1 || (echo "⚠️  cargo-tarpaulin not installed. Run: $(CARGO) install cargo-tarpaulin" && exit 1)
 	@mkdir -p coverage/rust
 	@cd src-tauri && $(CARGO) tarpaulin --out Xml --out Html --out Lcov --output-dir ../coverage/rust \
-		--exclude-files 'src/lib.rs' 'src/main.rs' 'src/commands/*.rs' \
+		--exclude-files 'src/lib.rs' 'src/main.rs' 'src/commands/*.rs' 'src/menu.rs' 'src/fdlimit/sys.rs' \
 		'src/connection/local/mod.rs' 'src/connection/local/sidecar.rs' \
-		'src/connection/local/transport.rs' \
 		'src/connection/remote/mod.rs' 'src/connection/manager.rs' \
 		'src/connection/mod.rs' 'src/connection/tauri_emitter.rs' \
-		'src/connection/ws/connector.rs' 'src/connection/ws/mod.rs' \
 		--verbose || (echo "❌ Coverage generation failed" && exit 1)
-	@if [ -f "coverage/rust/cobertura.xml" ]; then \
-		OVERALL_COVERAGE=$$(grep -oP 'line-rate="\K[0-9.]+' coverage/rust/cobertura.xml | head -1); \
-		COVERAGE_PERCENT=$$(echo "$$OVERALL_COVERAGE * 100" | bc); \
-		echo "Overall coverage: $${COVERAGE_PERCENT}%"; \
-		if [ $$(echo "$$OVERALL_COVERAGE < 0.95" | bc -l) -eq 1 ]; then \
-			echo "❌ Overall coverage $${COVERAGE_PERCENT}% is below required 95%"; \
-			exit 1; \
-		fi; \
-		echo "✅ Overall coverage $${COVERAGE_PERCENT}% meets requirement (≥95%)"; \
-	else \
-		echo "⚠️  Coverage file not found, skipping coverage check"; \
+	@if [ ! -f "coverage/rust/cobertura.xml" ]; then \
+		echo "❌ Coverage report missing — cannot verify the threshold"; \
+		exit 1; \
 	fi
+	@# grep -o so each attribute lands on its own line and `head -1` can take the
+	# root <coverage> element's rate — the overall one. Matching with a sed
+	# address instead would be wrong: tarpaulin writes the XML on a single line,
+	# and a greedy `.*line-rate="..."` then captures the LAST attribute on it
+	# (some package's "1"), reporting 100% for a run that was not. That is the
+	# same false-pass this target already had once, via `grep -oP`.
+	@OVERALL_COVERAGE=$$(grep -o 'line-rate="[0-9.]*"' coverage/rust/cobertura.xml | head -1 | sed 's/[^0-9.]//g'); \
+	if [ -z "$$OVERALL_COVERAGE" ]; then \
+		echo "❌ Could not parse line-rate from the coverage report"; \
+		exit 1; \
+	fi; \
+	COVERAGE_PERCENT=$$(echo "$$OVERALL_COVERAGE * 100" | bc); \
+	echo "Overall coverage: $${COVERAGE_PERCENT}%"; \
+	if [ $$(echo "$$OVERALL_COVERAGE < 0.95" | bc -l) -eq 1 ]; then \
+		echo "❌ Overall coverage $${COVERAGE_PERCENT}% is below required 95%"; \
+		exit 1; \
+	fi; \
+	echo "✅ Overall coverage $${COVERAGE_PERCENT}% meets requirement (≥95%)"
 	@echo "📊 Rust coverage report: coverage/rust/index.html"
 
 pr-checks:
@@ -240,10 +364,16 @@ pr-checks:
 	@echo "=============================="
 	@CORE_VERSION=$$(node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]'); \
 	if [ -z "$$CORE_VERSION" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi; \
+	case "$$CORE_VERSION" in \
+	  nightly|latest|main|master|develop|HEAD) \
+	    echo "❌ '$$CORE_VERSION' is a rolling tag, not an immutable release."; \
+	    echo "   Pin quiver.coreVersion to a specific beta-*/stable-* tag."; \
+	    exit 1 ;; \
+	esac; \
 	echo "Checking quiver.core release: $$CORE_VERSION"; \
 	gh release view "$$CORE_VERSION" --repo rabbytesoftware/quiver.core --json tagName --jq '.tagName' >/dev/null || \
 	  (echo "❌ quiver.core release $$CORE_VERSION not found" && exit 1); \
-	echo "✅ quiver.core release $$CORE_VERSION exists"
+	echo "✅ quiver.core release $$CORE_VERSION exists and is immutable"
 	@echo ""
 	@echo "Step 2/6: Code Quality Checks"
 	@echo "=============================="

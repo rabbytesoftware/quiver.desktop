@@ -1,0 +1,22 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"app": {
+		"windows": [
+			{
+				"title": "Quiver",
+				"width": 1200,
+				"height": 800,
+				"minWidth": 800,
+				"minHeight": 600,
+				"resizable": true,
+				"backgroundThrottling": "disabled",
+				"titleBarStyle": "Overlay",
+				"hiddenTitle": true,
+				"trafficLightPosition": {
+					"x": 12,
+					"y": 18
+				}
+			}
+		]
+	}
+}

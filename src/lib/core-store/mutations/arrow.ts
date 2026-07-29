@@ -1,15 +1,17 @@
 import { useMutation } from '@tanstack/react-query';
 
-import { invoke } from '@tauri-apps/api/core';
+import { apiFetch } from '@/lib/transport/api';
 
 export function useRegisterArrow() {
 	return useMutation({
-		mutationFn: ({ namespace }: { namespace: string }) => invoke('register_arrow', { namespace }),
+		mutationFn: ({ namespace }: { namespace: string }) =>
+			apiFetch<void>(`/v0/arrow/${encodeURIComponent(namespace)}`, { method: 'POST' }),
 	});
 }
 
 export function useRemoveArrow() {
 	return useMutation({
-		mutationFn: ({ namespace }: { namespace: string }) => invoke('remove_arrow', { namespace }),
+		mutationFn: ({ namespace }: { namespace: string }) =>
+			apiFetch<void>(`/v0/arrow/${encodeURIComponent(namespace)}`, { method: 'DELETE' }),
 	});
 }

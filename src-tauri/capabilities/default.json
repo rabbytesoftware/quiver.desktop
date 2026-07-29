@@ -5,8 +5,11 @@
 	"windows": ["main"],
 	"permissions": [
 		"core:default",
-		"opener:default",
-		"shell:allow-spawn",
-		"shell:allow-kill"
+		"core:window:allow-start-dragging",
+		"core:window:allow-close",
+		"core:window:allow-minimize",
+		"core:window:allow-toggle-maximize",
+		"core:window:allow-is-maximized",
+		"opener:default"
 	]
 }

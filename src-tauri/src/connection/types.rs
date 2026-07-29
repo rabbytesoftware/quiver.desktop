@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::AppHandle;
 
-use crate::connection::http::{HttpClient, HttpError};
+use crate::connection::transport::Transport;
 
 // ── Connection config ─────────────────────────────────────────────────────────
 
@@ -24,21 +24,13 @@ pub struct ConnectionConfig {
 	pub api_version: String,
 }
 
-// ── WS target ────────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone)]
-pub enum WsTarget {
-	Tcp(String),
-	Unix(String),
-}
-
 // ── QuiverConnection trait ───────────────────────────────────────────────────
 
 #[async_trait]
 pub trait QuiverConnection: Send + Sync {
 	async fn start(&self, app: &AppHandle);
 	async fn teardown(&self);
-	fn http(&self) -> Arc<HttpClient>;
+	fn transport(&self) -> Arc<dyn Transport>;
 	fn config(&self) -> &ConnectionConfig;
 	fn set_name(&mut self, name: String);
 }
@@ -47,8 +39,6 @@ pub trait QuiverConnection: Send + Sync {
 
 pub trait Emitter: Send + Sync + 'static {
 	fn emit_core_status(&self, status: CoreStatus);
-	fn emit_arrow_event(&self, payload: serde_json::Value);
-	fn emit_runtime_update(&self, payload: serde_json::Value);
 	fn emit_connection_changed(&self, payload: serde_json::Value);
 }
 
@@ -60,19 +50,9 @@ pub struct CommandError {
 	pub message: String,
 }
 
-impl From<HttpError> for CommandError {
-	fn from(e: HttpError) -> Self {
-		match e {
-			HttpError::Request(msg) => CommandError {
-				code: 503,
-				message: msg,
-			},
-			HttpError::Api { code, message } => CommandError { code, message },
-			HttpError::Parse(e) => CommandError {
-				code: 500,
-				message: e.to_string(),
-			},
-		}
+impl From<String> for CommandError {
+	fn from(message: String) -> Self {
+		CommandError { code: 503, message }
 	}
 }
 
@@ -100,29 +80,9 @@ mod tests {
 	}
 
 	#[test]
-	fn command_error_from_http_request_error_uses_503() {
-		use crate::connection::http::HttpError;
-		let err: CommandError = HttpError::Request("socket closed".into()).into();
+	fn command_error_from_string_uses_503() {
+		let err: CommandError = "socket closed".to_string().into();
 		assert_eq!(err.code, 503);
-	}
-
-	#[test]
-	fn command_error_from_http_api_error_preserves_code() {
-		use crate::connection::http::HttpError;
-		let err: CommandError = HttpError::Api {
-			code: 422,
-			message: "state violation".into(),
-		}
-		.into();
-		assert_eq!(err.code, 422);
-		assert_eq!(err.message, "state violation");
-	}
-
-	#[test]
-	fn command_error_from_http_parse_error_uses_500() {
-		use crate::connection::http::HttpError;
-		let json_err = serde_json::from_str::<serde_json::Value>("not json").unwrap_err();
-		let err: CommandError = HttpError::Parse(json_err).into();
-		assert_eq!(err.code, 500);
+		assert_eq!(err.message, "socket closed");
 	}
 }
