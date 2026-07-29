@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError, apiFetch, isNotFoundError } from './api';
+import { ApiError, apiFetch, coreIsReachable, isNotFoundError } from './api';
 
 const NO_SLEEP = { attempts: 8, baseDelayMs: 0, maxDelayMs: 0, sleep: () => Promise.resolve() };
 
@@ -99,5 +99,38 @@ describe('apiFetch', () => {
 		vi.stubGlobal('fetch', fetchMock);
 		await expect(apiFetch('/v0/health', undefined, { ...NO_SLEEP, attempts: 3 })).rejects.toThrow(ApiError);
 		expect(fetchMock).toHaveBeenCalledTimes(3);
+	});
+});
+
+// The boot probe behind review finding C1: `setupListeners` uses it to notice a
+// `ready` Tauri already dropped, so it has to answer "up" for a daemon that is
+// up and "down" for anything else, without ever waiting.
+describe('coreIsReachable', () => {
+	beforeEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	// The load-bearing reason this is not `apiFetch`: /v0/health answers with a
+	// bare `{"status":"ok"}`, not the {success,error,data} envelope, so apiFetch
+	// would throw on a daemon that is perfectly healthy and the probe would
+	// report the app's own boot as a failure.
+	it('reports a healthy daemon as reachable despite its unenveloped body', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ status: 'ok' })));
+		await expect(coreIsReachable()).resolves.toBe(true);
+	});
+
+	it('probes /v0/health exactly once, without retrying a proxy-marked 502', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(new Response('down', { status: 502, headers: { 'x-quiver-proxy': 'error' } }));
+		vi.stubGlobal('fetch', fetchMock);
+		await expect(coreIsReachable()).resolves.toBe(false);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(fetchMock.mock.calls[0][0]).toContain('/v0/health');
+	});
+
+	it('reports unreachable when the fetch itself rejects', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('scheme handler gone')));
+		await expect(coreIsReachable()).resolves.toBe(false);
 	});
 });

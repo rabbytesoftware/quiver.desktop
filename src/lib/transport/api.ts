@@ -66,6 +66,28 @@ function isProxyFailure(res: Response): boolean {
 	return (res.status === 502 || res.status === 504) && res.headers.get(PROXY_ERROR_HEADER) === 'error';
 }
 
+/**
+ * Is the daemon answering RIGHT NOW?
+ *
+ * Deliberately NOT `apiFetch`, on two counts. `/v0/health` answers with a bare
+ * `{"status":"ok"}` rather than the `{success,error,data}` envelope, so
+ * `apiFetch` would reject a perfectly healthy daemon; and this is a snapshot,
+ * not a wait — the caller wants to know whether the core is ALREADY up, so the
+ * ~5s of retry backoff `apiFetch` applies to a marked 502 would be exactly the
+ * wrong answer. Judged only on the HTTP status, which is the same question
+ * `sidecar::wait_for_ready` asks on the Rust side.
+ */
+export async function coreIsReachable(): Promise<boolean> {
+	try {
+		return (await fetch(`${API_BASE}/v0/health`)).ok;
+	} catch {
+		// A `quiver://` request is answered by our own Rust proxy, which always
+		// responds — but the webview can still reject the fetch outright (no
+		// scheme handler registered, teardown mid-flight). Unreachable either way.
+		return false;
+	}
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit, retry: RetryConfig = DEFAULT_RETRY): Promise<T> {
 	const maxAttempts = isIdempotentRead(init) ? Math.max(1, retry.attempts) : 1;
 	const sleep = retry.sleep ?? defaultSleep;

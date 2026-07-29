@@ -22,6 +22,7 @@ vi.mock('@/lib/persistence/entity-cache', () => ({
 
 vi.mock('@/lib/transport/api', () => ({
 	apiFetch: vi.fn(),
+	coreIsReachable: vi.fn(),
 }));
 
 const runtimeSubscribers: Array<(d: unknown) => void> = [];
@@ -50,7 +51,7 @@ import { listen } from '@tauri-apps/api/event';
 import { getArrowsFor } from '@/lib/persistence/entity-cache';
 import { subscribeArrowStream } from '@/lib/persistence/entity-stream';
 import { maybeWipeOnVersionChange } from '@/lib/persistence/idb';
-import { apiFetch } from '@/lib/transport/api';
+import { apiFetch, coreIsReachable } from '@/lib/transport/api';
 import { wsManager } from '@/lib/transport/ws-manager';
 
 import { setupListeners } from './index';
@@ -63,6 +64,8 @@ const mockListen = listen as MockedFunction<typeof listen>;
 const mockSubscribeArrowStream = subscribeArrowStream as MockedFunction<typeof subscribeArrowStream>;
 const mockGetArrowsFor = getArrowsFor as MockedFunction<typeof getArrowsFor>;
 const mockApiFetch = apiFetch as MockedFunction<typeof apiFetch>;
+const mockCoreIsReachable = coreIsReachable as MockedFunction<typeof coreIsReachable>;
+const mockWipe = maybeWipeOnVersionChange as MockedFunction<typeof maybeWipeOnVersionChange>;
 const mockWsSubscribe = wsManager.subscribe as MockedFunction<typeof wsManager.subscribe>;
 const mockToRuntimeUpdate = toRuntimeUpdate as MockedFunction<typeof toRuntimeUpdate>;
 
@@ -110,6 +113,11 @@ beforeEach(() => {
 	mockSubscribeArrowStream.mockReturnValue(vi.fn());
 	mockGetArrowsFor.mockResolvedValue([]);
 	mockApiFetch.mockResolvedValue([]);
+	mockWipe.mockResolvedValue(undefined);
+	// The boot probe (review finding C1) defaults to "core is not up yet", which
+	// is what every pre-existing test here assumed: streams start from the
+	// `core://status` event and from nothing else. The probe's own tests opt in.
+	mockCoreIsReachable.mockResolvedValue(false);
 	// Every `ready` self-sufficiently queries the active connection — see
 	// review finding 2 (fix round 1). Default to the same connection every
 	// existing test already assumed before that fix.
@@ -130,19 +138,139 @@ describe('setupListeners', () => {
 		expect(channels).toEqual(['core://status']);
 	});
 
-	it('wipes a stale cache before registering any listener', async () => {
+	// Review finding C1: the wipe used to be AWAITED ahead of `listen()`, which
+	// put a full IndexedDB open + clear() between app start and the only thing
+	// that can catch `core://status`. Tauri drops an event nobody is listening
+	// for, so every millisecond spent before registration is a millisecond in
+	// which the boot `ready` can be lost for good. The wipe is still started
+	// first — it must, so it can be complete before any seed — but it is no
+	// longer allowed to delay registration.
+	it('registers the listener without waiting for the cache wipe to finish', async () => {
 		const order: string[] = [];
-		(maybeWipeOnVersionChange as MockedFunction<typeof maybeWipeOnVersionChange>).mockImplementation(() => {
-			order.push('wipe');
-			return Promise.resolve();
+		const wipeGate = deferred<void>();
+		mockWipe.mockImplementation(() => {
+			order.push('wipe:start');
+			return wipeGate.promise.then(() => {
+				order.push('wipe:done');
+			});
 		});
 		mockListen.mockImplementation((event: unknown, handler: unknown) => {
 			order.push(`listen:${event as string}`);
 			handlers.set(event as string, handler as (e: { payload: unknown }) => Promise<void> | void);
 			return Promise.resolve(() => {});
 		});
+
+		const setup = setupListeners();
+		// Registered while the wipe is still in flight — that is the whole point.
+		await vi.waitFor(() => expect(order).toContain('listen:core://status'));
+		wipeGate.resolve();
+		await setup;
+		await vi.waitFor(() => expect(order).toContain('wipe:done'));
+
+		expect(order).toEqual(['wipe:start', 'listen:core://status', 'wipe:done']);
+	});
+
+	// The other half of the same change: moving the wipe off the registration
+	// path must NOT weaken design decision #4 — the wipe still has to complete
+	// before anything can seed the cache. Nothing else in this suite would
+	// notice if `startStreams` stopped waiting for it.
+	it('does not start a stream — and so never seeds the cache — until the wipe has completed', async () => {
+		const wipeGate = deferred<void>();
+		mockWipe.mockReturnValueOnce(wipeGate.promise);
+
+		const setup = setupListeners();
+		await vi.waitFor(() => expect(handlers.has('core://status')).toBe(true));
+		const handler = handlers.get('core://status')!;
+
+		const ready = handler({ payload: { status: 'ready' } });
+		await vi.waitFor(() => expect(useStatusStore.getState().status).toBe('ready'));
+		expect(subscribeArrowStream).not.toHaveBeenCalled();
+
+		wipeGate.resolve();
+		await ready;
+		await setup;
+
+		expect(subscribeArrowStream).toHaveBeenCalled();
+	});
+
+	// ── Review finding C1: the dropped boot handshake ────────────────────────
+	//
+	// `emit_core_status` is fire-and-forget and Tauri buffers nothing, so a
+	// `ready` emitted before `listen()` finishes registering is gone. Rust emits
+	// it on its FIRST successful `/v0/health`, with no initial delay, so against
+	// an already-running daemon that happens milliseconds after setup(). Nothing
+	// recovers: `switch_connection` emits no `connection://changed`, and the
+	// status store's 'starting' default makes a missed `ready` look exactly like
+	// a daemon that never came up. Every other test in this file emits AFTER
+	// registration by construction and so cannot see this.
+	it('starts the streams anyway when the boot ready was emitted before the listener existed', async () => {
+		mockCoreIsReachable.mockResolvedValue(true);
+		mockInvoke.mockResolvedValue({ connections: [], active_id: 'local' });
+
+		// No emit at all: the event was dropped and is never coming.
 		await setupListeners();
-		expect(order).toEqual(['wipe', 'listen:core://status']);
+
+		expect(subscribeArrowStream).toHaveBeenCalledWith(expect.objectContaining({ connectionId: 'local' }));
+		expect(wsManager.subscribe).toHaveBeenCalledWith('/v0/runtime', expect.any(Function));
+		// And the UI must stop claiming the core is still starting.
+		expect(useStatusStore.getState().status).toBe('ready');
+	});
+
+	it('adopts the connection the Rust side reports active, not a hardcoded local', async () => {
+		mockCoreIsReachable.mockResolvedValue(true);
+		mockInvoke.mockResolvedValue({ connections: [], active_id: 'remote-7' });
+		await setupListeners();
+		expect(subscribeArrowStream).toHaveBeenCalledWith(expect.objectContaining({ connectionId: 'remote-7' }));
+	});
+
+	// The ordinary cold boot: the daemon genuinely is not up yet. The probe must
+	// stay out of the way and leave the `ready` event to do its job — starting
+	// streams against a daemon that cannot answer would only churn failed GETs.
+	it('leaves the boot to the event when the core is not reachable yet', async () => {
+		mockCoreIsReachable.mockResolvedValue(false);
+		await setupListeners();
+		expect(subscribeArrowStream).not.toHaveBeenCalled();
+		expect(useStatusStore.getState().status).toBe('starting');
+		await emit('core://status', { status: 'ready' });
+		expect(subscribeArrowStream).toHaveBeenCalledTimes(1);
+	});
+
+	// The probe is async, so a `ready` can arrive and start the streams while it
+	// is still in flight. Adopting on top of that would tear down a healthy pair
+	// of subscriptions and rebuild them — a needless WS reconnect and a
+	// duplicate catalog GET on every launch that wins the race.
+	it('does not restart streams the ready event already started while the probe was in flight', async () => {
+		const probe = deferred<boolean>();
+		mockCoreIsReachable.mockReturnValueOnce(probe.promise);
+
+		const setup = setupListeners();
+		await vi.waitFor(() => expect(handlers.has('core://status')).toBe(true));
+		await emit('core://status', { status: 'ready' });
+		expect(subscribeArrowStream).toHaveBeenCalledTimes(1);
+
+		probe.resolve(true);
+		await setup;
+
+		expect(subscribeArrowStream).toHaveBeenCalledTimes(1);
+	});
+
+	// A `starting` seen during the probe means the event channel is alive and a
+	// `ready` for the NEW connection is on its way. Adopting here would start
+	// streams for a connection that is mid-restart, against whatever `active_id`
+	// happened to be current.
+	it('does not adopt a core that started restarting while the probe was in flight', async () => {
+		const probe = deferred<boolean>();
+		mockCoreIsReachable.mockReturnValueOnce(probe.promise);
+
+		const setup = setupListeners();
+		await vi.waitFor(() => expect(handlers.has('core://status')).toBe(true));
+		await emit('core://status', { status: 'starting' });
+
+		probe.resolve(true);
+		await setup;
+
+		expect(subscribeArrowStream).not.toHaveBeenCalled();
+		expect(useStatusStore.getState().status).toBe('starting');
 	});
 
 	it('forwards the status payload to useStatusStore', async () => {

@@ -6,7 +6,7 @@ import type { ConnectionConfig, ConnectionStatus } from '@/domain/connection';
 import { getArrowsFor } from '@/lib/persistence/entity-cache';
 import { subscribeArrowStream } from '@/lib/persistence/entity-stream';
 import { maybeWipeOnVersionChange } from '@/lib/persistence/idb';
-import { apiFetch } from '@/lib/transport/api';
+import { apiFetch, coreIsReachable } from '@/lib/transport/api';
 import { isReconnectSentinel, wsManager } from '@/lib/transport/ws-manager';
 
 import type { ArrowListResponseItemDTO } from '../dtos/v0/arrow';
@@ -35,10 +35,27 @@ interface GetConnectionsResponse {
  * and immune to that ordering/emission gap. `arrow://event` and
  * `runtime://update` no longer exist at all — the arrow catalog and the
  * runtime overlay now ride the transport layer (`apiFetch` + `wsManager`).
+ *
+ * The event is also not TRUSTED to arrive: registration races Rust's own
+ * `ready`, which Tauri drops if it lands first. `adoptRunningCore` below closes
+ * that hole by asking the daemon directly once registration is done.
  */
 export async function setupListeners(): Promise<void> {
-	// Must run before any seed touches the cache (design decision #4).
-	await maybeWipeOnVersionChange();
+	// Started here, awaited only where it matters — NOT before `listen()` below.
+	//
+	// The wipe must still be complete before any seed touches the cache (design
+	// decision #4), and it is: `beginStreams` awaits it, and `beginStreams` is
+	// the only route to `startStreams` and therefore to the cache. But AWAITING
+	// it here would put a full IndexedDB open plus `clear()` between app start
+	// and the only thing that can catch `core://status` — and an event with no
+	// registered listener is dropped, not buffered (see `adoptRunningCore`).
+	// Registration must be the first thing that happens.
+	//
+	// It cannot reject: `maybeWipeOnVersionChange` catches every failure
+	// internally, because a cache must never break the app. So leaving this
+	// promise un-awaited for the length of one `listen()` cannot produce an
+	// unhandled rejection.
+	const wipeDone = maybeWipeOnVersionChange();
 
 	// Local to this call, not module-level: setupListeners runs exactly once
 	// per app lifetime in production, so a closure gives every listener a
@@ -165,6 +182,61 @@ export async function setupListeners(): Promise<void> {
 		});
 	}
 
+	// The one route to `startStreams`, and therefore the one place that has to
+	// hold both invariants: the cache wipe is complete before anything seeds
+	// (design decision #4), and a `starting` that landed while this was in
+	// flight wins.
+	async function beginStreams(myGeneration: number): Promise<void> {
+		await wipeDone;
+		// Self-sufficient: query the connection the Rust side actually has
+		// active right now, rather than trusting a `connection://changed`
+		// event that a switch does not currently emit (see the module doc
+		// comment above).
+		const { active_id } = await invoke<GetConnectionsResponse>('get_connections');
+		// A `starting` landed while the calls above were in flight — this start
+		// has been superseded (see the `generation` doc comment above). Its own
+		// streams were never started, so there is nothing to dispose; just drop
+		// the stale result.
+		if (generation !== myGeneration) return;
+		startStreams(active_id);
+	}
+
+	/**
+	 * Catch a `ready` that was emitted before the listener above existed.
+	 *
+	 * `emit_core_status` is fire-and-forget and Tauri DROPS an event with no
+	 * registered listener — no buffering, no replay, and there is no command to
+	 * ask for the status either. Meanwhile Rust emits `ready` on its FIRST
+	 * successful `/v0/health`, with no initial delay, so against a daemon that
+	 * is already up — a previous run's orphaned sidecar answering on a warm
+	 * socket, or a developer's own `quiver daemon` — that emit happens
+	 * milliseconds after `setup()` and can beat this webview's registration.
+	 *
+	 * Nothing downstream recovers from that on its own: `switch_connection`
+	 * emits no `connection://changed`, and `useStatusStore` defaults to
+	 * 'starting', so a missed `ready` is indistinguishable from a daemon that
+	 * never came up. The app sits empty forever.
+	 *
+	 * So don't depend on catching a transient event — ask. `coreIsReachable()`
+	 * is one unenveloped GET at `/v0/health`, the same question
+	 * `sidecar::wait_for_ready` asks, and the only one this module actually
+	 * cares about: can I read data right now? A cached last-emitted status
+	 * would be a second source of truth that can go stale, and its own default
+	 * would be the same ambiguous 'starting'; a daemon that answers cannot lie.
+	 */
+	async function adoptRunningCore(): Promise<void> {
+		const myGeneration = generation;
+		if (!(await coreIsReachable())) return;
+		// The event beat the probe after all — either a `starting` landed (the
+		// channel is alive and a `ready` for the new connection is coming, so
+		// adopting now would start streams mid-restart), or a `ready` already
+		// started them (restarting would tear down a healthy pair for a needless
+		// WS reconnect and a duplicate catalog GET).
+		if (generation !== myGeneration || disposeArrowStream) return;
+		useStatusStore.getState().setStatus('ready');
+		await beginStreams(myGeneration);
+	}
+
 	await listen<{ status: ConnectionStatus }>('core://status', async (e) => {
 		useStatusStore.getState().setStatus(e.payload.status);
 		if (e.payload.status === 'starting') {
@@ -176,18 +248,9 @@ export async function setupListeners(): Promise<void> {
 			useArrowStore.getState().reset();
 		}
 		if (e.payload.status === 'ready') {
-			const myGeneration = generation;
-			// Self-sufficient: query the connection the Rust side actually has
-			// active right now, rather than trusting a `connection://changed`
-			// event that a switch does not currently emit (see the module doc
-			// comment above).
-			const { active_id } = await invoke<GetConnectionsResponse>('get_connections');
-			// A `starting` landed while the call above was in flight — this
-			// `ready` has been superseded (see the `generation` doc comment
-			// above). Its own streams were never started, so there is nothing
-			// to dispose; just drop the stale result.
-			if (generation !== myGeneration) return;
-			startStreams(active_id);
+			await beginStreams(generation);
 		}
 	});
+
+	await adoptRunningCore();
 }

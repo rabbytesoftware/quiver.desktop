@@ -91,14 +91,16 @@ fn transport_for(host: &LocalHost) -> Arc<dyn Transport> {
 				None,
 			))
 		}
-		// Unreachable on Windows — local_host() never builds a Unix variant
-		// there — but the match must be total.
-		LocalHost::Unix(_) => {
-			Arc::new(crate::connection::transport::http::HttpTransport::new(
-				"http://127.0.0.1:40257",
-				None,
-			))
-		}
+		// The match must be total, but this arm has no honest body: any
+		// transport built here would be a guess at where the daemon is, and a
+		// working-looking one pointed at a made-up port is worse than a crash —
+		// it would silently talk to the wrong process, or to nothing, and every
+		// symptom would surface far from the cause. Panic on the invariant
+		// instead, and say which one.
+		LocalHost::Unix(_) => unreachable!(
+			"local_host() only ever constructs LocalHost::Tcp on Windows: Rust's async \
+			 stack has no AF_UNIX support there (design doc §2.2)"
+		),
 	}
 }
 

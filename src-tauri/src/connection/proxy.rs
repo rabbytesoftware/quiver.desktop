@@ -29,12 +29,10 @@ pub const PROXY_ERROR_HEADER: &str = "x-quiver-proxy";
 #[cfg(not(test))]
 const PROXY_TIMEOUT: Duration = Duration::from_secs(300);
 
-/// Same constant, shortened under test. `tokio`'s `test-util` feature (needed
-/// to pause the clock and jump straight to a timer) isn't enabled in this
-/// crate and Task 5 does not get to add it — Cargo.toml is off-limits here, a
-/// later task deletes `hyperlocal` from it instead. A real but tiny wait is
-/// the remaining option that neither touches Cargo.toml nor costs the suite
-/// an actual five minutes.
+/// Same constant, shortened under test. `tokio`'s `test-util` feature — needed
+/// to pause the clock and jump straight to a timer — is not enabled in this
+/// crate, so a real but tiny wait is the remaining option that costs the suite
+/// a few milliseconds instead of an actual five minutes.
 #[cfg(test)]
 const PROXY_TIMEOUT: Duration = Duration::from_millis(20);
 
@@ -165,12 +163,15 @@ mod tests {
 	}
 
 	/// A stalled daemon must not hang the request forever: `PROXY_TIMEOUT`
-	/// turns it into a marked 504, distinct from the marked 502 a connect
-	/// failure produces above. `apiFetch`'s retry needs both codes to tell
-	/// "never connected" apart from "connected but never answered" — even
-	/// though both carry the marker. `PROXY_TIMEOUT` is milliseconds under
-	/// `cfg(test)` (see its definition), so this really waits it out rather
-	/// than mocking the clock.
+	/// turns it into a marked 504 rather than an open-ended wait. The code
+	/// differs from the marked 502 a connect failure produces above only to
+	/// name the cause for a human reading a log — `apiFetch` treats 502 and
+	/// 504 identically, retrying an idempotent read on either as long as the
+	/// marker is present (`src/lib/transport/api.ts`, `isProxyFailure`). What
+	/// this test guards is the MARKER and the timeout firing at all; the exact
+	/// code is diagnostic. `PROXY_TIMEOUT` is milliseconds under `cfg(test)`
+	/// (see its definition), so this really waits it out rather than mocking
+	/// the clock.
 	#[tokio::test]
 	async fn a_stalled_daemon_times_out_as_a_marked_504() {
 		let resp = proxy_once(&NeverResponds, get("/v0/health")).await;
