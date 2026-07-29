@@ -180,6 +180,33 @@ impl ConnectionManager {
 	pub async fn transport(&self) -> Arc<dyn crate::connection::transport::Transport> {
 		self.active.read().await.transport()
 	}
+
+	/// Tear the active connection down because the app is exiting.
+	///
+	/// The one thing this reaps today is the local daemon: `lib.rs` spawns it and
+	/// nothing else can kill it (see `SidecarManager::reap`), so without a call on
+	/// the exit path every quit leaves a `quiver daemon` behind for the session.
+	/// `lib.rs`'s `RunEvent` handler is the caller, and it can arrive twice —
+	/// `ExitRequested` and `Exit` both fire on a normal quit — which is why
+	/// everything underneath is idempotent.
+	///
+	/// The READ lock, not `switching` and not the write lock. Two reasons, both
+	/// about not hanging a quit:
+	///
+	///   * `switching` is held for the whole of a switch, and a switch to a peer
+	///     that accepts and then stalls holds it for `HEALTH_TIMEOUT`. Waiting on
+	///     it here would make quitting mid-switch wait too, for no benefit: a
+	///     switch in flight has not replaced `active` yet, so the connection this
+	///     reads is the one whose daemon needs killing either way.
+	///   * a reader is safe to take because no lock on `active` is ever held
+	///     across an unbounded await — the invariant `switch_to` documents and
+	///     `a_switch_that_never_finishes_preparing_still_leaves_the_app_readable`
+	///     enforces. The write lock is only held across
+	///     `retire_streams_and_teardown`, which now ends in a `kill()`, and that
+	///     is bounded by the OS.
+	pub async fn shutdown(&self) {
+		self.active.read().await.teardown().await;
+	}
 }
 
 /// The teardown half of a connection switch: retire every bridged stream, then
@@ -191,18 +218,30 @@ impl ConnectionManager {
 /// did before `on_page_load` retired them (see `connection::bridge`, teardown
 /// paths (2) and (3)).
 ///
-/// Streams first, connection second — as intent, not as a demonstrated property.
-/// Today the order cannot matter: both `teardown()` implementations
-/// (`local::LocalConnection`, `remote::RemoteConnection`) are empty, this is their
-/// only caller, and swapping these two lines leaves the whole suite green. Nothing
-/// tests the ordering, and this comment should not pretend otherwise.
+/// Streams first, connection second. That ordering has a subject now:
+/// `local::LocalConnection::teardown` kills the daemon, and killing the daemon
+/// takes down every socket the local connection's streams are riding on. A reader
+/// that sees its socket die (rather than being cancelled) treats it as the daemon
+/// ending the stream and announces `WS_CLOSE_SENTINEL`, which tells the JS shim
+/// to reconnect. `close_all()` first is what cancels those readers instead.
 ///
-/// It is written this way for the day `teardown()` stops being a no-op — killing
-/// the sidecar, dropping a TLS session. Then it takes the streams' sockets down
-/// with it, and a reader that sees its socket die announces `WS_CLOSE_SENTINEL`,
-/// which tells the shim to RECONNECT, mid-switch, to the peer being switched away
-/// from. Retiring first cancels those readers silently. Whoever gives `teardown()`
-/// a body owns writing the test that makes this ordering real.
+/// Two things this comment will not overclaim, because neither is tested:
+///
+///   * the ordering is still not *demonstrated*. Reaching it needs a live daemon
+///     whose death closes a real bridged socket, which the suite cannot stand up;
+///     swapping these two lines leaves it green. What is tested is each half —
+///     `a_switch_retires_the_outgoing_connections_streams` for the retirement,
+///     and `sidecar::tests` for the reap.
+///   * retiring first NARROWS the race rather than closing it. `close_all()` only
+///     makes the reader's cancel channel ready; the kill immediately after makes
+///     its socket ready too, and `bridge`'s `tokio::select!` is unbiased, so a
+///     reader woken with both pending may still take the socket arm and announce.
+///     Left alone deliberately: the consequence is one spurious reconnect, and
+///     `ws_open` resolves the transport per open and queues on `active`'s read
+///     lock behind this switch's writer — so it lands on the NEW connection,
+///     which is where the frontend was going anyway. `biased;` in that `select!`
+///     would make it exact, at the cost of a change to code this item is not
+///     about.
 ///
 /// It is a free function rather than two lines inline because
 /// `switch_connection` needs an `AppHandle` from its first line onwards and so
@@ -547,6 +586,72 @@ mod tests {
 			torn_down.load(Ordering::Relaxed),
 			"the outgoing connection must be torn down"
 		);
+	}
+
+	// ── The exit path ────────────────────────────────────────────────────────
+
+	/// Quitting the app must reap what the app started. `lib.rs`'s `RunEvent`
+	/// handler has nothing to reach the active connection with but this, and
+	/// before it existed the local daemon simply outlived every session.
+	///
+	/// It runs twice on the normal path — `ExitRequested` then `Exit` — which is
+	/// safe because everything it reaches is idempotent; the handle only comes out
+	/// of its slot once (`sidecar::tests::a_spawned_child_is_taken_exactly_once`).
+	#[tokio::test]
+	async fn shutdown_tears_down_the_active_connection() {
+		let torn_down = Arc::new(AtomicBool::new(false));
+		let manager = manager_with(StubConnection::boxed("local", Arc::clone(&torn_down)));
+
+		manager.shutdown().await;
+
+		assert!(
+			torn_down.load(Ordering::Relaxed),
+			"quitting must tear the active connection down: nothing else can kill \
+			 the daemon this app spawned"
+		);
+	}
+
+	/// Quitting while a switch is still dialling must not hang the app. The switch
+	/// holds `switching` for its whole duration and a stalled peer holds it for
+	/// the health timeout — so `shutdown` deliberately does not take it, and takes
+	/// a read lock on a connection no writer can be holding.
+	///
+	/// Make `shutdown` wait on `switching` (or on `active.write()`) and this stops
+	/// finishing: the quit would sit behind a peer that never answers.
+	#[tokio::test]
+	async fn shutdown_during_a_stalled_switch_still_reaps() {
+		let bridge = Arc::new(WsBridgeManager::new());
+		let torn_down = Arc::new(AtomicBool::new(false));
+		let manager = Arc::new(manager_with(StubConnection::boxed(
+			"local",
+			Arc::clone(&torn_down),
+		)));
+
+		let switching = tokio::spawn({
+			let manager = Arc::clone(&manager);
+			let bridge = Arc::clone(&bridge);
+			async move {
+				manager.switch_to(&bridge, async {
+					std::future::pending::<()>().await;
+					unreachable!("a stalled peer never answers")
+				})
+				.await
+			}
+		});
+
+		// Let the switch reach its prepare step, so the quit really does race a
+		// switch in flight.
+		tokio::task::yield_now().await;
+
+		tokio::time::timeout(Duration::from_secs(5), manager.shutdown())
+			.await
+			.expect("a quit must not wait on a switch that is still dialling");
+		assert!(
+			torn_down.load(Ordering::Relaxed),
+			"and it must still reap the connection that is active"
+		);
+
+		switching.abort();
 	}
 
 	/// `switching` exists only to keep the serialisation the write lock used to

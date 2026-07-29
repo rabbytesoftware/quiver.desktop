@@ -17,6 +17,13 @@ import { isMacOS } from '@/lib/platform';
  * buttons that are somewhere else entirely. Nothing here can improve on a
  * native title bar, so nothing here is rendered.
  *
+ * That makes `decorations` load-bearing off macOS: it is what draws the ONLY
+ * chrome those windows have, and `null` here plus `decorations: false` there is
+ * a window with no close button, no minimise and no way to drag it — which is
+ * what `tauri.windows.conf.json` produced until it was deleted. It defaults to
+ * true, no platform config overrides it, and titlebar.test.tsx asserts that for
+ * every platform.
+ *
  * TRAFFIC LIGHT COUPLING: the left padding here and `trafficLightPosition` in
  * tauri.macos.conf.json describe the same three buttons from two different
  * sides. The buttons are 12px across, so `y: 18` centers them in this 48px

@@ -238,8 +238,32 @@ pub fn run() {
 			ws_send,
 			ws_close,
 		])
-		.run(tauri::generate_context!())
-		.expect("error while running tauri application");
+		// `build` + `run(callback)` rather than `run(context)`, for the sake of the
+		// callback: it is the only place the app can notice that it is exiting, and
+		// quitting used to leave the local daemon running. `CommandChild` has no
+		// `Drop`, so nothing in the process's own teardown reaches it — see
+		// `SidecarManager::reap`.
+		.build(tauri::generate_context!())
+		.expect("error while building tauri application")
+		.run(|app, event| {
+			// Both, not one: `ExitRequested` is the last chance before a normal
+			// quit, and `Exit` also covers `app.exit()` and a quit nothing asked
+			// for. Both fire on the usual path, so what they reach is idempotent
+			// (`ConnectionManager::shutdown`).
+			if matches!(
+				event,
+				tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
+			) {
+				// `block_on`, because the callback is synchronous and the process is
+				// about to go: a task spawned here would be dropped with the runtime
+				// before it reached the kill. Safe from this thread — the event loop
+				// is not a tokio worker — and bounded, because `shutdown` takes a
+				// read lock nothing holds across an await and ends in one `kill()`.
+				tauri::async_runtime::block_on(
+					app.state::<ConnectionManager>().shutdown(),
+				);
+			}
+		});
 }
 
 #[cfg(test)]
@@ -290,6 +314,38 @@ mod tests {
 			!script.contains(wrong),
 			"the bootstrap must not carry another platform's API base ({wrong}); \
 			 got {script}"
+		);
+	}
+
+	/// The shell plugin is registered above, but for RUST's use only: the sidecar
+	/// is spawned through `app.shell().sidecar(...)` and killed through the
+	/// `CommandChild` that spawn returns, and neither call goes near the ACL —
+	/// the ACL gates the `plugin:shell|*` IPC commands, which only the webview
+	/// can issue. So `shell:allow-spawn` and `shell:allow-kill` in the
+	/// capability bought the frontend the ability to run arbitrary programs and
+	/// signal arbitrary pids, and bought this app nothing at all.
+	///
+	/// Nothing under `src/` imports `@tauri-apps/plugin-shell`, so removing them
+	/// cost the frontend nothing either. The grant list is the app's whole
+	/// attack surface from the webview inwards, and in a debug build the MCP
+	/// bridge already hands an agent the run of that webview — so an unused
+	/// grant is not neutral, and this is what keeps it from drifting back.
+	#[test]
+	fn the_webview_is_granted_no_shell_permission() {
+		let capability: serde_json::Value =
+			serde_json::from_str(include_str!("../capabilities/default.json"))
+				.expect("capabilities/default.json must be valid JSON");
+		let granted = capability["permissions"]
+			.as_array()
+			.expect("the capability must list permissions");
+		let shell: Vec<&serde_json::Value> = granted
+			.iter()
+			.filter(|p| p.as_str().is_some_and(|p| p.starts_with("shell:")))
+			.collect();
+		assert!(
+			shell.is_empty(),
+			"the sidecar is spawned and killed from Rust, which bypasses the ACL — a \
+			 shell grant here is reachable only by the webview; got {shell:?}"
 		);
 	}
 

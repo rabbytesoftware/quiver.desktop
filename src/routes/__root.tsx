@@ -1,7 +1,7 @@
 // src/routes/__root.tsx
 import { createRootRoute, Outlet } from '@tanstack/react-router';
-import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 
+import { Devtools } from '../components/devtools';
 import { Titlebar } from '../components/titlebar';
 import '../index.css';
 
@@ -16,7 +16,7 @@ function RootLayout() {
 			<main className="min-h-0 flex-1 overflow-auto">
 				<Outlet />
 			</main>
-			<TanStackRouterDevtools position="bottom-right" />
+			<Devtools />
 		</div>
 	);
 }

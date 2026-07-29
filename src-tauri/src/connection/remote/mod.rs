@@ -165,6 +165,16 @@ impl QuiverConnection for RemoteConnection {
 		}
 	}
 
+	/// Nothing to tear down, and that is a statement about this connection rather
+	/// than an omission.
+	///
+	/// A remote connection owns no process — the daemon belongs to whoever runs
+	/// the host — and no socket of its own: the WebSocket legs belong to
+	/// `WsBridgeManager`, which `retire_streams_and_teardown` closes just before
+	/// calling this, and the `reqwest` client inside `HttpTransport` releases its
+	/// pool when the last `Arc` to it drops, which is when this connection is
+	/// replaced. `LocalConnection::teardown` has a body because a spawned child
+	/// process is the one thing here that outlives its handle.
 	async fn teardown(&self) {}
 
 	fn transport(&self) -> Arc<dyn Transport> {

@@ -10,8 +10,6 @@
 		"core:window:allow-minimize",
 		"core:window:allow-toggle-maximize",
 		"core:window:allow-is-maximized",
-		"opener:default",
-		"shell:allow-spawn",
-		"shell:allow-kill"
+		"opener:default"
 	]
 }

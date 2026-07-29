@@ -13,6 +13,34 @@ const MACOS_ONLY_WINDOW_KEYS = ['titleBarStyle', 'hiddenTitle', 'trafficLightPos
 const baseWindow = baseConfig.app.windows[0] as Record<string, unknown>;
 const macosWindow = macosConfig.app.windows[0];
 
+/**
+ * Every `tauri.<platform>.conf.json` that exists, keyed by the path written
+ * below. Discovered rather than imported one by one, so a new platform overlay
+ * shows up here without anyone remembering to add it — which is the point: an
+ * overlay nobody notices is how Windows lost its window controls.
+ *
+ * `import.meta.glob` rather than `readdirSync`, because this project carries no
+ * `@types/node` and `node:fs` therefore does not type-check. Vite resolves the
+ * pattern at transform time, so the set is as fresh as the run. The pattern
+ * cannot match `tauri.conf.json` itself: it requires a second `.` before
+ * `conf`.
+ */
+const PLATFORM_OVERLAYS = import.meta.glob<{ app: { windows: Record<string, unknown>[] } }>(
+	'../../src-tauri/tauri.*.conf.json',
+	{ eager: true, import: 'default' }
+);
+
+/**
+ * The window settings a given platform actually starts with.
+ *
+ * RFC 7396 again: an overlay's `app.windows` REPLACES the shared array whole,
+ * so a platform that has an overlay gets that overlay's window and NOTHING of
+ * the shared one, while a platform without one gets the shared window verbatim.
+ */
+function effectiveWindow(platform: string): Record<string, unknown> {
+	return PLATFORM_OVERLAYS[`../../src-tauri/tauri.${platform}.conf.json`]?.app.windows[0] ?? baseWindow;
+}
+
 /** A traffic light button, in CSS px. Three of them plus their gaps span ~64. */
 const TRAFFIC_LIGHT_DIAMETER_PX = 12;
 const TRAFFIC_LIGHTS_WIDTH_PX = 64;
@@ -112,5 +140,43 @@ describe('window chrome configuration', () => {
 		expect(macosWindow.trafficLightPosition.y).toBe((barHeightPx - TRAFFIC_LIGHT_DIAMETER_PX) / 2);
 		// ...and the strip's padding has to clear all three of them.
 		expect(leftPaddingPx).toBeGreaterThanOrEqual(macosWindow.trafficLightPosition.x + TRAFFIC_LIGHTS_WIDTH_PX);
+	});
+});
+
+// Every window in this app gets its controls from exactly one of two places: the
+// OS, or `Titlebar`. macOS is the only platform where the second is true, and
+// `Titlebar` returning `null` everywhere else is only correct while the first
+// holds — so `decorations: false` off macOS produces a window with no title bar,
+// no close button, no minimise, and no drag surface. Alt+F4 and nothing else.
+// That is precisely what `tauri.windows.conf.json` used to do, and the reason
+// these assertions exist: custom in-webview window controls were ruled out, so
+// native decorations are the only chrome Windows and Linux can have.
+describe('native window decorations', () => {
+	it.each([
+		['linux', USER_AGENTS.linux],
+		['windows', USER_AGENTS.windows],
+	])('leaves %s the title bar the OS draws, because the frontend draws none', (platform, userAgent) => {
+		expect(renderTitlebar(userAgent)).toBeNull();
+		// `decorations` defaults to true, so unset is the right way to keep it.
+		expect(effectiveWindow(platform).decorations ?? true).toBe(true);
+	});
+
+	it('keeps them on macOS too, where the traffic lights are the whole of the chrome', () => {
+		// `titleBarStyle: "Overlay"` hides the bar and keeps the buttons —
+		// `decorations: false` would take the buttons with it, and then the
+		// `pl-20` above would be reserving space for nothing.
+		expect(effectiveWindow('macos').decorations ?? true).toBe(true);
+	});
+
+	it('gives only macOS a platform config at all', () => {
+		// An overlay replaces `app.windows` wholesale (see `effectiveWindow`), so
+		// one that mentions a single key silently drops title, size, minimums and
+		// `backgroundThrottling` on that platform alone — which is what the old
+		// `tauri.windows.conf.json` did on top of removing the decorations.
+		// macOS is the only platform whose window chrome genuinely differs, so it
+		// is the only one that should be paying that price. Anything else needs
+		// to restate every shared key deliberately, and this is what makes that
+		// decision impossible to make by accident.
+		expect(Object.keys(PLATFORM_OVERLAYS)).toEqual(['../../src-tauri/tauri.macos.conf.json']);
 	});
 });

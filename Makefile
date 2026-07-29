@@ -60,6 +60,45 @@ endif
 
 SIDECAR_PATH := src-tauri/binaries/quiver-$(TARGET_TRIPLE)$(EXE_SUFFIX)
 
+# Which OS this is running on, and what that costs the bundling targets.
+#
+# Three of them are macOS-only and were not saying so. `icon` shells out to
+# Xcode's `actool`, which exists nowhere else; `dev-bundle` ends in `open`, which
+# is not a command on Linux and opens a URL handler on Windows; and both `icon`
+# and `build-app` interact with `bundle.macOS.files` in tauri.conf.json, which
+# maps `icons/Assets.car` — a file only `make icon` ever produces. On Linux or
+# Windows the bundler is asked for a resource that was never going to exist.
+#
+# GUARDED rather than documented in `make help`, and deliberately: a note in the
+# help text is prose that nobody re-reads and nothing checks, so it rots the
+# first time a target changes. CI already encodes the same three facts as
+# `if: runner.os == 'macOS'` steps (.github/actions/build-tauri), and a guard
+# here is the same statement in the same form — it fires, by name, at the moment
+# it is wrong, on the machine it is wrong on.
+#
+# UNAME_S is overridable so the guard itself can be exercised from a Mac:
+# `make icon UNAME_S=Linux` must fail with the message below.
+UNAME_S := $(shell uname -s)
+
+# `bundle.macOS.files` cleared for the platforms that cannot produce its
+# contents, exactly as CI does when it builds the Linux and Windows bundles.
+ifeq ($(UNAME_S),Darwin)
+  BUNDLE_CONFIG :=
+else
+  BUNDLE_CONFIG := --config '{"bundle":{"macOS":{"files":{}}}}'
+endif
+
+# Used by the macOS-only targets. `$@` names the target the user actually typed,
+# and MACOS_ONLY_REASON is set per target below.
+define REQUIRE_MACOS
+	@if [ "$(UNAME_S)" != "Darwin" ]; then \
+		echo "❌ 'make $@' is macOS-only (this is $(UNAME_S))."; \
+		echo "   $(MACOS_ONLY_REASON)"; \
+		echo "   'make build-app' is the target that bundles on every platform."; \
+		exit 1; \
+	fi
+endef
+
 help:
 	@echo "Quiver Desktop - Makefile Commands"
 	@echo ""
@@ -89,9 +128,9 @@ help:
 	@echo "  make build-rust            - Build Tauri backend (debug)"
 	@echo "  make build                 - Build both frontend and Rust (debug)"
 	@echo "  make fetch-sidecar         - Download quiver.core sidecar binary for this platform"
-	@echo "  make icon                  - Compile quiver.icon → Assets.car + .icns (macOS 26+)"
+	@echo "  make icon                  - macOS only: compile quiver.icon → Assets.car + .icns (Xcode 26+)"
 	@echo "  make dev                   - Start Tauri dev environment (fetches sidecar if needed)"
-	@echo "  make dev-bundle            - Build + open a debug .app (real icon, no hot reload)"
+	@echo "  make dev-bundle            - macOS only: build + open a debug .app (real icon, no hot reload)"
 	@echo "  make build-app             - Build full Tauri app installer for this platform"
 	@echo ""
 	@echo "🧪 Testing:"
@@ -101,7 +140,8 @@ help:
 	@echo "  make coverage-rust         - Run Rust tests with coverage (≥95%)"
 	@echo ""
 	@echo "✅ CI/PR:"
-	@echo "  make pr-checks             - Run all CI steps locally"
+	@echo "  make pr-checks             - Run every CI check locally: quality, build, coverage"
+	@echo "                               (not the release bundling — that is 'make build-app')"
 	@echo ""
 	@echo "🧹 Cleanup:"
 	@echo "  make clean                 - Clean build artifacts"
@@ -218,7 +258,9 @@ dev:
 # through the platform's own shell, and requiring `bash` there would make
 # Windows builds depend on Git Bash being on PATH. The icon only means anything
 # on macOS, so the callers that need it ask for it — here and in CI.
+icon: MACOS_ONLY_REASON := It compiles src-tauri/icons/quiver.icon with Xcode's actool.
 icon:
+	$(REQUIRE_MACOS)
 	@echo "🎨 Compiling quiver.icon → Assets.car + quiver.icns..."
 	@bash icons-compiler/compile-icon.sh
 	@echo "✅ Icon artifacts in src-tauri/icons/"
@@ -227,18 +269,37 @@ icon:
 # .app, so it never shows the real icon, the Info.plist, or the bundled
 # sidecar. This is the target to reach for when checking any of those. No hot
 # reload — rerun it after changing source.
+#
+# macOS-only, and it always was: it builds a `.app` (a bundle format no other
+# platform has) and ends in `open`.
+dev-bundle: MACOS_ONLY_REASON := It builds a .app and opens it, and neither exists off macOS.
 dev-bundle:
+	$(REQUIRE_MACOS)
 	@if [ ! -f "$(SIDECAR_PATH)" ]; then $(MAKE) fetch-sidecar; fi
 	@$(MAKE) icon
 	@echo "📦 Building debug .app bundle..."
 	@$(BUN) run tauri build --debug --bundles app
 	@open src-tauri/target/debug/bundle/macos/Quiver.app
 
+# The one bundling target that works everywhere, which is why it is the one the
+# guard above points at. Two things differ off macOS, and both mirror
+# .github/actions/build-tauri rather than inventing a second policy:
+#
+#   * `make icon` is skipped — it is Xcode-only (see the target), and CI's icon
+#     step is `if: runner.os == 'macOS'` for the same reason;
+#   * `bundle.macOS.files` is cleared, because it maps `icons/Assets.car`, which
+#     only the icon step produces. Left set, the bundler is asked for a file that
+#     was never going to be there. CI passes the identical `--config` on its
+#     Linux and Windows builds.
 build-app:
 	@$(MAKE) fetch-sidecar
-	@$(MAKE) icon
+	@if [ "$(UNAME_S)" = "Darwin" ]; then \
+		$(MAKE) icon; \
+	else \
+		echo "ℹ️  $(UNAME_S): skipping the macOS icon and clearing bundle.macOS.files"; \
+	fi
 	@echo "📦 Building Tauri app for $(TARGET_TRIPLE)..."
-	@$(BUN) run tauri build
+	@$(BUN) run tauri build $(BUNDLE_CONFIG)
 	@echo "✅ App built — check src-tauri/target/release/bundle/"
 
 test-frontend:
