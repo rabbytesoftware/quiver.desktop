@@ -63,14 +63,22 @@ export async function setupListeners(): Promise<void> {
 	// across repeated calls (e.g. in tests).
 	let disposeArrowStream: (() => void) | null = null;
 	let disposeRuntimeStream: (() => void) | null = null;
-	// True from the instant a start attempt begins until it ends, win or lose.
+	// How many `beginStreams` calls are in flight right now: one up per attempt
+	// that begins, one down per attempt that ends, win or lose. So the only
+	// thing it asserts is `> 0` ⇔ at least one attempt is still under way —
+	// deliberately weaker than "a start is in progress", because attempts CAN
+	// overlap (Tauri does not serialize async event handlers, so a `ready` can
+	// begin while an earlier, now-superseded one is still parked). A single
+	// boolean could not carry that: the first attempt to finish would clear it
+	// on behalf of every other one still running.
 	// The disposer slots above only fill at the very END of `beginStreams`, so
-	// they say nothing about a start that is still parked on the cache wipe or
-	// on its own `get_connections` — and `adoptRunningCore` has to know about
-	// exactly that window, or it starts a second, duplicate pair for the same
-	// generation. Set SYNCHRONOUSLY, before `beginStreams`' first await, so no
-	// caller can observe the gap between entering it and the flag being true.
-	let startPending = false;
+	// they say nothing about a start still parked on the cache wipe or on its
+	// own `get_connections` — and `adoptRunningCore` has to know about exactly
+	// that window, or it starts a second, duplicate pair for the same
+	// generation. Incremented SYNCHRONOUSLY, before `beginStreams`' first
+	// await, so no caller can observe the gap between an attempt entering it
+	// and the count rising.
+	let startPending = 0;
 	// Bumped on every `starting`. Tauri does NOT serialize async event
 	// handlers — a `starting` can land while an earlier `ready`'s own async
 	// work (its `get_connections` call, or a stream's own cache read below)
@@ -89,11 +97,12 @@ export async function setupListeners(): Promise<void> {
 
 	function startStreams(connectionId: string): void {
 		// Load-bearing, not merely defensive: this function CAN run twice
-		// without an intervening stopStreams(). It has two callers, and only
-		// one of them stands down for the other. `adoptRunningCore` (the
-		// readiness probe) checks `startPending`/`disposeArrowStream` before it
-		// starts anything, so a `ready` event already under way wins — but the
-		// reverse is not guarded: a `ready` that lands while the PROBE is
+		// without an intervening stopStreams(). Its one call site,
+		// `beginStreams`, has two callers, and only one of them stands down for
+		// the other: `adoptRunningCore` (the readiness probe) checks
+		// `startPending`/`disposeArrowStream` before it starts anything, so a
+		// `ready` event already under way wins — but the reverse is not
+		// guarded: a `ready` that lands while the PROBE is
 		// itself parked inside `beginStreams` runs straight through to here,
 		// and both starts then land on the same generation. Without this
 		// teardown the loser's arrow stream and WS subscription would stay
@@ -205,8 +214,8 @@ export async function setupListeners(): Promise<void> {
 		// start in the window where it has begun but subscribed nothing yet.
 		// The `finally` is what keeps that from becoming a permanent stand-down:
 		// every exit — the superseded-generation return below, a rejected
-		// `get_connections`, and the ordinary success — clears it.
-		startPending = true;
+		// `get_connections`, and the ordinary success — gives its count back.
+		startPending++;
 		try {
 			await wipeDone;
 			// Self-sufficient: query the connection the Rust side actually has
@@ -221,7 +230,7 @@ export async function setupListeners(): Promise<void> {
 			if (generation !== myGeneration) return;
 			startStreams(active_id);
 		} finally {
-			startPending = false;
+			startPending--;
 		}
 	}
 
@@ -264,7 +273,7 @@ export async function setupListeners(): Promise<void> {
 		//  - a `ready` already finished starting them (`disposeArrowStream`):
 		//    restarting would tear down a healthy pair for a needless WS
 		//    reconnect and a duplicate catalog GET.
-		if (generation !== myGeneration || startPending || disposeArrowStream) return;
+		if (generation !== myGeneration || startPending > 0 || disposeArrowStream) return;
 		useStatusStore.getState().setStatus('ready');
 		// Caught here, unlike on the event route: `main.tsx` calls
 		// `setupListeners()` un-awaited and un-caught, so a rejected

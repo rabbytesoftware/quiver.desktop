@@ -295,6 +295,65 @@ describe('setupListeners', () => {
 		expect(invoke).toHaveBeenCalledTimes(1);
 	});
 
+	// Fix round 5: the stand-down flag was ONE shared boolean for every
+	// `beginStreams` invocation, so two overlapping attempts aliased it and the
+	// FIRST to finish cleared it while the second was still parked:
+	//
+	//   ready(g0) parks on get_connections
+	//   starting  -> generation = 1
+	//   ready(g1) parks on get_connections      <- still in flight
+	//   g0's get_connections resolves -> superseded, starts nothing, returns
+	//     -> finally: flag cleared              <- STALE, g1 is still starting
+	//   probe answers -> flag says "nobody is starting", disposer slot still
+	//     empty -> adopts -> DOUBLE START
+	//
+	// The test above cannot reach this: it has exactly one attempt in flight,
+	// so nothing aliases the flag. Two are needed, and the `starting` between
+	// them must land BEFORE `adoptRunningCore` captures its generation — hence
+	// the three raw handler calls made without awaiting `setupListeners`' own
+	// `await listen(...)`, which is precisely the pre-registration window the
+	// module doc comment describes. `emit()` awaits each handler to completion
+	// and is structurally blind to any overlap at all.
+	it('does not adopt while a newer start is still parked, after an older superseded one has finished', async () => {
+		const gen0 = deferred<{ connections: never[]; active_id: string }>();
+		const gen1 = deferred<{ connections: never[]; active_id: string }>();
+		mockInvoke.mockReturnValueOnce(gen0.promise).mockReturnValueOnce(gen1.promise);
+		const probe = deferred<boolean>();
+		mockCoreIsReachable.mockReturnValueOnce(probe.promise);
+
+		const setup = setupListeners();
+		const handler = handlers.get('core://status')!;
+
+		// All three land before `setupListeners` resumes past `listen()`, so the
+		// `starting` bumps `generation` while the probe is still upstream of its
+		// own capture of it — otherwise the probe stands down on generation and
+		// never reaches the flag under test.
+		const readyG0 = handler({ payload: { status: 'ready' } });
+		await handler({ payload: { status: 'starting' } });
+		const readyG1 = handler({ payload: { status: 'ready' } });
+
+		// Both attempts are parked on their own get_connections with nothing
+		// subscribed yet — the window the disposer slots cannot speak for.
+		await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(2));
+		expect(subscribeArrowStream).not.toHaveBeenCalled();
+
+		// The OLDER attempt resolves first, finds itself superseded and starts
+		// nothing — but its `finally` still runs.
+		gen0.resolve({ connections: [], active_id: 'local' });
+		await readyG0;
+
+		// The probe answers into exactly that window. g1 has still subscribed
+		// nothing, so the flag is the only thing that can stand the probe down.
+		probe.resolve(true);
+		await setup;
+
+		gen1.resolve({ connections: [], active_id: 'local' });
+		await readyG1;
+
+		expect(subscribeArrowStream).toHaveBeenCalledTimes(1);
+		expect(wsManager.subscribe).toHaveBeenCalledTimes(1);
+	});
+
 	// `setupListeners()` is called un-awaited and un-caught from main.tsx, so a
 	// rejection escaping it is an unhandled rejection at boot — and on the probe
 	// route it would leave the UI parked at `ready` with no data and no stream.
