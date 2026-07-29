@@ -22,7 +22,11 @@ class FakeSocket {
 		this.sent.push(d);
 	}
 	close() {
+		// Matches the real QuiverWebSocket.close(), which fires onclose
+		// synchronously (quiver-socket.ts) — including when it re-enters the
+		// manager's own onclose while readyState is already CLOSED.
 		this.readyState = FakeSocket.CLOSED;
+		this.onclose?.();
 	}
 }
 
@@ -96,11 +100,33 @@ describe('wsManager', () => {
 		expect(FakeSocket.instances).toHaveLength(3);
 	});
 
+	// Without this, a link that flaps once and then recovers keeps ratcheting
+	// toward the 30s cap forever instead of dropping back to the 1s base delay.
+	it('resets the backoff after a successful reconnect', () => {
+		const m = createWSManager();
+		m.subscribe('/v0/arrow', vi.fn());
+		FakeSocket.instances[0].onclose?.();
+		vi.advanceTimersByTime(1000);
+		expect(FakeSocket.instances).toHaveLength(2);
+		FakeSocket.instances[1].open();
+		FakeSocket.instances[1].onclose?.();
+		vi.advanceTimersByTime(999);
+		expect(FakeSocket.instances).toHaveLength(2);
+		vi.advanceTimersByTime(1);
+		expect(FakeSocket.instances).toHaveLength(3);
+	});
+
 	it('does not resurrect a socket nobody listens to', () => {
 		const m = createWSManager();
 		const off = m.subscribe('/v0/arrow', vi.fn());
 		off();
 		FakeSocket.instances[0].onclose?.();
+		// The inner setTimeout re-check makes a wasted timer harmless (it's a
+		// no-op when it fires), but a genuinely torn-down channel shouldn't be
+		// scheduling one at all — onclose firing with nobody listening (whether
+		// via the synchronous close() above or this direct call) must bail
+		// before ever calling setTimeout.
+		expect(vi.getTimerCount()).toBe(0);
 		vi.advanceTimersByTime(5000);
 		expect(FakeSocket.instances).toHaveLength(1);
 	});

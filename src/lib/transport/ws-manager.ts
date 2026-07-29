@@ -6,7 +6,6 @@ interface Channel {
 	socket: QuiverWebSocket;
 	callbacks: Set<Callback>;
 	reconnectDelay: number;
-	endpoint: string;
 }
 
 // This app is desktop-only: the daemon is reachable exclusively through the
@@ -34,7 +33,11 @@ function closeSocketQuietly(socket: QuiverWebSocket): void {
 // Frames missed during an outage cannot be recovered from a DTO merge, so
 // this is handed to every subscriber after a reconnect: it tells them the
 // stream broke and they need to reseed rather than assume nothing was lost.
-export const RECONNECT_SENTINEL = { reconnected: true };
+// Frozen because it's a single shared instance handed to every subscriber on
+// every reconnect, forever — a subscriber mutating its own reference (e.g.
+// `data.reconnected = false`) would otherwise poison `isReconnectSentinel`
+// for every other subscriber and every future reconnect.
+export const RECONNECT_SENTINEL = Object.freeze({ reconnected: true });
 
 export function isReconnectSentinel(data: unknown): boolean {
 	return typeof data === 'object' && data !== null && (data as { reconnected?: unknown }).reconnected === true;
@@ -48,7 +51,6 @@ export function createWSManager(): WSManager {
 			socket: createTransport(endpoint),
 			callbacks: new Set(),
 			reconnectDelay,
-			endpoint,
 		};
 
 		// A successful connection resets the backoff so the next outage starts
