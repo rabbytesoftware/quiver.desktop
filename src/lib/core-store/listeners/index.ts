@@ -23,22 +23,17 @@ interface GetConnectionsResponse {
 }
 
 /**
- * Only two Tauri events survive the data-layer rewrite: `core://status` and
- * `connection://changed`. Both are native lifecycle facts the webview cannot
- * observe on its own. Everything else — the arrow catalog and the runtime
- * overlay — now rides the transport layer (`apiFetch` + `wsManager`) instead
- * of the bespoke `arrow://event` / `runtime://update` events, which no
- * longer exist.
- *
- * `connection://changed` is registered (add/remove/rename still emit it —
- * `@/lib/connection/listeners.ts` is what consumes it for the connections
- * UI) but this module does NOT use it to learn which connection is active:
- * `switch_connection` does not currently emit it at all (a known Rust-side
- * gap — `manager.rs` awaits `guard.start(app)`, which emits `starting` then
+ * `core://status` is the only Tauri event this module listens for.
+ * `connection://changed` still exists (add/remove/rename emit it) but is
+ * consumed by `@/lib/connection/listeners.ts` for the connections UI, not
+ * here: `switch_connection` does not emit it at all (a known Rust-side gap —
+ * `manager.rs` awaits `guard.start(app)`, which emits `starting` then
  * `ready` before the command returns, so even an appended emit would land
  * after the `ready` that already restarted the streams). Instead, `ready`
  * below calls `get_connections` directly, which makes it self-sufficient
- * and immune to that ordering/emission gap.
+ * and immune to that ordering/emission gap. `arrow://event` and
+ * `runtime://update` no longer exist at all — the arrow catalog and the
+ * runtime overlay now ride the transport layer (`apiFetch` + `wsManager`).
  */
 export async function setupListeners(): Promise<void> {
 	// Must run before any seed touches the cache (design decision #4).
@@ -50,6 +45,15 @@ export async function setupListeners(): Promise<void> {
 	// across repeated calls (e.g. in tests).
 	let disposeArrowStream: (() => void) | null = null;
 	let disposeRuntimeStream: (() => void) | null = null;
+	// Bumped on every `starting`. Tauri does NOT serialize async event
+	// handlers — a `starting` can land while an earlier `ready`'s own
+	// `get_connections` call is still in flight. Without this guard, that
+	// in-flight `ready` would resolve AFTER `stopStreams()`/`reset()` already
+	// ran and call `startStreams` anyway, resurrecting a subscription pair
+	// nothing ever disposes (a leaked `/v0/arrow` + `/v0/runtime` socket for
+	// the rest of the session). Same pattern entity-stream.ts already uses
+	// for a superseded reseed.
+	let generation = 0;
 
 	function stopStreams(): void {
 		disposeArrowStream?.();
@@ -80,14 +84,12 @@ export async function setupListeners(): Promise<void> {
 			onChange: () => {
 				getArrowsFor(connectionId).then((records) => {
 					useArrowStore.getState().setCatalog(records);
-					// entity-stream chains applySeed's own onChange strictly before
-					// any live frame's onChange on the same serial `applyChain`, so
-					// THIS onChange call (the one right after a seed) is guaranteed
-					// to be the seed's — never a live frame's — meaning this runs
-					// exactly once per seed/reseed and can never reapply a stale
-					// snapshot over a fresher live delta on a later, unrelated
-					// onChange. `seedInitialState` itself additionally refuses to
-					// overwrite an overlay a live `/v0/runtime` frame already set.
+					// entity-stream's onChange fires after EVERY applySeed, including
+					// one that bailed because a newer reconnect superseded it — so
+					// this can run for a stale seed. seedInitialState's own
+					// seed-vs-live tracking (store/arrows.ts) is what makes a later,
+					// fresher seed's onChange still win in that case; this call site
+					// does not need to (and cannot, from here) tell the two apart.
 					if (pendingInitialStates) {
 						const initial = pendingInitialStates;
 						pendingInitialStates = null;
@@ -115,20 +117,23 @@ export async function setupListeners(): Promise<void> {
 			// Dispose both subscriptions and reset the projection — but do NOT
 			// wipe the cache. The old partition stays on disk so switching back
 			// paints instantly (design decision #3).
+			generation++;
 			stopStreams();
 			useArrowStore.getState().reset();
 		}
 		if (e.payload.status === 'ready') {
+			const myGeneration = generation;
 			// Self-sufficient: query the connection the Rust side actually has
 			// active right now, rather than trusting a `connection://changed`
 			// event that a switch does not currently emit (see the module doc
 			// comment above).
 			const { active_id } = await invoke<GetConnectionsResponse>('get_connections');
+			// A `starting` landed while the call above was in flight — this
+			// `ready` has been superseded (see the `generation` doc comment
+			// above). Its own streams were never started, so there is nothing
+			// to dispose; just drop the stale result.
+			if (generation !== myGeneration) return;
 			startStreams(active_id);
 		}
-	});
-
-	await listen<{ connections: ConnectionConfig[]; active_id: string }>('connection://changed', () => {
-		// Intentionally a no-op here — see the module doc comment above.
 	});
 }

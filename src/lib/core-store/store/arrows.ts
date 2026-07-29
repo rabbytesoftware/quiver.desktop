@@ -31,11 +31,11 @@ interface ArrowStore {
 	 * Seeds a namespace's INITIAL runtime state from the catalog GET's own
 	 * `versions[].state` (see `toInitialRuntimeUpdates` — neither stream
 	 * pushes anything on connect, so this is the only source of truth until
-	 * the first live transition). Unlike `applyRuntimeUpdate`, this is a
-	 * "set only if nothing is known yet" — it never overwrites an overlay
-	 * already established by a live `/v0/runtime` frame, so a reseed (whose
-	 * GET may lag behind an in-flight transition) can never stomp fresher
-	 * live data. Still requires the namespace to already be in the catalog,
+	 * the first live transition). Unlike `applyRuntimeUpdate`, this never
+	 * overwrites an overlay already established by a live `/v0/runtime`
+	 * frame — but a NEWER seed IS allowed to replace an OLDER seed's own
+	 * value (see the `liveNamespaces` comment below for why that distinction
+	 * matters). Still requires the namespace to already be in the catalog,
 	 * same invariant as `applyRuntimeUpdate`.
 	 */
 	seedInitialState: (update: RuntimeUpdate) => void;
@@ -59,16 +59,29 @@ function toEntry(record: ArrowCatalogRecord, overlay: RuntimeUpdate | undefined)
 	};
 }
 
-// Shared by applyRuntimeUpdate and seedInitialState: active_run is always
-// overwritten (null is meaningful — "nothing running right now"); last_return
-// falls back to what's already known when the update omits it, so a
-// state-only transition frame never wipes the last outcome from the UI.
-function patchOverlay(existing: ArrowEntry, update: RuntimeUpdate): ArrowEntry {
+// Resolves what an update means against what's already known, BEFORE it is
+// stored — not just what's applied to the entry. Storing the raw `update` in
+// `runtime` (rather than this resolved value) was fix round 1's bug: the
+// NEXT setCatalog re-derives every entry from `runtime` via toEntry, so a
+// raw update with `last_return: null` would re-wipe the very outcome
+// applyRuntimeUpdate had just preserved on the entry, the moment any catalog
+// frame (or reseed) arrived afterward — which `listeners/index.ts` triggers
+// on every entity-stream `onChange`, i.e. constantly.
+function resolveOverlay(existing: ArrowEntry, update: RuntimeUpdate): RuntimeUpdate {
 	return {
-		...existing,
+		namespace: update.namespace,
 		state: update.state,
 		active_run: update.active_run,
 		last_return: update.last_return ?? existing.last_return,
+	};
+}
+
+function patchOverlay(existing: ArrowEntry, overlay: RuntimeUpdate): ArrowEntry {
+	return {
+		...existing,
+		state: overlay.state,
+		active_run: overlay.active_run,
+		last_return: overlay.last_return,
 	};
 }
 
@@ -76,8 +89,23 @@ export const useArrowStore = create<ArrowStore>((set, get) => {
 	// In-memory only — runtime state is never persisted (design §5.4). Kept
 	// outside the reactive `arrows` map so setCatalog can consult a namespace's
 	// last-known runtime state without it having been part of the catalog
-	// payload that triggered the reseed.
+	// payload that triggered the reseed. Values are always the RESOLVED
+	// overlay (see resolveOverlay), never a raw, possibly-partial update.
 	let runtime = new Map<string, RuntimeUpdate>();
+	// Which namespaces' CURRENT `runtime` entry came from a live `/v0/runtime`
+	// frame (applyRuntimeUpdate) rather than a catalog seed (seedInitialState).
+	// The distinction matters for a narrow but real race: a reconnect sentinel
+	// arriving while the FIRST seed's GET is still in flight can make that
+	// seed's own onChange apply its (now superseded) state before the NEWER
+	// reseed's onChange ever runs — entity-stream's onChange fires even for a
+	// bailed/superseded seed. Without this set, seedInitialState's "don't
+	// downgrade an existing overlay" guard would see the older seed's value
+	// sitting in `runtime` and refuse the newer seed's fresher one, so stale
+	// would win permanently. A live delta must NEVER be downgraded by any
+	// seed; an older SEED's value may always be replaced by a newer one,
+	// since entity-stream's serial chain guarantees seed onChanges fire in
+	// generation order even when an earlier one was itself superseded.
+	let liveNamespaces = new Set<string>();
 
 	return {
 		arrows: new Map(),
@@ -94,7 +122,10 @@ export const useArrowStore = create<ArrowStore>((set, get) => {
 			// a namespace that's uninstalled then later reinstalled would inherit
 			// its previous life's stale overlay instead of a fresh seed.
 			for (const namespace of runtime.keys()) {
-				if (!stillPresent.has(namespace)) runtime.delete(namespace);
+				if (!stillPresent.has(namespace)) {
+					runtime.delete(namespace);
+					liveNamespaces.delete(namespace);
+				}
 			}
 			set({ arrows: next });
 		},
@@ -105,26 +136,31 @@ export const useArrowStore = create<ArrowStore>((set, get) => {
 			// will). Dropping the frame here is correct, not a bug — see the
 			// interface doc comment above.
 			if (!existing) return;
-			runtime = new Map(runtime).set(update.namespace, update);
+			const resolved = resolveOverlay(existing, update);
+			runtime = new Map(runtime).set(update.namespace, resolved);
+			liveNamespaces = new Set(liveNamespaces).add(update.namespace);
 			const next = new Map(get().arrows);
-			next.set(update.namespace, patchOverlay(existing, update));
+			next.set(update.namespace, patchOverlay(existing, resolved));
 			set({ arrows: next });
 		},
 
 		seedInitialState: (update) => {
 			const existing = get().arrows.get(update.namespace);
 			if (!existing) return;
-			// Already has live overlay data (from a prior seed or a `/v0/runtime`
-			// frame) — never downgrade it with a possibly-stale GET snapshot.
-			if (runtime.has(update.namespace)) return;
-			runtime = new Map(runtime).set(update.namespace, update);
+			// Never downgrade an overlay a LIVE `/v0/runtime` frame established.
+			// An older SEED's own value, in contrast, may always be replaced by a
+			// newer one — see the `liveNamespaces` comment above.
+			if (liveNamespaces.has(update.namespace)) return;
+			const resolved = resolveOverlay(existing, update);
+			runtime = new Map(runtime).set(update.namespace, resolved);
 			const next = new Map(get().arrows);
-			next.set(update.namespace, patchOverlay(existing, update));
+			next.set(update.namespace, patchOverlay(existing, resolved));
 			set({ arrows: next });
 		},
 
 		reset: () => {
 			runtime = new Map();
+			liveNamespaces = new Set();
 			set({ arrows: new Map() });
 		},
 	};

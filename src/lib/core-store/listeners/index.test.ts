@@ -66,7 +66,7 @@ const mockApiFetch = apiFetch as MockedFunction<typeof apiFetch>;
 const mockWsSubscribe = wsManager.subscribe as MockedFunction<typeof wsManager.subscribe>;
 const mockToRuntimeUpdate = toRuntimeUpdate as MockedFunction<typeof toRuntimeUpdate>;
 
-const handlers = new Map<string, (e: { payload: unknown }) => void>();
+const handlers = new Map<string, (e: { payload: unknown }) => Promise<void> | void>();
 
 async function emit(event: string, payload: unknown): Promise<void> {
 	const handler = handlers.get(event);
@@ -78,6 +78,14 @@ function runtimeSubscriber(): (d: unknown) => void {
 	const last = runtimeSubscribers[runtimeSubscribers.length - 1];
 	if (!last) throw new Error('runtime endpoint was never subscribed');
 	return last;
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>((r) => {
+		resolve = r;
+	});
+	return { promise, resolve };
 }
 
 const catalogRecord = (namespace: string) => ({
@@ -96,7 +104,7 @@ beforeEach(() => {
 	handlers.clear();
 	runtimeSubscribers.length = 0;
 	mockListen.mockImplementation((event: unknown, handler: unknown) => {
-		handlers.set(event as string, handler as (e: { payload: unknown }) => void);
+		handlers.set(event as string, handler as (e: { payload: unknown }) => Promise<void> | void);
 		return Promise.resolve(() => {});
 	});
 	mockSubscribeArrowStream.mockReturnValue(vi.fn());
@@ -111,10 +119,15 @@ beforeEach(() => {
 });
 
 describe('setupListeners', () => {
-	it('registers exactly core://status and connection://changed', async () => {
+	// connection://changed still exists (add/remove/rename emit it) but is
+	// consumed by @/lib/connection/listeners.ts, not here — see fix round 2's
+	// Minor: this module registered a no-op handler for it that only the OLD
+	// version of this test kept "alive". Registering nothing for it is the
+	// honest state of what this module now depends on.
+	it('registers exactly core://status', async () => {
 		await setupListeners();
 		const channels = mockListen.mock.calls.map((args) => args[0]);
-		expect(channels).toEqual(['core://status', 'connection://changed']);
+		expect(channels).toEqual(['core://status']);
 	});
 
 	it('wipes a stale cache before registering any listener', async () => {
@@ -125,11 +138,11 @@ describe('setupListeners', () => {
 		});
 		mockListen.mockImplementation((event: unknown, handler: unknown) => {
 			order.push(`listen:${event as string}`);
-			handlers.set(event as string, handler as (e: { payload: unknown }) => void);
+			handlers.set(event as string, handler as (e: { payload: unknown }) => Promise<void> | void);
 			return Promise.resolve(() => {});
 		});
 		await setupListeners();
-		expect(order).toEqual(['wipe', 'listen:core://status', 'listen:connection://changed']);
+		expect(order).toEqual(['wipe', 'listen:core://status']);
 	});
 
 	it('forwards the status payload to useStatusStore', async () => {
@@ -258,18 +271,10 @@ describe('setupListeners', () => {
 		expect(subscribeArrowStream).not.toHaveBeenCalled();
 	});
 
-	it('connection://changed alone (no ready yet) does not start streams', async () => {
-		await setupListeners();
-		await emit('connection://changed', { connections: [], active_id: 'remote-1' });
-		expect(subscribeArrowStream).not.toHaveBeenCalled();
-	});
-
 	// Review finding 2 (fix round 1): reproduces the REAL production sequence
 	// for a switch — ready -> starting -> ready, driven entirely by
 	// get_connections' active_id changing between calls, with NO
 	// connection://changed at all (which switch_connection does not emit).
-	// The old version of this test emitted connection://changed and relied on
-	// it, which does not reflect what Rust actually does on a switch.
 	it('restarts the stream against the new connection on a switch, without relying on connection://changed', async () => {
 		mockInvoke
 			.mockResolvedValueOnce({ connections: [], active_id: 'local' })
@@ -279,6 +284,46 @@ describe('setupListeners', () => {
 		await emit('core://status', { status: 'starting' });
 		await emit('core://status', { status: 'ready' });
 		expect(subscribeArrowStream).toHaveBeenLastCalledWith(expect.objectContaining({ connectionId: 'remote-1' }));
+	});
+
+	// Review finding 2 (fix round 2): Tauri does NOT serialize async event
+	// handlers, so a `starting` can land while an earlier `ready`'s own
+	// get_connections() call is still in flight. The `emit` helper above
+	// always awaits a handler before returning, which masks exactly this —
+	// so this test drives the two handler calls directly and interleaves them
+	// itself, without awaiting the first, to actually observe the race.
+	it('drops a resolved ready if a starting event superseded it while get_connections was in flight', async () => {
+		const gate = deferred<{ connections: never[]; active_id: string }>();
+		mockInvoke.mockReturnValueOnce(gate.promise);
+		await setupListeners();
+		const handler = handlers.get('core://status')!;
+
+		// Fire `ready` but do NOT await it — its get_connections() call is
+		// still pending.
+		const readyPromise = handler({ payload: { status: 'ready' } });
+		// Interleave `starting` before the ready's invoke ever settles.
+		await handler({ payload: { status: 'starting' } });
+		// Now let the superseded ready's invoke resolve.
+		gate.resolve({ connections: [], active_id: 'local' });
+		await readyPromise;
+
+		expect(subscribeArrowStream).not.toHaveBeenCalled();
+	});
+
+	it('still starts streams for a later, non-superseded ready after a dropped race', async () => {
+		const gate = deferred<{ connections: never[]; active_id: string }>();
+		mockInvoke.mockReturnValueOnce(gate.promise);
+		await setupListeners();
+		const handler = handlers.get('core://status')!;
+
+		const readyPromise = handler({ payload: { status: 'ready' } });
+		await handler({ payload: { status: 'starting' } });
+		gate.resolve({ connections: [], active_id: 'local' });
+		await readyPromise;
+
+		mockInvoke.mockResolvedValueOnce({ connections: [], active_id: 'remote-2' });
+		await emit('core://status', { status: 'ready' });
+		expect(subscribeArrowStream).toHaveBeenCalledWith(expect.objectContaining({ connectionId: 'remote-2' }));
 	});
 
 	it('applies runtime frames onto the store', async () => {

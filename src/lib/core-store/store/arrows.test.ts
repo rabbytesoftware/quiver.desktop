@@ -108,8 +108,21 @@ describe('applyRuntimeUpdate', () => {
 	// last_return of its own — it must not wipe the last known outcome from
 	// the UI. Deleted along with this behaviour during the original rewrite;
 	// restored per review finding 3 (fix round 1).
-	it('preserves the last known outcome when a later frame omits it', () => {
-		useArrowStore.getState().setCatalog([catalogRecord('a@1')]);
+	//
+	// Extended per fix round 2, breakage 1: the fix round 1 version of this
+	// test stopped at the applyRuntimeUpdate call above and never called
+	// setCatalog afterward. That let a real bug through — `runtime` stored
+	// the RAW update (last_return: null) rather than the MERGED result, so
+	// the very next setCatalog (which listeners/index.ts triggers on every
+	// entity-stream onChange, i.e. constantly) re-derived the entry from that
+	// raw update via toEntry and wiped the preserved outcome right back out.
+	// This extended version calls setCatalog after the state-only frame and
+	// re-asserts — it goes red against fix round 1's code (see the report's
+	// fix round 2 section for the before/after run) and green after storing
+	// the resolved overlay instead of the raw update.
+	it('preserves the last known outcome when a later frame omits it, including across a subsequent setCatalog', () => {
+		const rec = catalogRecord('a@1');
+		useArrowStore.getState().setCatalog([rec]);
 		useArrowStore.getState().applyRuntimeUpdate({
 			namespace: 'a@1',
 			state: 'ready',
@@ -119,6 +132,10 @@ describe('applyRuntimeUpdate', () => {
 		useArrowStore
 			.getState()
 			.applyRuntimeUpdate({ namespace: 'a@1', state: 'running', active_run: null, last_return: null });
+		expect(useArrowStore.getState().arrows.get('a@1')?.last_return?.outcome).toBe('success');
+		// The catalog stream reseeds constantly (every live frame, every
+		// reconnect) — the preserved outcome must survive it.
+		useArrowStore.getState().setCatalog([rec]);
 		expect(useArrowStore.getState().arrows.get('a@1')?.last_return?.outcome).toBe('success');
 	});
 
@@ -160,6 +177,29 @@ describe('seedInitialState', () => {
 			.getState()
 			.seedInitialState({ namespace: 'ghost@1', state: 'running', active_run: null, last_return: null });
 		expect(useArrowStore.getState().arrows.size).toBe(0);
+	});
+
+	// Fix round 2: a reconnect sentinel arriving while the FIRST seed's GET is
+	// still in flight can make entity-stream's onChange fire for that seed
+	// AFTER it has already been superseded (onChange runs even for a bailed
+	// seed — see entity-stream.ts). If seedInitialState refused ANY existing
+	// overlay regardless of its source, that older, now-stale seed's value
+	// would permanently block the newer, fresher reseed's own value from ever
+	// being applied — stale would win forever. A seed must be allowed to
+	// replace an OLDER SEED's value (only a live /v0/runtime delta is
+	// off-limits, per the test above) — entity-stream's serial chain
+	// guarantees seed onChanges always fire in generation order even when an
+	// earlier one was itself superseded, so "last seed wins" is always
+	// correct.
+	it('allows a newer seed to overwrite an older seed-derived state', () => {
+		useArrowStore.getState().setCatalog([catalogRecord('a@1')]);
+		useArrowStore
+			.getState()
+			.seedInitialState({ namespace: 'a@1', state: 'ready', active_run: null, last_return: null });
+		useArrowStore
+			.getState()
+			.seedInitialState({ namespace: 'a@1', state: 'running', active_run: null, last_return: null });
+		expect(useArrowStore.getState().arrows.get('a@1')?.state).toBe('running');
 	});
 });
 
