@@ -1,21 +1,11 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getDB, maybeWipeOnVersionChange, QUIVER_CACHE_VERSION, resetDB, wipeEntityCache } from './idb';
 
-// Environment shim, not part of the design under test: this Node/Vitest combo
-// ships a built-in global `localStorage` (Node's Web Storage API, unflagged)
-// that shadows jsdom's real implementation and is missing methods such as
-// `.clear()`. Vitest's jsdom environment skips copying a jsdom global that
-// already exists on `globalThis`, so without this every test below throws on
-// the very first `localStorage.clear()` call. Rebind to jsdom's own Storage.
-const jsdomWindow = (globalThis as unknown as { jsdom?: { window: { localStorage: Storage } } }).jsdom?.window;
-if (jsdomWindow) {
-	Object.defineProperty(globalThis, 'localStorage', {
-		get: () => jsdomWindow.localStorage,
-		configurable: true,
-	});
-}
+// The `localStorage` environment fix this file used to carry inline now lives
+// suite-wide at `src/__mocks__/setup-local-storage.ts`, wired in via
+// `vitest.config.ts`'s `setupFiles` — see that file for why it's needed.
 
 describe('idb', () => {
 	beforeEach(() => {
@@ -46,6 +36,33 @@ describe('idb', () => {
 		});
 		await wipeEntityCache();
 		expect(await db.getAll('quiver_arrows')).toEqual([]);
+	});
+
+	// Coverage-driven / review-driven: a prior mutation pass only exercised
+	// `wipeEntityCache` by deleting the `db.clear()` call outright, which also
+	// changes the happy-path result and so isn't a test of the `catch` at all.
+	// This makes the store itself throw so the *only* thing under test is
+	// whether the surrounding try/catch swallows it.
+	it('degrades to a no-op when clearing the store throws', async () => {
+		const db = await getDB();
+		await db.put('quiver_arrows', {
+			connectionId: 'local',
+			namespace: 'a@1',
+			name: 'a',
+			description: '',
+			tags: [],
+			icon: null,
+			banner: null,
+			version: '1',
+		});
+		const clearSpy = vi.spyOn(db, 'clear').mockRejectedValue(new Error('blocked'));
+		try {
+			await expect(wipeEntityCache()).resolves.toBeUndefined();
+			// Best-effort means "leave it alone on failure", not "clear anyway".
+			expect(await db.getAll('quiver_arrows')).toHaveLength(1);
+		} finally {
+			clearSpy.mockRestore();
+		}
 	});
 
 	// First run has no recorded version, so it must wipe — otherwise a cache
@@ -115,6 +132,50 @@ describe('idb', () => {
 		});
 		try {
 			await maybeWipeOnVersionChange();
+			expect(await db.getAll('quiver_arrows')).toEqual([]);
+		} finally {
+			Object.defineProperty(globalThis, 'localStorage', original);
+		}
+	});
+
+	// Coverage/review-driven: a prior mutation pass only exercised the
+	// version-compare `===`→`!==` flip, which tests the branch logic, not the
+	// `localStorage.setItem` catch. This forces a genuine mismatch (so the wipe
+	// must run) while `setItem` itself throws, isolating that the surrounding
+	// try/catch is what keeps the function resolving — "private mode — the
+	// wipe still ran", per the source comment.
+	it('still wipes even when localStorage.setItem throws', async () => {
+		const db = await getDB();
+		await db.put('quiver_arrows', {
+			connectionId: 'local',
+			namespace: 'a@1',
+			name: 'a',
+			description: '',
+			tags: [],
+			icon: null,
+			banner: null,
+			version: '1',
+		});
+		const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')!;
+		Object.defineProperty(globalThis, 'localStorage', {
+			value: {
+				getItem(): string | null {
+					return 'ancient';
+				},
+				setItem(): void {
+					throw new Error('QuotaExceededError');
+				},
+				removeItem(): void {},
+				clear(): void {},
+				key(): string | null {
+					return null;
+				},
+				length: 0,
+			} satisfies Storage,
+			configurable: true,
+		});
+		try {
+			await expect(maybeWipeOnVersionChange()).resolves.toBeUndefined();
 			expect(await db.getAll('quiver_arrows')).toEqual([]);
 		} finally {
 			Object.defineProperty(globalThis, 'localStorage', original);
