@@ -238,6 +238,95 @@ describe('setupListeners', () => {
 		await vi.waitFor(() => expect(useArrowStore.getState().arrows.get('a@1')?.state).toBe('running'));
 	});
 
+	// Fix round 3, R1: the generation counter added in round 2 guards the
+	// `ready` handler's own `get_connections` await, but a stream's ongoing
+	// `onChange` read is a SEPARATE, later async gap the counter didn't reach
+	// — the reviewer probed exactly this. Uses the same raw-handler,
+	// un-awaited, deferred-gate technique as round 2's ready/starting race
+	// test: `emit` always awaits a handler and cannot observe this.
+	it('drops a stale onChange read if a starting event lands while getArrowsFor is in flight', async () => {
+		const gate = deferred<Array<ReturnType<typeof catalogRecord>>>();
+		mockGetArrowsFor.mockReturnValueOnce(gate.promise);
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+		const opts = mockSubscribeArrowStream.mock.calls[0][0];
+
+		// Trigger onChange — its getArrowsFor() call is now pending on the gate.
+		const onChangePromise = opts.onChange?.();
+		// Interleave `starting` before the read resolves — this resets the store.
+		await emit('core://status', { status: 'starting' });
+		// Now let the stale read resolve, carrying the OLD connection's rows.
+		gate.resolve([catalogRecord('old-connection-arrow@1')]);
+		await onChangePromise;
+
+		expect(useArrowStore.getState().arrows.size).toBe(0);
+	});
+
+	// Fix round 3, R2: `pendingInitialStates` used to be a single slot that a
+	// seed() resolution overwrote wholesale and an onChange call consumed
+	// wholesale. If a reseed's GET resolves before an EARLIER onChange's own
+	// cache read completes, that earlier, stale-snapshot onChange would
+	// consume the NEWER seed's full state batch against its OLD catalog view
+	// — silently discarding the state for any namespace only the newer
+	// catalog knows about (here, b@1). Fixed by only ever removing entries an
+	// onChange call can actually see in what it just read, leaving the rest
+	// for the next onChange to pick up.
+	it("does not discard a newer seed's state for a namespace an earlier, stale onChange read cannot see yet", async () => {
+		mockApiFetch.mockResolvedValueOnce([
+			{
+				namespace: 'a',
+				name: 'a',
+				description: '',
+				tags: [],
+				versions: [{ ref: '1', version: '1', state: 'ready' }],
+			},
+		]);
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+		const opts = mockSubscribeArrowStream.mock.calls[0][0];
+		await opts.seed(); // pendingInitialStates now holds gen 1's [a@1: ready]
+
+		// gen 1's onChange begins; its own cache read is gated and, once it
+		// resolves, will reflect gen 1's catalog — a@1 only, no b@1 yet.
+		const gen1Read = deferred<Array<ReturnType<typeof catalogRecord>>>();
+		mockGetArrowsFor.mockReturnValueOnce(gen1Read.promise);
+		const gen1OnChange = opts.onChange?.();
+
+		// gen 2 (a reconnect reseed) resolves its OWN seed() BEFORE gen 1's
+		// read above ever settles, overwriting pendingInitialStates with the
+		// fresher full set — which now also includes b@1, a namespace gen 1
+		// never saw.
+		mockApiFetch.mockResolvedValueOnce([
+			{
+				namespace: 'a',
+				name: 'a',
+				description: '',
+				tags: [],
+				versions: [{ ref: '1', version: '1', state: 'ready' }],
+			},
+			{
+				namespace: 'b',
+				name: 'b',
+				description: '',
+				tags: [],
+				versions: [{ ref: '1', version: '1', state: 'running' }],
+			},
+		]);
+		await opts.seed();
+
+		// NOW let gen 1's stale read resolve — it can only see a@1.
+		gen1Read.resolve([catalogRecord('a@1')]);
+		await gen1OnChange;
+
+		// gen 2's own onChange finally runs, with a fresh read that DOES
+		// include b@1 — its seeded state must still be applicable here, not
+		// already thrown away by gen 1's earlier, stale consumption.
+		mockGetArrowsFor.mockResolvedValueOnce([catalogRecord('a@1'), catalogRecord('b@1')]);
+		await opts.onChange?.();
+
+		expect(useArrowStore.getState().arrows.get('b@1')?.state).toBe('running');
+	});
+
 	it('clears the projection and stops the arrow stream when core restarts', async () => {
 		const dispose = vi.fn();
 		mockSubscribeArrowStream.mockReturnValue(dispose);

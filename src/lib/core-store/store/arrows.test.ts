@@ -201,6 +201,34 @@ describe('seedInitialState', () => {
 			.seedInitialState({ namespace: 'a@1', state: 'running', active_run: null, last_return: null });
 		expect(useArrowStore.getState().arrows.get('a@1')?.state).toBe('running');
 	});
+
+	// Fix round 3, closing a test gap the reviewer found: fix round 2's
+	// "store the resolved overlay, not the raw update" fix (resolveOverlay)
+	// was applied to seedInitialState too, symmetrically with
+	// applyRuntimeUpdate — but no test exercised it there. In production this
+	// is unreachable (toInitialRuntimeUpdates always emits `last_return:
+	// null`, so seedInitialState never actually has an outcome of its own to
+	// preserve), but the STORE's own invariant — always store what's
+	// resolved, never the raw parameter — should hold regardless of what a
+	// caller passes, the same way it does for applyRuntimeUpdate. Mirrors
+	// that test's structure exactly, substituting seedInitialState (allowed
+	// to call twice in a row per the test above — no live overlay involved).
+	it('resolves the overlay before storing it for seedInitialState too, so a subsequent setCatalog does not wipe a preserved outcome', () => {
+		const rec = catalogRecord('a@1');
+		useArrowStore.getState().setCatalog([rec]);
+		useArrowStore.getState().seedInitialState({
+			namespace: 'a@1',
+			state: 'ready',
+			active_run: null,
+			last_return: { method: 'install', outcome: 'success' },
+		});
+		useArrowStore
+			.getState()
+			.seedInitialState({ namespace: 'a@1', state: 'running', active_run: null, last_return: null });
+		expect(useArrowStore.getState().arrows.get('a@1')?.last_return?.outcome).toBe('success');
+		useArrowStore.getState().setCatalog([rec]);
+		expect(useArrowStore.getState().arrows.get('a@1')?.last_return?.outcome).toBe('success');
+	});
 });
 
 describe('reset', () => {
