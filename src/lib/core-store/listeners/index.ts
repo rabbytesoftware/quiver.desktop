@@ -90,19 +90,33 @@ export async function setupListeners(): Promise<void> {
 		// renders as `'absent'` forever, since no transition frame is coming to
 		// correct it.
 		//
-		// A flat, mutable batch — NOT a single "pending or not" slot keyed to
-		// exactly one seed. `onChange` below only ever removes the entries whose
-		// namespace it can actually SEE in what it just read from the cache,
-		// leaving the rest for a later `onChange` call to pick up. This is what
-		// makes it safe against a reseed's GET resolving before an EARLIER
-		// onChange's own cache read completes: an earlier, stale-snapshot
-		// onChange can only ever consume states for namespaces it can observe,
-		// so it can never silently discard a namespace it hasn't seen yet — a
-		// later onChange, once its own read does see it, still applies it (fix
-		// round 3, R2). A single overwritten-and-cleared slot could not
-		// guarantee that: the reviewer's probe showed a namespace present only
-		// in the newer catalog having its seeded state discarded and rendering
-		// `'absent'` forever.
+		// Fix round 4, R2: this used to be a plain mutable slot that `onChange`
+		// partitioned in place (apply what's visible, retain the rest for a
+		// later `onChange`). That retained a batch FOREVER if its own seed
+		// bailed (nothing visible, nothing applied — entity-stream still fires
+		// onChange for a bailed seed) and the correcting reseed then also
+		// failed (a thrown seed() skips onChange entirely, so nothing ever
+		// clears it) — an unrelated namespace installed for the first time much
+		// later, sharing a name with something in the abandoned batch, would
+		// then be mispainted with that stale state. Fixed with IDENTITY: each
+		// seed() call produces a BRAND NEW array (never mutated in place), and
+		// `onChange` captures a reference to it SYNCHRONOUSLY, the instant
+		// entity-stream invokes `onChange` — which, by entity-stream's own
+		// chaining, is always immediately after THIS seed's own processing
+		// finished, bailed, or was about to throw. That capture point is the
+		// one and only `onChange` invocation this specific batch may ever be
+		// judged by:
+		//  - if `pendingInitialStates` no longer points at the captured
+		//    reference by the time this `onChange`'s own read resolves, a
+		//    NEWER seed has already produced its own batch — this one is stale
+		//    and is discarded outright, not partially applied (reapplying an
+		//    older snapshot over whatever the newer batch's own onChange has
+		//    since done would silently regress it);
+		//  - otherwise, whatever's visible in this read is applied, and the
+		//    slot is cleared — ALWAYS, win or lose, once per batch. A batch
+		//    whose own seed bailed sees nothing, applies nothing, and is
+		//    discarded right there; it can never resurface for a later,
+		//    unrelated onChange to misapply.
 		let pendingInitialStates: RuntimeUpdate[] = [];
 
 		// The ENTITY stream: complete catalog DTOs, authoritative, seeds and
@@ -114,24 +128,29 @@ export async function setupListeners(): Promise<void> {
 					pendingInitialStates = toInitialRuntimeUpdates(items);
 					return toArrowCatalogRecords(items, connectionId);
 				}),
-			onChange: () =>
-				getArrowsFor(connectionId).then((records) => {
+			onChange: () => {
+				const myBatch = pendingInitialStates;
+				return getArrowsFor(connectionId).then((records) => {
 					// A `starting` (and possibly a whole new `ready`) landed while
 					// this read was in flight for a connection that is no longer
 					// current — drop it rather than writing a defunct connection's
 					// rows back into the store after `reset()` already ran.
 					if (generation !== streamGeneration) return;
 					useArrowStore.getState().setCatalog(records);
-					if (pendingInitialStates.length === 0) return;
+					// See the long comment above `pendingInitialStates`: a batch
+					// that's no longer the current one belongs to a superseded
+					// seed and must not be applied at all, partially or otherwise.
+					if (pendingInitialStates !== myBatch) return;
+					if (myBatch.length === 0) return;
 					const visible = new Set(records.map((r) => r.namespace));
-					const applicable: RuntimeUpdate[] = [];
-					const stillPending: RuntimeUpdate[] = [];
-					for (const update of pendingInitialStates) {
-						(visible.has(update.namespace) ? applicable : stillPending).push(update);
-					}
-					pendingInitialStates = stillPending;
-					applicable.forEach((update) => useArrowStore.getState().seedInitialState(update));
-				}),
+					myBatch
+						.filter((update) => visible.has(update.namespace))
+						.forEach((update) => useArrowStore.getState().seedInitialState(update));
+					// One shot, always — whether this attempt saw everything,
+					// something, or nothing.
+					pendingInitialStates = [];
+				});
+			},
 		});
 
 		// The OVERLAY stream: patches state/active_run/last_return onto existing

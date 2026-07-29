@@ -262,15 +262,16 @@ describe('setupListeners', () => {
 		expect(useArrowStore.getState().arrows.size).toBe(0);
 	});
 
-	// Fix round 3, R2: `pendingInitialStates` used to be a single slot that a
-	// seed() resolution overwrote wholesale and an onChange call consumed
-	// wholesale. If a reseed's GET resolves before an EARLIER onChange's own
-	// cache read completes, that earlier, stale-snapshot onChange would
-	// consume the NEWER seed's full state batch against its OLD catalog view
-	// — silently discarding the state for any namespace only the newer
-	// catalog knows about (here, b@1). Fixed by only ever removing entries an
-	// onChange call can actually see in what it just read, leaving the rest
-	// for the next onChange to pick up.
+	// Originally fix round 3, R2 — re-run here per fix round 4's instruction
+	// to confirm the round-4 identity-based redesign has NOT reopened it: if
+	// a reseed's GET resolves before an EARLIER onChange's own cache read
+	// completes, that earlier, stale-snapshot onChange must not consume the
+	// NEWER seed's batch against its OLD catalog view and silently discard
+	// the state for a namespace only the newer catalog knows about (here,
+	// b@1). Under the round-4 design this holds because gen 1's `onChange`
+	// captured ITS OWN batch (gen 1's) by reference before gen 2's seed()
+	// ever ran, so it can only ever act on gen 1's data — it never sees, and
+	// so never discards, gen 2's.
 	it("does not discard a newer seed's state for a namespace an earlier, stale onChange read cannot see yet", async () => {
 		mockApiFetch.mockResolvedValueOnce([
 			{
@@ -325,6 +326,66 @@ describe('setupListeners', () => {
 		await opts.onChange?.();
 
 		expect(useArrowStore.getState().arrows.get('b@1')?.state).toBe('running');
+	});
+
+	// Fix round 4, R2: round 3's "retain what's not yet visible" design had
+	// no bound at all — a batch whose OWN seed bailed (nothing ever visible
+	// to apply against) survived indefinitely, waiting to be misapplied the
+	// moment ANY later onChange happened to reveal a matching namespace, for
+	// a completely unrelated reason. Reproduces the reviewer's exact 5-step
+	// scenario with real entity-stream/store semantics simulated through the
+	// mocked seed()/onChange() call sites this module actually exposes:
+	//  1. a reconnect sentinel lands mid-GET (simulated: nothing further —
+	//     the effect is what matters, not the WS trigger itself);
+	//  2. GET #1 resolves; the seed() closure sets its batch;
+	//  3. that seed's OWN applySeed bails (simulated directly: its onChange
+	//     fires against a COLD cache, i.e. nothing was ever written);
+	//  4. the correcting reseed (GET #2) fails outright — seed() rejects;
+	//  5. much later, one of the batch's namespaces (b@1) is installed for
+	//     the FIRST time via an ordinary live upsert — an onChange fires
+	//     with b@1 now genuinely present for an entirely unrelated reason.
+	// b@1 must be neutral ('absent'), not resurrect the abandoned batch's
+	// stale 'running' claim about a process that was never actually started.
+	it('discards a batch whose own seed bailed, even when the correcting reseed itself fails, rather than misapplying it to a namespace installed later', async () => {
+		mockApiFetch.mockResolvedValueOnce([
+			{
+				namespace: 'a',
+				name: 'a',
+				description: '',
+				tags: [],
+				versions: [{ ref: '1', version: '1', state: 'ready' }],
+			},
+			{
+				namespace: 'b',
+				name: 'b',
+				description: '',
+				tags: [],
+				versions: [{ ref: '1', version: '1', state: 'running' }],
+			},
+		]);
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+		const opts = mockSubscribeArrowStream.mock.calls[0][0];
+		await opts.seed(); // GET #1 resolves; batch = [a@1: ready, b@1: running]
+
+		// GET #1's own onChange fires against a cold cache: its applySeed
+		// bailed (superseded by a reconnect sentinel that landed while GET #1
+		// was in flight), so nothing was ever written for it — entity-stream
+		// still calls onChange even for a bailed seed.
+		mockGetArrowsFor.mockResolvedValueOnce([]);
+		await opts.onChange?.();
+
+		// The reseed meant to correct the superseded seed fails outright — a
+		// network blip. entity-stream never calls onChange for a thrown seed.
+		mockApiFetch.mockRejectedValueOnce(new Error('network blip'));
+		await expect(opts.seed()).rejects.toThrow('network blip');
+
+		// Much later, b@1 is installed for the FIRST time via an ordinary
+		// live catalog frame — completely unrelated to the abandoned batch.
+		mockGetArrowsFor.mockResolvedValueOnce([catalogRecord('b@1')]);
+		await opts.onChange?.();
+
+		expect(useArrowStore.getState().arrows.get('b@1')?.state).toBe('absent');
 	});
 
 	it('clears the projection and stops the arrow stream when core restarts', async () => {
