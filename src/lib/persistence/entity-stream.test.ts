@@ -162,19 +162,43 @@ describe('entity-stream', () => {
 	// A prior version of this test used a fixed setTimeout delay plus a fixed
 	// wall-clock wait before asserting; the margin between them was too tight
 	// (a 20ms delay racing a 40ms wait, both subject to real scheduler jitter)
-	// and broke in both directions under load. This version instead gates the
-	// upsert's own IDB write on a `deferred()` we control explicitly: the
-	// delete is free to run the moment it's dispatched, and we only release the
-	// upsert — then wait on ITS OWN completion promise, no timers — after both
-	// frames are already in flight. Deterministic regardless of machine speed.
+	// and broke in both directions under load.
+	//
+	// A SECOND prior version gated the upsert's own IDB write on a `deferred()`
+	// and then did `await upsertSettled`, where `upsertSettled` was a `let`
+	// the mock reassigned when invoked. That is subtly wrong: `await x` reads
+	// `x` ONCE, synchronously, before suspending — it does not re-read the
+	// binding later. Under the real (chained) implementation, `applyFrame` for
+	// the upsert frame is only invoked on a LATER microtask (queued via
+	// `applyChain.then(...)`), so at the moment the `await` evaluated `x` it
+	// was still the stale initial `Promise.resolve()` — an accidental no-op
+	// wait that only happened to pass because the subsequent `vi.waitFor` poll
+	// loop had enough real retries to catch up regardless. Under the mutant
+	// (fire-and-forget `applyFrame` call, invoked synchronously) that same
+	// staleness meant the test's very first `vi.waitFor` poll could land in the
+	// narrow window AFTER the delete resolved but BEFORE the resurrecting
+	// upsert did — and pass on an empty cache it never should have observed.
+	// Confirmed both effects by chronological instrumentation before fixing.
+	//
+	// This version doesn't read anything the mock produces until AFTER
+	// confirming the mock was actually invoked. `invoked` is a plain signal
+	// (deferred<void>, no payload — resolving a deferred WITH a promise as its
+	// value would itself auto-flatten per the Promise spec, reintroducing a
+	// different version of the same trap) that the mock resolves the moment it
+	// runs, before writing the real completion promise into `ref.settled`.
+	// `ref.settled` is only read AFTER `await invoked.promise`, by which point
+	// the write is guaranteed to have happened — unlike a `let` captured by
+	// the test body before the mock ever ran.
 	it('commits an upsert then a delete in arrival order', async () => {
 		const cacheMod = await import('./entity-cache');
 		const realUpsertArrow = cacheMod.upsertArrow;
 		const gate = deferred<void>();
-		let upsertSettled: Promise<void> = Promise.resolve();
+		const invoked = deferred<void>();
+		const ref: { settled: Promise<void> } = { settled: Promise.resolve() };
 		vi.spyOn(cacheMod, 'upsertArrow').mockImplementationOnce((r) => {
-			upsertSettled = gate.promise.then(() => realUpsertArrow(r));
-			return upsertSettled;
+			ref.settled = gate.promise.then(() => realUpsertArrow(r));
+			invoked.resolve();
+			return ref.settled;
 		});
 		const done = vi.fn();
 		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
@@ -182,7 +206,8 @@ describe('entity-stream', () => {
 		subscribers[0]({ event: 'upserted', namespace: 'x@1', name: 'x', description: '', tags: [] });
 		subscribers[0]({ event: 'removed', namespace: 'x@1' });
 		gate.resolve();
-		await upsertSettled;
+		await invoked.promise;
+		await ref.settled;
 		await vi.waitFor(async () => expect(await getArrowsFor('local')).toEqual([]));
 	});
 
