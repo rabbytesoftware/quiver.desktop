@@ -35,5 +35,6 @@ icons-compiler/build/
 
 # AI tooling artifacts — never commit
 docs/superpowers/
+.superpowers/
 
 coverage/
