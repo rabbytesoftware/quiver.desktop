@@ -371,7 +371,7 @@ sequenceDiagram
 
 That still is not enough on its own, because registration is asynchronous and the emit is not buffered (§2.2). So once registration completes, `setupListeners()` asks rather than waits: one `GET /v0/health`, and if the daemon answers, it adopts the running core — sets the status to `ready` and opens the streams — exactly as it would have on the event. This is what makes an already-running daemon (a previous run's orphaned sidecar, a developer's own `quiver daemon`) safe; without it a `ready` that lands before registration leaves the app empty forever, with a status store still reading `starting`.
 
-If a `core://status` arrives while that probe is in flight, the event wins and the probe stands down.
+If a `core://status` arrives while that probe is in flight, the event wins and the probe stands down — including while the event's own start is still in flight. A `ready` handler parked on the cache wipe or on `get_connections` has subscribed nothing yet, so "are there live subscriptions?" cannot answer for it; the probe therefore checks an explicit start-in-progress flag set before that first await, as well as the live-subscription slot and the generation counter (a `starting` means a `ready` for the new connection is on its way). The reverse order is not symmetric: a `ready` that lands while the probe is itself mid-start does start a second pair, and the teardown at the head of `startStreams` disposes the first — one extra `/v0/arrow` GET and WS pair in that narrow window, never a leak.
 
 ---
 

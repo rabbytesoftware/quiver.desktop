@@ -63,6 +63,14 @@ export async function setupListeners(): Promise<void> {
 	// across repeated calls (e.g. in tests).
 	let disposeArrowStream: (() => void) | null = null;
 	let disposeRuntimeStream: (() => void) | null = null;
+	// True from the instant a start attempt begins until it ends, win or lose.
+	// The disposer slots above only fill at the very END of `beginStreams`, so
+	// they say nothing about a start that is still parked on the cache wipe or
+	// on its own `get_connections` — and `adoptRunningCore` has to know about
+	// exactly that window, or it starts a second, duplicate pair for the same
+	// generation. Set SYNCHRONOUSLY, before `beginStreams`' first await, so no
+	// caller can observe the gap between entering it and the flag being true.
+	let startPending = false;
 	// Bumped on every `starting`. Tauri does NOT serialize async event
 	// handlers — a `starting` can land while an earlier `ready`'s own async
 	// work (its `get_connections` call, or a stream's own cache read below)
@@ -80,17 +88,23 @@ export async function setupListeners(): Promise<void> {
 	}
 
 	function startStreams(connectionId: string): void {
-		// Defensive, not required by any currently-reachable path: every
-		// CoreStatus::Ready is preceded by CoreStatus::Starting within the same
-		// Rust-side start() call, and manager.rs holds the `active` RwLock write
-		// guard across `guard.start(app).await`, serializing switches — so this
-		// function should never run twice without an intervening stopStreams()
-		// today. Calling it here anyway makes that structurally guaranteed
-		// rather than incidental, in case that Rust invariant ever changes. Free
-		// insurance; no test guards this specifically (fix round 3, R3) — the
-		// path is unreachable under the current Rust contract, and a test for
-		// an unreachable path would only assert the mock harness we built, not
-		// real behaviour.
+		// Load-bearing, not merely defensive: this function CAN run twice
+		// without an intervening stopStreams(). It has two callers, and only
+		// one of them stands down for the other. `adoptRunningCore` (the
+		// readiness probe) checks `startPending`/`disposeArrowStream` before it
+		// starts anything, so a `ready` event already under way wins — but the
+		// reverse is not guarded: a `ready` that lands while the PROBE is
+		// itself parked inside `beginStreams` runs straight through to here,
+		// and both starts then land on the same generation. Without this
+		// teardown the loser's arrow stream and WS subscription would stay
+		// live with their disposers overwritten and unreachable.
+		//
+		// Rust alone would not produce this: every CoreStatus::Ready is
+		// preceded by CoreStatus::Starting within the same start() call, and
+		// manager.rs holds the `active` RwLock write guard across
+		// `guard.start(app).await`, serializing switches — so two `ready`
+		// events cannot overlap. The probe is not a Rust event and is not
+		// serialized with them.
 		stopStreams();
 
 		// This stream's own identity, fixed at the moment it starts. `onChange`
@@ -187,18 +201,28 @@ export async function setupListeners(): Promise<void> {
 	// (design decision #4), and a `starting` that landed while this was in
 	// flight wins.
 	async function beginStreams(myGeneration: number): Promise<void> {
-		await wipeDone;
-		// Self-sufficient: query the connection the Rust side actually has
-		// active right now, rather than trusting a `connection://changed`
-		// event that a switch does not currently emit (see the module doc
-		// comment above).
-		const { active_id } = await invoke<GetConnectionsResponse>('get_connections');
-		// A `starting` landed while the calls above were in flight — this start
-		// has been superseded (see the `generation` doc comment above). Its own
-		// streams were never started, so there is nothing to dispose; just drop
-		// the stale result.
-		if (generation !== myGeneration) return;
-		startStreams(active_id);
+		// Before the first await, so `adoptRunningCore` can never catch this
+		// start in the window where it has begun but subscribed nothing yet.
+		// The `finally` is what keeps that from becoming a permanent stand-down:
+		// every exit — the superseded-generation return below, a rejected
+		// `get_connections`, and the ordinary success — clears it.
+		startPending = true;
+		try {
+			await wipeDone;
+			// Self-sufficient: query the connection the Rust side actually has
+			// active right now, rather than trusting a `connection://changed`
+			// event that a switch does not currently emit (see the module doc
+			// comment above).
+			const { active_id } = await invoke<GetConnectionsResponse>('get_connections');
+			// A `starting` landed while the calls above were in flight — this
+			// start has been superseded (see the `generation` doc comment
+			// above). Its own streams were never started, so there is nothing
+			// to dispose; just drop the stale result.
+			if (generation !== myGeneration) return;
+			startStreams(active_id);
+		} finally {
+			startPending = false;
+		}
 	}
 
 	/**
@@ -227,14 +251,29 @@ export async function setupListeners(): Promise<void> {
 	async function adoptRunningCore(): Promise<void> {
 		const myGeneration = generation;
 		if (!(await coreIsReachable())) return;
-		// The event beat the probe after all — either a `starting` landed (the
-		// channel is alive and a `ready` for the new connection is coming, so
-		// adopting now would start streams mid-restart), or a `ready` already
-		// started them (restarting would tear down a healthy pair for a needless
-		// WS reconnect and a duplicate catalog GET).
-		if (generation !== myGeneration || disposeArrowStream) return;
+		// The event beat the probe after all, in one of three ways:
+		//  - a `starting` landed (superseded generation): the channel is alive
+		//    and a `ready` for the new connection is coming, so adopting now
+		//    would start streams mid-restart;
+		//  - a `ready` is in `beginStreams` right now, parked on the cache wipe
+		//    or on its own `get_connections` (`startPending`). It has subscribed
+		//    nothing yet, so the disposer slot is still empty and cannot speak
+		//    for it — without this flag both routes would start a full pair for
+		//    the same generation, costing a duplicate `/v0/arrow` GET, a
+		//    duplicate `ws_open`+`ws_close` and a duplicate `get_connections`;
+		//  - a `ready` already finished starting them (`disposeArrowStream`):
+		//    restarting would tear down a healthy pair for a needless WS
+		//    reconnect and a duplicate catalog GET.
+		if (generation !== myGeneration || startPending || disposeArrowStream) return;
 		useStatusStore.getState().setStatus('ready');
-		await beginStreams(myGeneration);
+		// Caught here, unlike on the event route: `main.tsx` calls
+		// `setupListeners()` un-awaited and un-caught, so a rejected
+		// `get_connections` on this route would surface as an unhandled
+		// rejection during boot. Log it and leave the UI to the next
+		// `core://status`, which starts the streams the ordinary way.
+		await beginStreams(myGeneration).catch((err) => {
+			console.error('core-store: failed to adopt an already-running core', err);
+		});
 	}
 
 	await listen<{ status: ConnectionStatus }>('core://status', async (e) => {

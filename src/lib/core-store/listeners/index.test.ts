@@ -254,6 +254,62 @@ describe('setupListeners', () => {
 		expect(subscribeArrowStream).toHaveBeenCalledTimes(1);
 	});
 
+	// The test above can only observe a `ready` that has ALREADY finished:
+	// `emit` runs a handler to completion, so by the time the probe answers,
+	// `disposeArrowStream` is set and any disposer-slot check stands down. The
+	// dangerous case is the one in between — a `ready` still PARKED inside
+	// `beginStreams`, on the cache wipe or on its own `get_connections`. It has
+	// subscribed nothing yet, so the disposer slot is still empty and the probe
+	// cannot see it there; both routes then start a full pair for the same
+	// generation. Most likely on a first launch that runs the IDB clear, since
+	// both routes park on the same wipe and release together. The teardown at
+	// the head of `startStreams` keeps it from leaking, but the duplicate
+	// `/v0/arrow` GET, the duplicate `ws_open`+`ws_close` and the duplicate
+	// `get_connections` all still go out.
+	it('does not start a second pair of streams when the probe answers while a ready is still parked mid-start', async () => {
+		const connections = deferred<{ connections: never[]; active_id: string }>();
+		mockInvoke.mockReturnValueOnce(connections.promise);
+		const probe = deferred<boolean>();
+		mockCoreIsReachable.mockReturnValueOnce(probe.promise);
+
+		const setup = setupListeners();
+		await vi.waitFor(() => expect(handlers.has('core://status')).toBe(true));
+		const handler = handlers.get('core://status')!;
+
+		// Fire `ready` but do NOT await it: it is now parked inside
+		// `beginStreams`, past the wipe and pending on get_connections, with
+		// nothing subscribed yet.
+		const ready = handler({ payload: { status: 'ready' } });
+		await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+		expect(subscribeArrowStream).not.toHaveBeenCalled();
+
+		// Only now does the probe answer — it must see that in-flight start.
+		probe.resolve(true);
+		await setup;
+
+		connections.resolve({ connections: [], active_id: 'local' });
+		await ready;
+
+		expect(subscribeArrowStream).toHaveBeenCalledTimes(1);
+		expect(wsManager.subscribe).toHaveBeenCalledTimes(1);
+		expect(invoke).toHaveBeenCalledTimes(1);
+	});
+
+	// `setupListeners()` is called un-awaited and un-caught from main.tsx, so a
+	// rejection escaping it is an unhandled rejection at boot — and on the probe
+	// route it would leave the UI parked at `ready` with no data and no stream.
+	it('does not let a failing get_connections on the probe route escape setupListeners', async () => {
+		mockCoreIsReachable.mockResolvedValue(true);
+		mockInvoke.mockRejectedValueOnce(new Error('socket gone'));
+		const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		await expect(setupListeners()).resolves.toBeUndefined();
+
+		expect(logged).toHaveBeenCalled();
+		expect(subscribeArrowStream).not.toHaveBeenCalled();
+		logged.mockRestore();
+	});
+
 	// A `starting` seen during the probe means the event channel is alive and a
 	// `ready` for the NEW connection is on its way. Adopting here would start
 	// streams for a connection that is mid-restart, against whatever `active_id`
