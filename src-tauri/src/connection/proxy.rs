@@ -88,9 +88,22 @@ const PROXY_TIMEOUT: Duration = Duration::from_secs(300);
 /// Same constant, shortened under test. `tokio`'s `test-util` feature — needed
 /// to pause the clock and jump straight to a timer — is not enabled in this
 /// crate, so a real but tiny wait is the remaining option that costs the suite
-/// a few milliseconds instead of an actual five minutes.
+/// half a second instead of an actual five minutes.
+///
+/// It must stay ABOVE `http::CONNECT_TIMEOUT`, which is what ships (10s under
+/// 300s) and what `the_proxy_ceiling_stays_above_the_transports_connect_ceiling`
+/// pins. At the 20ms this used to be, that ordering was INVERTED under test —
+/// the proxy's ceiling sat below the transport's own connect ceiling, so a
+/// request to a dead port raced its connect failure against this timeout.
+/// Loopback refuses in microseconds on Unix and the failure always won; the
+/// Windows runner is slower than that, the timeout won, and two tests that
+/// assert on the marked 502 a connect failure produces saw the marked 504 of a
+/// proxy that gave up first. Above `CONNECT_TIMEOUT` there is no race left to
+/// lose: reqwest bounds the connect itself and reports the expiry as a connect
+/// error, so a dead port is a `TransportError::Connect` within 250ms on any
+/// platform, however slowly the network stack answers.
 #[cfg(test)]
-const PROXY_TIMEOUT: Duration = Duration::from_millis(20);
+const PROXY_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// Stamp the headers every response from this scheme must carry, whoever built
 /// it. `insert` rather than `append`: a daemon that sets its own
@@ -168,7 +181,8 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::connection::transport::http::HttpTransport;
+	use crate::connection::transport::http::{HttpTransport, CONNECT_TIMEOUT};
+	use crate::connection::transport::testing::drain_request;
 	use crate::connection::transport::{TransportError, WsStream};
 	use std::future::ready;
 	use tokio::io::AsyncWriteExt;
@@ -199,11 +213,17 @@ mod tests {
 		HttpTransport::new(format!("http://{addr}"), None)
 	}
 
+	/// A daemon that answers with the same canned bytes every time. It reads the
+	/// request before answering it, because a server that closes with the
+	/// request still unread closes ABORTIVELY — RST, not FIN — and on Windows
+	/// that reset discards the response it had already sent; see
+	/// `transport::testing::drain_request`.
 	async fn serving(raw: &'static str) -> HttpTransport {
 		let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
 		let addr = l.local_addr().unwrap();
 		tokio::spawn(async move {
 			while let Ok((mut s, _)) = l.accept().await {
+				drain_request(&mut s).await;
 				let _ = s.write_all(raw.as_bytes()).await;
 				let _ = s.shutdown().await;
 			}
@@ -267,6 +287,28 @@ mod tests {
 		assert!(
 			body.contains("connect failed"),
 			"a 502 must say why; got {body:?}"
+		);
+	}
+
+	/// The two tests above dial a real dead port, so each of them is a race
+	/// between the transport failing to connect and this proxy giving up — and
+	/// they only mean anything when the transport wins it. What ships orders the
+	/// two so it always does (connect 10s, proxy 300s); the cfg(test) pair used
+	/// to invert that ordering (connect 250ms, proxy 20ms), and inverted, the
+	/// winner is decided by how fast the platform refuses a loopback connect.
+	/// Unix refuses in microseconds and the tests passed; the Windows runner does
+	/// not, the proxy's timeout fired first, and both saw a marked 504 instead of
+	/// the marked 502 they assert on. Ordered, the proxy cannot get there first:
+	/// reqwest bounds the connect itself and reports the expiry as a connect
+	/// error, so the failure is a `TransportError::Connect` inside
+	/// `CONNECT_TIMEOUT` no matter what the stack does.
+	#[test]
+	fn the_proxy_ceiling_stays_above_the_transports_connect_ceiling() {
+		assert!(
+			PROXY_TIMEOUT > CONNECT_TIMEOUT,
+			"a proxy ceiling at or below the transport's connect ceiling ({PROXY_TIMEOUT:?} \
+			 vs {CONNECT_TIMEOUT:?}) turns every connect failure into a race the slower \
+			 platform loses: the proxy answers 504 for a daemon that was never reached"
 		);
 	}
 

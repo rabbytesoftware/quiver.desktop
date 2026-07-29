@@ -46,8 +46,12 @@ const SHIPPED_REQUEST_TIMEOUT: Duration = Duration::from_secs(330);
 /// that a test can still assert on the SHIPPED numbers while running against
 /// the millisecond stand-ins below — a `#[cfg(not(test))]` constant is
 /// invisible to the tests that most need to check it.
+///
+/// `CONNECT_TIMEOUT` is `pub(crate)` because `proxy`'s own ceiling has to stay
+/// ABOVE it — see `proxy::PROXY_TIMEOUT` — and a test can only pin that
+/// ordering against the real value.
 #[cfg(not(test))]
-const CONNECT_TIMEOUT: Duration = SHIPPED_CONNECT_TIMEOUT;
+pub(crate) const CONNECT_TIMEOUT: Duration = SHIPPED_CONNECT_TIMEOUT;
 #[cfg(not(test))]
 const REQUEST_TIMEOUT: Duration = SHIPPED_REQUEST_TIMEOUT;
 
@@ -57,7 +61,7 @@ const REQUEST_TIMEOUT: Duration = SHIPPED_REQUEST_TIMEOUT;
 /// for the same reason. The ordering that matters is preserved: connect is
 /// still well under the whole-request bound, so a test can tell which fired.
 #[cfg(test)]
-const CONNECT_TIMEOUT: Duration = Duration::from_millis(250);
+pub(crate) const CONNECT_TIMEOUT: Duration = Duration::from_millis(250);
 #[cfg(test)]
 const REQUEST_TIMEOUT: Duration = Duration::from_millis(750);
 
@@ -244,6 +248,7 @@ impl Transport for HttpTransport {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::connection::transport::testing::drain_request;
 	use tokio::io::{AsyncReadExt, AsyncWriteExt};
 	use tokio::net::TcpListener;
 
@@ -267,11 +272,18 @@ mod tests {
 
 	/// Promises more body than it sends, then hangs up — the only way to reach
 	/// the body-read error arm. (Moved here from the deleted remote/transport.rs.)
+	///
+	/// The hang-up has to be the CLEAN one a truncating server performs, which
+	/// is why the request is read first: see `drain_request`. Closing on top of
+	/// an unread request resets the connection instead, and then this fixture
+	/// proves nothing about a short body — the client fails on the reset before
+	/// it can notice the body was short.
 	async fn truncates_its_body(status: u16) -> HttpTransport {
 		let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
 		let addr = listener.local_addr().expect("addr");
 		tokio::spawn(async move {
 			while let Ok((mut sock, _)) = listener.accept().await {
+				drain_request(&mut sock).await;
 				let _ = sock
 					.write_all(
 						format!("HTTP/1.1 {status} X\r\nContent-Length: 64\r\n\r\nshort").as_bytes(),
@@ -283,11 +295,16 @@ mod tests {
 		HttpTransport::new(format!("tcp://{addr}"), None)
 	}
 
+	/// A peer that answers every request with the same canned bytes and then
+	/// closes. It reads the request first — a server that closes over an unread
+	/// request closes ABORTIVELY, and on Windows that RST takes the response
+	/// with it; see `drain_request`.
 	async fn serving(raw: &'static str) -> HttpTransport {
 		let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
 		let addr = listener.local_addr().expect("addr");
 		tokio::spawn(async move {
 			while let Ok((mut sock, _)) = listener.accept().await {
+				drain_request(&mut sock).await;
 				let _ = sock.write_all(raw.as_bytes()).await;
 				let _ = sock.shutdown().await;
 			}

@@ -732,23 +732,36 @@ mod tests {
 		let _serialised = crate::FD_TESTS.lock().await;
 
 		let (listener, transport) = listening().await;
-		// Resets the connection rather than closing it cleanly: after an RST both
-		// directions are dead, so our next write fails. A clean FIN would not do —
-		// writing to a half-closed socket succeeds, and the writer would never learn.
+		// The peer resets only when told to. It has to complete the upgrade
+		// first, and the RST has to come after WE have finished reading the
+		// upgrade's response: an RST does not merely close the connection, it
+		// also empties the receiving side's buffer, and on Windows that is
+		// enforced to the byte — the 101 the peer had already sent is thrown
+		// away with it and `open_bridge` fails at the handshake with
+		// WSAECONNRESET, before this test reaches the writer it is about. (Unix
+		// hands over bytes it has already buffered regardless, which is why the
+		// unsynchronised version only ever failed on the Windows runner.) The
+		// signal below is sent once `open_bridge` has returned, i.e. once the
+		// handshake is entirely in our hands and the only thing left for the
+		// socket to carry is the reset itself.
+		let (kill, killed) = oneshot::channel::<()>();
 		tokio::spawn(async move {
 			let (stream, _) = listener.accept().await.expect("accept");
 			// tokio deprecates `set_linger` because a NON-ZERO linger blocks the
 			// thread when the socket drops. Zero is the opposite: close returns
 			// immediately and sends the RST instead of a FIN, which is the only
-			// deterministic way to make our next write fail. The alternative —
-			// closing with unread data queued — depends on that data arriving
-			// first, which nothing here can observe.
+			// deterministic way to make our next write fail. A clean FIN would
+			// not do — writing to a half-closed socket succeeds, and the writer
+			// would never learn. The alternative — closing with unread data
+			// queued — depends on that data arriving first, which nothing here
+			// can observe.
 			#[allow(deprecated)]
 			stream.set_linger(Some(Duration::ZERO))
 				.expect("linger 0 makes close send an RST");
 			let ws = tokio_tungstenite::accept_async(stream)
 				.await
 				.expect("upgrade");
+			let _ = killed.await;
 			drop(ws);
 		});
 
@@ -762,6 +775,12 @@ mod tests {
 		)
 		.await
 		.unwrap();
+
+		// The upgrade is complete on both sides, so nothing is left in flight
+		// for the reset to destroy: from here it can only mean what this test
+		// says it means, which is that the socket is dead.
+		kill.send(())
+			.expect("the peer must still be holding the socket open");
 
 		let tx = manager
 			.sender("c1")
