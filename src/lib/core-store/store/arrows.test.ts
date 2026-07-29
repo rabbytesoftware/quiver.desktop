@@ -1,89 +1,100 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import type { ArrowEntry } from '@/domain/arrow';
-
 import { useArrowStore } from './arrows';
 
-const entry = (): ArrowEntry => ({
-	namespace: 'github.com/foo/bar@v1',
-	name: 'bar',
-	description: 'A bar arrow',
-	tags: ['cli'],
-	icon: null,
-	banner: null,
-	version: '1.0.0',
-	state: 'ready',
-	active_run: null,
-	last_return: null,
-});
+beforeEach(() => useArrowStore.getState().reset());
 
-beforeEach(() => useArrowStore.getState().resetArrows());
-
-describe('upsertArrow', () => {
-	it('adds a new entry', () => {
-		useArrowStore.getState().upsertArrow(entry());
-		expect(useArrowStore.getState().arrows.size).toBe(1);
+describe('setCatalog', () => {
+	it('projects catalog records with neutral runtime state', () => {
+		useArrowStore.getState().setCatalog([
+			{
+				connectionId: 'local',
+				namespace: 'a@1',
+				name: 'a',
+				description: '',
+				tags: [],
+				icon: null,
+				banner: null,
+				version: '1',
+			},
+		]);
+		const entry = useArrowStore.getState().arrows.get('a@1');
+		expect(entry?.state).toBe('absent');
+		expect(entry?.active_run).toBeNull();
 	});
 
-	it('overwrites an existing entry', () => {
-		useArrowStore.getState().upsertArrow(entry());
-		useArrowStore.getState().upsertArrow({ ...entry(), state: 'running' });
-		expect(useArrowStore.getState().arrows.get('github.com/foo/bar@v1')?.state).toBe('running');
-	});
-});
-
-describe('removeArrow', () => {
-	it('deletes by namespace', () => {
-		useArrowStore.getState().upsertArrow(entry());
-		useArrowStore.getState().removeArrow('github.com/foo/bar@v1');
-		expect(useArrowStore.getState().arrows.size).toBe(0);
+	// A re-seed after a reconnect replaces the set wholesale; a runtime overlay
+	// already applied must survive it, or every reconnect would blank the UI.
+	it('preserves runtime overlay for arrows still present', () => {
+		const rec = {
+			connectionId: 'local',
+			namespace: 'a@1',
+			name: 'a',
+			description: '',
+			tags: [],
+			icon: null,
+			banner: null,
+			version: '1',
+		};
+		useArrowStore.getState().setCatalog([rec]);
+		useArrowStore
+			.getState()
+			.applyRuntimeUpdate({ namespace: 'a@1', state: 'running', active_run: null, last_return: null });
+		useArrowStore.getState().setCatalog([rec]);
+		expect(useArrowStore.getState().arrows.get('a@1')?.state).toBe('running');
 	});
 });
 
 describe('applyRuntimeUpdate', () => {
-	it('patches state and runtime fields', () => {
-		useArrowStore.getState().upsertArrow(entry());
-		useArrowStore.getState().applyRuntimeUpdate({
-			namespace: 'github.com/foo/bar@v1',
-			state: 'running',
-			active_run: { method: 'execute', variables: {}, steps: [] },
-			last_return: null,
-		});
-		const e = useArrowStore.getState().arrows.get('github.com/foo/bar@v1')!;
-		expect(e.state).toBe('running');
-		expect(e.active_run?.method).toBe('execute');
+	// A cold start paints from cache. If runtime state came from disk it would
+	// claim "running" about a process the daemon may have killed hours ago.
+	it('overlays runtime state without touching catalog fields', () => {
+		useArrowStore.getState().setCatalog([
+			{
+				connectionId: 'local',
+				namespace: 'a@1',
+				name: 'nice name',
+				description: 'd',
+				tags: ['t'],
+				icon: 'i',
+				banner: null,
+				version: '1',
+			},
+		]);
+		useArrowStore
+			.getState()
+			.applyRuntimeUpdate({ namespace: 'a@1', state: 'running', active_run: null, last_return: null });
+		const entry = useArrowStore.getState().arrows.get('a@1');
+		expect(entry?.state).toBe('running');
+		expect(entry?.name).toBe('nice name');
+		expect(entry?.icon).toBe('i');
 	});
 
-	it('preserves existing last_return when update sends null', () => {
-		useArrowStore.getState().upsertArrow({
-			...entry(),
-			last_return: { method: 'execute', outcome: 'success' },
-		});
-		useArrowStore.getState().applyRuntimeUpdate({
-			namespace: 'github.com/foo/bar@v1',
-			state: 'ready',
-			active_run: null,
-			last_return: null,
-		});
-		const e = useArrowStore.getState().arrows.get('github.com/foo/bar@v1')!;
-		expect(e.last_return?.outcome).toBe('success');
-	});
-
-	it('is a no-op for unknown namespace', () => {
-		useArrowStore.getState().applyRuntimeUpdate({
-			namespace: 'unknown@v1',
-			state: 'running',
-			active_run: null,
-			last_return: null,
-		});
+	it('ignores a runtime update for an unknown arrow', () => {
+		useArrowStore
+			.getState()
+			.applyRuntimeUpdate({ namespace: 'ghost@1', state: 'running', active_run: null, last_return: null });
 		expect(useArrowStore.getState().arrows.size).toBe(0);
 	});
 });
 
-describe('resetArrows', () => {
-	it('clears the map', () => {
-		useArrowStore.getState().upsertArrow(entry());
-		useArrowStore.getState().resetArrows();
+describe('reset', () => {
+	// Switching connections must not leave the previous backend's arrows on
+	// screen while the new one seeds.
+	it('clears the projection', () => {
+		useArrowStore.getState().setCatalog([
+			{
+				connectionId: 'local',
+				namespace: 'a@1',
+				name: 'a',
+				description: '',
+				tags: [],
+				icon: null,
+				banner: null,
+				version: '1',
+			},
+		]);
+		useArrowStore.getState().reset();
 		expect(useArrowStore.getState().arrows.size).toBe(0);
 	});
 });
