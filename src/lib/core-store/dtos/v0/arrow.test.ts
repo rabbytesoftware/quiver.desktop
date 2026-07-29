@@ -1,64 +1,78 @@
 import { describe, it, expect } from 'vitest';
 
-import { toArrowListItems, type ArrowListResponseItemDTO } from './arrow';
+import { toArrowCatalogRecords } from './arrow';
 
-describe('toArrowListItems', () => {
-	it('maps slim fields from list response', () => {
-		const input: ArrowListResponseItemDTO[] = [
-			{
-				namespace: 'github.com/user/repo',
-				name: 'My Arrow',
-				description: 'A test arrow',
-				tags: ['cli'],
-				icon: 'https://example.com/icon.png',
-				banner: null,
-				versions: [{ ref: 'v1.0.0', version: '1.0.0', state: 'ready' }],
-			},
-		];
-		const result = toArrowListItems(input);
-		expect(result).toHaveLength(1);
-		expect(result[0].namespace).toBe('github.com/user/repo@v1.0.0');
-		expect(result[0].name).toBe('My Arrow');
-		expect(result[0].description).toBe('A test arrow');
-		expect(result[0].tags).toEqual(['cli']);
-		expect(result[0].icon).toBe('https://example.com/icon.png');
-		expect(result[0].banner).toBeNull();
-		expect(result[0].state).toBe('ready');
-		expect(result[0].active_run).toBeNull();
-		expect(result[0].last_return).toBeNull();
+describe('toArrowCatalogRecords', () => {
+	it('reads icon and banner from the nested media object', () => {
+		// stable-26.5.1 returns {"media":{"icon":"...","banner":"..."}}, NOT flat
+		// icon/banner. The flat DTO silently produced null for every arrow.
+		const records = toArrowCatalogRecords(
+			[
+				{
+					namespace: 'github.com/x/y',
+					name: 'y',
+					description: 'd',
+					tags: ['t'],
+					media: { icon: 'i.png', banner: 'b.png' },
+					versions: [
+						{ ref: '1.0.0', version: '1.0.0', state: 'ready', installed_at: '2026-05-09T21:26:59Z' },
+					],
+				},
+			],
+			'local'
+		);
+		expect(records[0].icon).toBe('i.png');
+		expect(records[0].banner).toBe('b.png');
 	});
 
-	it('defaults icon and banner to null when absent', () => {
-		const input: ArrowListResponseItemDTO[] = [
-			{
-				namespace: 'github.com/user/repo',
-				name: 'Arrow',
-				description: '',
-				tags: [],
-				versions: [{ ref: 'v1', version: '1.0.0', state: 'ready' }],
-			},
-		];
-		const result = toArrowListItems(input);
-		expect(result[0].icon).toBeNull();
-		expect(result[0].banner).toBeNull();
+	it('tolerates an absent media object', () => {
+		const records = toArrowCatalogRecords(
+			[
+				{
+					namespace: 'a',
+					name: 'a',
+					description: '',
+					tags: [],
+					versions: [{ ref: '1', version: '1', state: 'ready' }],
+				},
+			],
+			'local'
+		);
+		expect(records[0].icon).toBeNull();
 	});
 
-	it('expands multiple versions into separate entries', () => {
-		const input: ArrowListResponseItemDTO[] = [
-			{
-				namespace: 'github.com/user/repo',
-				name: 'Arrow',
-				description: '',
-				tags: [],
-				versions: [
-					{ ref: 'v1.0.0', version: '1.0.0', state: 'ready' },
-					{ ref: 'v2.0.0', version: '2.0.0', state: 'absent' },
-				],
-			},
-		];
-		const result = toArrowListItems(input);
-		expect(result).toHaveLength(2);
-		expect(result[0].namespace).toBe('github.com/user/repo@v1.0.0');
-		expect(result[1].namespace).toBe('github.com/user/repo@v2.0.0');
+	it('stamps every record with its connection', () => {
+		const records = toArrowCatalogRecords(
+			[
+				{
+					namespace: 'a',
+					name: 'a',
+					description: '',
+					tags: [],
+					versions: [{ ref: '1', version: '1', state: 'ready' }],
+				},
+			],
+			'remote-7'
+		);
+		expect(records[0].connectionId).toBe('remote-7');
+	});
+
+	it('produces one record per installed version', () => {
+		const records = toArrowCatalogRecords(
+			[
+				{
+					namespace: 'a',
+					name: 'a',
+					description: '',
+					tags: [],
+					versions: [
+						{ ref: '1', version: '1', state: 'ready' },
+						{ ref: '2', version: '2', state: 'absent' },
+					],
+				},
+			],
+			'local'
+		);
+		expect(records.map((r) => r.namespace)).toEqual(['a@1', 'a@2']);
 	});
 });
