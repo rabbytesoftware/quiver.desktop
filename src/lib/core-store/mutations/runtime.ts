@@ -1,18 +1,41 @@
 import { useMutation } from '@tanstack/react-query';
 
-import { invoke } from '@tauri-apps/api/core';
+import { apiFetch } from '@/lib/transport/api';
+
+interface RuntimeMethodInput {
+	namespace: string;
+	method: string;
+	variables?: Record<string, string>;
+}
+
+// POST /v0/runtime/:ns/:method — install/uninstall/stop/execute are all just
+// `:method` values (verified against stable-26.5.1).
+function runtimeMethod({ namespace, method, variables = {} }: RuntimeMethodInput): Promise<void> {
+	return apiFetch<void>(`/v0/runtime/${encodeURIComponent(namespace)}/${method}`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ variables }),
+	});
+}
 
 export function useInstall() {
 	return useMutation({
 		mutationFn: ({ namespace, variables = {} }: { namespace: string; variables?: Record<string, string> }) =>
-			invoke('install', { namespace, variables }),
+			runtimeMethod({ namespace, method: 'install', variables }),
 	});
 }
 
 export function useUninstall() {
 	return useMutation({
 		mutationFn: ({ namespace, variables = {} }: { namespace: string; variables?: Record<string, string> }) =>
-			invoke('uninstall', { namespace, variables }),
+			runtimeMethod({ namespace, method: 'uninstall', variables }),
+	});
+}
+
+export function useStop() {
+	return useMutation({
+		mutationFn: ({ namespace, variables = {} }: { namespace: string; variables?: Record<string, string> }) =>
+			runtimeMethod({ namespace, method: 'stop', variables }),
 	});
 }
 
@@ -26,12 +49,6 @@ export function useExecute() {
 			namespace: string;
 			method: string;
 			variables?: Record<string, string>;
-		}) => invoke('execute', { namespace, method, variables }),
-	});
-}
-
-export function useStop() {
-	return useMutation({
-		mutationFn: ({ namespace }: { namespace: string }) => invoke('stop', { namespace }),
+		}) => runtimeMethod({ namespace, method, variables }),
 	});
 }
