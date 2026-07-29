@@ -60,7 +60,22 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => v
 		if (frame.event === 'removed') {
 			return removeArrow(connectionId, frame.namespace);
 		}
-		return upsertArrow({ ...frame, connectionId } as unknown as ArrowCatalogRecord);
+		// Built explicitly, field by field — NOT `{ ...frame, connectionId }`. The
+		// wire envelope carries a transport field (`event`) that has no place in
+		// ArrowCatalogRecord; spreading it in would persist a stale `event:
+		// 'upserted'` into every cached row, invisible to tsc behind the cast a
+		// spread would otherwise need. Listing the catalog fields here makes the
+		// object literal itself an ArrowCatalogRecord, so there is nothing to cast.
+		return upsertArrow({
+			connectionId,
+			namespace: frame.namespace,
+			name: frame.name ?? '',
+			description: frame.description ?? '',
+			tags: frame.tags ?? [],
+			icon: frame.icon ?? null,
+			banner: frame.banner ?? null,
+			version: frame.version ?? '',
+		});
 	}
 
 	// Authoritative + atomic reseed: a GET is only a point-in-time snapshot, so
@@ -77,10 +92,18 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => v
 	// accidentally wipe.
 	async function applySeed(generation: number): Promise<void> {
 		const items = await seed();
-		// A newer reseed started while our GET was in flight; let it win.
+		// Fast path, not the guarantee: bail before the getArrowsFor read below if
+		// a newer reconnect already superseded us, saving a wasted IDB read on
+		// what is otherwise the common case. The identical check after that read
+		// (below) is the one actually load-bearing for "a superseded seed writes
+		// nothing" — nothing between the two checks can change disposed/generation,
+		// so this one is provably redundant with it, never the other way around.
 		if (disposed || generation !== seedGeneration) return;
 		const fresh = new Set(items.map((item) => item.namespace));
 		const cached = await getArrowsFor(connectionId);
+		// A newer reseed started while our GET (above) or this diff read was in
+		// flight; let it win. This is the check that must hold for a superseded
+		// seed to write nothing — see the fast-path comment above.
 		if (disposed || generation !== seedGeneration) return;
 		const namespacesToPrune: string[] = [];
 		for (const arrow of cached) {
@@ -130,10 +153,13 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => v
 			.then(() => {
 				if (!disposed) onChange?.();
 			})
-			// Absorb a failed frame apply so it can't poison the chain and freeze
-			// all later frames + reseeds for the session (see runSeed). Ordering is
-			// still preserved: a later frame only runs after this one's catch
-			// resolves.
+			// applyFrame itself cannot reject — removeArrow/upsertArrow are
+			// documented best-effort and swallow their own IDB errors. The
+			// realistic source here is the caller's own onChange throwing (a
+			// programming error, not a cache failure); absorb it so it can't
+			// poison the chain and freeze all later frames + reseeds for the
+			// session (see runSeed). Ordering is still preserved: a later frame
+			// only runs after this one's catch resolves.
 			.catch((err: unknown) => {
 				console.error(`entity-stream: frame apply failed for ${ARROW_ENDPOINT}`, err);
 			});

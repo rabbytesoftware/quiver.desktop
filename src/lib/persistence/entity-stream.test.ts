@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const subscribers: Array<(d: unknown) => void> = [];
 vi.mock('@/lib/transport/ws-manager', () => ({
@@ -48,11 +48,22 @@ describe('entity-stream', () => {
 		resetDB();
 	});
 
+	// A spy left in place after a failing assertion would otherwise leak into
+	// later tests — `restoreMocks` isn't set in vitest.config.ts, so this has
+	// to be explicit rather than relying on inline `spy.mockRestore()` calls
+	// that a thrown assertion would skip.
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it('seeds the cache before any frame arrives', async () => {
 		const done = vi.fn();
 		subscribeArrowStream({ connectionId: 'local', seed: async () => [rec('a@1')], onChange: done });
 		await vi.waitFor(() => expect(done).toHaveBeenCalled());
-		expect(await getArrowsFor('local')).toHaveLength(1);
+		// Full content, not just a row count: a seed that upserted a stub record
+		// (e.g. only `{ connectionId, namespace }`) would still pass a length
+		// check but silently drop every other catalog field.
+		expect(await getArrowsFor('local')).toEqual([rec('a@1')]);
 	});
 
 	// A GET is a point-in-time snapshot. An arrow deleted while the app was
@@ -88,8 +99,57 @@ describe('entity-stream', () => {
 		const done = vi.fn();
 		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
 		await vi.waitFor(() => expect(done).toHaveBeenCalled());
-		subscribers[0]({ event: 'upserted', namespace: 'new@1', name: 'new', description: '', tags: [] });
+		subscribers[0]({
+			event: 'upserted',
+			namespace: 'new@1',
+			name: 'New Arrow',
+			description: 'a description',
+			tags: ['a', 'b'],
+			icon: 'icon.png',
+			banner: 'banner.png',
+			version: '2',
+		});
 		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
+		// Exact keys, not `toMatchObject`: catches both a dropped catalog field
+		// AND a leaked transport field. `{ ...frame, connectionId }` would spread
+		// `event: 'upserted'` in alongside the 7 real catalog fields — a 9-key
+		// record `toEqual` would reject, since it fails on extra properties too.
+		expect(await getArrowsFor('local')).toEqual([
+			{
+				connectionId: 'local',
+				namespace: 'new@1',
+				name: 'New Arrow',
+				description: 'a description',
+				tags: ['a', 'b'],
+				icon: 'icon.png',
+				banner: 'banner.png',
+				version: '2',
+			},
+		]);
+	});
+
+	// Only `event` and `namespace` are wire-guaranteed on an 'upserted' frame
+	// (per the ArrowFrame doc comment); every other catalog field is optional
+	// and must default rather than persist `undefined`.
+	it('defaults the optional catalog fields on a minimal upsert frame', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'bare@1' });
+		await vi.waitFor(async () =>
+			expect(await getArrowsFor('local')).toEqual([
+				{
+					connectionId: 'local',
+					namespace: 'bare@1',
+					name: '',
+					description: '',
+					tags: [],
+					icon: null,
+					banner: null,
+					version: '',
+				},
+			])
+		);
 	});
 
 	// The H21 race: an upsert and a delete for one namespace, each on its own
@@ -99,25 +159,31 @@ describe('entity-stream', () => {
 	// Under a fast fake-indexeddb both operations settle in the same microtask
 	// tick regardless of chaining, so a plain dispatch never actually exposes
 	// the race (verified by mutation: removing the chain left this test green).
-	// The upsert's own IDB write is delayed here so the delete has every
-	// opportunity to commit first if arrival order isn't enforced — only the
-	// serial chain can still force it to lose that opportunity.
+	// A prior version of this test used a fixed setTimeout delay plus a fixed
+	// wall-clock wait before asserting; the margin between them was too tight
+	// (a 20ms delay racing a 40ms wait, both subject to real scheduler jitter)
+	// and broke in both directions under load. This version instead gates the
+	// upsert's own IDB write on a `deferred()` we control explicitly: the
+	// delete is free to run the moment it's dispatched, and we only release the
+	// upsert — then wait on ITS OWN completion promise, no timers — after both
+	// frames are already in flight. Deterministic regardless of machine speed.
 	it('commits an upsert then a delete in arrival order', async () => {
 		const cacheMod = await import('./entity-cache');
 		const realUpsertArrow = cacheMod.upsertArrow;
-		const spy = vi
-			.spyOn(cacheMod, 'upsertArrow')
-			.mockImplementationOnce((r) => new Promise((resolve) => setTimeout(() => resolve(realUpsertArrow(r)), 20)));
+		const gate = deferred<void>();
+		let upsertSettled: Promise<void> = Promise.resolve();
+		vi.spyOn(cacheMod, 'upsertArrow').mockImplementationOnce((r) => {
+			upsertSettled = gate.promise.then(() => realUpsertArrow(r));
+			return upsertSettled;
+		});
 		const done = vi.fn();
 		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
 		await vi.waitFor(() => expect(done).toHaveBeenCalled());
 		subscribers[0]({ event: 'upserted', namespace: 'x@1', name: 'x', description: '', tags: [] });
 		subscribers[0]({ event: 'removed', namespace: 'x@1' });
-		// Give the delayed upsert every chance to land before asserting, so this
-		// checks the settled final state rather than a lucky early poll.
-		await new Promise((r) => setTimeout(r, 40));
-		expect(await getArrowsFor('local')).toEqual([]);
-		spy.mockRestore();
+		gate.resolve();
+		await upsertSettled;
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toEqual([]));
 	});
 
 	it('reseeds on the reconnect sentinel', async () => {
@@ -177,7 +243,7 @@ describe('entity-stream', () => {
 	it('a seed superseded between its GET and its diff read still writes nothing', async () => {
 		const cacheMod = await import('./entity-cache');
 		const realGetArrowsFor = cacheMod.getArrowsFor;
-		const spy = vi.spyOn(cacheMod, 'getArrowsFor').mockImplementationOnce(async (id: string) => {
+		vi.spyOn(cacheMod, 'getArrowsFor').mockImplementationOnce(async (id: string) => {
 			subscribers[0]({ reconnected: true });
 			return realGetArrowsFor(id);
 		});
@@ -195,7 +261,6 @@ describe('entity-stream', () => {
 		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(2));
 		await new Promise((r) => setTimeout(r, 10));
 		expect(await getArrowsFor('local')).toEqual([]);
-		spy.mockRestore();
 
 		gen2.resolve([rec('b@1')]);
 		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
@@ -248,7 +313,7 @@ describe('entity-stream', () => {
 		const cacheMod = await import('./entity-cache');
 		const realUpsertArrow = cacheMod.upsertArrow;
 		let off: () => void = () => {};
-		const spy = vi.spyOn(cacheMod, 'upsertArrow').mockImplementationOnce(async (r) => {
+		vi.spyOn(cacheMod, 'upsertArrow').mockImplementationOnce(async (r) => {
 			off();
 			return realUpsertArrow(r);
 		});
@@ -258,7 +323,6 @@ describe('entity-stream', () => {
 		subscribers[0]({ event: 'upserted', namespace: 'x@1', name: 'x', description: '', tags: [] });
 		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
 		expect(onChange).toHaveBeenCalledTimes(1);
-		spy.mockRestore();
 	});
 
 	it('stops applying frames after dispose', async () => {
