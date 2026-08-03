@@ -2,20 +2,12 @@ import { useState } from 'react';
 
 import { useMockStore } from '@/lib/mock/store';
 
-/** How many clicks it takes. Enough to be intentional, few enough to describe over chat. */
 export const UNLOCK_CLICKS = 7;
 
 /**
- * The Developer tab's door in a release build.
- *
- * In dev the tab is simply always there. Shipped, it is hidden until this is
- * clicked seven times — the Android pattern, chosen because it has two
- * properties nothing else does: it cannot be found by accident, and it can be
- * described to someone over a support chat in one sentence.
- *
- * A keyboard chord would fail the second test (it collides with something on
- * one of three platforms), and a hidden URL would fail the first (a router
- * with a `/developer` route is one autocomplete away).
+ * The Developer tab's door in a release build; in dev the tab is always there.
+ * Seven taps because it cannot be found by accident and can still be described
+ * over a support chat in one sentence.
  */
 export function VersionUnlock() {
 	const unlocked = useMockStore((s) => s.devUnlocked);
@@ -42,9 +34,8 @@ export function VersionUnlock() {
 			>
 				Quiver {version}
 			</button>
-			{/* Silent until you are most of the way there. Announcing the countdown
-			    from the first click would make it discoverable by accident, which is
-			    the one thing this is for. */}
+			{/* Silent until most of the way there: a countdown from the first tap
+			    would make it discoverable by accident. */}
 			{!unlocked && clicks >= 3 && (
 				<span className="ml-2 text-[12px] text-ink-3">
 					{remaining} more {remaining === 1 ? 'tap' : 'taps'}…

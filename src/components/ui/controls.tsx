@@ -1,11 +1,4 @@
-// The Base UI controls the settings panels need, wearing this design's tokens.
-//
-// Adopted rather than hand-rolled because each one carries behaviour that is
-// tedious to get right and invisible when wrong: Switch owns the checkbox
-// semantics and the disabled/focus states; Select owns typeahead, roving focus
-// and the collision-aware positioner; Slider owns keyboard stepping and the
-// pointer-capture drag; NumberField owns the "type 1e9 into a number input"
-// problem. What is written here is only how they look.
+// Base UI, wearing this design's tokens. Only the look is written here.
 
 import { cn } from '@/lib/cn';
 
@@ -37,7 +30,9 @@ export function Switch({
 				'relative h-[18px] w-[32px] shrink-0 border border-line bg-field transition-colors',
 				'focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-ring',
 				'data-[checked]:border-fill data-[checked]:bg-fill',
-				'disabled:opacity-40'
+				// `data-disabled`, not `:disabled` — Base UI renders a span, which
+				// has no disabled attribute for the pseudo-class to match.
+				'data-[disabled]:opacity-40'
 			)}
 		>
 			<BaseSwitch.Thumb
@@ -71,9 +66,8 @@ export function Select<T extends string>({
 	'aria-label'?: string;
 }) {
 	return (
-		// `items` is what lets `Select.Value` render the LABEL rather than the
-		// raw value — without it the trigger shows `normal` where it should show
-		// `Normal`, and any value that is a slug shows the slug.
+		// `items` is what lets `Select.Value` render the label rather than the
+		// raw value.
 		<BaseSelect.Root items={options} value={value} onValueChange={(v) => onValueChange(v as T)}>
 			<BaseSelect.Trigger
 				aria-label={ariaLabel}
@@ -130,8 +124,7 @@ export function Slider({
 	return (
 		<BaseSlider.Root
 			value={value}
-			// Base UI hands back an array for range sliders and a number for single
-			// ones; normalising here keeps every caller on the number.
+			// Base UI hands back an array for range sliders, a number for single ones.
 			onValueChange={(next) => onValueChange(Array.isArray(next) ? (next[0] ?? 0) : next)}
 			min={min}
 			max={max}
@@ -178,7 +171,6 @@ export function NumberField({
 	return (
 		<BaseNumberField.Root
 			value={value}
-			// Clearing the field yields null, which must not become NaN downstream.
 			onValueChange={(next) => onValueChange(next ?? 0)}
 			min={min}
 			max={max}

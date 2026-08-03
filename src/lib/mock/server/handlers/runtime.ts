@@ -9,16 +9,10 @@ import type { Route } from '../router';
 
 const RUNTIME_ENDPOINT = '/v0/runtime';
 
-/** One step every 700ms — long enough to watch, short enough not to be a wait. */
 const STEP_MS = 700;
 
-/**
- * States from which a fresh run may start.
- *
- * The five transitional states are absent from this list on purpose, and it is
- * the same reason the UI offers no buttons in them: core has no cancel, so
- * there is nothing a second request could mean except corrupting the first.
- */
+/** The five transitional states are absent: core has no cancel, so a second
+ *  request could only corrupt the first. */
 const STARTABLE: ArrowState[] = ['absent', 'ready', 'running', 'outdated', 'detached', 'removed'];
 
 function pending(titles: string[]): StepProgress[] {
@@ -29,14 +23,7 @@ function push(world: MockWorld, arrow: MockArrow): void {
 	world.emitter.emit(RUNTIME_ENDPOINT, toRuntimeFrame(arrow));
 }
 
-/**
- * Walk `titles`, one step per tick, then land on `finalState`.
- *
- * The cancel handle goes into `world.cancels` BEFORE the first tick, because
- * the request that supersedes this one — an uninstall landing mid-install — is
- * handled synchronously and would otherwise find nothing to stop and let both
- * runs tick against the same arrow.
- */
+/** Walks `titles`, one step per tick, then lands on `finalState`. */
 function runSteps(
 	world: MockWorld,
 	arrow: MockArrow,
@@ -58,8 +45,8 @@ function runSteps(
 	let index = 0;
 	const stop = world.clock.every(STEP_MS, () => {
 		const run = arrow.active_run;
-		// The run was cancelled and cleared by a superseding request between
-		// ticks. Nothing to advance, and advancing anyway would resurrect it.
+		// Cleared by a superseding request between ticks; advancing would
+		// resurrect it.
 		if (!run) {
 			stop();
 			world.cancels.delete(key);
@@ -114,10 +101,8 @@ export const runtimeRoutes: Route[] = [
 
 			switch (req.params.verb) {
 				case 'install': {
-					// The 422 the Valheim fixture exists to produce. Core refuses an
-					// install with no target for the host platform, and the arrow page
-					// is supposed to say so BEFORE the button does — this is what it
-					// would hit if it did not.
+					// Core refuses an install with no target for the host platform. The
+					// arrow page is supposed to say so before the button gets here.
 					if (!arrow.targets.some((t) => t.platform === MOCK_HOST_PLATFORM)) {
 						return fail(
 							`arrow ${req.params.ns} declares no target for ${MOCK_HOST_PLATFORM} ` +
@@ -159,9 +144,7 @@ export const runtimeRoutes: Route[] = [
 					if (!method) {
 						return fail(`arrow ${req.params.ns} has no method ${name} for ${MOCK_HOST_PLATFORM}`, 404);
 					}
-					// `available_in` is the whole reason a method can be present and
-					// still unofferable. Core rejects the call; the UI is supposed to
-					// have greyed the button out long before this.
+					// A method can be present and still unofferable.
 					if (!method.available_in.includes(arrow.state as 'ready' | 'running')) {
 						return fail(
 							`method ${name} is available in ${method.available_in.join('/')}, not ${arrow.state}`,

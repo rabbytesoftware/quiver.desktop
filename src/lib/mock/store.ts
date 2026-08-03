@@ -5,13 +5,8 @@ import type { ScenarioName } from './world/types';
 
 export const MOCK_STORAGE_KEY = 'quiver.mock';
 
-/**
- * One key per route family, not per route.
- *
- * Finer than this and the Developer tab becomes a wall of sliders nobody reads;
- * coarser and "make search fail" also breaks the library, so you cannot tell
- * which empty state you are looking at.
- */
+/** One key per route family: finer is a wall of sliders, coarser and "make
+ *  search fail" also breaks the library. */
 export const FAULT_KEYS = [
 	'arrows',
 	'arrow-detail',
@@ -42,16 +37,14 @@ const NO_FAULTS: Record<FaultKey, number> = Object.fromEntries(FAULT_KEYS.map((k
 >;
 
 interface MockState {
-	// ── Persisted ────────────────────────────────────────────────────────────
+	// Persisted.
 	enabled: boolean;
 	scenario: ScenarioName;
 	faults: Record<FaultKey, number>;
-	/** Whether the Developer tab has been unlocked in a release build. */
+	/** Unlocked in a release build by the version tap. */
 	devUnlocked: boolean;
 
-	// ── Ephemeral, per session ───────────────────────────────────────────────
-	// Latency and error rate are things you turn on to watch one thing happen,
-	// not settings. Surviving a restart, they would be a mystery a week later.
+	// Ephemeral: things you turn on to watch one thing happen, not settings.
 	latency: number;
 	errorRate: number;
 	unreachable: boolean;
@@ -65,15 +58,7 @@ interface MockState {
 	resetChaos: () => void;
 	unlockDeveloper: () => void;
 
-	/**
-	 * Persist, then reload.
-	 *
-	 * Which backend is installed is resolved once at boot, before
-	 * `setupListeners` and before React renders, so there is no honest way to
-	 * swap it live: the streams are already open against the old one and the
-	 * cache is already seeded from it. Reloading is the truthful version of what
-	 * a live swap would have to do anyway.
-	 */
+	/** Persist, then reload — the backend is resolved once at boot. */
 	applyAndReload: (next: { enabled?: boolean; scenario?: ScenarioName }) => void;
 }
 
@@ -100,9 +85,8 @@ export const useMockStore = create<MockState>()(
 
 			applyAndReload: (next) => {
 				set(next);
-				// localStorage is synchronous and zustand/persist writes on `set`,
-				// so by the time this line runs the choice is already on disk and
-				// `readMockPreference` will see it on the way back up.
+				// persist writes synchronously on `set`, so the choice is already on
+				// disk by the time the reload reads it back.
 				window.location.reload();
 			},
 		}),

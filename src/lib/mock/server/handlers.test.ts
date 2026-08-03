@@ -1,7 +1,4 @@
-// The route surface, branch by branch — the refusals especially. What a mock
-// REFUSES is as load-bearing as what it serves: every one of these is a rule
-// quiver.core enforces, and a mock that quietly said yes would let the UI be
-// built against affordances the real daemon does not have.
+// The route surface, branch by branch — the refusals especially.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

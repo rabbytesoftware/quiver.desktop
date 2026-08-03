@@ -13,14 +13,9 @@ import { Section, SettingRow } from '../section';
 import { VersionUnlock } from '../version-unlock';
 
 /**
- * The first UI for five Rust commands that had none: `get_connections`,
- * `add_connection`, `remove_connection`, `switch_connection`,
- * `rename_connection`.
- *
- * Calls `invoke` directly rather than through the `Backend` seam, deliberately.
- * These are SHELL operations — they add a host to the keyring and to the Tauri
- * store — and they are meaningless against a fabricated daemon. Under the mock
- * they fail, and the panel says why instead of pretending to work.
+ * Calls `invoke` directly rather than through the `Backend` seam: these are
+ * shell operations against the keyring and the Tauri store, meaningless against
+ * a fabricated daemon. Under the mock they are disabled, and the panel says why.
  */
 export function ConnectionsSettings() {
 	const connections = useConnectionStore((s) => s.connections);
@@ -77,8 +72,7 @@ export function ConnectionsSettings() {
 								Switch
 							</Button>
 						)}
-						{/* The local daemon is not removable — `manager.rs` refuses it —
-						    so the button is absent rather than present and failing. */}
+						{/* `manager.rs` refuses to remove the local connection. */}
 						{connection.id !== LOCAL_CONNECTION_ID && (
 							<Button
 								disabled={busy || mockEnabled}

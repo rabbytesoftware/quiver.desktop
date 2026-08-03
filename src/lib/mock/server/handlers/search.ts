@@ -5,7 +5,6 @@ import { fail, ok } from '../envelope';
 import { toDiscoveryJobDTO, toSearchResultDTO } from '../projections';
 import type { Route } from '../router';
 
-/** How long a discovery pass takes before its providers have all answered. */
 const DISCOVER_MS = 1500;
 
 function matches(arrow: MockArrow, q: string): boolean {
@@ -25,8 +24,7 @@ export const searchRoutes: Route[] = [
 		fault: 'search',
 		handler: (req, world) => {
 			const q = req.query.get('q') ?? '';
-			// An empty query returns everything rather than nothing: the search
-			// screen opens before you have typed, and it should show the shelf.
+			// Empty query returns the whole shelf: the screen opens before you type.
 			const hits = [...world.arrows.values()].filter((a) => q === '' || matches(a, q));
 			return ok(hits.map(toSearchResultDTO));
 		},
@@ -40,9 +38,7 @@ export const searchRoutes: Route[] = [
 			const query = body.q ?? body.query ?? '';
 			const id = `job-${world.nextId()}`;
 
-			// Created RUNNING with no results, which is the state the UI has to be
-			// able to draw. A job that were born complete would make the pass
-			// unobservable and the progress affordance untestable.
+			// Born running with no results, so the pass is observable.
 			world.jobs.set(id, { id, status: 'running', query, providers: [], results: [] });
 
 			world.clock.after(DISCOVER_MS, () => {
@@ -50,10 +46,7 @@ export const searchRoutes: Route[] = [
 				if (!job) return;
 				const providers = providersFor(world.scenario);
 				const hits = [...world.arrows.values()].filter((a) => query === '' || matches(a, query));
-				// Only the hosts that actually answered contribute results. The
-				// refusing host reports its reason and a retry_after, and the count
-				// it did NOT return is precisely what must not be rendered as "no
-				// results" — it is "we did not ask successfully".
+				// Only hosts that answered contribute results.
 				const returnable = providers.filter((p) => p.ok).reduce((sum, p) => sum + p.returned, 0);
 				job.providers = providers;
 				job.results = hits.slice(0, returnable).map((a) => versioned(a));

@@ -1,12 +1,7 @@
-// The default world: a plausible library, plus — by construction — every state
-// and every failure the UI has a screen for.
-//
-// The failures are DATA, not knobs. Fault sliders can only force HTTP 500s, and
-// nothing interesting here is a 500: an arrow with no target for your platform
-// is a 422, a rate-limited provider is a 429 inside an otherwise-successful
-// discovery job, an unresolved collection member is a perfectly good 200. If
-// these were behind switches they would be off by default and the screens that
-// depend on them would rot unseen; as data they are exercised every session.
+// The default world. Failures are data rather than knobs, because none of the
+// interesting ones are 500s: no target for your platform is a 422, a
+// rate-limited provider is a 429 inside a successful job, an unresolved
+// collection member is a perfectly good 200.
 
 import type { MockArrow, MockCollection, MockProvider } from '../types';
 import {
@@ -26,7 +21,7 @@ import { DEMO_BANNER, DEMO_ICON } from './media';
 const NS = 'github.com/rabbyte';
 
 export const NORMAL_ARROWS: MockArrow[] = [
-	// ── The showcase. Media, variables, ports, a real method set. ──────────────
+	// The showcase: media, variables, ports, a real method set.
 	arrow({
 		namespace: `${NS}/minecraft`,
 		name: 'Minecraft Server',
@@ -50,9 +45,6 @@ export const NORMAL_ARROWS: MockArrow[] = [
 				values: ['peaceful', 'easy', 'normal', 'hard'],
 			}),
 			variable('ONLINE_MODE', 'Verify players against Mojang auth', 'boolean', { default: 'true' }),
-			// Sensitive is a DISPLAY hint only: core returns this value in
-			// last_return.variables as plaintext. The field is masked; the caption
-			// beside it must not claim the value is protected.
 			variable('RCON_PASSWORD', 'Password for remote console access', 'string', { sensitive: true }),
 		],
 		targets: [
@@ -76,8 +68,7 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		},
 	}),
 
-	// ── FAILURE: no target for the host platform. Install would 422; the page
-	//    has to say so before the button does. ─────────────────────────────────
+	// No target for the host platform — install would 422.
 	arrow({
 		namespace: `${NS}/valheim`,
 		name: 'Valheim Server',
@@ -96,7 +87,7 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		targets: [target(OTHER_PLATFORM, [method('start', 'Start the server', ['ready'], START_STEPS)])],
 	}),
 
-	// ── FAILURE: last install died at step 3 of 5. ────────────────────────────
+	// Last install died at step 3 of 5.
 	arrow({
 		namespace: `${NS}/factorio`,
 		name: 'Factorio Headless',
@@ -113,7 +104,7 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		},
 	}),
 
-	// ── A newer ref exists upstream. ──────────────────────────────────────────
+	// A newer ref exists upstream.
 	arrow({
 		namespace: `${NS}/terraria`,
 		name: 'Terraria Server',
@@ -125,7 +116,7 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		netbridge: [{ name: 'game', protocol: 'tcp', default: 7777, required: true }],
 	}),
 
-	// ── A PACKAGE: no methods at all, so no Run button may be offered. ────────
+	// A package: no methods at all, so no Run button may be offered.
 	arrow({
 		namespace: `${NS}/pixelmon-assets`,
 		name: 'Pixelmon Asset Pack',
@@ -139,7 +130,7 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		last_return: { method: 'install', outcome: 'success', variables: {}, steps: stepsAllDone(INSTALL_STEPS) },
 	}),
 
-	// ── The remaining seven states, so all eleven are reachable at once. ──────
+	// The remaining states, so all eleven are reachable at once.
 	arrow({
 		namespace: `${NS}/postgres`,
 		name: 'PostgreSQL',
@@ -230,7 +221,7 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		tags: ['media', 'service'],
 	}),
 
-	// ── Not in the library. Only reachable through search. ────────────────────
+	// Not in the library. Only reachable through search.
 	arrow({
 		namespace: `${NS}/mariadb`,
 		name: 'MariaDB',
@@ -287,9 +278,6 @@ export const NORMAL_COLLECTIONS: MockCollection[] = [
 			{ namespace: `${NS}/minecraft@v1.21.4`, resolved: true },
 			{ namespace: `${NS}/terraria@v1.4.4.9`, resolved: true },
 			{ namespace: `${NS}/factorio@v2.0.28`, resolved: true },
-			// FAILURE: a member that names an arrow the daemon cannot see. Not an
-			// error — the collection is fine, the member is not — and the detail
-			// screen has to distinguish the two.
 			{
 				namespace: `${NS}/ark-survival@v3.1.0`,
 				resolved: false,
@@ -312,13 +300,10 @@ export const NORMAL_COLLECTIONS: MockCollection[] = [
 ];
 
 /**
- * What a discovery pass reports.
- *
- * One host answers, one refuses. That second row is the entire reason
- * `GET /v0/search/discover/{job}` returns per-provider outcomes instead of a
- * flat result list: "GitHub rate-limited you, retry in 40s" and "there is
- * nothing called that" are opposite facts, and rendering the first as the
- * second is the single most misleading thing a search screen can do.
+ * One host answers, one refuses. That second row is why the job returns
+ * per-provider outcomes: "rate-limited, retry in 40s" and "nothing found" are
+ * opposite facts, and rendering the first as the second is the most misleading
+ * thing a search screen can do.
  */
 export const NORMAL_PROVIDERS: MockProvider[] = [
 	{ host: 'github.com', ok: true, returned: 4 },

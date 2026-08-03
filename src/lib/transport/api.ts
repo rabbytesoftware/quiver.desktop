@@ -1,18 +1,9 @@
-// Every HTTP call the app makes, over whichever backend is installed. Against
-// the real one that is the scheme handler the Rust proxy registers, which
-// resolves the ACTIVE connection per request — so nothing here knows or cares
-// whether the daemon is local, remote, or fabricated.
-//
-// What stays here is everything true of a quiver.core response regardless of
-// who produced it: the `{success,error,data}` envelope, the retry ladder, and
-// the proxy-vs-daemon distinction below. The mock inherits all of it, which is
-// why the seam is UNDER this module rather than around it — a mock that handed
-// back parsed DTOs would leave every line below untested.
+// Everything true of a quiver.core response regardless of which backend
+// produced it: the `{success,error,data}` envelope, the retry ladder, and the
+// proxy-vs-daemon distinction below.
 
 import { backend } from './backend';
 
-// Moved to live beside `realBackend`, which is the only code that can be wrong
-// about it, and re-exported because every existing caller still wants it here.
 export { apiBase } from './backend';
 
 /** Marks a response the Rust proxy generated rather than relayed. Mirrors
@@ -87,13 +78,9 @@ function isProxyFailure(res: Response): boolean {
  * `sidecar::wait_for_ready` asks on the Rust side.
  */
 export async function coreIsReachable(): Promise<boolean> {
-	// Issued OUTSIDE the catch, on purpose, and this is why `Backend.fetch` is
-	// documented as throwing SYNCHRONOUSLY when it has no origin. A missing API
-	// origin is a broken shell, not a daemon that is down, and swallowing it
-	// into `false` would file it under the app's ordinary "backend unavailable"
-	// state — the exact unexplainable failure `apiBase` exists to refuse. A
-	// backend that rejected instead would land inside the catch below and be
-	// silently reported as a daemon that simply is not up.
+	// Issued OUTSIDE the catch: a missing API origin is a broken shell, not a
+	// daemon that is down, and swallowing it into `false` would file it under
+	// "backend unavailable". This is why `Backend.fetch` throws synchronously.
 	const pending = backend().fetch('/v0/health');
 	try {
 		return (await pending).ok;
@@ -110,9 +97,6 @@ export async function apiFetch<T>(path: string, init?: RequestInit, retry: Retry
 	const sleep = retry.sleep ?? defaultSleep;
 
 	for (let attempt = 1; ; attempt++) {
-		// Resolved per attempt rather than hoisted: a backend is free to answer
-		// differently on a retry, which is exactly what a cold-starting daemon
-		// does — and what the mock's "daemon unreachable" fault imitates.
 		const res = await backend().fetch(path, init);
 
 		if (isProxyFailure(res) && attempt < maxAttempts) {

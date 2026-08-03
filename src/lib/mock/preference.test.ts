@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { readMockPreference } from './preference';
+import { mockForcedByEnv, readMockPreference } from './preference';
 import { MOCK_STORAGE_KEY } from './store';
 
 function write(state: unknown): void {
@@ -27,10 +27,7 @@ describe('readMockPreference', () => {
 		expect(readMockPreference().enabled).toBe(false);
 	});
 
-	// Every failure mode lands on OFF. This ships in release builds, where
-	// someone with a corrupt value may not know the flag exists and cannot reach
-	// the setting that would clear it — so a bad read must never be able to keep
-	// them out of their real library.
+	// Every failure mode lands on OFF.
 	it('is off when the stored value is not JSON', () => {
 		localStorage.setItem(MOCK_STORAGE_KEY, '{not json');
 		expect(readMockPreference().enabled).toBe(false);
@@ -63,5 +60,49 @@ describe('readMockPreference', () => {
 	it('falls back to normal when the scenario is not even a string', () => {
 		write({ enabled: true, scenario: 7 });
 		expect(readMockPreference().scenario).toBe('normal');
+	});
+});
+
+describe('VITE_QUIVER_MOCK', () => {
+	// Set by `make dev-mock`, so the app comes up fabricated on a machine that
+	// has never touched the setting.
+	it('forces the mock on even with nothing persisted', () => {
+		vi.stubEnv('VITE_QUIVER_MOCK', '1');
+		expect(mockForcedByEnv()).toBe(true);
+		expect(readMockPreference()).toEqual({ enabled: true, scenario: 'normal' });
+		vi.unstubAllEnvs();
+	});
+
+	it('accepts "true" as well as "1", and nothing else', () => {
+		vi.stubEnv('VITE_QUIVER_MOCK', 'true');
+		expect(mockForcedByEnv()).toBe(true);
+		vi.stubEnv('VITE_QUIVER_MOCK', '0');
+		expect(mockForcedByEnv()).toBe(false);
+		vi.unstubAllEnvs();
+	});
+
+	it('beats a persisted enabled:false', () => {
+		write({ enabled: false, scenario: 'empty' });
+		vi.stubEnv('VITE_QUIVER_MOCK', '1');
+		expect(readMockPreference().enabled).toBe(true);
+		vi.unstubAllEnvs();
+	});
+
+	it('takes the scenario from VITE_QUIVER_SCENARIO', () => {
+		vi.stubEnv('VITE_QUIVER_MOCK', '1');
+		vi.stubEnv('VITE_QUIVER_SCENARIO', 'extreme');
+		expect(readMockPreference().scenario).toBe('extreme');
+		vi.unstubAllEnvs();
+	});
+
+	it('falls back to normal for a scenario name it does not know', () => {
+		vi.stubEnv('VITE_QUIVER_MOCK', '1');
+		vi.stubEnv('VITE_QUIVER_SCENARIO', 'nonsense');
+		expect(readMockPreference().scenario).toBe('normal');
+		vi.unstubAllEnvs();
+	});
+
+	it('is off when unset', () => {
+		expect(mockForcedByEnv()).toBe(false);
 	});
 });

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { NumberField, Select, Slider, Switch } from '@/components/ui/controls';
 
+import { mockForcedByEnv } from '@/lib/mock/preference';
 import { FAULT_KEYS, FAULT_LABELS, useMockStore } from '@/lib/mock/store';
 import { SCENARIOS } from '@/lib/mock/world/scenarios';
 import type { ScenarioName } from '@/lib/mock/world/types';
@@ -25,8 +26,9 @@ export function DeveloperSettings() {
 	const resetChaos = useMockStore((s) => s.resetChaos);
 	const applyAndReload = useMockStore((s) => s.applyAndReload);
 
-	// Local until Apply, so the picker does not reload the app the instant you
-	// look at another option.
+	const forcedByEnv = mockForcedByEnv();
+
+	// Local until Apply, so browsing options does not reload the app.
 	const [pending, setPending] = useState<ScenarioName>(scenario);
 	const scenarioChanged = pending !== scenario;
 	const anyFault = FAULT_KEYS.some((k) => faults[k] > 0);
@@ -39,10 +41,17 @@ export function DeveloperSettings() {
 			>
 				<SettingRow
 					label="Use the mock server"
-					description="Turning this on or off reloads the app: which backend is in use is decided once at startup."
+					description={
+						forcedByEnv
+							? 'Forced on by VITE_QUIVER_MOCK for this run — started by `make dev-mock` or `make dev-web`. Restart without it to get the switch back.'
+							: 'Turning this on or off reloads the app: which backend is in use is decided once at startup.'
+					}
 				>
 					<Switch
-						checked={enabled}
+						checked={enabled || forcedByEnv}
+						// Left live it would write `enabled: false`, reload, and come
+						// straight back on because the environment still says so.
+						disabled={forcedByEnv}
 						onCheckedChange={(next) => applyAndReload({ enabled: next })}
 						aria-label="Use the mock server"
 					/>
@@ -66,9 +75,8 @@ export function DeveloperSettings() {
 				</SettingRow>
 			</Section>
 
-			{/* Everything below only has an effect while the mock is serving. Shown
-			    rather than hidden when it is off, so the tab does not appear to
-			    change shape depending on a switch three rows up — but said plainly. */}
+			{/* Shown rather than hidden when the mock is off, so the tab does not
+			    change shape depending on a switch three rows up. */}
 			<Section
 				title="Chaos"
 				description={

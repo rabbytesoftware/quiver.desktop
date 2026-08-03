@@ -1,7 +1,4 @@
-// The socket shim's contract with `wsManager`. Everything here is a behaviour
-// the manager was written against and would misbehave without — and each is
-// invisible in the app when broken, showing up only as a stream that silently
-// stops delivering.
+// The socket shim's contract with `wsManager`.
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -12,10 +9,7 @@ import { createSocketHub } from './socket';
 const flush = () => new Promise<void>((r) => queueMicrotask(r));
 
 describe('a mock socket', () => {
-	// The manager assigns onopen/onmessage/onclose on the line AFTER
-	// construction. A socket that announced itself open from its own
-	// constructor would fire into nulls, and the manager would never reset its
-	// reconnect backoff.
+	// The manager assigns onopen/onmessage/onclose on the line AFTER construction.
 	it('opens asynchronously, so the manager can attach handlers first', async () => {
 		const hub = createSocketHub();
 		const socket = hub.open('/v0/arrow');

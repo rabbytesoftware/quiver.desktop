@@ -9,21 +9,31 @@ export interface MockPreference {
 const OFF: MockPreference = { enabled: false, scenario: 'normal' };
 
 /**
- * Reads the same localStorage key `useMockStore` persists to, WITHOUT importing
- * the store's hydrated state.
+ * Set by `make dev-mock`. FORCES rather than seeds — the Developer tab disables
+ * the switch and says so, because a seeded flag would let the switch appear to
+ * work, reload, and come straight back on.
+ */
+export function mockForcedByEnv(): boolean {
+	const flag = import.meta.env.VITE_QUIVER_MOCK;
+	return flag === '1' || flag === 'true';
+}
+
+/**
+ * Reads the raw localStorage key rather than the store: this runs before React
+ * renders and before persist's rehydration is guaranteed to have settled.
  *
- * `main.tsx` has to choose a backend before `setupListeners` runs and before
- * React renders — earlier than any component could subscribe to a store, and
- * earlier than zustand/persist's own rehydration is guaranteed to have settled.
- * Parsing the raw value is the only reading available that early, and it is
- * exact: `persist` writes `{state, version}` as JSON to localStorage
- * synchronously, so what is on disk at boot is what was last set.
- *
- * Every failure mode lands on OFF, deliberately. A corrupt or half-written value
- * must not be able to keep someone from reaching their real library, and in a
- * release build — where this ships — they may not know the flag exists.
+ * Every failure mode lands on OFF — a corrupt value must not keep someone from
+ * reaching their real library.
  */
 export function readMockPreference(): MockPreference {
+	if (mockForcedByEnv()) {
+		const named = import.meta.env.VITE_QUIVER_SCENARIO;
+		return {
+			enabled: true,
+			scenario: SCENARIO_NAMES.includes(named as ScenarioName) ? (named as ScenarioName) : 'normal',
+		};
+	}
+
 	try {
 		const raw = localStorage.getItem(MOCK_STORAGE_KEY);
 		if (!raw) return OFF;
@@ -37,8 +47,6 @@ export function readMockPreference(): MockPreference {
 
 		return {
 			enabled: true,
-			// A scenario that no longer exists falls back rather than throwing —
-			// same reasoning as `getScenario`, one layer earlier.
 			scenario: SCENARIO_NAMES.includes(scenario as ScenarioName) ? (scenario as ScenarioName) : 'normal',
 		};
 	} catch {

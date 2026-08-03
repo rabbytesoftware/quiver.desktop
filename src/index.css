@@ -3,32 +3,10 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * FOURTEEN TOKENS, replacing the ~30 shadcn shipped with the scaffold.
- *
- * What went, and why:
- *
- *  --radius and its four derivatives. This design has zero corner radius
- *    everywhere, and a token whose only correct value is 0 is not a token — it
- *    is an invitation. Rounding one corner is how a hard-edged monochrome
- *    system quietly stops being one, and the cheapest way to make that
- *    impossible is to leave nothing to round with.
- *
- *  --chart-1..5. There are no charts, and these were five saturated hues in a
- *    palette that has none.
- *
- *  The eight semantic colours (--destructive/--info/--success/--warning and
- *    their foregrounds). State here is carried by a caption word and a
- *    provenance glyph, not by hue — an amber pill and a red pill read as the
- *    same grey pill, so encoding meaning in colour would encode it nowhere.
- *
- *  The eight --sidebar-* tokens. The rail is not a differently-coloured
- *    surface; it is the same surface with a different selection idiom.
- *
- * What replaced them: --background/--foreground became --ground/--ink because
- * "foreground" says where it sits, not what it is; --muted-foreground split
- * into --ink-2 and --ink-3, which the old single token could not express and
- * every caption line needs; and --card/--popover/--secondary/--accent collapsed
- * into one --plate, since they were four names for the same raised surface.
+ * Fourteen tokens, replacing the ~30 shadcn shipped with the scaffold. There is
+ * no --radius: this design has zero corner radius everywhere, and a token whose
+ * only correct value is 0 is an invitation. State is carried by a caption word
+ * and a glyph rather than by hue, so the semantic colours went too.
  */
 @theme inline {
 	--color-ground: var(--ground);
@@ -55,12 +33,8 @@
 	}
 }
 
-/*
- * Light mode is BUILT but unproven — no screen has been reviewed in it. It is
- * here so that every component is written against tokens rather than against
- * dark values, which is the part that would be expensive to retrofit; the
- * values themselves are expected to move.
- */
+/* Built but unproven — no screen has been reviewed in light mode. It exists so
+ * components are written against tokens rather than dark values. */
 :root {
 	--ground: oklch(0.98 0 0);
 	--ink: oklch(0.18 0 0);
@@ -97,7 +71,6 @@
 
 @layer base {
 	* {
-		/* Zero, everywhere, with no token to override it from. */
 		border-radius: 0;
 		border-color: var(--line);
 		@apply outline-ring/50;
@@ -106,13 +79,11 @@
 	html,
 	body {
 		height: 100%;
-		/* Transparent, not --ground: the macOS window is vibrant, and painting an
-		   opaque background here is what kills the vibrancy. The app's own root
-		   element carries the colour. */
+		/* Transparent, not --ground: an opaque background here kills the macOS
+		   window vibrancy. The app's root element carries the colour. */
 		background: transparent;
 		color: var(--ink);
-		/* 13px. The whole scale is built on it — 26px buttons, 30px rail rows,
-		   34px chrome — so moving it moves everything, which is the point. */
+		/* The whole scale is built on this: 26px buttons, 30px rail rows. */
 		font-size: 13px;
 		-webkit-font-smoothing: antialiased;
 	}

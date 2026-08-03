@@ -1,17 +1,6 @@
 // The mock driving the REAL data layer, end to end.
-//
-// Everything else in this suite tests the mock in isolation. This one wires it
-// to `setupListeners` — the actual startup path, with its generation counter,
-// its cache seed, its entity stream and its Zustand projection — because the
-// bugs that matter here live in the seam between them, and neither side's own
-// tests can see them: the mock's pass with no store attached, and the store's
-// pass against a hand-written stub that never has to boot.
 
-// jsdom ships no IndexedDB, and this suite goes through the real cache. Without
-// it every `getArrowsFor` falls through `entity-cache`'s best-effort catch and
-// answers `[]` — so the projection comes out empty for a reason that has
-// nothing to do with the code under test. Imported per-file because that is
-// this repo's convention; it is not in `setupFiles`.
+// jsdom ships no IndexedDB, and this suite goes through the real cache.
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -50,11 +39,7 @@ async function boot() {
 	const { apiFetch } = await import('@/lib/transport/api');
 
 	await setupListeners();
-	// REAL timers here, deliberately. The seed round-trips through IndexedDB,
-	// and `fake-indexeddb` drives its transactions on the macrotask queue —
-	// under fake timers those never run, `getArrowsFor` answers [] from its own
-	// best-effort catch, and the projection ends up empty for a reason that has
-	// nothing to do with the code under test. Costs the mock's 400ms boot.
+	// REAL timers here, deliberately.
 	await realDelay(700);
 
 	return { useArrowStore, useStatusStore, apiFetch };
@@ -118,11 +103,7 @@ describe('a live install, through the whole stack', () => {
 		const ns = 'github.com/rabbyte/postgres@v17.2';
 		mock.world.arrows.get(ns)!.state = 'absent';
 
-		// Fake timers only from HERE. The install's step timeline is pure
-		// in-memory state plus `/v0/runtime` frames — it never touches the cache,
-		// so freezing the clock now cannot starve IndexedDB the way it would
-		// during the seed above. Four and a bit seconds of wall clock become
-		// instant.
+		// Fake timers only from HERE.
 		vi.useFakeTimers();
 
 		await apiFetch(`/v0/runtime/${encodeURIComponent(ns)}/install`, { method: 'POST' });

@@ -8,10 +8,6 @@ interface Channel {
 	reconnectDelay: number;
 }
 
-// Which socket implementation this is belongs to the backend, not here. This
-// module's whole job is reconnect/fan-out policy, and that policy is identical
-// whether the frames come off a unix socket via the Rust bridge or out of an
-// in-memory world.
 function createTransport(endpoint: string): SocketLike {
 	return backend().openSocket(endpoint);
 }

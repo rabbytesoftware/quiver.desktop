@@ -16,10 +16,8 @@ export const collectionRoutes: Route[] = [
 		handler: (req, world) => {
 			const collection = world.collections.get(req.params.ns);
 			if (!collection) return fail(`collection ${req.params.ns} not found`, 404);
-			// Members carry their own `resolved` flag rather than being filtered
-			// out. A collection naming an arrow the daemon cannot see is not a
-			// broken collection, and silently dropping the row would turn a
-			// four-arrow pack into a three-arrow one with no explanation.
+			// Unresolved members are flagged, not filtered: dropping the row would
+			// turn a four-arrow pack into a three-arrow one with no explanation.
 			return ok(toCollectionDetailDTO(collection));
 		},
 	},

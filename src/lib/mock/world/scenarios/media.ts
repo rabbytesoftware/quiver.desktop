@@ -1,22 +1,15 @@
-// Two images, drawn rather than shipped.
+// Drawn rather than shipped: the mock is in release builds, so a pair of PNGs
+// at the real dimensions would be tens of kilobytes every user downloads.
 //
-// The mock is in release builds, so every fixture byte is a byte every user
-// downloads. A pair of PNGs at the real dimensions would be tens of kilobytes
-// for something only a developer ever sees; these are a few hundred bytes each
-// and exercise the same code path — `<img src>` with a non-null value, which is
-// all the media branch of the UI actually distinguishes.
-//
-// Most arrows here declare NO media, which is not laziness: all eleven demo
-// manifests in quiver.core/docs/templates/demo declare none either, so the
-// Monogram/Plate fallback is the common case in reality and deserves to be the
-// common case on screen.
+// Most arrows here declare no media on purpose — all eleven demo manifests in
+// quiver.core/docs/templates/demo declare none either.
 
 function dataUri(width: number, height: number, body: string): string {
 	const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">${body}</svg>`;
 	return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-/** Square, 512×512 — the icon shape an arrow manifest declares. */
+/** 512×512, the icon shape a manifest declares. */
 export const DEMO_ICON = dataUri(
 	512,
 	512,
@@ -25,10 +18,7 @@ export const DEMO_ICON = dataUri(
 		'<circle cx="256" cy="300" r="36" fill="#eee"/>'
 );
 
-/**
- * 2:1 at 1200×600 — the banner ratio this design settled on, with the subject
- * inside the middle 60% so a crop to any narrower column keeps it.
- */
+/** 2:1 at 1200×600, subject inside the middle 60% so a narrower crop keeps it. */
 export const DEMO_BANNER = dataUri(
 	1200,
 	600,

@@ -1,7 +1,7 @@
 import { type FaultKey, useMockStore } from '../store';
 import { fail, unreachable } from './envelope';
 
-/** Injectable so tests are deterministic. Crowbar's equivalent calls Math.random() inline. */
+/** Injectable so tests are deterministic. */
 export type Rng = () => number;
 
 export interface ChaosSettings {
@@ -23,17 +23,11 @@ export function shouldFault(key: FaultKey, rng: Rng = Math.random, settings = cu
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Everything that can go wrong before a handler is even consulted, in the order
- * a real stack would hit it.
- *
- * Unreachable comes FIRST and is not a probability: a daemon that is down is
- * down for every request, and expressing it as a 100% error rate would produce
- * daemon-shaped 500s instead — a completely different failure the app is
- * supposed to distinguish. This one carries the proxy marker, so `apiFetch`
- * retries it eight times with backoff and the app lands on Disconnected the
- * same way it would against a real dead socket.
- *
  * Returns the response to send, or null to let the route run.
+ *
+ * Unreachable is checked first and is not a probability: a daemon that is down
+ * is down for every request, and expressing it as a 100% error rate would
+ * produce daemon-shaped 500s — a different failure the app must distinguish.
  */
 export async function applyChaos(key: FaultKey, rng: Rng = Math.random): Promise<Response | null> {
 	const settings = currentSettings();

@@ -15,17 +15,8 @@ interface TabItem {
 	label: string;
 }
 
-/**
- * Which tabs exist right now.
- *
- * Two, not six. `Appearance` waits until the light theme has been reviewed on a
- * real screen, and everything else the app will eventually want to configure
- * does not exist yet — a settings dialog full of placeholder panels is worse
- * than a small one.
- *
- * Developer is unconditional in dev and gated behind the version-tap unlock in
- * a release build, per `VersionUnlock`.
- */
+/** Developer is unconditional in dev, and behind the version-tap unlock in a
+ *  release build. */
 export function visibleTabs(devUnlocked: boolean): TabItem[] {
 	const tabs: TabItem[] = [{ id: 'connections', label: 'Connections' }];
 	if (import.meta.env.DEV || devUnlocked) tabs.push({ id: 'developer', label: 'Developer' });
@@ -42,8 +33,7 @@ export function SettingsDialog() {
 	const devUnlocked = useMockStore((s) => s.devUnlocked);
 
 	const tabs = visibleTabs(devUnlocked);
-	// The unlock can be revoked by a build change (dev → release), so a
-	// persisted `tab: 'developer'` can name a tab that is no longer there.
+	// A dev → release build change can leave `tab` naming a tab that is gone.
 	const activeTab = tabs.some((t) => t.id === tab) ? tab : tabs[0].id;
 
 	return (
@@ -81,9 +71,7 @@ export function SettingsDialog() {
 						orientation="vertical"
 						className="flex min-h-0 flex-1"
 					>
-						{/* 208px, the same width as the app's own rail — the dialog is not
-						    a different piece of software. Base UI owns the roving tabindex
-						    and the arrow/Home/End keys that Crowbar hand-rolls. */}
+						{/* Base UI owns the roving tabindex and the arrow/Home/End keys. */}
 						<Tabs.List className="flex w-[208px] shrink-0 flex-col gap-px border-r border-line p-2">
 							{tabs.map((item) => (
 								<Tabs.Tab
@@ -92,12 +80,8 @@ export function SettingsDialog() {
 									className={cn(
 										'flex h-[30px] cursor-default select-none items-center px-2 text-left text-[13px] transition-colors',
 										'text-ink-2 hover:bg-hover hover:text-ink',
-										// The selection idiom: a solid block with knocked-out
-										// contents, identical to the rail's.
-										// `data-active`, NOT `data-selected` — that is the
-										// attribute Base UI's Tabs actually sets. The wrong
-										// one matches nothing and fails silently: a rail
-										// where no tab ever looks selected.
+										// `data-active`, not `data-selected`: the wrong one
+										// matches nothing and fails silently.
 										'data-[active]:bg-fill data-[active]:text-fill-ink',
 										'focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-ring'
 									)}

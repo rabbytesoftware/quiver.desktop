@@ -5,14 +5,8 @@ import { cn } from '@/lib/cn';
 import { rowMatchesQuery, useSettingsUI } from '../store';
 
 /**
- * Lets a `SettingRow` tell its `Section` whether it survived the filter, so a
- * section whose rows have all been filtered out can hide its own heading too.
- *
- * Without it, searching for something in the Developer tab leaves a column of
- * orphaned headings with nothing underneath — which reads as "there are results
- * here that failed to render" rather than "there are none".
- *
- * `null` unregisters, on unmount.
+ * Lets a row tell its section whether it survived the filter, so a section with
+ * nothing left can hide its own heading. `null` unregisters, on unmount.
  */
 const RowVisibility = createContext<((rowId: string, visible: boolean | null) => void) | null>(null);
 
@@ -35,9 +29,8 @@ export function Section({
 		setVisibleRows([...visibility.current.values()].filter(Boolean).length);
 	}, []);
 
-	// `hidden` rather than unmounting: the rows have to stay mounted to keep
-	// reporting, and a section that unmounted its children would report zero
-	// forever and never come back when the query cleared.
+	// `hidden` rather than unmounting: the rows must stay mounted to keep
+	// reporting, or the section could never come back when the query clears.
 	const hidden = searching && visibleRows === 0;
 
 	return (

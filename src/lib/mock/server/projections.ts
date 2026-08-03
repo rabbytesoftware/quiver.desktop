@@ -1,5 +1,4 @@
-// World → wire. Everything the handlers return goes through here, so the DTO
-// shapes live in one file and a change to quiver.core lands in one place.
+// World → wire, so the DTO shapes live in one file.
 
 import type { ArrowListResponseItemDTO } from '@/lib/core-store/dtos/v0/arrow';
 import type { RuntimeUpdateDTO } from '@/lib/core-store/dtos/v0/runtime';
@@ -8,11 +7,9 @@ import type { MockArrow, MockCollection, MockDiscoveryJob } from '../world/types
 import { versioned } from '../world/types';
 
 /**
- * `GET /v0/arrow` groups by BASE namespace and nests refs under `versions`.
- *
- * Not a stylistic choice: `toArrowCatalogRecords` reads `arrow.namespace` and
- * `v.ref` and joins them itself, so a flat list keyed by versioned namespace
- * would come out the other side as `github.com/x/y@v1@v1`.
+ * Grouped by base namespace with refs under `versions`, because
+ * `toArrowCatalogRecords` joins the two itself — a flat list keyed by versioned
+ * namespace would come out as `github.com/x/y@v1@v1`.
  */
 export function toArrowListDTO(arrows: MockArrow[]): ArrowListResponseItemDTO[] {
 	const byBase = new Map<string, MockArrow[]>();
@@ -27,8 +24,6 @@ export function toArrowListDTO(arrows: MockArrow[]): ArrowListResponseItemDTO[] 
 		name: group[0].name,
 		description: group[0].description,
 		tags: group[0].tags,
-		// Nested, matching stable-26.5.1. The flat `icon`/`banner` this once used
-		// never matched the wire, so every arrow silently carried null media.
 		media: { icon: group[0].icon, banner: group[0].banner },
 		versions: group.map((a) => ({
 			ref: a.ref,
@@ -39,10 +34,7 @@ export function toArrowListDTO(arrows: MockArrow[]): ArrowListResponseItemDTO[] 
 	}));
 }
 
-/**
- * A `/v0/arrow` WS frame. `event` is the transport verb; the catalog fields
- * ride along on an upsert and are absent on a tombstone.
- */
+/** The catalog fields ride along on an upsert and are absent on a tombstone. */
 export function toArrowFrame(arrow: MockArrow, event: 'upserted' | 'removed'): unknown {
 	if (event === 'removed') return { event, namespace: versioned(arrow) };
 	return {
@@ -56,7 +48,6 @@ export function toArrowFrame(arrow: MockArrow, event: 'upserted' | 'removed'): u
 	};
 }
 
-/** A `/v0/runtime` overlay frame. Patches state onto an entry that must exist. */
 export function toRuntimeFrame(arrow: MockArrow): RuntimeUpdateDTO {
 	return {
 		namespace: versioned(arrow),
@@ -69,17 +60,12 @@ export function toRuntimeFrame(arrow: MockArrow): RuntimeUpdateDTO {
 }
 
 /**
- * `GET /v0/arrow/{ns}`.
+ * A superset of core's `ArrowDetailDTO`: variables, targets, netbridge and
+ * requirement come back on the same read.
  *
- * A superset of core's `ArrowDetailDTO`: the manifest halves the inspection
- * screen needs — variables, targets, netbridge, requirement — come back on the
- * same read rather than as a second round trip, which is what core's own
- * `arrow_detail_dto.go` already carries for variables and targets.
- *
- * `license` is populated here. Core DECLARES the field on its detail DTO and
- * never assigns it, so against a real daemon it is always empty; that is a core
- * bug on the ask-list, not something the mock should reproduce — a mock that
- * imitated it would hide the bug rather than surface it.
+ * `license` is populated. Core declares the field and never assigns it — a core
+ * bug on the ask-list, and imitating it here would hide it rather than surface
+ * it.
  */
 export function toArrowDetailDTO(arrow: MockArrow): unknown {
 	return {
@@ -105,7 +91,7 @@ export function toArrowDetailDTO(arrow: MockArrow): unknown {
 	};
 }
 
-/** `GET /v0/search` — no state and no ports, matching core's `SearchResultDTO`. */
+/** No state and no ports, matching core's `SearchResultDTO`. */
 export function toSearchResultDTO(arrow: MockArrow): unknown {
 	return {
 		namespace: versioned(arrow),

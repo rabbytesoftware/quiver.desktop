@@ -7,7 +7,7 @@ export interface MockRequest {
 	method: string;
 	path: string;
 	query: URLSearchParams;
-	/** Path captures, already percent-DECODED. */
+	/** Already percent-decoded. */
 	params: Record<string, string>;
 	body: unknown;
 }
@@ -16,23 +16,17 @@ export type Handler = (req: MockRequest, world: MockWorld) => Response | Promise
 
 export interface Route {
 	method: 'GET' | 'POST' | 'DELETE';
-	/** `/v0/runtime/:ns/:verb`. A `:name` segment captures one decoded segment. */
+	/** `/v0/runtime/:ns/:verb`. */
 	pattern: string;
-	/** Which Developer-tab fault slider can break this route. */
+
 	fault: FaultKey;
 	handler: Handler;
 }
 
 /**
- * Segment-wise, and that is enough — deliberately not a regex over the whole
- * path.
- *
- * Namespaces contain `/`, `@` and `.` (`github.com/rabbyte/minecraft@v1.21.4`),
- * which would make a path-spanning pattern ambiguous. But every caller sends
- * them through `encodeURIComponent`, so the slashes arrive as `%2F` and a
- * namespace is always exactly ONE segment on the wire. Splitting on `/` and
- * decoding each capture is therefore both simpler and more correct than any
- * pattern that tried to be clever about it.
+ * Segment-wise rather than a path-spanning regex. Namespaces contain `/`, `@`
+ * and `.`, but every caller encodes them, so a namespace is always exactly one
+ * segment on the wire.
  */
 function matchPattern(pattern: string, path: string): Record<string, string> | null {
 	const patternParts = pattern.split('/');
@@ -74,18 +68,15 @@ export function createRouter(routes: Route[], rng: Rng = Math.random): Router {
 				try {
 					return await route.handler({ method, path, query, params, body: parseBody(init) }, world);
 				} catch (err) {
-					// A fixture that throws is a bug in the mock, not in the app, and
-					// the two are indistinguishable from the UI — both look like the
-					// daemon failing. Naming the route in the log is the difference
-					// between a five-minute fix and an afternoon.
+					// A broken fixture and a failing daemon look identical from the UI,
+					// so the log names the route.
 					console.error(`mock: handler for ${method} ${route.pattern} threw`, err);
 					return fail(`mock handler error on ${method} ${path}`, 500);
 				}
 			}
 
-			// Loud on purpose. An unrouted path answered with an empty 200 would
-			// render as "you have no arrows" — a plausible screen that is a lie,
-			// and the single most expensive way for this mock to be wrong.
+			// Loud: an unrouted path answered with an empty 200 renders as "you have
+			// no arrows", a plausible screen that is a lie.
 			return fail(`mock: no route for ${method} ${path}`, 404);
 		},
 	};

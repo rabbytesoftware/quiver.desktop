@@ -1,10 +1,6 @@
-// A library far past the point where the rail scrolls and search stops being
-// optional: 200 arrows, 12 collections.
-//
-// Generated from a fixed seed rather than written out. Two hundred literals
-// would be tens of kilobytes shipped to every user for a screen only a
-// developer opens, and — worse — nobody would ever read or maintain them, so
-// they would drift out of shape the first time a DTO changed.
+// 200 arrows, 12 collections, generated from a fixed seed. Two hundred literals
+// would be tens of kilobytes shipped to every user, and would drift out of
+// shape the first time a DTO changed.
 
 import type { ArrowState } from '@/domain/arrow';
 
@@ -47,8 +43,7 @@ const KINDS = ['server', 'daemon', 'relay', 'store', 'gateway', 'runner', 'index
 
 const TAG_POOL = ['game', 'server', 'database', 'network', 'media', 'observability', 'storage', 'security', 'service'];
 
-// Weighted toward the states a real library is mostly in. A uniform draw would
-// put a fifth of the library in `draining`, which is not a library anyone has.
+// Weighted: a uniform draw would put a fifth of the library in `draining`.
 const STATE_POOL: ArrowState[] = [
 	'ready',
 	'ready',
@@ -93,8 +88,6 @@ export function buildExtremeArrows(): MockArrow[] {
 				version: `${major}.${minor}.0`,
 				state,
 				tags: [pick(rng, TAG_POOL), pick(rng, TAG_POOL)].filter((t, idx, all) => all.indexOf(t) === idx),
-				// A fifth stay out of the library, so search has something to find
-				// that the rail does not already show.
 				user_installed: rng() > 0.2,
 				requirement: {
 					cpu_cores: intBetween(rng, 1, 16),
@@ -131,8 +124,7 @@ export function buildExtremeCollections(arrows: MockArrow[]): MockCollection[] {
 			const m = pick(rng, arrows);
 			return { namespace: `${m.namespace}@${m.ref}`, resolved: true };
 		});
-		// One member per collection deliberately fails to resolve, so the
-		// unresolved row is not something you have to hunt for.
+		// One member per collection fails to resolve.
 		members.push({
 			namespace: `github.com/quiver-demo/missing-${i}@v1.0.0`,
 			resolved: false,

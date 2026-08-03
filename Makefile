@@ -3,7 +3,7 @@
 	fmt-check-rust fmt-rust lint-rust audit-rust \
 	code-quality-frontend code-quality-rust \
 	build-frontend build-rust build \
-	fetch-sidecar dev build-app dev-bundle icon \
+	fetch-sidecar dev dev-desktop dev-mock dev-web build-app dev-bundle icon \
 	test-frontend coverage-frontend \
 	test-rust coverage-rust \
 	pr-checks clean
@@ -129,7 +129,11 @@ help:
 	@echo "  make build                 - Build both frontend and Rust (debug)"
 	@echo "  make fetch-sidecar         - Download quiver.core sidecar binary for this platform"
 	@echo "  make icon                  - macOS only: compile quiver.icon → Assets.car + .icns (Xcode 26+)"
-	@echo "  make dev                   - Start Tauri dev environment (fetches sidecar if needed)"
+	@echo "  make dev-desktop           - The desktop app against a real quiver.core (fetches the sidecar)"
+	@echo "  make dev                   - Alias for dev-desktop"
+	@echo "  make dev-mock              - The desktop app against the MOCK: no sidecar, no daemon, no network"
+	@echo "  make dev-web               - The mock in a plain browser: HMR, no Rust rebuild"
+	@echo "                               dev-mock and dev-web take SCENARIO=normal|extreme|empty"
 	@echo "  make dev-bundle            - macOS only: build + open a debug .app (real icon, no hot reload)"
 	@echo "  make build-app             - Build full Tauri app installer for this platform"
 	@echo ""
@@ -249,10 +253,33 @@ fetch-sidecar:
 	@cp "$(SIDECAR_PATH)" "src-tauri/target/debug/quiver$(EXE_SUFFIX)"
 	@echo "✅ Sidecar ready: $(SIDECAR_PATH)"
 
-dev:
+# make dev-mock SCENARIO=extreme
+SCENARIO ?= normal
+
+dev-desktop:
 	@if [ ! -f "$(SIDECAR_PATH)" ]; then $(MAKE) fetch-sidecar; fi
-	@echo "🚀 Starting Tauri dev environment..."
+	@echo "🚀 Starting Tauri dev environment against a real quiver.core..."
 	@$(BUN) run tauri dev
+
+# Every existing doc and CI job says `make dev`.
+dev: dev-desktop
+
+# The same desktop app with a fabricated daemon. No sidecar: no `gh` auth, no
+# release download. The Rust side still tries to spawn one and fails, which
+# `LocalConnection::spawn` returns as an Err rather than a panic.
+#
+# Does NOT exercise the proxy, the WS bridge or the connection manager — that is
+# what `dev-desktop` is for.
+dev-mock:
+	@echo "🎭 Starting the desktop app against the mock ($(SCENARIO)) — no daemon will be contacted."
+	@VITE_QUIVER_MOCK=1 VITE_QUIVER_SCENARIO=$(SCENARIO) $(BUN) run tauri dev
+
+# Hot module reload, no Rust rebuild, no window. There is no shell here —
+# `window.__QUIVER__` and Tauri IPC are both absent — so the mock stands in for
+# those too.
+dev-web:
+	@echo "🎭 Starting the mock in a browser ($(SCENARIO)) — vite prints the URL below."
+	@VITE_QUIVER_MOCK=1 VITE_QUIVER_SCENARIO=$(SCENARIO) $(BUN) run dev
 
 # Deliberately NOT wired into tauri.conf.json's beforeBuildCommand: that runs
 # through the platform's own shell, and requiring `bash` there would make

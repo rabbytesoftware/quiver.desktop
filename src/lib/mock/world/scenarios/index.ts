@@ -21,11 +21,8 @@ export const SCENARIOS: ScenarioDescriptor[] = [
 		name: 'normal',
 		label: 'Normal',
 		summary: '17 arrows · every state · a failed install, a yanked ref, a rate-limited host',
+		// Cloned, not shared: the world mutates these.
 		build: () => ({
-			// Cloned, not shared. The world MUTATES these — install rewrites state,
-			// follow flips a flag — and handing out the module-level literal would
-			// let one session's install leak into the next `buildWorld`, which is
-			// exactly the cross-test contamination the seeded RNG exists to avoid.
 			arrows: NORMAL_ARROWS.map(clone),
 			collections: NORMAL_COLLECTIONS.map(clone),
 			providers: NORMAL_PROVIDERS.map(clone),

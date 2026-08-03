@@ -170,10 +170,7 @@ describe('the settings ui store', () => {
 });
 
 describe('the Slider wrapper', () => {
-	// Base UI hands back an ARRAY for range sliders and a bare number for single
-	// ones. Every caller here wants the number — a slider reporting `[15]` would
-	// be stored as a fault percentage of `NaN`, and that route would then never
-	// fault at all, silently.
+	// Base UI hands back an ARRAY for range sliders and a bare number for single ones.
 	it('reports a number, not the array Base UI can hand back', async () => {
 		const { render, screen } = await import('@testing-library/react');
 		const userEvent = (await import('@testing-library/user-event')).default;
@@ -182,10 +179,7 @@ describe('the Slider wrapper', () => {
 
 		render(<Slider value={10} step={5} onValueChange={(v) => seen.push(v)} aria-label="probe" />);
 
-		// Focused, not clicked. A click starts Base UI's pointer-capture drag,
-		// and jsdom implements no `setPointerCapture` — the resulting unhandled
-		// TypeError fails the whole run while every assertion still passes, which
-		// is a uniquely unhelpful way to break a suite.
+		// Focused, not clicked.
 		screen.getByRole('slider', { name: 'probe' }).focus();
 		await user.keyboard('{ArrowRight}');
 

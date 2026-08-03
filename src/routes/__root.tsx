@@ -24,10 +24,8 @@ function RootLayout() {
 			<main className="min-h-0 flex-1 overflow-auto">
 				<Outlet />
 			</main>
-			{/* Temporary: the settings dialog has no home yet, because the rail that
-			    is supposed to hold its entry point has not been built. A plain
-			    corner button beats an unreachable dialog, and it comes out the
-			    moment the rail lands. */}
+			{/* Temporary: the rail that will hold this entry point does not exist
+			    yet, and an unreachable dialog is worse than a corner button. */}
 			<button
 				type="button"
 				onClick={() => openSettings()}

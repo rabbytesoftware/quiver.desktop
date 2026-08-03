@@ -1,26 +1,14 @@
-// What the mock daemon knows. Deliberately richer than any single DTO: the
-// handlers project this down to whatever shape each route returns, the same way
-// quiver.core projects its domain onto `internal/api/v0/dto`. Modelling the
-// DTOs directly would mean holding the same arrow four times and keeping the
-// copies in step by hand.
-
 import type { ActiveRun, ArrowState, StepProgress } from '@/domain/arrow';
 
 export type ScenarioName = 'normal' | 'extreme' | 'empty';
 
 export const SCENARIO_NAMES: ScenarioName[] = ['normal', 'extreme', 'empty'];
 
-/**
- * The platform this fake daemon claims to run on.
- *
- * FIXED, not read from the real host. An arrow with no target for your platform
- * is one of the failure screens this scenario exists to reach, and it can only
- * be reached reliably if "your platform" is the same everywhere — otherwise the
- * screen appears on macOS and silently vanishes on the Linux CI box.
- */
+/** Fixed, not read from the real host, so the no-target-for-your-platform
+ *  screen appears identically on every machine. */
 export const MOCK_HOST_PLATFORM = 'darwin/arm64';
 
-/** Mirrors quiver.core's `Variable`. `type` drives which control renders. */
+/** Mirrors quiver.core's `Variable`. */
 export interface MockVariable {
 	name: string;
 	description: string;
@@ -29,15 +17,11 @@ export interface MockVariable {
 	values?: string[];
 	min?: number;
 	max?: number;
-	/**
-	 * A DISPLAY hint and nothing more, exactly as in core: the value still comes
-	 * back in `last_return.variables` as plaintext. The UI masks the input; it
-	 * must never claim the value is protected.
-	 */
+	/** A display hint only — core still returns the value in
+	 *  `last_return.variables` as plaintext. */
 	sensitive?: boolean;
 }
 
-/** Mirrors `PortDef` in an arrow's `netbridge` block. */
 export interface MockPort {
 	name: string;
 	protocol: 'tcp' | 'udp';
@@ -45,21 +29,17 @@ export interface MockPort {
 	required: boolean;
 }
 
-/**
- * Mirrors `Method`. `available_in` is what decides whether a method's button is
- * live: core rejects an execute whose method does not list the arrow's current
- * state, so the UI must not offer it.
- */
+/** `available_in` decides whether a method may be offered: core rejects an
+ *  execute whose method does not list the arrow's current state. */
 export interface MockMethod {
 	name: string;
 	description: string;
 	available_in: Array<'ready' | 'running'>;
-	/** Step titles, in order. The clock walks these to fabricate progress. */
+	/** Step titles, in order. */
 	steps: string[];
 }
 
 export interface MockTarget {
-	/** `os/arch`, e.g. `darwin/arm64`. */
 	platform: string;
 	methods: Record<string, MockMethod>;
 }
@@ -78,9 +58,8 @@ export interface MockLastReturn {
 }
 
 export interface MockArrow {
-	/** UNVERSIONED base, e.g. `github.com/rabbyte/valheim`. */
+	/** Unversioned base. `${namespace}@${ref}` is the store key. */
 	namespace: string;
-	/** The ref this entry is pinned to. `${namespace}@${ref}` is the store key. */
 	ref: string;
 	version: string;
 	name: string;
@@ -91,11 +70,8 @@ export interface MockArrow {
 	banner: string | null;
 	maintainers: string[];
 	url: string;
-	/**
-	 * Whether this arrow is in the user's LIBRARY. `GET /v0/arrow` filters on it;
-	 * everything else in the map is discoverable but not added, which is the
-	 * only way search can return something the library does not already hold.
-	 */
+	/** In the user's library. Everything else is discoverable but not added,
+	 *  which is how search can return something the rail does not show. */
 	user_installed: boolean;
 	state: ArrowState;
 	installed_at: string;
@@ -108,13 +84,9 @@ export interface MockArrow {
 }
 
 export interface MockCollectionMember {
-	/** Versioned namespace of the member arrow. */
 	namespace: string;
-	/**
-	 * Whether this member resolves to an arrow the daemon can see. An unresolved
-	 * member is not an error — a collection may name an arrow whose host is down
-	 * or whose ref was yanked — and the detail screen has to say which.
-	 */
+	/** An unresolved member is not an error — the collection is fine and the
+	 *  member is not — so the row is kept and flagged rather than dropped. */
 	resolved: boolean;
 	reason?: string;
 }
@@ -128,7 +100,7 @@ export interface MockCollection {
 	arrows: MockCollectionMember[];
 }
 
-/** One host's answer during a discovery pass. Mirrors `DiscoveryProviderDTO`. */
+/** Mirrors `DiscoveryProviderDTO`. */
 export interface MockProvider {
 	host: string;
 	ok: boolean;
@@ -142,53 +114,36 @@ export interface MockDiscoveryJob {
 	status: 'running' | 'done';
 	query: string;
 	providers: MockProvider[];
-	/** Versioned namespaces this pass turned up. */
 	results: string[];
 }
 
-/**
- * Cancellable timers, owned in one place.
- *
- * Every fabricated transition is a timer, and a scenario switch, an uninstall
- * mid-install, or a page teardown must not leave one running against a world
- * nobody is reading any more — it would go on emitting frames into a hub whose
- * sockets have closed, and in tests it would leak across cases.
- */
+/** Cancellable timers, owned in one place. See `createClock`. */
 export interface Clock {
 	after(ms: number, fn: () => void): void;
 	every(ms: number, fn: () => void): () => void;
 	cancelAll(): void;
 }
 
-/** Where fabricated frames go. Implemented by the socket hub. */
 export interface Emitter {
 	emit(endpoint: string, frame: unknown): void;
 }
 
 export interface MockWorld {
 	scenario: ScenarioName;
-	/** Cache partition. `mock:<scenario>`, so no two scenarios and no real host can collide. */
+	/** Cache partition: `mock:<scenario>`. */
 	connectionId: string;
-	/** Key: VERSIONED namespace (`base@ref`). */
+	/** Key: versioned namespace. */
 	arrows: Map<string, MockArrow>;
 	collections: Map<string, MockCollection>;
 	jobs: Map<string, MockDiscoveryJob>;
-	/**
-	 * How to stop the run in flight for a versioned namespace.
-	 *
-	 * An install is a repeating timer, and an uninstall landing mid-install has
-	 * to end it — otherwise the install goes on ticking and writes `ready` over
-	 * the uninstall that superseded it, which looks exactly like the app
-	 * ignoring the button you just pressed.
-	 */
+	/** How to stop the run in flight for a versioned namespace. */
 	cancels: Map<string, () => void>;
 	clock: Clock;
 	emitter: Emitter;
-	/** Monotonic, for fabricating ids without a random source. */
+
 	nextId: () => number;
 }
 
-/** `${namespace}@${ref}` — the key everything above the DTO layer uses. */
 export function versioned(arrow: Pick<MockArrow, 'namespace' | 'ref'>): string {
 	return `${arrow.namespace}@${arrow.ref}`;
 }

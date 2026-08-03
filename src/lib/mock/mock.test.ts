@@ -187,9 +187,7 @@ describe('install', () => {
 		});
 	});
 
-	// Core has no cancel, which is why the UI offers nothing in a transitional
-	// state. The mock has to refuse the same way, or the UI would be built
-	// against an affordance that does not exist.
+	// Core has no cancel, which is why the UI offers nothing in a transitional state.
 	it('refuses a second action while one is already in flight', async () => {
 		const key = POSTGRES;
 		mock.world.arrows.get(key)!.state = 'absent';
@@ -199,9 +197,7 @@ describe('install', () => {
 		expect(res.status).toBe(409);
 	});
 
-	// Disposal is what a scenario switch and a page teardown both do. A timer
-	// surviving it would go on mutating a world nobody reads and emitting at
-	// closed sockets — invisible in the app, cross-contamination in the suite.
+	// Disposal is what a scenario switch and a page teardown both do.
 	it('stops mid-flight when the world is disposed, leaving no orphan timer', async () => {
 		const key = POSTGRES;
 		const arrow = mock.world.arrows.get(key)!;
@@ -266,9 +262,8 @@ describe('library membership', () => {
 describe('discovery', () => {
 	beforeEach(() => vi.useFakeTimers());
 
-	// The single most misleading thing a search screen can do is render "a host
-	// refused" as "there is nothing called that". The per-provider outcomes are
-	// how it tells them apart.
+	// The single most misleading thing a search screen can do is render "a host refused"
+	// as "there is nothing called that".
 	it('reports a rate-limited provider with a retry-after rather than as no results', async () => {
 		const started = await apiFetch<{ id: string; status: string }>('/v0/search/discover', {
 			method: 'POST',
@@ -344,9 +339,9 @@ describe('chaos', () => {
 		expect(res.status).toBe(200);
 	});
 
-	// The one fault that is not a probability, and the only one that exercises
-	// apiFetch's retry ladder: a proxy-marked 502 is what a refused socket
-	// actually looks like under a URI-scheme proxy.
+	// The one fault that is not a probability, and the only one that exercises apiFetch's
+	// retry ladder: a proxy-marked 502 is what a refused socket actually looks like under
+	// a URI-scheme proxy.
 	it('marks an unreachable daemon the way the Rust proxy does, and apiFetch retries it', async () => {
 		useMockStore.getState().setUnreachable(true);
 

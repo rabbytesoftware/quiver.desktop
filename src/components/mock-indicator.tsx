@@ -3,22 +3,10 @@ import { currentMock } from '@/lib/mock';
 import { getScenario } from '@/lib/mock/world/scenarios';
 
 /**
- * Says, permanently and unmissably, that nothing on screen is real.
- *
- * This ships in release builds, which turns "all my arrows disappeared" from a
- * hypothetical into a failure mode with a plausible path: someone unlocks the
- * tab out of curiosity, flips the switch, and a week later opens the app to a
- * library that is not theirs. A checkbox buried two clicks deep in a dialog
- * cannot carry that weight — the app itself has to say so, on every screen,
- * with no way to dismiss it.
- *
- * Reads `currentMock()` rather than the store's `enabled` flag on purpose.
- * `enabled` is an INTENT, settled on the next reload; this is a fact about the
- * backend actually answering right now. They disagree for exactly as long as it
- * takes to reload, and during that window the honest answer is the one the
- * running app can observe. It is also the only reading that stays correct when
- * `installMock` catches a broken fixture and falls back to the real daemon —
- * `enabled` would still be true, and the banner would be lying.
+ * Reads `currentMock()`, not the store's `enabled` flag. `enabled` is an intent
+ * settled on the next reload; this is what is answering right now. They
+ * disagree across a reload, and whenever `installMock` caught a broken fixture
+ * and fell back — where `enabled` is still true and the banner would be lying.
  */
 export function MockIndicator() {
 	const openSettings = useSettingsUI((s) => s.openSettings);

@@ -34,9 +34,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-	// The installed mock is module state, so a case that installs one would
-	// otherwise answer for every case after it — including the ones asserting
-	// that NO mock is installed.
+	// The installed mock is module state, so a case that installs one would otherwise
+	// answer for every case after it — including the ones asserting that NO mock is
+	// installed.
 	disposeMock();
 	resetBackend();
 });
@@ -121,6 +121,20 @@ describe('the Developer panel', () => {
 		const resets = screen.getAllByRole('button', { name: 'Reset all faults' });
 		await user.click(resets[resets.length - 1]);
 		expect(useMockStore.getState().faults.search).toBe(0);
+	});
+
+	// A control that visibly does nothing is worse than one that says why.
+	it('disables the switch and says why when the environment forced it on', () => {
+		vi.stubEnv('VITE_QUIVER_MOCK', '1');
+		render(<DeveloperSettings />);
+
+		// Base UI renders a span, so the state is on aria-disabled rather than the
+		// disabled attribute.
+		const sw = screen.getByRole('switch', { name: 'Use the mock server' });
+		expect(sw).toHaveAttribute('aria-disabled', 'true');
+		expect(sw).toBeChecked();
+		expect(screen.getByText(/Forced on by VITE_QUIVER_MOCK/)).toBeInTheDocument();
+		vi.unstubAllEnvs();
 	});
 
 	// Everything under Chaos is inert against a real daemon: quiver.core has no
@@ -273,10 +287,7 @@ describe('the mock indicator', () => {
 		expect(container).toBeEmptyDOMElement();
 	});
 
-	// Reads the RUNNING backend, not the store's intent. They disagree for as
-	// long as a reload takes, and while `installMock` has fallen back after a
-	// broken fixture — in both windows the banner must tell the truth about what
-	// is actually answering.
+	// Reads the RUNNING backend, not the store's intent.
 	it('names the live scenario once a mock is actually installed', () => {
 		installMock('extreme');
 		expect(currentMock()).not.toBeNull();
