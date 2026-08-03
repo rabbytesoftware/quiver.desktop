@@ -2,50 +2,52 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * FOURTEEN TOKENS, replacing the ~30 shadcn shipped with the scaffold.
+ *
+ * What went, and why:
+ *
+ *  --radius and its four derivatives. This design has zero corner radius
+ *    everywhere, and a token whose only correct value is 0 is not a token — it
+ *    is an invitation. Rounding one corner is how a hard-edged monochrome
+ *    system quietly stops being one, and the cheapest way to make that
+ *    impossible is to leave nothing to round with.
+ *
+ *  --chart-1..5. There are no charts, and these were five saturated hues in a
+ *    palette that has none.
+ *
+ *  The eight semantic colours (--destructive/--info/--success/--warning and
+ *    their foregrounds). State here is carried by a caption word and a
+ *    provenance glyph, not by hue — an amber pill and a red pill read as the
+ *    same grey pill, so encoding meaning in colour would encode it nowhere.
+ *
+ *  The eight --sidebar-* tokens. The rail is not a differently-coloured
+ *    surface; it is the same surface with a different selection idiom.
+ *
+ * What replaced them: --background/--foreground became --ground/--ink because
+ * "foreground" says where it sits, not what it is; --muted-foreground split
+ * into --ink-2 and --ink-3, which the old single token could not express and
+ * every caption line needs; and --card/--popover/--secondary/--accent collapsed
+ * into one --plate, since they were four names for the same raised surface.
+ */
 @theme inline {
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
-	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 4px);
-	--color-background: var(--background);
-	--color-foreground: var(--foreground);
-	--color-card: var(--card);
-	--color-card-foreground: var(--card-foreground);
-	--color-popover: var(--popover);
-	--color-popover-foreground: var(--popover-foreground);
-	--color-primary: var(--primary);
-	--color-primary-foreground: var(--primary-foreground);
-	--color-secondary: var(--secondary);
-	--color-secondary-foreground: var(--secondary-foreground);
-	--color-muted: var(--muted);
-	--color-muted-foreground: var(--muted-foreground);
-	--color-accent: var(--accent);
-	--color-accent-foreground: var(--accent-foreground);
-	--color-destructive: var(--destructive);
-	--color-border: var(--border);
-	--color-input: var(--input);
+	--color-ground: var(--ground);
+	--color-ink: var(--ink);
+	--color-ink-2: var(--ink-2);
+	--color-ink-3: var(--ink-3);
+	--color-plate: var(--plate);
+	--color-line: var(--line);
+	--color-hover: var(--hover);
+	--color-fill: var(--fill);
+	--color-fill-ink: var(--fill-ink);
+	--color-field: var(--field);
+	--color-field-ink: var(--field-ink);
+	--color-field-ph: var(--field-ph);
+	--color-pill: var(--pill);
 	--color-ring: var(--ring);
-	--color-chart-1: var(--chart-1);
-	--color-chart-2: var(--chart-2);
-	--color-chart-3: var(--chart-3);
-	--color-chart-4: var(--chart-4);
-	--color-chart-5: var(--chart-5);
-	--color-sidebar: var(--sidebar);
-	--color-sidebar-foreground: var(--sidebar-foreground);
-	--color-sidebar-primary: var(--sidebar-primary);
-	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-	--color-sidebar-accent: var(--sidebar-accent);
-	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-	--color-sidebar-border: var(--sidebar-border);
-	--color-sidebar-ring: var(--sidebar-ring);
+
 	--animate-skeleton: skeleton 2s -1s infinite linear;
-	--color-warning-foreground: var(--warning-foreground);
-	--color-warning: var(--warning);
-	--color-success-foreground: var(--success-foreground);
-	--color-success: var(--success);
-	--color-info-foreground: var(--info-foreground);
-	--color-info: var(--info);
-	--color-destructive-foreground: var(--destructive-foreground);
+
 	@keyframes skeleton {
 		to {
 			background-position: -200% 0;
@@ -53,98 +55,66 @@
 	}
 }
 
+/*
+ * Light mode is BUILT but unproven — no screen has been reviewed in it. It is
+ * here so that every component is written against tokens rather than against
+ * dark values, which is the part that would be expensive to retrofit; the
+ * values themselves are expected to move.
+ */
 :root {
-	--radius: 0.625rem;
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.147 0.004 49.25);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.147 0.004 49.25);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.147 0.004 49.25);
-	--primary: oklch(0.216 0.006 56.043);
-	--primary-foreground: oklch(0.985 0.001 106.423);
-	--secondary: oklch(0.97 0.001 106.424);
-	--secondary-foreground: oklch(0.216 0.006 56.043);
-	--muted: oklch(0.97 0.001 106.424);
-	--muted-foreground: oklch(0.553 0.013 58.071);
-	--accent: oklch(0.97 0.001 106.424);
-	--accent-foreground: oklch(0.216 0.006 56.043);
-	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(0.923 0.003 48.717);
-	--input: oklch(0.923 0.003 48.717);
-	--ring: oklch(0.709 0.01 56.259);
-	--chart-1: oklch(0.646 0.222 41.116);
-	--chart-2: oklch(0.6 0.118 184.704);
-	--chart-3: oklch(0.398 0.07 227.392);
-	--chart-4: oklch(0.828 0.189 84.429);
-	--chart-5: oklch(0.769 0.188 70.08);
-	--sidebar: oklch(0.985 0.001 106.423);
-	--sidebar-foreground: oklch(0.147 0.004 49.25);
-	--sidebar-primary: oklch(0.216 0.006 56.043);
-	--sidebar-primary-foreground: oklch(0.985 0.001 106.423);
-	--sidebar-accent: oklch(0.97 0.001 106.424);
-	--sidebar-accent-foreground: oklch(0.216 0.006 56.043);
-	--sidebar-border: oklch(0.923 0.003 48.717);
-	--sidebar-ring: oklch(0.709 0.01 56.259);
-	--destructive-foreground: var(--color-red-700);
-	--info: var(--color-blue-500);
-	--info-foreground: var(--color-blue-700);
-	--success: var(--color-emerald-500);
-	--success-foreground: var(--color-emerald-700);
-	--warning: var(--color-amber-500);
-	--warning-foreground: var(--color-amber-700);
+	--ground: oklch(0.98 0 0);
+	--ink: oklch(0.18 0 0);
+	--ink-2: oklch(0.44 0 0);
+	--ink-3: oklch(0.62 0 0);
+	--plate: oklch(1 0 0);
+	--line: oklch(0.88 0 0);
+	--hover: oklch(0.94 0 0);
+	--fill: oklch(0.18 0 0);
+	--fill-ink: oklch(0.98 0 0);
+	--field: oklch(0.94 0 0);
+	--field-ink: oklch(0.18 0 0);
+	--field-ph: oklch(0.62 0 0);
+	--pill: oklch(0.9 0 0);
+	--ring: oklch(0.5 0 0);
 }
 
 .dark {
-	--background: oklch(0.147 0.004 49.25);
-	--foreground: oklch(0.985 0.001 106.423);
-	--card: oklch(0.216 0.006 56.043);
-	--card-foreground: oklch(0.985 0.001 106.423);
-	--popover: oklch(0.216 0.006 56.043);
-	--popover-foreground: oklch(0.985 0.001 106.423);
-	--primary: oklch(0.923 0.003 48.717);
-	--primary-foreground: oklch(0.216 0.006 56.043);
-	--secondary: oklch(0.268 0.007 34.298);
-	--secondary-foreground: oklch(0.985 0.001 106.423);
-	--muted: oklch(0.268 0.007 34.298);
-	--muted-foreground: oklch(0.709 0.01 56.259);
-	--accent: oklch(0.268 0.007 34.298);
-	--accent-foreground: oklch(0.985 0.001 106.423);
-	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.553 0.013 58.071);
-	--chart-1: oklch(0.488 0.243 264.376);
-	--chart-2: oklch(0.696 0.17 162.48);
-	--chart-3: oklch(0.769 0.188 70.08);
-	--chart-4: oklch(0.627 0.265 303.9);
-	--chart-5: oklch(0.645 0.246 16.439);
-	--sidebar: oklch(0.216 0.006 56.043);
-	--sidebar-foreground: oklch(0.985 0.001 106.423);
-	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0.001 106.423);
-	--sidebar-accent: oklch(0.268 0.007 34.298);
-	--sidebar-accent-foreground: oklch(0.985 0.001 106.423);
-	--sidebar-border: oklch(1 0 0 / 10%);
-	--sidebar-ring: oklch(0.553 0.013 58.071);
-	--destructive-foreground: var(--color-red-400);
-	--info: var(--color-blue-500);
-	--info-foreground: var(--color-blue-400);
-	--success: var(--color-emerald-500);
-	--success-foreground: var(--color-emerald-400);
-	--warning: var(--color-amber-500);
-	--warning-foreground: var(--color-amber-400);
+	--ground: oklch(0.16 0 0);
+	--ink: oklch(0.97 0 0);
+	--ink-2: oklch(0.72 0 0);
+	--ink-3: oklch(0.54 0 0);
+	--plate: oklch(0.21 0 0);
+	--line: oklch(0.3 0 0);
+	--hover: oklch(0.26 0 0);
+	--fill: oklch(0.97 0 0);
+	--fill-ink: oklch(0.16 0 0);
+	--field: oklch(0.13 0 0);
+	--field-ink: oklch(0.97 0 0);
+	--field-ph: oklch(0.5 0 0);
+	--pill: oklch(0.28 0 0);
+	--ring: oklch(0.66 0 0);
 }
 
 @layer base {
 	* {
-		@apply border-border outline-ring/50;
+		/* Zero, everywhere, with no token to override it from. */
+		border-radius: 0;
+		border-color: var(--line);
+		@apply outline-ring/50;
 	}
 
 	html,
 	body {
 		height: 100%;
+		/* Transparent, not --ground: the macOS window is vibrant, and painting an
+		   opaque background here is what kills the vibrancy. The app's own root
+		   element carries the colour. */
 		background: transparent;
+		color: var(--ink);
+		/* 13px. The whole scale is built on it — 26px buttons, 30px rail rows,
+		   34px chrome — so moving it moves everything, which is the point. */
+		font-size: 13px;
+		-webkit-font-smoothing: antialiased;
 	}
 
 	[data-tauri-drag-region]:active {

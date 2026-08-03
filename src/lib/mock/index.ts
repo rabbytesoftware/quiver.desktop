@@ -114,7 +114,21 @@ export function installMock(scenario: ScenarioName): MockRuntime | null {
 	}
 }
 
-/** The live mock, if one is installed. The Developer tab reads this. */
+/** The live mock, if one is installed. The chrome indicator reads this. */
 export function currentMock(): MockRuntime | null {
 	return installed;
+}
+
+/**
+ * Retire the installed mock: stop its timers, close its sockets, forget it.
+ *
+ * Does NOT put the real backend back. Everything downstream — open streams, a
+ * seeded cache, a projection full of fabricated arrows — belongs to the world
+ * being torn down here, and swapping a live daemon in underneath it would leave
+ * the app in a state neither backend describes. Turning the mock off is a
+ * reload for exactly that reason.
+ */
+export function disposeMock(): void {
+	installed?.dispose();
+	installed = null;
 }

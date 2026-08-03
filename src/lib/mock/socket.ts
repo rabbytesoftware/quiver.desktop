@@ -47,7 +47,9 @@ export class MockWebSocket implements SocketLike {
 		this.onmessage?.({ data: text });
 	}
 
-	send(): void {
+	// Takes the argument it ignores, so the signature still matches `SocketLike`
+	// at the call site rather than only structurally.
+	send(_data: string): void {
 		// The two endpoints the app subscribes to are transition-only: quiver.core
 		// pushes on them and reads nothing back. `wsManager.send` exists for
 		// symmetry with the browser API and has no caller, so there is nothing
