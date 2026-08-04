@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 import { Button } from '@/components/ui/button';
-import { TextInput } from '@/components/ui/controls';
+import { Input } from '@/components/ui/input';
 
 import { LOCAL_CONNECTION_ID } from '@/domain/connection';
 import { useConnectionStore } from '@/lib/connection';
@@ -61,11 +61,12 @@ export function ConnectionsSettings() {
 						}
 					>
 						{connection.id === activeId ? (
-							<span className="bg-fill px-2 py-0.5 text-[11px] uppercase tracking-wide text-fill-ink">
+							<span className="bg-primary px-2 py-0.5 text-[11px] uppercase tracking-wide text-primary-foreground">
 								Active
 							</span>
 						) : (
 							<Button
+								size="sm"
 								disabled={busy || mockEnabled}
 								onClick={() => run(() => invoke('switch_connection', { id: connection.id }))}
 							>
@@ -75,6 +76,7 @@ export function ConnectionsSettings() {
 						{/* `manager.rs` refuses to remove the local connection. */}
 						{connection.id !== LOCAL_CONNECTION_ID && (
 							<Button
+								size="sm"
 								disabled={busy || mockEnabled}
 								onClick={() => run(() => invoke('remove_connection', { id: connection.id }))}
 							>
@@ -90,18 +92,18 @@ export function ConnectionsSettings() {
 				description="A remote quiver.core daemon. The token is stored in the OS keychain, never in the app’s own storage."
 			>
 				<SettingRow label="Name">
-					<TextInput
+					<Input
 						value={name}
-						onChange={setName}
+						onChange={(e) => setName(e.target.value)}
 						placeholder="Basement box"
 						aria-label="Host name"
 						className="w-[200px]"
 					/>
 				</SettingRow>
 				<SettingRow label="URL">
-					<TextInput
+					<Input
 						value={url}
-						onChange={setUrl}
+						onChange={(e) => setUrl(e.target.value)}
 						type="url"
 						placeholder="https://quiver.example.com"
 						aria-label="Host URL"
@@ -109,9 +111,9 @@ export function ConnectionsSettings() {
 					/>
 				</SettingRow>
 				<SettingRow label="Token">
-					<TextInput
+					<Input
 						value={token}
-						onChange={setToken}
+						onChange={(e) => setToken(e.target.value)}
 						type="password"
 						aria-label="Host token"
 						className="w-[200px]"
@@ -133,7 +135,7 @@ export function ConnectionsSettings() {
 						Add host
 					</Button>
 				</SettingRow>
-				{error && <p className="px-1 pt-1 text-[12px] text-ink-2">{error}</p>}
+				{error && <p className="px-1 pt-1 text-xs text-muted-foreground">{error}</p>}
 			</Section>
 
 			<VersionUnlock />

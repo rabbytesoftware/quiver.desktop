@@ -109,11 +109,28 @@ describe('the Developer panel', () => {
 		expect(useMockStore.getState().unreachable).toBe(false);
 	});
 
+	// Base UI hands back an array for range sliders and a number for single ones.
+	// Unnormalised, a fault percentage would be stored as NaN and that route
+	// would then never fault at all, silently.
+	it('stores a slider change as a number, not the array Base UI can emit', async () => {
+		const user = userEvent.setup();
+		render(<DeveloperSettings />);
+
+		// getByLabelText, not getByRole: Base UI keeps the thumb visibility:hidden
+		// until it has measured the track, and jsdom has no layout — so the
+		// input[type=range] inside it is filtered out as inaccessible.
+		screen.getByLabelText('Search fault rate').focus();
+		await user.keyboard('{ArrowRight}');
+
+		expect(useMockStore.getState().faults.search).toBe(5);
+		expect(Number.isNaN(useMockStore.getState().faults.search)).toBe(false);
+	});
+
 	it('lists one slider per route family, and resets them together', async () => {
 		const user = userEvent.setup();
 		render(<DeveloperSettings />);
 
-		expect(screen.getAllByRole('slider')).toHaveLength(8);
+		expect(screen.getAllByRole('slider', { hidden: true })).toHaveLength(8);
 		expect(screen.getByRole('button', { name: 'Reset all faults' })).toBeDisabled();
 
 		useMockStore.getState().setFault('search', 40);

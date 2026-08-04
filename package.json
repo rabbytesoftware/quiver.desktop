@@ -13,14 +13,17 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@base-ui-components/react": "^1.0.0-rc.0",
+    "@base-ui/react": "^1.6.0",
     "@tailwindcss/vite": "^4.2.4",
     "@tanstack/react-query": "^5.99.2",
     "@tanstack/react-router": "^1.168.23",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-opener": "^2.5.4",
     "@tauri-apps/plugin-shell": "^2.3.5",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "idb": "^8.0.3",
+    "lucide-react": "^1.28.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "tailwind-merge": "^1.14.0",

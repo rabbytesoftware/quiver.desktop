@@ -36,8 +36,8 @@ export function Section({
 	return (
 		<RowVisibility.Provider value={report}>
 			<section hidden={hidden} className="mb-6">
-				<h3 className="mb-1 text-[13px] font-medium text-ink">{title}</h3>
-				{description && <p className="mb-2 text-[12px] leading-relaxed text-ink-3">{description}</p>}
+				<h3 className="mb-1 text-sm font-medium text-foreground">{title}</h3>
+				{description && <p className="mb-2 text-xs leading-relaxed text-muted-foreground">{description}</p>}
 				<div>{children}</div>
 			</section>
 		</RowVisibility.Provider>
@@ -71,13 +71,15 @@ export function SettingRow({
 	return (
 		<div
 			className={cn(
-				'flex min-h-[34px] items-center justify-between gap-4 px-1 py-1.5 transition-colors hover:bg-hover',
+				'flex min-h-[34px] items-center justify-between gap-4 px-1 py-1.5 transition-colors hover:bg-accent/50',
 				className
 			)}
 		>
 			<div className="min-w-0 flex-1">
-				<div className="text-[13px] leading-tight text-ink">{label}</div>
-				{description && <div className="mt-0.5 text-[12px] leading-relaxed text-ink-3">{description}</div>}
+				<div className="text-sm leading-tight text-foreground">{label}</div>
+				{description && (
+					<div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{description}</div>
+				)}
 			</div>
 			{children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
 		</div>

@@ -25,11 +25,11 @@ export function VersionUnlock() {
 	}
 
 	return (
-		<div className="mt-8 border-t border-line pt-3">
+		<div className="mt-8 border-t border-border pt-3">
 			<button
 				type="button"
 				onClick={tap}
-				className="select-none text-[12px] text-ink-3 hover:text-ink-2"
+				className="select-none text-xs text-muted-foreground hover:text-foreground"
 				aria-label={`Quiver version ${version}`}
 			>
 				Quiver {version}
@@ -37,11 +37,11 @@ export function VersionUnlock() {
 			{/* Silent until most of the way there: a countdown from the first tap
 			    would make it discoverable by accident. */}
 			{!unlocked && clicks >= 3 && (
-				<span className="ml-2 text-[12px] text-ink-3">
+				<span className="ml-2 text-xs text-muted-foreground">
 					{remaining} more {remaining === 1 ? 'tap' : 'taps'}…
 				</span>
 			)}
-			{unlocked && <span className="ml-2 text-[12px] text-ink-3">Developer tab unlocked.</span>}
+			{unlocked && <span className="ml-2 text-xs text-muted-foreground">Developer tab unlocked.</span>}
 		</div>
 	);
 }

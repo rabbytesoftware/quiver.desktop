@@ -3,8 +3,6 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { Slider } from '@/components/ui/controls';
-
 import { useSettingsUI } from '@/features/settings/store';
 
 import { shouldFault } from './server/chaos';
@@ -166,25 +164,5 @@ describe('the settings ui store', () => {
 	it('switches tabs without closing', () => {
 		useSettingsUI.getState().setTab('connections');
 		expect(useSettingsUI.getState()).toMatchObject({ open: true, tab: 'connections' });
-	});
-});
-
-describe('the Slider wrapper', () => {
-	// Base UI hands back an ARRAY for range sliders and a bare number for single ones.
-	it('reports a number, not the array Base UI can hand back', async () => {
-		const { render, screen } = await import('@testing-library/react');
-		const userEvent = (await import('@testing-library/user-event')).default;
-		const user = userEvent.setup();
-		const seen: unknown[] = [];
-
-		render(<Slider value={10} step={5} onValueChange={(v) => seen.push(v)} aria-label="probe" />);
-
-		// Focused, not clicked.
-		screen.getByRole('slider', { name: 'probe' }).focus();
-		await user.keyboard('{ArrowRight}');
-
-		expect(seen.length).toBeGreaterThan(0);
-		expect(typeof seen[0]).toBe('number');
-		expect(seen[0]).toBe(15);
 	});
 });

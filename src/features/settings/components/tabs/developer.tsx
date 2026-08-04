@@ -1,7 +1,10 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { NumberField, Select, Slider, Switch } from '@/components/ui/controls';
+import { NumberField } from '@/components/ui/number-field';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 
 import { mockForcedByEnv } from '@/lib/mock/preference';
 import { FAULT_KEYS, FAULT_LABELS, useMockStore } from '@/lib/mock/store';
@@ -58,15 +61,26 @@ export function DeveloperSettings() {
 				</SettingRow>
 
 				<SettingRow label="Scenario" description={SCENARIOS.find((s) => s.name === pending)?.summary}>
+					{/* `items` is what lets SelectValue render the label rather than
+					    the raw slug. */}
 					<Select
+						items={SCENARIOS.map((s) => ({ value: s.name, label: s.label }))}
 						value={pending}
-						onValueChange={setPending}
-						options={SCENARIOS.map((s) => ({ value: s.name, label: s.label }))}
-						className="w-[132px]"
-						aria-label="Mock scenario"
-					/>
+						onValueChange={(v) => setPending(v as ScenarioName)}
+					>
+						<SelectTrigger className="w-[132px]" aria-label="Mock scenario">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{SCENARIOS.map((s) => (
+								<SelectItem key={s.name} value={s.name}>
+									{s.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					<Button
-						variant="default"
+						size="sm"
 						disabled={!scenarioChanged}
 						onClick={() => applyAndReload({ enabled: true, scenario: pending })}
 					>
@@ -88,7 +102,7 @@ export function DeveloperSettings() {
 				<SettingRow label="Latency" description="Delay added to every mock response.">
 					<NumberField
 						value={latency}
-						onValueChange={setLatency}
+						onValueChange={(v) => setLatency(v ?? 0)}
 						min={0}
 						max={10000}
 						step={50}
@@ -100,7 +114,7 @@ export function DeveloperSettings() {
 				<SettingRow label="Error rate" description="Chance each request comes back as a daemon-side 500.">
 					<NumberField
 						value={errorRate}
-						onValueChange={setErrorRate}
+						onValueChange={(v) => setErrorRate(v ?? 0)}
 						min={0}
 						max={100}
 						step={5}
@@ -119,6 +133,7 @@ export function DeveloperSettings() {
 				<SettingRow label="" className="justify-end">
 					<Button
 						variant="outline"
+						size="sm"
 						onClick={resetChaos}
 						disabled={latency === 0 && errorRate === 0 && !unreachable}
 					>
@@ -135,16 +150,18 @@ export function DeveloperSettings() {
 					<SettingRow key={key} label={FAULT_LABELS[key]}>
 						<Slider
 							value={faults[key]}
-							onValueChange={(v) => setFault(key, v)}
+							onValueChange={(v) => setFault(key, Array.isArray(v) ? (v[0] ?? 0) : v)}
 							step={5}
 							className="w-[140px]"
 							aria-label={`${FAULT_LABELS[key]} fault rate`}
 						/>
-						<span className="w-[34px] text-right text-[12px] tabular-nums text-ink-3">{faults[key]}%</span>
+						<span className="w-[34px] text-right text-xs tabular-nums text-muted-foreground">
+							{faults[key]}%
+						</span>
 					</SettingRow>
 				))}
 				<SettingRow label="" className="justify-end">
-					<Button variant="outline" onClick={resetFaults} disabled={!anyFault}>
+					<Button variant="outline" size="sm" onClick={resetFaults} disabled={!anyFault}>
 						Reset all faults
 					</Button>
 				</SettingRow>

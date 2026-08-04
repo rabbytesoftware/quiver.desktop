@@ -18,7 +18,7 @@ function RootLayout() {
 	const openSettings = useSettingsUI((s) => s.openSettings);
 
 	return (
-		<div className="flex h-screen flex-col overflow-hidden bg-ground text-ink">
+		<div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
 			<Titlebar />
 			<MockIndicator />
 			<main className="min-h-0 flex-1 overflow-auto">
@@ -29,7 +29,7 @@ function RootLayout() {
 			<button
 				type="button"
 				onClick={() => openSettings()}
-				className="fixed bottom-3 right-3 z-30 border border-line bg-plate px-2 py-1 text-[12px] text-ink-2 hover:bg-hover hover:text-ink"
+				className="fixed bottom-3 right-3 z-30 border border-border bg-card px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
 			>
 				Settings
 			</button>

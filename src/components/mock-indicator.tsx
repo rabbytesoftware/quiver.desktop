@@ -18,7 +18,7 @@ export function MockIndicator() {
 	return (
 		<div
 			data-tauri-drag-region
-			className="flex h-[22px] shrink-0 select-none items-center justify-center gap-2 bg-fill px-3 text-fill-ink"
+			className="flex h-[22px] shrink-0 select-none items-center justify-center gap-2 bg-primary px-3 text-primary-foreground"
 		>
 			<span className="text-[11px] font-medium uppercase tracking-[0.12em]">Mock</span>
 			<span className="text-[11px] opacity-70">{label} · no daemon is being contacted</span>

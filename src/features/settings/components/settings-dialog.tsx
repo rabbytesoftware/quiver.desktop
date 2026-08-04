@@ -1,10 +1,9 @@
-import { TextInput } from '@/components/ui/controls';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { cn } from '@/lib/cn';
 import { useMockStore } from '@/lib/mock/store';
-
-import { Dialog } from '@base-ui-components/react/dialog';
-import { Tabs } from '@base-ui-components/react/tabs';
 
 import { type SettingsTab, useSettingsUI } from '../store';
 import { ConnectionsSettings } from './tabs/connections';
@@ -37,71 +36,72 @@ export function SettingsDialog() {
 	const activeTab = tabs.some((t) => t.id === tab) ? tab : tabs[0].id;
 
 	return (
-		<Dialog.Root open={open} onOpenChange={(next) => !next && closeSettings()}>
-			<Dialog.Portal>
-				<Dialog.Backdrop className="fixed inset-0 z-40 bg-black/50" />
-				<Dialog.Popup
-					className={cn(
-						'fixed left-1/2 top-1/2 z-50 flex h-[70vh] max-h-[720px] w-[86vw] max-w-[900px]',
-						'-translate-x-1/2 -translate-y-1/2 flex-col border border-line bg-ground text-ink shadow-2xl'
-					)}
-				>
-					<div className="flex h-[38px] shrink-0 items-center justify-between gap-3 border-b border-line px-3">
-						<Dialog.Title className="text-[13px] font-medium">Settings</Dialog.Title>
-						<div className="flex items-center gap-2">
-							<TextInput
-								value={query}
-								onChange={setQuery}
-								placeholder="Search settings"
-								aria-label="Search settings"
-								className="w-[180px]"
-							/>
-							<Dialog.Close
-								className="flex h-[26px] w-[26px] items-center justify-center text-ink-2 hover:bg-hover hover:text-ink"
-								aria-label="Close settings"
-							>
-								✕
-							</Dialog.Close>
-						</div>
+		<Dialog open={open} onOpenChange={(next) => !next && closeSettings()}>
+			{/* The stock close button is absolutely positioned for a padded dialog;
+			    this one is flush, so it goes in the header row instead. */}
+			<DialogContent
+				showCloseButton={false}
+				className="flex h-[70vh] max-h-[720px] w-[86vw] flex-col gap-0 p-0 sm:max-w-[900px]"
+			>
+				<div className="flex h-[38px] shrink-0 items-center justify-between gap-3 border-b border-border px-3">
+					<DialogTitle className="text-sm font-medium">Settings</DialogTitle>
+					<div className="flex items-center gap-2">
+						<Input
+							value={query}
+							onChange={(e) => setQuery(e.target.value)}
+							placeholder="Search settings"
+							aria-label="Search settings"
+							className="h-7 w-[180px]"
+						/>
+						<DialogClose
+							aria-label="Close settings"
+							className="flex size-7 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+						>
+							✕
+						</DialogClose>
 					</div>
+				</div>
 
-					<Tabs.Root
-						value={activeTab}
-						onValueChange={(next) => setTab(next as SettingsTab)}
-						orientation="vertical"
-						className="flex min-h-0 flex-1"
-					>
-						{/* Base UI owns the roving tabindex and the arrow/Home/End keys. */}
-						<Tabs.List className="flex w-[208px] shrink-0 flex-col gap-px border-r border-line p-2">
-							{tabs.map((item) => (
-								<Tabs.Tab
-									key={item.id}
-									value={item.id}
-									className={cn(
-										'flex h-[30px] cursor-default select-none items-center px-2 text-left text-[13px] transition-colors',
-										'text-ink-2 hover:bg-hover hover:text-ink',
-										// `data-active`, not `data-selected`: the wrong one
-										// matches nothing and fails silently.
-										'data-[active]:bg-fill data-[active]:text-fill-ink',
-										'focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-ring'
-									)}
-								>
-									{item.label}
-								</Tabs.Tab>
-							))}
-						</Tabs.List>
+				<Tabs
+					value={activeTab}
+					onValueChange={(next) => setTab(next as SettingsTab)}
+					orientation="vertical"
+					className="flex min-h-0 flex-1 flex-row gap-0"
+				>
+					<TabsList className="h-full w-[208px] shrink-0 flex-col justify-start gap-px border-r border-border bg-transparent p-2">
+						{tabs.map((item) => (
+							<TabsTrigger
+								key={item.id}
+								value={item.id}
+								className={cn(
+									// flex-none and a fixed height override the stock
+									// `flex-1 h-[calc(100%-1px)]`, which in a full-height
+									// vertical list stretches every tab to fill the rail.
+									'h-[30px] w-full flex-none justify-start px-2 text-left text-sm',
+									// The selection idiom: a solid block with knocked-out
+									// contents. `data-active` is what Base UI sets, and the
+									// `dark:` copy is required — the stock trigger ships
+									// `dark:data-active:bg-input/30`, and twMerge cannot
+									// dedupe across a variant prefix the override lacks.
+									'data-[active]:bg-primary data-[active]:text-primary-foreground data-[active]:shadow-none',
+									'dark:data-[active]:bg-primary dark:data-[active]:text-primary-foreground'
+								)}
+							>
+								{item.label}
+							</TabsTrigger>
+						))}
+					</TabsList>
 
-						<Tabs.Panel value="connections" className="min-w-0 flex-1 overflow-y-auto p-4">
-							<ConnectionsSettings />
-						</Tabs.Panel>
-						{tabs.some((t) => t.id === 'developer') && (
-							<Tabs.Panel value="developer" className="min-w-0 flex-1 overflow-y-auto p-4">
-								<DeveloperSettings />
-							</Tabs.Panel>
-						)}
-					</Tabs.Root>
-				</Dialog.Popup>
-			</Dialog.Portal>
-		</Dialog.Root>
+					<TabsContent value="connections" className="min-w-0 flex-1 overflow-y-auto p-4">
+						<ConnectionsSettings />
+					</TabsContent>
+					{tabs.some((t) => t.id === 'developer') && (
+						<TabsContent value="developer" className="min-w-0 flex-1 overflow-y-auto p-4">
+							<DeveloperSettings />
+						</TabsContent>
+					)}
+				</Tabs>
+			</DialogContent>
+		</Dialog>
 	);
 }
