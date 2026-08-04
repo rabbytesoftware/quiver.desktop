@@ -1,12 +1,9 @@
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-
 import type { RuntimeUpdate } from '@/domain/arrow';
-import type { ConnectionConfig, ConnectionStatus } from '@/domain/connection';
 import { getArrowsFor } from '@/lib/persistence/entity-cache';
 import { subscribeArrowStream } from '@/lib/persistence/entity-stream';
 import { maybeWipeOnVersionChange } from '@/lib/persistence/idb';
 import { apiFetch, coreIsReachable } from '@/lib/transport/api';
+import { backend } from '@/lib/transport/backend';
 import { isReconnectSentinel, wsManager } from '@/lib/transport/ws-manager';
 
 import type { ArrowListResponseItemDTO } from '../dtos/v0/arrow';
@@ -17,11 +14,6 @@ import { useArrowStore } from '../store/arrows';
 import { useStatusStore } from '../store/status';
 
 const RUNTIME_ENDPOINT = '/v0/runtime';
-
-interface GetConnectionsResponse {
-	connections: ConnectionConfig[];
-	active_id: string;
-}
 
 /**
  * `core://status` is the only Tauri event this module listens for.
@@ -222,7 +214,7 @@ export async function setupListeners(): Promise<void> {
 			// active right now, rather than trusting a `connection://changed`
 			// event that a switch does not currently emit (see the module doc
 			// comment above).
-			const { active_id } = await invoke<GetConnectionsResponse>('get_connections');
+			const { active_id } = await backend().getConnections();
 			// A `starting` landed while the calls above were in flight — this
 			// start has been superseded (see the `generation` doc comment
 			// above). Its own streams were never started, so there is nothing
@@ -285,9 +277,9 @@ export async function setupListeners(): Promise<void> {
 		});
 	}
 
-	await listen<{ status: ConnectionStatus }>('core://status', async (e) => {
-		useStatusStore.getState().setStatus(e.payload.status);
-		if (e.payload.status === 'starting') {
+	await backend().onCoreStatus(async (status) => {
+		useStatusStore.getState().setStatus(status);
+		if (status === 'starting') {
 			// Dispose both subscriptions and reset the projection — but do NOT
 			// wipe the cache. The old partition stays on disk so switching back
 			// paints instantly (design decision #3).
@@ -295,7 +287,7 @@ export async function setupListeners(): Promise<void> {
 			stopStreams();
 			useArrowStore.getState().reset();
 		}
-		if (e.payload.status === 'ready') {
+		if (status === 'ready') {
 			await beginStreams(generation);
 		}
 	});

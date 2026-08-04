@@ -25,6 +25,12 @@ export default defineConfig({
                 'src/**/*.test.tsx',
                 'src/__mocks__/**',
                 'src/**/{store,mutations}/index.ts',
+                // Vendored: `shadcn add` writes these from the registry, and
+                // `shadcn diff` is what checks them. Same reasoning as
+                // routeTree.gen.ts — testing them tests upstream's code, and
+                // rewriting them to be testable is how you lose the ability to
+                // pull an upstream fix.
+                'src/components/ui/**',
             ],
         },
     },

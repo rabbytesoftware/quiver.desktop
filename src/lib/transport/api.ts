@@ -1,42 +1,10 @@
-// Every HTTP call the app makes, over the scheme handler the Rust proxy
-// registers. The proxy resolves the ACTIVE connection per request, so nothing
-// here knows or cares whether the daemon is local or remote.
+// Everything true of a quiver.core response regardless of which backend
+// produced it: the `{success,error,data}` envelope, the retry ladder, and the
+// proxy-vs-daemon distinction below.
 
-/**
- * The origin every request is sent to — whatever the shell injected, and
- * nothing else.
- *
- * There is deliberately NO fallback literal. The reachable origin is not the
- * same on every platform: WebView2 cannot register a non-standard scheme, so
- * wry registers `http://quiver.localhost` and rewrites requests back before
- * handing them to the handler, while WKWebView and WebKitGTK serve
- * `quiver://localhost` as written. Any literal here is therefore silently
- * correct on two platforms and silently wrong on the third, and nothing can
- * see it: it is a string, `tsc` has no opinion on it, and a suite that runs on
- * macOS and Linux never dials the origin Windows needs. So the shell computes
- * it once per platform (`QUIVER_API_BASE`, src-tauri/src/lib.rs) and injects it
- * at document-start; this module takes what it is given.
- *
- * Absent config means one of two things, and neither has a correct origin to
- * guess at: the page is not inside the Tauri shell (a bare `vite` dev server,
- * which cannot reach the daemon by any URL), or the init script did not run.
- * Both are diagnosable the moment they say so, and mysterious the moment they
- * are papered over with a plausible-looking default — a wrong base fails as an
- * ordinary network error several layers away from its cause. So it throws.
- *
- * Resolved per call rather than at module load, so that merely IMPORTING this
- * module outside the shell stays harmless — the test suite does exactly that,
- * every time it mocks `apiFetch` — and the failure lands on the caller that
- * actually wanted the network.
- */
-export function apiBase(): string {
-	const base = (window as unknown as { __QUIVER__?: { api?: string } }).__QUIVER__?.api;
-	if (base) return base;
-	throw new Error(
-		'window.__QUIVER__.api is not set, so there is no API origin to dial. The page is either not running ' +
-			'inside the Quiver shell (which injects a per-platform origin at document-start) or that injection failed.'
-	);
-}
+import { backend } from './backend';
+
+export { apiBase } from './backend';
 
 /** Marks a response the Rust proxy generated rather than relayed. Mirrors
  *  connection::proxy::PROXY_ERROR_HEADER. */
@@ -110,13 +78,12 @@ function isProxyFailure(res: Response): boolean {
  * `sidecar::wait_for_ready` asks on the Rust side.
  */
 export async function coreIsReachable(): Promise<boolean> {
-	// Resolved OUTSIDE the catch, on purpose. A missing API origin is a broken
-	// shell, not a daemon that is down, and swallowing it into `false` would
-	// file it under the app's ordinary "backend unavailable" state — the exact
-	// unexplainable failure `apiBase` exists to refuse.
-	const base = apiBase();
+	// Issued OUTSIDE the catch: a missing API origin is a broken shell, not a
+	// daemon that is down, and swallowing it into `false` would file it under
+	// "backend unavailable". This is why `Backend.fetch` throws synchronously.
+	const pending = backend().fetch('/v0/health');
 	try {
-		return (await fetch(`${base}/v0/health`)).ok;
+		return (await pending).ok;
 	} catch {
 		// A `quiver://` request is answered by our own Rust proxy, which always
 		// responds — but the webview can still reject the fetch outright (no
@@ -126,12 +93,11 @@ export async function coreIsReachable(): Promise<boolean> {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit, retry: RetryConfig = DEFAULT_RETRY): Promise<T> {
-	const base = apiBase();
 	const maxAttempts = isIdempotentRead(init) ? Math.max(1, retry.attempts) : 1;
 	const sleep = retry.sleep ?? defaultSleep;
 
 	for (let attempt = 1; ; attempt++) {
-		const res = await fetch(`${base}${path}`, init);
+		const res = await backend().fetch(path, init);
 
 		if (isProxyFailure(res) && attempt < maxAttempts) {
 			await sleep(Math.min(retry.maxDelayMs, retry.baseDelayMs * 2 ** (attempt - 1)));

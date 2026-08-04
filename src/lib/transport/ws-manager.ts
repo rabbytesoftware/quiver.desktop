@@ -1,19 +1,15 @@
-import { QuiverWebSocket } from './quiver-socket';
+import { backend, SOCKET_OPEN, type SocketLike } from './backend';
 
 type Callback = (data: unknown) => void;
 
 interface Channel {
-	socket: QuiverWebSocket;
+	socket: SocketLike;
 	callbacks: Set<Callback>;
 	reconnectDelay: number;
 }
 
-// This app is desktop-only: the daemon is reachable exclusively through the
-// `quiver://` proxy's WebSocket bridge, so `QuiverWebSocket` is the only
-// transport that will ever exist here — there is no browser/Tauri split to
-// pick between.
-function createTransport(endpoint: string): QuiverWebSocket {
-	return new QuiverWebSocket(endpoint);
+function createTransport(endpoint: string): SocketLike {
+	return backend().openSocket(endpoint);
 }
 
 export interface WSManager {
@@ -25,8 +21,9 @@ export interface WSManager {
 // still CONNECTING — it flags `closed` internally and issues the real
 // ws_close once ws_open resolves (see quiver-socket.ts) — so unlike a raw
 // browser `WebSocket` the manager never has to wait for `onopen` before
-// tearing a socket down. Calling close() directly is always safe here.
-function closeSocketQuietly(socket: QuiverWebSocket): void {
+// tearing a socket down. Calling close() directly is always safe here, and
+// every `SocketLike` owes the same guarantee.
+function closeSocketQuietly(socket: SocketLike): void {
 	socket.close();
 }
 
@@ -115,7 +112,7 @@ export function createWSManager(): WSManager {
 
 		send(endpoint, data) {
 			const ch = channels.get(endpoint);
-			if (ch?.socket.readyState === QuiverWebSocket.OPEN) {
+			if (ch?.socket.readyState === SOCKET_OPEN) {
 				ch.socket.send(JSON.stringify(data));
 			}
 		},

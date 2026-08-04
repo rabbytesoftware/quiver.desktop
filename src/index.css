@@ -2,13 +2,115 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * shadcn's token NAMES with this design's values: every hue flattened to a
+ * grey, and --radius pinned to 0. Components pulled with `shadcn add` are
+ * written against these names, so they land already square and already
+ * monochrome and need no editing.
+ *
+ * `destructive` is a grey like everything else, which means a Remove button
+ * does not read as dangerous on its own. Weight and confirmation have to carry
+ * that instead.
+ */
+:root {
+	--radius: 0rem;
+
+	--background: oklch(0.98 0 0);
+	--foreground: oklch(0.18 0 0);
+	/* Not shadcn's; the third text tier every caption line needs. */
+	--foreground-subtle: oklch(0.62 0 0);
+
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.18 0 0);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.18 0 0);
+
+	--primary: oklch(0.18 0 0);
+	--primary-foreground: oklch(0.98 0 0);
+	--secondary: oklch(0.94 0 0);
+	--secondary-foreground: oklch(0.18 0 0);
+	--muted: oklch(0.94 0 0);
+	--muted-foreground: oklch(0.44 0 0);
+	--accent: oklch(0.94 0 0);
+	--accent-foreground: oklch(0.18 0 0);
+	--destructive: oklch(0.45 0 0);
+	--destructive-foreground: oklch(0.98 0 0);
+
+	--border: oklch(0.88 0 0);
+	--input: oklch(0.94 0 0);
+	--ring: oklch(0.5 0 0);
+
+	--chart-1: oklch(0.3 0 0);
+	--chart-2: oklch(0.42 0 0);
+	--chart-3: oklch(0.54 0 0);
+	--chart-4: oklch(0.66 0 0);
+	--chart-5: oklch(0.78 0 0);
+
+	--sidebar: oklch(0.96 0 0);
+	--sidebar-foreground: oklch(0.18 0 0);
+	--sidebar-primary: oklch(0.18 0 0);
+	--sidebar-primary-foreground: oklch(0.98 0 0);
+	--sidebar-accent: oklch(0.92 0 0);
+	--sidebar-accent-foreground: oklch(0.18 0 0);
+	--sidebar-border: oklch(0.88 0 0);
+	--sidebar-ring: oklch(0.5 0 0);
+}
+
+/* Dark is the reviewed one; light exists so components are written against
+ * tokens rather than dark values, and its values are expected to move. */
+.dark {
+	--background: oklch(0.16 0 0);
+	--foreground: oklch(0.97 0 0);
+	--foreground-subtle: oklch(0.54 0 0);
+
+	--card: oklch(0.21 0 0);
+	--card-foreground: oklch(0.97 0 0);
+	--popover: oklch(0.21 0 0);
+	--popover-foreground: oklch(0.97 0 0);
+
+	--primary: oklch(0.97 0 0);
+	--primary-foreground: oklch(0.16 0 0);
+	--secondary: oklch(0.26 0 0);
+	--secondary-foreground: oklch(0.97 0 0);
+	--muted: oklch(0.26 0 0);
+	--muted-foreground: oklch(0.72 0 0);
+	--accent: oklch(0.26 0 0);
+	--accent-foreground: oklch(0.97 0 0);
+	--destructive: oklch(0.65 0 0);
+	--destructive-foreground: oklch(0.16 0 0);
+
+	--border: oklch(0.3 0 0);
+	--input: oklch(0.13 0 0);
+	--ring: oklch(0.66 0 0);
+
+	--chart-1: oklch(0.9 0 0);
+	--chart-2: oklch(0.78 0 0);
+	--chart-3: oklch(0.66 0 0);
+	--chart-4: oklch(0.54 0 0);
+	--chart-5: oklch(0.42 0 0);
+
+	--sidebar: oklch(0.18 0 0);
+	--sidebar-foreground: oklch(0.97 0 0);
+	--sidebar-primary: oklch(0.97 0 0);
+	--sidebar-primary-foreground: oklch(0.16 0 0);
+	--sidebar-accent: oklch(0.26 0 0);
+	--sidebar-accent-foreground: oklch(0.97 0 0);
+	--sidebar-border: oklch(0.3 0 0);
+	--sidebar-ring: oklch(0.66 0 0);
+}
+
 @theme inline {
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
-	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 4px);
+	/* Every step resolves to 0. Kept rather than deleted because pulled
+	 * components reference the whole scale, and a missing one is a class that
+	 * silently does nothing. */
+	--radius-sm: 0rem;
+	--radius-md: 0rem;
+	--radius-lg: 0rem;
+	--radius-xl: 0rem;
+
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
+	--color-foreground-subtle: var(--foreground-subtle);
 	--color-card: var(--card);
 	--color-card-foreground: var(--card-foreground);
 	--color-popover: var(--popover);
@@ -22,6 +124,7 @@
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
@@ -38,102 +141,14 @@
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-ring: var(--sidebar-ring);
+
 	--animate-skeleton: skeleton 2s -1s infinite linear;
-	--color-warning-foreground: var(--warning-foreground);
-	--color-warning: var(--warning);
-	--color-success-foreground: var(--success-foreground);
-	--color-success: var(--success);
-	--color-info-foreground: var(--info-foreground);
-	--color-info: var(--info);
-	--color-destructive-foreground: var(--destructive-foreground);
+
 	@keyframes skeleton {
 		to {
 			background-position: -200% 0;
 		}
 	}
-}
-
-:root {
-	--radius: 0.625rem;
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.147 0.004 49.25);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.147 0.004 49.25);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.147 0.004 49.25);
-	--primary: oklch(0.216 0.006 56.043);
-	--primary-foreground: oklch(0.985 0.001 106.423);
-	--secondary: oklch(0.97 0.001 106.424);
-	--secondary-foreground: oklch(0.216 0.006 56.043);
-	--muted: oklch(0.97 0.001 106.424);
-	--muted-foreground: oklch(0.553 0.013 58.071);
-	--accent: oklch(0.97 0.001 106.424);
-	--accent-foreground: oklch(0.216 0.006 56.043);
-	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(0.923 0.003 48.717);
-	--input: oklch(0.923 0.003 48.717);
-	--ring: oklch(0.709 0.01 56.259);
-	--chart-1: oklch(0.646 0.222 41.116);
-	--chart-2: oklch(0.6 0.118 184.704);
-	--chart-3: oklch(0.398 0.07 227.392);
-	--chart-4: oklch(0.828 0.189 84.429);
-	--chart-5: oklch(0.769 0.188 70.08);
-	--sidebar: oklch(0.985 0.001 106.423);
-	--sidebar-foreground: oklch(0.147 0.004 49.25);
-	--sidebar-primary: oklch(0.216 0.006 56.043);
-	--sidebar-primary-foreground: oklch(0.985 0.001 106.423);
-	--sidebar-accent: oklch(0.97 0.001 106.424);
-	--sidebar-accent-foreground: oklch(0.216 0.006 56.043);
-	--sidebar-border: oklch(0.923 0.003 48.717);
-	--sidebar-ring: oklch(0.709 0.01 56.259);
-	--destructive-foreground: var(--color-red-700);
-	--info: var(--color-blue-500);
-	--info-foreground: var(--color-blue-700);
-	--success: var(--color-emerald-500);
-	--success-foreground: var(--color-emerald-700);
-	--warning: var(--color-amber-500);
-	--warning-foreground: var(--color-amber-700);
-}
-
-.dark {
-	--background: oklch(0.147 0.004 49.25);
-	--foreground: oklch(0.985 0.001 106.423);
-	--card: oklch(0.216 0.006 56.043);
-	--card-foreground: oklch(0.985 0.001 106.423);
-	--popover: oklch(0.216 0.006 56.043);
-	--popover-foreground: oklch(0.985 0.001 106.423);
-	--primary: oklch(0.923 0.003 48.717);
-	--primary-foreground: oklch(0.216 0.006 56.043);
-	--secondary: oklch(0.268 0.007 34.298);
-	--secondary-foreground: oklch(0.985 0.001 106.423);
-	--muted: oklch(0.268 0.007 34.298);
-	--muted-foreground: oklch(0.709 0.01 56.259);
-	--accent: oklch(0.268 0.007 34.298);
-	--accent-foreground: oklch(0.985 0.001 106.423);
-	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.553 0.013 58.071);
-	--chart-1: oklch(0.488 0.243 264.376);
-	--chart-2: oklch(0.696 0.17 162.48);
-	--chart-3: oklch(0.769 0.188 70.08);
-	--chart-4: oklch(0.627 0.265 303.9);
-	--chart-5: oklch(0.645 0.246 16.439);
-	--sidebar: oklch(0.216 0.006 56.043);
-	--sidebar-foreground: oklch(0.985 0.001 106.423);
-	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0.001 106.423);
-	--sidebar-accent: oklch(0.268 0.007 34.298);
-	--sidebar-accent-foreground: oklch(0.985 0.001 106.423);
-	--sidebar-border: oklch(1 0 0 / 10%);
-	--sidebar-ring: oklch(0.553 0.013 58.071);
-	--destructive-foreground: var(--color-red-400);
-	--info: var(--color-blue-500);
-	--info-foreground: var(--color-blue-400);
-	--success: var(--color-emerald-500);
-	--success-foreground: var(--color-emerald-400);
-	--warning: var(--color-amber-500);
-	--warning-foreground: var(--color-amber-400);
 }
 
 @layer base {
@@ -144,7 +159,13 @@
 	html,
 	body {
 		height: 100%;
+		/* Transparent, not --background: an opaque background here kills the macOS
+		   window vibrancy. The app's root element carries the colour. */
 		background: transparent;
+		color: var(--foreground);
+		/* The whole scale is built on this: 26px buttons, 30px rail rows. */
+		font-size: 13px;
+		-webkit-font-smoothing: antialiased;
 	}
 
 	[data-tauri-drag-region]:active {
