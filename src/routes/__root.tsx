@@ -24,12 +24,12 @@ function RootLayout() {
 			<main className="min-h-0 flex-1 overflow-auto">
 				<Outlet />
 			</main>
-			{/* Temporary: the rail that will hold this entry point does not exist
-			    yet, and an unreachable dialog is worse than a corner button. */}
+			{/* Temporary, but bottom-LEFT on purpose: that is where the rail will
+			    put it, so nobody learns the wrong muscle memory in the meantime. */}
 			<button
 				type="button"
 				onClick={() => openSettings()}
-				className="fixed bottom-3 right-3 z-30 border border-border bg-card px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+				className="fixed bottom-3 left-3 z-30 border border-border bg-card px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
 			>
 				Settings
 			</button>
