@@ -66,8 +66,18 @@ function effectiveWindow(platform: string): Record<string, unknown> {
 	return PLATFORM_OVERLAYS[`../../../src-tauri/tauri.${platform}.conf.json`]?.app.windows[0] ?? baseWindow;
 }
 
-/** A traffic light button, in CSS px. Three of them plus their gaps span ~64. */
+/** The visible circle, in CSS px. Three of them plus their gaps span ~64. */
 const TRAFFIC_LIGHT_DIAMETER_PX = 12;
+
+/**
+ * The close button's FRAME height, which is larger than the 12pt circle drawn
+ * inside it — the frame is the hit target.
+ *
+ * Measured, not documented: AppKit does not publish it, and it is the only
+ * unknown in tao's placement. Read off the running window at a known `y` and
+ * back-solved through the formula below.
+ */
+const TRAFFIC_LIGHT_FRAME_PX = 14;
 
 /**
  * The reserve, rendered as the platform in `userAgent` would see it.
@@ -239,7 +249,7 @@ describe('window chrome configuration', () => {
 	it('applies them in the macOS overlay', () => {
 		expect(macosWindow.titleBarStyle).toBe('Overlay');
 		expect(macosWindow.hiddenTitle).toBe(true);
-		expect(macosWindow.trafficLightPosition).toEqual({ x: 12, y: 11 });
+		expect(macosWindow.trafficLightPosition).toEqual({ x: 12, y: 20 });
 	});
 
 	it('leaves every shared window setting exactly as the shared config has it', () => {
@@ -257,12 +267,19 @@ describe('window chrome configuration', () => {
 	});
 
 	it('centres the traffic lights in the row height the shell is built on', () => {
-		// `y` is derived, not chosen: it is the buttons' top edge, so centring
-		// them takes (ROW_H - 12) / 2. The row lives in `--row` and in `ROW_H`,
-		// and a JSON file can read neither — retune the scale without this
-		// assertion and the lights sit visibly high in the row, on macOS only,
-		// with nothing else failing.
-		expect(macosWindow.trafficLightPosition.y).toBe((ROW_H - TRAFFIC_LIGHT_DIAMETER_PX) / 2);
+		// `y` is derived, not chosen — but NOT as (ROW_H - 12) / 2, which is what
+		// this asserted first and it put the lights visibly high.
+		//
+		// `y` is not the buttons' top edge. tao's `inset_traffic_lights` resizes
+		// the NSTitlebarContainerView to `closeButtonFrameHeight + y` and pins it
+		// to the top of the window; AppKit then centres the buttons inside that
+		// container. So the visible centre lands at (frame + y) / 2, and centring
+		// it on the row means y = ROW_H - frame.
+		//
+		// The row lives in `--row` and in `ROW_H`, and a JSON file can read
+		// neither — retune the scale without this assertion and the lights sit
+		// off-centre on macOS alone, with nothing else failing.
+		expect(macosWindow.trafficLightPosition.y).toBe(ROW_H - TRAFFIC_LIGHT_FRAME_PX);
 
 		// ...and whatever the frontend puts on that edge still has to clear all
 		// three of them, or app chrome renders underneath the buttons. The width
