@@ -20,16 +20,12 @@ export const FAULT_KEYS = [
 
 export type FaultKey = (typeof FAULT_KEYS)[number];
 
-export const FAULT_LABELS: Record<FaultKey, string> = {
-	arrows: 'Arrow catalog',
-	'arrow-detail': 'Arrow detail',
-	search: 'Search',
-	discover: 'Discovery',
-	collections: 'Collections',
-	'collection-detail': 'Collection detail',
-	runtime: 'Runtime actions',
-	health: 'Health probe',
-};
+// The human names for these keys live in the message catalogue, under
+// `settings.developer.faults.<key>` (src/lib/i18n/locales/en.ts) — they are
+// panel copy with exactly one consumer, the Developer tab, and a `Record<FaultKey,
+// string>` of English here would be a second, untranslatable source for it.
+// The suffixes are these slugs verbatim, so a family added above without a
+// message fails to compile at the call site rather than at runtime.
 
 const NO_FAULTS: Record<FaultKey, number> = Object.fromEntries(FAULT_KEYS.map((k) => [k, 0])) as Record<
 	FaultKey,

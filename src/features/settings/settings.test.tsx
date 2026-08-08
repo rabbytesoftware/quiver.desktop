@@ -58,7 +58,7 @@ describe('a section whose rows all filter out', () => {
 describe('the developer tab', () => {
 	it('is present in dev without any gesture', () => {
 		// vitest runs with import.meta.env.DEV true, which is the dev case.
-		expect(visibleTabs(false).map((t) => t.id)).toEqual(['connections', 'developer']);
+		expect(visibleTabs(false).map((t) => t.id)).toEqual(['general', 'connections', 'developer']);
 	});
 
 	it('is listed once the unlock flag is set', () => {

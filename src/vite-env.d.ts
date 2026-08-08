@@ -8,6 +8,11 @@ interface ImportMetaEnv {
 	/** Unknown names fall back to `normal`. */
 	readonly VITE_QUIVER_SCENARIO?: string;
 
+	/** A BCP-47 tag that FORCES the UI language for one run, over the saved
+	 *  preference and over the system. Ignored unless a catalogue for it ships —
+	 *  see `localeForcedByEnv` in `@/lib/i18n/detect`. */
+	readonly VITE_QUIVER_LOCALE?: string;
+
 	readonly VITE_APP_VERSION?: string;
 }
 

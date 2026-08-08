@@ -9,6 +9,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { MockIndicator } from '@/components/mock-indicator';
 
 import { useConnectionStore } from '@/lib/connection';
+import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
 import { createMockBackend, currentMock, disposeMock, installMock } from '@/lib/mock';
 import { useMockStore } from '@/lib/mock/store';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
@@ -16,6 +17,7 @@ import { installBackend, resetBackend } from '@/lib/transport/backend';
 import { SettingsDialog } from './components/settings-dialog';
 import { ConnectionsSettings } from './components/tabs/connections';
 import { DeveloperSettings } from './components/tabs/developer';
+import { GeneralSettings } from './components/tabs/general';
 import { useSettingsUI } from './store';
 
 const invokeMock = invoke as ReturnType<typeof vi.fn>;
@@ -31,6 +33,8 @@ beforeEach(() => {
 	useMockStore.setState({ enabled: false, scenario: 'normal', latency: 0, errorRate: 0, unreachable: false });
 	useMockStore.getState().resetFaults();
 	useConnectionStore.setState({ connections: [], activeId: 'local' });
+	useLocaleStore.setState({ preference: 'system', detected: 'en' });
+	localStorage.removeItem(LOCALE_STORAGE_KEY);
 });
 
 afterEach(() => {
@@ -366,5 +370,56 @@ describe('a stand-in backend can be installed over the mock', () => {
 		const { connections } = await runtime.backend.getConnections();
 		expect(connections[0].id).toBe('mock:normal');
 		runtime.dispose();
+	});
+});
+
+describe('the General panel', () => {
+	it('offers "follow the system" first, and names the system language in it', () => {
+		render(<GeneralSettings />);
+		expect(screen.getByRole('combobox', { name: 'Display language' })).toHaveTextContent('System (English)');
+	});
+
+	// Each language written in ITSELF, read out of its own catalogue. Someone
+	// stranded in a language they cannot read is looking for the word they know.
+	it('lists every shipped language under its own name', async () => {
+		const user = userEvent.setup();
+		render(<GeneralSettings />);
+
+		await user.click(screen.getByRole('combobox', { name: 'Display language' }));
+		expect(await screen.findByRole('option', { name: 'English' })).toBeInTheDocument();
+	});
+
+	it('writes the choice to the persisted preference', async () => {
+		const user = userEvent.setup();
+		render(<GeneralSettings />);
+
+		await user.click(screen.getByRole('combobox', { name: 'Display language' }));
+		await user.click(await screen.findByRole('option', { name: 'English' }));
+
+		expect(useLocaleStore.getState().preference).toBe('en');
+		const persisted = JSON.parse(localStorage.getItem(LOCALE_STORAGE_KEY) ?? '{}') as {
+			state?: { preference?: string };
+		};
+		expect(persisted.state?.preference).toBe('en');
+	});
+
+	// Same treatment as the mock switch under VITE_QUIVER_MOCK, and for the same
+	// reason: a live control that changes nothing on screen reads as broken.
+	it('disables the picker and says why when the environment forced the locale', () => {
+		vi.stubEnv('VITE_QUIVER_LOCALE', 'en');
+		render(<GeneralSettings />);
+
+		expect(screen.getByRole('combobox', { name: 'Display language' })).toBeDisabled();
+		expect(screen.getByText(/Forced to English by VITE_QUIVER_LOCALE/)).toBeInTheDocument();
+		vi.unstubAllEnvs();
+	});
+
+	// The preview is the only place the Intl side is visible before a feature
+	// renders a real date, and it is what makes "this setting does something"
+	// true the moment a second catalogue lands.
+	it('previews a date and a number in the chosen language', () => {
+		render(<GeneralSettings />);
+		expect(screen.getByText(/2026/)).toBeInTheDocument();
+		expect(screen.getByText('1,234,567.89')).toBeInTheDocument();
 	});
 });

@@ -3,26 +3,44 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { cn } from '@/lib/cn';
+import { useTranslation, type MessageKey } from '@/lib/i18n';
 import { useMockStore } from '@/lib/mock/store';
 
 import { type SettingsTab, useSettingsUI } from '../store';
 import { ConnectionsSettings } from './tabs/connections';
 import { DeveloperSettings } from './tabs/developer';
+import { GeneralSettings } from './tabs/general';
 
 interface TabItem {
 	id: SettingsTab;
-	label: string;
+	/**
+	 * A key, not a label: `visibleTabs` is a pure function with no locale of its
+	 * own, and resolving here would pin the tab names to whatever language was
+	 * in force when it was called.
+	 *
+	 * Narrowed to the `settings.tab.*` keys rather than typed `MessageKey`, and
+	 * that is not cosmetic: `t` derives its parameter list from the key, so a
+	 * `MessageKey`-typed argument makes it the union of EVERY message's
+	 * parameters — including the ones that require a `count` — and `t(item.labelKey)`
+	 * stops compiling. Any narrow union of parameterless keys works; deriving it
+	 * means a fourth tab needs no edit here.
+	 */
+	labelKey: Extract<MessageKey, `settings.tab.${string}`>;
 }
 
 /** Developer is unconditional in dev, and behind the version-tap unlock in a
  *  release build. */
 export function visibleTabs(devUnlocked: boolean): TabItem[] {
-	const tabs: TabItem[] = [{ id: 'connections', label: 'Connections' }];
-	if (import.meta.env.DEV || devUnlocked) tabs.push({ id: 'developer', label: 'Developer' });
+	const tabs: TabItem[] = [
+		{ id: 'general', labelKey: 'settings.tab.general' },
+		{ id: 'connections', labelKey: 'settings.tab.connections' },
+	];
+	if (import.meta.env.DEV || devUnlocked) tabs.push({ id: 'developer', labelKey: 'settings.tab.developer' });
 	return tabs;
 }
 
 export function SettingsDialog() {
+	const { t } = useTranslation();
 	const open = useSettingsUI((s) => s.open);
 	const tab = useSettingsUI((s) => s.tab);
 	const query = useSettingsUI((s) => s.query);
@@ -33,7 +51,7 @@ export function SettingsDialog() {
 
 	const tabs = visibleTabs(devUnlocked);
 	// A dev → release build change can leave `tab` naming a tab that is gone.
-	const activeTab = tabs.some((t) => t.id === tab) ? tab : tabs[0].id;
+	const activeTab = tabs.some((item) => item.id === tab) ? tab : tabs[0].id;
 
 	return (
 		<Dialog open={open} onOpenChange={(next) => !next && closeSettings()}>
@@ -44,17 +62,17 @@ export function SettingsDialog() {
 				className="flex h-[70vh] max-h-[720px] w-[86vw] flex-col gap-0 p-0 sm:max-w-[900px]"
 			>
 				<div className="flex h-[38px] shrink-0 items-center justify-between gap-3 border-b border-border px-3">
-					<DialogTitle className="text-sm font-medium">Settings</DialogTitle>
+					<DialogTitle className="text-sm font-medium">{t('settings.title')}</DialogTitle>
 					<div className="flex items-center gap-2">
 						<Input
 							value={query}
 							onChange={(e) => setQuery(e.target.value)}
-							placeholder="Search settings"
-							aria-label="Search settings"
+							placeholder={t('settings.search.placeholder')}
+							aria-label={t('settings.search.label')}
 							className="h-7 w-[180px]"
 						/>
 						<DialogClose
-							aria-label="Close settings"
+							aria-label={t('settings.close')}
 							className="flex size-7 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
 						>
 							✕
@@ -87,15 +105,18 @@ export function SettingsDialog() {
 									'dark:data-[active]:bg-primary dark:data-[active]:text-primary-foreground'
 								)}
 							>
-								{item.label}
+								{t(item.labelKey)}
 							</TabsTrigger>
 						))}
 					</TabsList>
 
+					<TabsContent value="general" className="min-w-0 flex-1 overflow-y-auto p-4">
+						<GeneralSettings />
+					</TabsContent>
 					<TabsContent value="connections" className="min-w-0 flex-1 overflow-y-auto p-4">
 						<ConnectionsSettings />
 					</TabsContent>
-					{tabs.some((t) => t.id === 'developer') && (
+					{tabs.some((item) => item.id === 'developer') && (
 						<TabsContent value="developer" className="min-w-0 flex-1 overflow-y-auto p-4">
 							<DeveloperSettings />
 						</TabsContent>

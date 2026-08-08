@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 
 import { LOCAL_CONNECTION_ID } from '@/domain/connection';
 import { useConnectionStore } from '@/lib/connection';
+import { useTranslation } from '@/lib/i18n';
 import { useMockStore } from '@/lib/mock/store';
 
 import { Section, SettingRow } from '../section';
@@ -18,6 +19,7 @@ import { VersionUnlock } from '../version-unlock';
  * a fabricated daemon. Under the mock they are disabled, and the panel says why.
  */
 export function ConnectionsSettings() {
+	const { t } = useTranslation();
 	const connections = useConnectionStore((s) => s.connections);
 	const activeId = useConnectionStore((s) => s.activeId);
 	const mockEnabled = useMockStore((s) => s.enabled);
@@ -43,26 +45,29 @@ export function ConnectionsSettings() {
 	return (
 		<div>
 			<Section
-				title="Hosts"
+				title={t('settings.connections.hosts.title')}
 				description={
-					mockEnabled
-						? 'The mock server is on, so this list is fabricated and cannot be changed. Turn it off in Developer to manage real hosts.'
-						: 'Every quiver.core daemon this app can talk to. Switching keeps each host’s cached library separate.'
+					mockEnabled ? t('settings.connections.hosts.mocked') : t('settings.connections.hosts.description')
 				}
 			>
 				{connections.map((connection) => (
 					<SettingRow
 						key={connection.id}
+						// NOT translated, and it must not be: a host's name is
+						// whatever the user or the daemon called it. Running it
+						// through the catalogue would be a category error — there is
+						// no key for "Basement box".
 						label={connection.name}
 						description={
 							mockEnabled
-								? 'Fabricated — there is no daemon behind this'
-								: (connection.url ?? (connection.kind === 'local' ? 'Bundled daemon' : undefined))
+								? t('settings.connections.host.fabricated')
+								: (connection.url ??
+									(connection.kind === 'local' ? t('settings.connections.host.bundled') : undefined))
 						}
 					>
 						{connection.id === activeId ? (
 							<span className="bg-primary px-2 py-0.5 text-[11px] uppercase tracking-wide text-primary-foreground">
-								Active
+								{t('settings.connections.host.active')}
 							</span>
 						) : (
 							<Button
@@ -70,7 +75,7 @@ export function ConnectionsSettings() {
 								disabled={busy || mockEnabled}
 								onClick={() => run(() => invoke('switch_connection', { id: connection.id }))}
 							>
-								Switch
+								{t('settings.connections.host.switch')}
 							</Button>
 						)}
 						{/* `manager.rs` refuses to remove the local connection. */}
@@ -80,7 +85,7 @@ export function ConnectionsSettings() {
 								disabled={busy || mockEnabled}
 								onClick={() => run(() => invoke('remove_connection', { id: connection.id }))}
 							>
-								Remove
+								{t('settings.connections.host.remove')}
 							</Button>
 						)}
 					</SettingRow>
@@ -88,34 +93,37 @@ export function ConnectionsSettings() {
 			</Section>
 
 			<Section
-				title="Add a host"
-				description="A remote quiver.core daemon. The token is stored in the OS keychain, never in the app’s own storage."
+				title={t('settings.connections.add.title')}
+				description={t('settings.connections.add.description')}
 			>
-				<SettingRow label="Name">
+				<SettingRow label={t('settings.connections.add.name')}>
 					<Input
 						value={name}
 						onChange={(e) => setName(e.target.value)}
-						placeholder="Basement box"
-						aria-label="Host name"
+						placeholder={t('settings.connections.add.namePlaceholder')}
+						aria-label={t('settings.connections.add.nameLabel')}
 						className="w-[200px]"
 					/>
 				</SettingRow>
-				<SettingRow label="URL">
+				<SettingRow label={t('settings.connections.add.url')}>
 					<Input
 						value={url}
 						onChange={(e) => setUrl(e.target.value)}
 						type="url"
+						// Left out of the catalogue on purpose: it is an example URL,
+						// not prose. A translator has nothing to do to it, and the
+						// only edit they could make would be a wrong one.
 						placeholder="https://quiver.example.com"
-						aria-label="Host URL"
+						aria-label={t('settings.connections.add.urlLabel')}
 						className="w-[200px]"
 					/>
 				</SettingRow>
-				<SettingRow label="Token">
+				<SettingRow label={t('settings.connections.add.token')}>
 					<Input
 						value={token}
 						onChange={(e) => setToken(e.target.value)}
 						type="password"
-						aria-label="Host token"
+						aria-label={t('settings.connections.add.tokenLabel')}
 						className="w-[200px]"
 					/>
 				</SettingRow>
@@ -132,9 +140,13 @@ export function ConnectionsSettings() {
 							})
 						}
 					>
-						Add host
+						{t('settings.connections.add.submit')}
 					</Button>
 				</SettingRow>
+				{/* Straight from the shell command, so straight from the OS: a
+				    keyring error is worded by the platform and there is no key for
+				    it here. Showing it verbatim is more useful than a generic
+				    translated sentence that loses which keyring refused. */}
 				{error && <p className="px-1 pt-1 text-xs text-muted-foreground">{error}</p>}
 			</Section>
 

@@ -6,14 +6,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 
+import { useTranslation } from '@/lib/i18n';
 import { mockForcedByEnv } from '@/lib/mock/preference';
-import { FAULT_KEYS, FAULT_LABELS, useMockStore } from '@/lib/mock/store';
+import { FAULT_KEYS, useMockStore } from '@/lib/mock/store';
 import { SCENARIOS } from '@/lib/mock/world/scenarios';
 import type { ScenarioName } from '@/lib/mock/world/types';
 
 import { Section, SettingRow } from '../section';
 
 export function DeveloperSettings() {
+	const { t, formatPercent } = useTranslation();
 	const enabled = useMockStore((s) => s.enabled);
 	const scenario = useMockStore((s) => s.scenario);
 	const latency = useMockStore((s) => s.latency);
@@ -38,16 +40,11 @@ export function DeveloperSettings() {
 
 	return (
 		<div>
-			<Section
-				title="Mock server"
-				description="Replaces the quiver.core daemon with an in-memory one. Nothing is contacted over the network, and your real library is untouched — mock data lives in its own cache partition."
-			>
+			<Section title={t('settings.developer.mock.title')} description={t('settings.developer.mock.description')}>
 				<SettingRow
-					label="Use the mock server"
+					label={t('settings.developer.mock.toggle')}
 					description={
-						forcedByEnv
-							? 'Forced on by VITE_QUIVER_MOCK for this run — started by `make dev-mock` or `make dev-web`. Restart without it to get the switch back.'
-							: 'Turning this on or off reloads the app: which backend is in use is decided once at startup.'
+						forcedByEnv ? t('settings.developer.mock.forced') : t('settings.developer.mock.reloads')
 					}
 				>
 					<Switch
@@ -56,11 +53,23 @@ export function DeveloperSettings() {
 						// straight back on because the environment still says so.
 						disabled={forcedByEnv}
 						onCheckedChange={(next) => applyAndReload({ enabled: next })}
-						aria-label="Use the mock server"
+						aria-label={t('settings.developer.mock.toggle')}
 					/>
 				</SettingRow>
 
-				<SettingRow label="Scenario" description={SCENARIOS.find((s) => s.name === pending)?.summary}>
+				{/* The scenario labels and summaries stay in `SCENARIOS` and stay in
+				    English, unlike everything else on this tab. They are fixture
+				    metadata, not copy: `descriptor.label` is also what names the mock
+				    connection (`Mock · Extreme`) in the host list, next to real hosts
+				    whose names come off the wire untranslated, and the slugs beneath
+				    them are what `VITE_QUIVER_SCENARIO=extreme` takes. Translating the
+				    display side alone would either desync the two or drag the locale
+				    store into the mock's data layer, where a language change after
+				    boot could not reach the name that was captured at install time. */}
+				<SettingRow
+					label={t('settings.developer.mock.scenario')}
+					description={SCENARIOS.find((s) => s.name === pending)?.summary}
+				>
 					{/* `items` is what lets SelectValue render the label rather than
 					    the raw slug. */}
 					<Select
@@ -68,7 +77,7 @@ export function DeveloperSettings() {
 						value={pending}
 						onValueChange={(v) => setPending(v as ScenarioName)}
 					>
-						<SelectTrigger className="w-[132px]" aria-label="Mock scenario">
+						<SelectTrigger className="w-[132px]" aria-label={t('settings.developer.mock.scenarioLabel')}>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -84,7 +93,7 @@ export function DeveloperSettings() {
 						disabled={!scenarioChanged}
 						onClick={() => applyAndReload({ enabled: true, scenario: pending })}
 					>
-						Apply
+						{t('settings.developer.mock.apply')}
 					</Button>
 				</SettingRow>
 			</Section>
@@ -92,14 +101,13 @@ export function DeveloperSettings() {
 			{/* Shown rather than hidden when the mock is off, so the tab does not
 			    change shape depending on a switch three rows up. */}
 			<Section
-				title="Chaos"
-				description={
-					enabled
-						? 'Applies to the next request. Nothing here is persisted — it all resets when the app restarts.'
-						: 'Inert while the mock server is off. quiver.core has no equivalent of these, so they cannot be applied to a real daemon.'
-				}
+				title={t('settings.developer.chaos.title')}
+				description={enabled ? t('settings.developer.chaos.description') : t('settings.developer.chaos.inert')}
 			>
-				<SettingRow label="Latency" description="Delay added to every mock response.">
+				<SettingRow
+					label={t('settings.developer.chaos.latency')}
+					description={t('settings.developer.chaos.latencyDescription')}
+				>
 					<NumberField
 						value={latency}
 						onValueChange={(v) => setLatency(v ?? 0)}
@@ -107,11 +115,14 @@ export function DeveloperSettings() {
 						max={10000}
 						step={50}
 						suffix="ms"
-						aria-label="Latency in milliseconds"
+						aria-label={t('settings.developer.chaos.latencyLabel')}
 					/>
 				</SettingRow>
 
-				<SettingRow label="Error rate" description="Chance each request comes back as a daemon-side 500.">
+				<SettingRow
+					label={t('settings.developer.chaos.errorRate')}
+					description={t('settings.developer.chaos.errorRateDescription')}
+				>
 					<NumberField
 						value={errorRate}
 						onValueChange={(v) => setErrorRate(v ?? 0)}
@@ -119,15 +130,19 @@ export function DeveloperSettings() {
 						max={100}
 						step={5}
 						suffix="%"
-						aria-label="Error rate percentage"
+						aria-label={t('settings.developer.chaos.errorRateLabel')}
 					/>
 				</SettingRow>
 
 				<SettingRow
-					label="Daemon unreachable"
-					description="Answers every request the way the Rust proxy answers a refused socket — a 502 carrying x-quiver-proxy. This is the only fault that exercises the retry ladder and reaches the Disconnected screen."
+					label={t('settings.developer.chaos.unreachable')}
+					description={t('settings.developer.chaos.unreachableDescription')}
 				>
-					<Switch checked={unreachable} onCheckedChange={setUnreachable} aria-label="Daemon unreachable" />
+					<Switch
+						checked={unreachable}
+						onCheckedChange={setUnreachable}
+						aria-label={t('settings.developer.chaos.unreachable')}
+					/>
 				</SettingRow>
 
 				<SettingRow label="" className="justify-end">
@@ -137,32 +152,40 @@ export function DeveloperSettings() {
 						onClick={resetChaos}
 						disabled={latency === 0 && errorRate === 0 && !unreachable}
 					>
-						Reset chaos
+						{t('settings.developer.chaos.reset')}
 					</Button>
 				</SettingRow>
 			</Section>
 
 			<Section
-				title="Fault injection"
-				description="Force one route family to fail, so you can see a single panel's error state without breaking the rest of the app."
+				title={t('settings.developer.faults.title')}
+				description={t('settings.developer.faults.description')}
 			>
 				{FAULT_KEYS.map((key) => (
-					<SettingRow key={key} label={FAULT_LABELS[key]}>
+					// The key suffix IS the fault slug, so a fault family added to
+					// FAULT_KEYS without a matching message fails `tsc` right here
+					// rather than rendering its own slug at runtime.
+					<SettingRow key={key} label={t(`settings.developer.faults.${key}`)}>
 						<Slider
 							value={faults[key]}
 							onValueChange={(v) => setFault(key, Array.isArray(v) ? (v[0] ?? 0) : v)}
 							step={5}
 							className="w-[140px]"
-							aria-label={`${FAULT_LABELS[key]} fault rate`}
+							aria-label={t('settings.developer.faults.rateLabel', {
+								family: t(`settings.developer.faults.${key}`),
+							})}
 						/>
+						{/* `/100` because `formatPercent` takes a fraction and the
+						    slider holds 0–100. Through `Intl` rather than `${n}%` so
+						    the symbol lands where the language puts it. */}
 						<span className="w-[34px] text-right text-xs tabular-nums text-muted-foreground">
-							{faults[key]}%
+							{formatPercent(faults[key] / 100)}
 						</span>
 					</SettingRow>
 				))}
 				<SettingRow label="" className="justify-end">
 					<Button variant="outline" size="sm" onClick={resetFaults} disabled={!anyFault}>
-						Reset all faults
+						{t('settings.developer.faults.reset')}
 					</Button>
 				</SettingRow>
 			</Section>
