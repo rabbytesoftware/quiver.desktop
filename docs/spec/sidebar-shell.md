@@ -125,8 +125,14 @@ behaviour are all still the OS's to provide, because we never take the title bar
 rail's top bar and the chrome row are all `--row`. Committing to one number is what makes the column
 read as a single instrument; the alternative is four values nobody chose and everybody maintains.
 
-**3.2 — Two icon tiers, deliberately.** Content icons at 20, chrome glyphs one step down at 17. The
-chevrons carry their own token so they hold at 17 independently of the list.
+**3.2 — THREE icon tiers, deliberately.** `--icon` 20 for the arrow rows, `--icon-chrome` 17 for the
+back / forward glyphs, `--icon-nav` **14** for the primary nav. Each carries its own token so it
+holds independently of the others.
+
+The nav's 14 is the one that gets missed — it was, in the first build, and the segments came out
+wearing the arrow rows' 20. A nav segment is mostly icon, so at 20 the glyph fills a collapsed
+segment edge to edge and the three of them read as three toolbar buttons rather than as one
+segmented control. The design draws the nav at 14 and the list at 20 for exactly that reason.
 
 **3.3 — `--inset` is derived, and governs three distances**: the row's leading and trailing padding,
 the gap between icon and label, and the active nav segment's padding. It is not a spacing scale — it

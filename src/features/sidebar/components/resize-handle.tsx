@@ -17,7 +17,7 @@
  */
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
 
-import { useRef, type JSX, type KeyboardEvent, type PointerEvent } from 'react';
+import { useRef, useState, type JSX, type KeyboardEvent, type PointerEvent } from 'react';
 
 import { normaliseWidth, SIDEBAR_MAX, SIDEBAR_MIN, useShellStore } from '@/features/shell/store';
 import { cn } from '@/lib/cn';
@@ -60,7 +60,41 @@ function paint(shell: HTMLElement, width: number): void {
 }
 
 /**
- * The rail's drag handle: a four-pixel strip on the rail's content-facing edge.
+ * The strip itself, and the hairline that is the only thing announcing it.
+ *
+ * Seven pixels straddling the rail's edge rather than four sitting inside it:
+ * the offset is what puts half the target on the content side, where the cursor
+ * already is when it arrives at the edge. `-3px` and `7px` are design.pen's, and
+ * they are a pair — the offset is what centres the strip on the edge, so moving
+ * one without the other slides the whole target off it.
+ *
+ * `after:left-[3px]` is NOT mirrored with the side, and looks like the one place
+ * the flip was forgotten. It is not: 3 + 1 + 3 is the whole seven, so the line
+ * sits at the strip's centre — which is the rail's own edge, on either side. A
+ * `right-[3px]` twin would resolve to the same pixel. The mirror belongs on the
+ * strip's offset, which is where the side ternary already puts it.
+ *
+ * The line is revealed by `data-dragging` as well as by `:hover` because the
+ * pointer is captured on the way down and leaves the seven-pixel strip within a
+ * frame or two of the drag starting. On `:hover` alone it would blink out at the
+ * exact moment the user is watching the edge move, and come back on release.
+ * That is also why the strip no longer paints `--sidebar-accent` on hover: at
+ * seven pixels a fill bleeds three of them over the content column, and this
+ * hairline is the affordance design.pen actually specifies.
+ */
+const GRIP = [
+	// Absolute, so the strip overlays the rail's edge instead of taking a row of
+	// its own; `touch-none` because a touch drag is otherwise cancelled by the
+	// scroll it starts.
+	'absolute inset-y-0 z-10 w-[7px] cursor-col-resize touch-none focus-visible:outline-2',
+	"after:absolute after:inset-y-0 after:left-[3px] after:w-px after:content-['']",
+	'after:bg-muted-foreground after:opacity-0',
+	'hover:after:opacity-100 data-[dragging=true]:after:opacity-100',
+].join(' ');
+
+/**
+ * The rail's drag handle: a seven-pixel strip straddling the rail's
+ * content-facing edge.
  */
 export function ResizeHandle(): JSX.Element {
 	const { t } = useTranslation();
@@ -72,6 +106,12 @@ export function ResizeHandle(): JSX.Element {
 	// sixty renders a second of a rail whose only changing pixel is a width the
 	// DOM node already has.
 	const drag = useRef<Drag | null>(null);
+
+	// Whether a drag is in progress is the one part of it CSS has to see, so it
+	// is mirrored in state: twice per drag, on the way down and on the way up,
+	// not once per move. It cannot be read off the ref — mutating a ref renders
+	// nothing, so the attribute would still say what it said last render.
+	const [dragging, setDragging] = useState(false);
 
 	/**
 	 * Spec §5.12, and the one line in this file worth reading twice. The handle
@@ -87,13 +127,14 @@ export function ResizeHandle(): JSX.Element {
 
 	function handlePointerDown(event: PointerEvent<HTMLDivElement>): void {
 		// Without capture the rail stops following the cursor the moment it
-		// leaves the strip, which at four pixels wide is the first frame.
+		// leaves the strip, which at seven pixels wide is the first frame.
 		event.currentTarget.setPointerCapture(event.pointerId);
 		drag.current = {
 			originX: event.clientX,
 			originWidth: width,
 			shell: shellOf(event.currentTarget),
 		};
+		setDragging(true);
 	}
 
 	function handlePointerMove(event: PointerEvent<HTMLDivElement>): void {
@@ -106,6 +147,7 @@ export function ResizeHandle(): JSX.Element {
 		const active = drag.current;
 		if (active === null) return;
 		drag.current = null;
+		setDragging(false);
 		event.currentTarget.releasePointerCapture(event.pointerId);
 		commit(widthAfter(event.clientX - active.originX, active.originWidth));
 	}
@@ -117,6 +159,7 @@ export function ResizeHandle(): JSX.Element {
 	 */
 	function handleLostPointerCapture(): void {
 		drag.current = null;
+		setDragging(false);
 	}
 
 	function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
@@ -151,14 +194,8 @@ export function ResizeHandle(): JSX.Element {
 			onPointerUp={handlePointerUp}
 			onLostPointerCapture={handleLostPointerCapture}
 			onKeyDown={handleKeyDown}
-			className={cn(
-				// Absolute, so the strip overlays the rail's edge instead of
-				// taking a row of its own; `touch-none` because a touch drag is
-				// otherwise cancelled by the scroll it starts.
-				'absolute inset-y-0 z-10 w-1 cursor-col-resize touch-none',
-				'hover:bg-sidebar-accent focus-visible:bg-sidebar-accent focus-visible:outline-2',
-				side === 'left' ? 'right-0' : 'left-0'
-			)}
+			data-dragging={dragging}
+			className={cn(GRIP, side === 'left' ? '-right-[3px]' : '-left-[3px]')}
 		/>
 	);
 }

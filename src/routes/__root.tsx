@@ -15,20 +15,26 @@ export const Route = createRootRoute({
 function RootLayout() {
 	return (
 		<>
-			<AppShell>
-				{/* Inside the content column and above the outlet, NOT a third
-				    grid row (spec §3.1). It describes the data, and the data is
-				    here; given a row of its own it would push the rail down by
-				    22px on a dev build alone, and every geometry rule in the spec
-				    is written against a rail that starts at the top of the
-				    webview. */}
+			{/* A flex column so the strip can take the height it needs and the
+			    shell can have the rest. `h-screen` lives HERE and nowhere below:
+			    two elements both claiming the viewport's height inside one
+			    another is a window that scrolls by exactly the strip's 22px. */}
+			<div className="flex h-screen flex-col">
+				{/* Above the grid, spanning the whole window — not a cell inside
+				    it. In the content column it cut the shell in two: a
+				    full-width black bar wedged between the chrome row and the
+				    page, with the rail running past it on one side. It describes
+				    the whole app's data, so it belongs to the whole window. */}
 				<MockIndicator />
-				<Outlet />
-			</AppShell>
-			{/* A sibling of the grid rather than a child of it: the shell places
-			    its three cells explicitly, so a fourth child would auto-place
-			    into whichever cell is still free — in dev builds only, which is
-			    the last place anyone goes looking for a layout bug. */}
+				<AppShell>
+					<Outlet />
+				</AppShell>
+			</div>
+			{/* A sibling of the column rather than a child of it: the shell places
+			    its three cells explicitly and this one has no cell, so as a child
+			    it would auto-place into whichever is still free — in dev builds
+			    only, which is the last place anyone goes looking for a layout
+			    bug. */}
 			<Devtools />
 		</>
 	);

@@ -1,8 +1,8 @@
 import type { JSX } from 'react';
 
-import { useTranslation } from '@/lib/i18n';
+import { GearIcon, HardDrivesIcon, HouseIcon } from '@phosphor-icons/react';
 
-import { House, Server, Settings } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n';
 
 import { NavSegment } from './nav-segment';
 
@@ -27,9 +27,9 @@ export function PrimaryNav(): JSX.Element {
 			 * rule is broken on the first click. The leaves want prefix matching
 			 * and so pass nothing.
 			 */}
-			<NavSegment to="/" exact icon={House} label={t('nav.home')} />
-			<NavSegment to="/remote" icon={Server} label={t('nav.remote')} />
-			<NavSegment to="/settings" icon={Settings} label={t('nav.settings')} />
+			<NavSegment to="/" exact icon={HouseIcon} label={t('nav.home')} />
+			<NavSegment to="/remote" icon={HardDrivesIcon} label={t('nav.remote')} />
+			<NavSegment to="/settings" icon={GearIcon} label={t('nav.settings')} />
 		</nav>
 	);
 }

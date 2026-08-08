@@ -4,7 +4,7 @@ import { useCanGoBack, useRouter } from '@tanstack/react-router';
 
 import { useTranslation } from '@/lib/i18n';
 
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
 
 /**
  * Shared by both buttons, and the reason `not-disabled:` is a variant rather
@@ -18,13 +18,22 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
  * exclude — the rule the rest of the rail is written against would then be
  * carrying no weight anywhere, and nothing would notice when it broke.
  *
- * `opacity-50` matches `components/ui/button.tsx`, so a disabled control looks
- * disabled the same way here as everywhere else in the app.
+ * `opacity-30`, not the 50 `components/ui/button.tsx` uses: these sit on the
+ * rail's own surface rather than on a filled button, and at 50 a dead chevron
+ * still reads as pressable against it.
  */
 const BUTTON =
-	'inline-flex size-(--row) shrink-0 items-center justify-center not-disabled:hover:bg-sidebar-accent disabled:opacity-50';
+	'inline-flex size-(--row) shrink-0 items-center justify-center not-disabled:hover:bg-sidebar-accent disabled:opacity-30';
 
-/** `--icon-chrome`, one step below the list's `--icon`; see spec §3.2. */
+/**
+ * `--icon-chrome`, one step below the list's `--icon`; see spec §3.2.
+ *
+ * Sized by class rather than by Phosphor's `size` prop: the prop takes a number
+ * or a CSS length string, and neither can carry `var(--icon-chrome)` — passing
+ * one hardcodes 17 in a second place and the glyphs stop following the token
+ * the next time the scale moves. The rendered `<svg>` has no intrinsic size to
+ * fight, so the class wins outright.
+ */
 const GLYPH = 'size-(--icon-chrome)';
 
 /**
@@ -51,7 +60,7 @@ export function HistoryNav(): JSX.Element {
 				onClick={() => router.history.back()}
 				className={BUTTON}
 			>
-				<ChevronLeft className={GLYPH} />
+				<CaretLeftIcon className={GLYPH} weight="bold" />
 			</button>
 			{/*
 			 * Never disabled. `RouterHistory` has `canGoBack()` and no
@@ -66,7 +75,7 @@ export function HistoryNav(): JSX.Element {
 				onClick={() => router.history.forward()}
 				className={BUTTON}
 			>
-				<ChevronRight className={GLYPH} />
+				<CaretRightIcon className={GLYPH} weight="bold" />
 			</button>
 		</div>
 	);

@@ -153,8 +153,8 @@ async function renderShell(side: SidebarSide): Promise<HTMLElement> {
 /**
  * The REAL `__root.tsx`, with two ad-hoc children standing in for the app's
  * routes. This is the only way to assert where `MockIndicator` ends up: the
- * question is which cell `__root` puts it in, and a test that re-composed the
- * tree itself would be asserting its own arrangement.
+ * question is where `__root` puts it relative to the shell, and a test that
+ * re-composed the tree itself would be asserting its own arrangement.
  */
 function renderRoot(at: string) {
 	const router = createRouter({
@@ -322,9 +322,11 @@ describe('ChromeRow', () => {
 		const field = await renderChromeRow(USER_AGENTS.macos, 'right');
 		expect(field.parentElement?.querySelector('[data-tauri-drag-region]')).not.toBeNull();
 
-		// On the field's own surface, and the field gives up its leading padding
-		// so the two insets do not stack into a double gap (spec §4.3).
-		expect(field.className).toContain('pl-0');
+		// On the field's own surface, and the plate gives up its leading padding
+		// so the two insets do not stack into a double gap (spec §4.3). The
+		// plate and not the input: the lens sits ahead of the input, so an inset
+		// worn by the input alone leaves the magnifier flush against the edge.
+		expect(field.parentElement?.className).toContain('pl-0');
 	});
 
 	it('leaves the reserve to the rail on macOS with the rail on the left', async () => {
@@ -332,7 +334,7 @@ describe('ChromeRow', () => {
 		// each column, for one set of buttons.
 		const field = await renderChromeRow(USER_AGENTS.macos, 'left');
 		expect(field.parentElement?.querySelector('[data-tauri-drag-region]')).toBeNull();
-		expect(field.className).toContain('pl-(--inset)');
+		expect(field.parentElement?.className).toContain('pl-[12px]');
 	});
 
 	it.each([
@@ -347,7 +349,7 @@ describe('ChromeRow', () => {
 		// placeholder would sit flush against the edge on both platforms.
 		const field = await renderChromeRow(userAgent, side);
 		expect(field.parentElement?.querySelector('[data-tauri-drag-region]')).toBeNull();
-		expect(field.className).toContain('pl-(--inset)');
+		expect(field.parentElement?.className).toContain('pl-[12px]');
 	});
 });
 
@@ -400,6 +402,18 @@ describe('AppShell', () => {
 		expect(shell.querySelector('main')?.className).toContain('row-start-2');
 	});
 
+	it('paints both cells of the content column, which the field composites against', async () => {
+		// The plate is `--background` at 85% over a backdrop blur. With nothing
+		// opaque behind it there is nothing for the 85% to resolve against and
+		// the field, its lens and its placeholder wash out — worst in light mode,
+		// which has the least contrast to lose.
+		const shell = await renderShell('left');
+		const chromeCell = screen.getByRole('textbox', { name: 'Search' }).closest('[data-shell] > *');
+
+		expect(chromeCell?.className).toContain('bg-background');
+		expect(shell.querySelector('main')?.className).toContain('bg-background');
+	});
+
 	it('answers the selector ResizeHandle resolves its write target with', async () => {
 		// Verbatim from `shellOf` in `sidebar/components/resize-handle.tsx`. Drop
 		// `data-shell` and a drag silently retargets `document.documentElement`,
@@ -421,17 +435,36 @@ describe('AppShell', () => {
 });
 
 describe('the root layout', () => {
-	it('puts the mock banner inside the content column, above the outlet', async () => {
-		// Spec §3.1. As a third grid row it would push the rail 22px down the
-		// webview on dev builds alone, and every geometry rule in the spec is
-		// written against a rail that starts at the top.
+	it('puts the mock banner above the whole grid, not inside the content column', async () => {
+		// Inside the content column it cut the shell in half: a full-width black
+		// bar wedged between the chrome row and the page, with the rail running
+		// past it on one side. It describes the app's data rather than the page's,
+		// so it spans the window — and that is also what keeps every geometry rule
+		// in the spec written against a grid whose first row starts at the top.
 		installMock('normal');
 		const { container } = renderRoot('/');
 
 		const badge = await screen.findByText('Mock');
-		const main = container.querySelector('main');
-		expect(main).toContainElement(badge);
-		expect(main?.firstElementChild).toContainElement(badge);
+		const shell = container.querySelector<HTMLElement>('[data-shell]');
+
+		expect(container.querySelector('main')).not.toContainElement(badge);
+		expect(shell).not.toContainElement(badge);
+		expect(shell?.previousElementSibling).toContainElement(badge);
+	});
+
+	it('leaves the shell whatever height the banner did not take', async () => {
+		// The strip is a row of the window now, so the grid can no longer be a
+		// viewport tall as well: `h-screen` on both is a shell hanging 22px past
+		// the bottom edge, with the rail's last row and the resize grip under it.
+		installMock('normal');
+		const { container } = renderRoot('/');
+
+		await screen.findByText('Mock');
+		const shell = container.querySelector<HTMLElement>('[data-shell]');
+
+		expect(shell?.parentElement?.className).toContain('h-screen');
+		expect(shell?.className).toContain('flex-1');
+		expect(shell?.className).not.toContain('h-screen');
 	});
 
 	it('keeps the mock banner out of the chrome row', async () => {

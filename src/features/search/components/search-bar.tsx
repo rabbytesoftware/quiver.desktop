@@ -64,9 +64,13 @@ export function SearchBar({ leading, trailing }: SearchBarProps): JSX.Element {
 	}
 
 	return (
-		// `bg-background/85` with a 14px backdrop blur — spec §6.4. The blur is
-		// not a vibrancy effect and does not need a transparent window: it
-		// blurs the content column scrolling underneath the row.
+		// `bg-background/85` over a 14px backdrop blur — spec §6.4. The blur is
+		// not a vibrancy effect and does not need a transparent window: it blurs
+		// the content column scrolling underneath the row. It only reads as
+		// anything while the plate is translucent, so focus drops it — an opaque
+		// surface that still declares `backdrop-filter` costs the compositor a
+		// blurred copy of the region on every scrolled frame and paints none of
+		// it.
 		//
 		// The focused state is the `--foreground` / `--background` inversion an
 		// active rail row uses, in both directions — white on dark, near-black
@@ -74,39 +78,60 @@ export function SearchBar({ leading, trailing }: SearchBarProps): JSX.Element {
 		// question has not settled (spec §5.3), and spending it here settles it
 		// by accident. It grows no ring either; the inversion is the focus
 		// indicator.
-		<div className="group flex h-(--row) w-full items-center bg-background/85 backdrop-blur-[14px] focus-within:bg-foreground focus-within:text-background">
+		<div
+			className={cn(
+				'group flex h-(--row) w-full cursor-text items-center gap-[9px] bg-background/85 backdrop-blur-[14px]',
+				'focus-within:bg-foreground focus-within:text-background focus-within:backdrop-filter-none',
+				// The 12px belongs to the PLATE, not to the input: the lens sits
+				// ahead of the input, so padding worn by the input alone leaves
+				// the magnifier flush against the window's edge.
+				//
+				// One class per side rather than `px-[12px]` plus a conditional
+				// `pl-0`. `cn` is tailwind-merge v1, built against Tailwind v3 —
+				// it cannot parse this project's v4 syntax, so which of two
+				// conflicting padding classes wins would come down to the order
+				// Tailwind happens to emit them in rather than to anything here.
+				//
+				// A slot supplies its own inset (spec §4.3). Keep ours and the
+				// two stack into a double gap.
+				leading ? 'pl-0' : 'pl-[12px]',
+				trailing ? 'pr-0' : 'pr-[12px]'
+			)}
+		>
 			{leading}
+			{/* Drawn here rather than pulled from an icon set: this geometry is the
+			    design's own — a 4.13 circle on a 13px canvas with a 1.68 stroke —
+			    and the nearest icon in the set is a different weight at a
+			    different size. `currentColor` throughout is what makes it invert
+			    with the plate; a hard-coded stroke would stay white on white the
+			    moment the field takes focus. */}
+			<span className="grid flex-none opacity-70">
+				<svg width="13" height="13" viewBox="0 0 13 13" aria-hidden="true">
+					<circle cx="5.35" cy="5.35" r="4.13" fill="none" stroke="currentColor" strokeWidth="1.68" />
+					<path d="M8.56 8.56l3.37 3.37" stroke="currentColor" strokeWidth="1.68" strokeLinecap="round" />
+				</svg>
+			</span>
 			<input
 				type="text"
 				value={query}
 				onChange={(event) => commit(event.target.value)}
 				aria-label={t('search.label')}
 				placeholder={t('search.placeholder')}
-				className={cn(
-					'h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground group-focus-within:placeholder:text-inherit',
-					// One class per side rather than `px-(--inset)` plus a
-					// conditional `pl-0`: `cn` is tailwind-merge, which does not
-					// recognise a `(--custom-property)` value and so leaves both
-					// `padding-left` declarations standing — which one wins is
-					// then down to the order Tailwind happens to emit its
-					// utilities in, not to anything in this file.
-					//
-					// The slot supplies its own inset (spec §4.3). Keep ours and
-					// the two stack into a double gap.
-					leading ? 'pl-0' : 'pl-(--inset)',
-					trailing ? 'pr-0' : 'pr-(--inset)'
-				)}
+				// The placeholder is the field's only label, so its colour AND its
+				// opacity are both stated rather than left to a UA stylesheet —
+				// browsers disagree on a default `::placeholder` opacity, and one
+				// that dims it drops the italic hint two shades below
+				// `--muted-foreground` on that browser alone. Focus swaps it for
+				// the inverted colour at 0.45, the one tone that stays legible on
+				// the inverted plate.
+				className="h-full min-w-0 flex-1 bg-transparent p-0 text-[12px] font-[480] tracking-[-0.1px] outline-none placeholder:italic placeholder:text-muted-foreground placeholder:opacity-100 group-focus-within:placeholder:text-inherit group-focus-within:placeholder:opacity-[0.45]"
 			/>
+			{/* Gone on focus, not dimmed: the hint tells you how to reach a field
+			    you are already typing in, and it is the one thing on the plate
+			    that would still be competing with the query for the eye. */}
 			<kbd
 				aria-hidden="true"
-				className={cn(
-					'shrink-0 font-sans text-muted-foreground group-focus-within:text-inherit',
-					// The hint sits between the input and the trailing slot, so
-					// the inset that separates it from the typed text has to
-					// move to its own leading edge once the input has dropped
-					// its trailing padding — otherwise the query runs into ⌘K.
-					trailing ? 'pl-(--inset)' : 'pr-(--inset)'
-				)}
+				className="flex-none font-sans text-[9.5px] tracking-[-0.1px] text-muted-foreground group-focus-within:hidden"
 			>
 				{t('search.shortcut')}
 			</kbd>

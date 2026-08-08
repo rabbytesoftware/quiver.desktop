@@ -182,7 +182,7 @@ describe('PrimaryNav', () => {
 			const link = screen.getByRole('link', { name });
 			expect(link.className).toContain('h-(--row)');
 			expect(link.className).toContain('not-data-[status=active]:min-w-(--row)');
-			expect(link.querySelector('svg')?.getAttribute('class')).toContain('size-(--icon)');
+			expect(link.querySelector('svg')?.getAttribute('class')).toContain('size-(--icon-nav)');
 		}
 	});
 
@@ -191,5 +191,19 @@ describe('PrimaryNav', () => {
 	it('caps the active segment at 54% of the rail', async () => {
 		await renderNav('/');
 		expect(screen.getByRole('link', { name: 'Home' }).className).toContain('data-[status=active]:max-w-[54%]');
+	});
+
+	/**
+	 * design.pen's own 610 and -0.1px, and the reason the weight is scoped to the
+	 * active segment: it is the only one that renders text. Nothing here has a
+	 * layout consequence, so the only way this drifts back to the browser default
+	 * is silently.
+	 */
+	it('sets the active segment in design.pen weight and tracking', async () => {
+		await renderNav('/');
+		const home = screen.getByRole('link', { name: 'Home' });
+
+		expect(home.className).toContain('data-[status=active]:font-[610]');
+		expect(home.className).toContain('tracking-[-0.1px]');
 	});
 });

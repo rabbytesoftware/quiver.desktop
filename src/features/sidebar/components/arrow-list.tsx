@@ -1,11 +1,31 @@
 import { useMemo, type JSX } from 'react';
 
-import { ScrollArea } from '@/components/ui/scroll-area';
-
 import { useArrowStore } from '@/lib/core-store';
 import { useTranslation } from '@/lib/i18n';
 
 import { ArrowRow } from './arrow-row';
+
+/**
+ * The design styles the scrollbar itself — 6px wide, thumb `--border`, no track
+ * and no buttons — which is a native `::-webkit-scrollbar` and not what shadcn's
+ * ScrollArea draws. That component hides the real bar and renders its own from
+ * measurements it takes of the viewport, and the rail's width is dragged live:
+ * it becomes one more thing that has to be told the layout moved, in exchange
+ * for a scrollbar the design already describes in three declarations.
+ *
+ * `min-h-0` because the rail is a flex column: without it this pane's content
+ * sets its floor and the list pushes the rail past the window instead of
+ * scrolling inside it. `overflow-x-hidden` because the rows are `--rail` wide
+ * with no wrap, and a sub-pixel rounding at some rail widths is enough to hand
+ * the column a horizontal bar it can never usefully scroll.
+ *
+ * `data-slot="scroll-area"` outlives the component it came from: it is how the
+ * rail's own test says the list scrolls and the top bar above it does not.
+ */
+const SCROLLER = [
+	'min-h-0 flex-1 overflow-x-hidden overflow-y-auto',
+	'[&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-thumb]:bg-border',
+].join(' ');
 
 /**
  * Every installed arrow, in name order.
@@ -29,15 +49,12 @@ export function ArrowList(): JSX.Element {
 	);
 
 	return (
-		// `min-h-0` because the rail is a flex column: without it this pane's
-		// content sets its floor and the list pushes the rail past the window
-		// instead of scrolling inside it.
-		<ScrollArea className="min-h-0 flex-1">
+		<div data-slot="scroll-area" className={SCROLLER}>
 			<nav aria-label={t('sidebar.arrows')} className="flex flex-col">
 				{sorted.map((arrow) => (
 					<ArrowRow key={arrow.namespace} arrow={arrow} />
 				))}
 			</nav>
-		</ScrollArea>
+		</div>
 	);
 }

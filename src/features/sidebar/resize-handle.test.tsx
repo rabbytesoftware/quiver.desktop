@@ -273,13 +273,62 @@ describe('the separator semantics', () => {
 
 	// The handle grabs the rail's content-facing edge — its right edge on the
 	// left, its left edge on the right — which is what makes the sign flip
-	// necessary in the first place.
+	// necessary in the first place. Offset by 3 of its 7 pixels so it straddles
+	// that edge rather than hiding inside the rail.
 	it('sits on the right edge of a left-docked rail', () => {
-		expect(renderHandle('left').handle.className).toContain('right-0');
+		expect(renderHandle('left').handle.className).toContain('-right-[3px]');
 	});
 
 	it('sits on the left edge of a right-docked rail', () => {
-		expect(renderHandle('right').handle.className).toContain('left-0');
+		expect(renderHandle('right').handle.className).toContain('-left-[3px]');
+	});
+
+	it('is seven pixels wide, which is what the offset is measured against', () => {
+		expect(renderHandle('left').handle.className).toContain('w-[7px]');
+	});
+});
+
+/**
+ * The hairline is the only thing on screen saying the edge can be moved, and the
+ * case `:hover` gets wrong is the one that matters most: the pointer is captured
+ * on the way down and leaves the seven-pixel strip almost immediately, so a
+ * hover-only rule takes the line away for the whole of the drag and puts it back
+ * on release. jsdom has no layout and no pseudo-elements, so what is asserted is
+ * the attribute the rule keys off and the rule itself.
+ */
+describe('the grip indicator, which has to outlive the pointer leaving the strip', () => {
+	it('marks itself as dragging from the press until the release', () => {
+		const { handle } = renderHandle('left');
+		expect(handle).toHaveAttribute('data-dragging', 'false');
+
+		fireEvent.pointerDown(handle, { pointerId: 1, clientX: 0 });
+		expect(handle).toHaveAttribute('data-dragging', 'true');
+
+		// Far outside the strip, which is where the pointer spends the drag.
+		fireEvent.pointerMove(handle, { pointerId: 1, clientX: 40 });
+		expect(handle).toHaveAttribute('data-dragging', 'true');
+
+		fireEvent.pointerUp(handle, { pointerId: 1, clientX: 40 });
+		expect(handle).toHaveAttribute('data-dragging', 'false');
+	});
+
+	// The same abandoned drag as above: a mark left on would leave the line
+	// painted over a rail nobody is resizing.
+	it('drops the mark when the pointer capture is lost', () => {
+		const { handle } = renderHandle('left');
+
+		fireEvent.pointerDown(handle, { pointerId: 1, clientX: 0 });
+		fireEvent.lostPointerCapture(handle, { pointerId: 1 });
+		expect(handle).toHaveAttribute('data-dragging', 'false');
+	});
+
+	it('draws the line from that mark as well as from hover', () => {
+		const { handle } = renderHandle('left');
+
+		expect(handle.className).toContain('data-[dragging=true]:after:opacity-100');
+		expect(handle.className).toContain('hover:after:opacity-100');
+		expect(handle.className).toContain('after:w-px');
+		expect(handle.className).toContain('after:bg-muted-foreground');
 	});
 });
 

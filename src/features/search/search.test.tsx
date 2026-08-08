@@ -160,11 +160,15 @@ describe('SearchBar', () => {
 	 * The doubled gap is invisible to jsdom, which has no layout: the caller's
 	 * own inset and the field's stack, and the only place that can be caught is
 	 * the class list.
+	 *
+	 * On the PLATE and not on the input, which is the half that was wrong: the
+	 * lens sits ahead of the input, so an inset worn by the input alone leaves
+	 * the magnifier flush against the window's edge.
 	 */
-	it('keeps its own inset on both sides when no slot is given', async () => {
-		const { input } = await renderField();
-		expect(input.className).toContain('pl-(--inset)');
-		expect(input.className).toContain('pr-(--inset)');
+	it('keeps its own 12px inset on both sides when no slot is given', async () => {
+		const plate = (await renderField()).input.parentElement;
+		expect(plate?.className).toContain('pl-[12px]');
+		expect(plate?.className).toContain('pr-[12px]');
 	});
 
 	it('drops the padding on whichever side a slot supplies its own inset', async () => {
@@ -172,11 +176,64 @@ describe('SearchBar', () => {
 			leading: <div data-testid="leading" />,
 			trailing: <div data-testid="trailing" />,
 		});
+		const plate = input.parentElement;
 
-		expect(input.className).toContain('pl-0');
-		expect(input.className).not.toContain('pl-(--inset)');
-		expect(input.className).toContain('pr-0');
-		expect(input.className).not.toContain('pr-(--inset)');
+		expect(plate?.className).toContain('pl-0');
+		expect(plate?.className).not.toContain('pl-[12px]');
+		expect(plate?.className).toContain('pr-0');
+		expect(plate?.className).not.toContain('pr-[12px]');
+	});
+
+	/**
+	 * The lens went missing once already, in a shell that still looked plausible
+	 * because the placeholder rendered — so it is asserted by position rather
+	 * than by presence: leading edge first, input after it.
+	 */
+	it('opens with the lens, ahead of the input', async () => {
+		const { input } = await renderField();
+		const lens = input.parentElement?.firstElementChild;
+
+		expect(lens?.querySelector('svg')).not.toBeNull();
+		expect(lens?.nextElementSibling).toBe(input);
+	});
+
+	it('strokes the lens in currentColor, so it inverts with the plate', async () => {
+		// A literal colour survives the inversion and disappears into it: a
+		// white magnifier on the white focused plate, with the field otherwise
+		// working perfectly.
+		const lens = (await renderField()).input.parentElement?.querySelector('svg');
+
+		expect(lens?.querySelector('circle')?.getAttribute('stroke')).toBe('currentColor');
+		expect(lens?.querySelector('path')?.getAttribute('stroke')).toBe('currentColor');
+	});
+
+	/**
+	 * Both focus behaviours are invisible to jsdom — it applies no `:focus-within`
+	 * rule and composites nothing — so the class list is the only place they can
+	 * be caught, and both were missing from the first build.
+	 */
+	it('hides the hint and drops the blur on focus', async () => {
+		const { input } = await renderField();
+
+		// The hint explains how to reach a field you are already typing in, and
+		// it is the one thing left on the plate competing with the query.
+		expect(screen.getByText('⌘K').className).toContain('group-focus-within:hidden');
+		// The focused plate is opaque, so the blur is a compositor pass over
+		// every scrolled frame underneath that paints nothing anyone can see.
+		expect(input.parentElement?.className).toContain('focus-within:backdrop-filter-none');
+	});
+
+	/**
+	 * None of these sizes has a token — they are the design's own, and the only
+	 * record of them outside `design.pen` is the class list.
+	 */
+	it('types the query at 12/480 and the hint at 9.5, with an italic placeholder', async () => {
+		const { input } = await renderField();
+
+		expect(input.className).toContain('text-[12px]');
+		expect(input.className).toContain('font-[480]');
+		expect(input.className).toContain('placeholder:italic');
+		expect(screen.getByText('⌘K').className).toContain('text-[9.5px]');
 	});
 
 	/**

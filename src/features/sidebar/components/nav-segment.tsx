@@ -1,10 +1,9 @@
 import type { JSX } from 'react';
 
+import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-
-import type { LucideIcon } from 'lucide-react';
 
 import { blockReselect } from '../reselect';
 
@@ -24,7 +23,12 @@ export interface NavSegmentProps {
 	 * `primary-nav.tsx`.
 	 */
 	exact?: boolean;
-	icon: LucideIcon;
+	/**
+	 * Phosphor's own component type, aliased because the destructure below binds
+	 * this prop to `Icon` in order to render it, and an unaliased import would
+	 * be shadowed by it.
+	 */
+	icon: PhosphorIcon;
 	/** Already translated. Doubles as the accessible name and the tooltip text. */
 	label: string;
 }
@@ -47,18 +51,53 @@ export interface NavSegmentProps {
  * No gap between segments. design.pen's `gap: 4` existed only to make
  * `112 + 4 + 44 + 4 + 44` come out to 208; the rail is 246 now, the active
  * segment absorbs the difference, and nothing else in the rail is separated.
+ *
+ * 610 and -0.1px are design.pen's own numbers, written literally because no
+ * token carries them. The weight lands on the active segment alone, which is
+ * the only one that renders text — a collapsed segment inherits it and has
+ * nothing to apply it to. Dropping it does not break a layout or a test; it
+ * just leaves the one label on screen reading a shade lighter than the design,
+ * against a fill that is already inverted and unforgiving about weight.
  */
 const SEGMENT = [
-	'flex h-(--row) items-center overflow-hidden text-[13px]',
+	'flex h-(--row) items-center overflow-hidden text-[13px] tracking-[-0.1px]',
 	'data-[status=active]:max-w-[54%] data-[status=active]:flex-[1_1_auto]',
 	'data-[status=active]:gap-(--inset) data-[status=active]:px-(--inset)',
-	'data-[status=active]:bg-sidebar-primary data-[status=active]:text-sidebar-primary-foreground',
+	'data-[status=active]:font-[610] data-[status=active]:bg-sidebar-primary',
+	'data-[status=active]:text-sidebar-primary-foreground',
 	'not-data-[status=active]:min-w-(--row) not-data-[status=active]:flex-1',
 	'not-data-[status=active]:hover:bg-sidebar-accent',
 ].join(' ');
 
-/** `--icon`, the content tier — one step above the history chevrons' `--icon-chrome`. */
-const ICON = 'size-(--icon) shrink-0';
+/**
+ * `--icon-nav` (14), the smallest of the three tiers — NOT `--icon` (20), which
+ * belongs to the arrow rows. A nav segment is mostly icon: at 20 the glyph fills
+ * a collapsed segment edge to edge and the three of them read as toolbar buttons
+ * rather than as one segmented control. The design draws these at 14 and the
+ * list at 20 for exactly that reason.
+ *
+ * A class and not Phosphor's `size` prop, which is not a substitute for it:
+ * `size` is written to the svg's `width`/`height` ATTRIBUTES, and `var()` is
+ * not substituted in an attribute, so `size="var(--icon-nav)"` would be
+ * discarded and leave the icon at the context default of 1em — 13px, tracking
+ * the font instead of the token. The class wins over the attribute regardless:
+ * presentation attributes lose to every author rule.
+ */
+const ICON = 'size-(--icon-nav) shrink-0';
+
+/**
+ * One weight for all three segments, and `bold` rather than Phosphor's default
+ * `regular` because of the size above. Phosphor draws regular at 16 units of a
+ * 256 grid and bold at 24, so at 14px they come out at 0.88px and 1.31px of
+ * stroke; design.pen draws these glyphs at 2.1 of a 24 grid, which is 1.23px.
+ * Bold is the one that matches. Regular is the tempting default and reads
+ * visibly wispier than the design at this size, most of all on the inverted
+ * fill the active segment paints behind it.
+ *
+ * Stated rather than left to the default so an `IconContext` mounted anywhere
+ * above the rail cannot restyle it from a distance.
+ */
+const WEIGHT = 'bold';
 
 /**
  * One destination in the rail's primary nav: an icon that grows a label when the
@@ -82,7 +121,7 @@ export function NavSegment({ to, exact = false, icon: Icon, label }: NavSegmentP
 			{({ isActive }) =>
 				isActive ? (
 					<>
-						<Icon className={ICON} />
+						<Icon className={ICON} weight={WEIGHT} />
 						<span className="min-w-0 truncate">{label}</span>
 					</>
 				) : (
@@ -91,7 +130,7 @@ export function NavSegment({ to, exact = false, icon: Icon, label }: NavSegmentP
 						 * the 20px the icon occupies once flex has handed this segment
 						 * a share of the rail wider than a square. */}
 						<TooltipTrigger render={<span className="flex size-full items-center justify-center" />}>
-							<Icon className={ICON} />
+							<Icon className={ICON} weight={WEIGHT} />
 						</TooltipTrigger>
 						{/* Below, not above: the rail's top bar is directly above the
 						 * nav, so a tooltip on the default side covers the history

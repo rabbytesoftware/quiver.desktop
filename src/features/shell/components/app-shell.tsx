@@ -9,7 +9,7 @@ import { useShellStore } from '../store';
 import { ChromeRow } from './chrome-row';
 
 export interface AppShellProps {
-	/** The content column's row 2 — the mock banner and the router's outlet. */
+	/** The content column's row 2 — the router's outlet. */
 	children: ReactNode;
 }
 
@@ -48,7 +48,13 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
 				// commits on pointer-up, then snap.
 				style={{ '--rail': `${width}px` } as CSSProperties}
 				className={cn(
-					'grid h-screen overflow-hidden bg-background text-foreground',
+					// `flex-1 min-h-0`, not `h-screen`: the root is a flex column and
+					// the dev-only mock strip is the row above this one, so a full
+					// viewport height here would push the rail's last row off the
+					// bottom of the window by the strip's 22px — on exactly the
+					// builds anyone is looking at it in. `min-h-0` because a flex
+					// item refuses to shrink below its content by default.
+					'grid min-h-0 flex-1 overflow-hidden bg-background text-foreground',
 					'grid-rows-[var(--row)_1fr]',
 					side === 'left' ? 'grid-cols-[var(--rail)_minmax(0,1fr)]' : 'grid-cols-[minmax(0,1fr)_var(--rail)]'
 				)}
@@ -65,8 +71,15 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
 
 				{/* The cell, not the row: `ChromeRow` renders the field itself and
 				    the field is the row, so the placement has to go somewhere and
-				    this is the only file that knows which column is which. */}
-				<div className={cn('row-start-1', contentColumn)}>
+				    this is the only file that knows which column is which.
+
+				    `bg-background` is what the field is composited against (spec
+				    §6.4): the plate is `--background` at 85% over a blur, so with
+				    nothing opaque behind it the row resolves against whatever the
+				    window happens to be showing and the field, its lens and its
+				    placeholder wash out — worst in light mode, which has the least
+				    contrast to lose. */}
+				<div className={cn('row-start-1 bg-background', contentColumn)}>
 					<ChromeRow />
 				</div>
 
@@ -74,7 +87,7 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
 				    refuses to shrink below its content: without it a long list
 				    grows this cell past the `1fr` track and scrolls the window
 				    instead of the column. */}
-				<main className={cn('row-start-2 min-h-0 overflow-auto', contentColumn)}>{children}</main>
+				<main className={cn('row-start-2 min-h-0 overflow-auto bg-background', contentColumn)}>{children}</main>
 			</div>
 		</TooltipProvider>
 	);

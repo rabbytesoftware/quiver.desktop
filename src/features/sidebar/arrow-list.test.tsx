@@ -7,7 +7,7 @@ import {
 	RouterProvider,
 	useParams,
 } from '@tanstack/react-router';
-import { act, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -111,6 +111,19 @@ function subtitleOf(row: HTMLElement): HTMLElement {
 	return subtitle;
 }
 
+function chipOf(tile: HTMLElement): HTMLElement {
+	const chip = tile.querySelector<HTMLElement>('[data-slot="arrow-monogram"]');
+	if (!chip) throw new Error('the fallback tile has no monogram chip');
+	return chip;
+}
+
+/** The chip's own background, which is the only place the derived colour lands. */
+async function colourFor(namespace: string, name: string): Promise<string> {
+	seed(entry(namespace, name, null));
+	renderList('/');
+	return chipOf(await screen.findByRole('img', { name: `${name} icon` })).style.backgroundColor;
+}
+
 beforeEach(() => {
 	useArrowStore.getState().reset();
 	useLocaleStore.setState({ preference: 'system', detected: 'en' });
@@ -161,28 +174,76 @@ describe('ArrowIcon', () => {
 	});
 
 	/**
-	 * The design draws no fallback, so this tile is ours. Two lettered tiles are
-	 * indistinguishable to a screen reader without the name in the label — the
-	 * letter is not the name, and `alt=""` would leave the row's icon unnamed.
+	 * The design draws no fallback and every arrow in the catalog ships
+	 * `icon: null` today, so this chip IS what the rail looks like. Two lettered
+	 * chips are indistinguishable to a screen reader without the name in the
+	 * label — the monogram is not the name, and `alt=""` would leave the row's
+	 * icon unnamed.
 	 */
-	it('falls back to a named lettered tile when the arrow ships no icon', async () => {
+	it('falls back to a named monogram chip when the arrow ships no icon', async () => {
 		seed(entry(MINECRAFT, 'Minecraft', null));
 		renderList('/');
 
 		const tile = await screen.findByRole('img', { name: 'Minecraft icon' });
-		expect(tile).toHaveTextContent('M');
 		expect(tile.className).toContain('size-(--icon)');
+		expect(chipOf(tile).textContent).toBe('Mi');
 	});
 
 	/**
-	 * `charAt(0)` on a name that opens with an astral character returns half a
-	 * surrogate pair, which paints as a replacement glyph rather than the emoji.
+	 * Initials where the name has two words to take them from, the opening pair
+	 * where it has one. `charAt(0)` and `slice(0, 2)` both hand back half a
+	 * surrogate pair for the two emoji cases, which paints as a replacement box
+	 * rather than the emoji — in a chip with room for exactly two glyphs.
 	 */
-	it('takes a whole code point as the initial, not half a surrogate pair', async () => {
-		seed(entry(MINECRAFT, '🐇 Rabbyte', null));
+	it.each([
+		['Minecraft Server', 'MS'],
+		['Firefox', 'Fi'],
+		['Q', 'Q'],
+		['\u{1F407} Rabbyte', '\u{1F407}R'],
+		['\u{1F407}Rabbyte', '\u{1F407}R'],
+	])('takes a two-glyph monogram from %s', async (name, expected) => {
+		seed(entry(MINECRAFT, name, null));
 		renderList('/');
 
-		expect(await screen.findByRole('img', { name: '🐇 Rabbyte icon' })).toHaveTextContent('🐇');
+		const tile = await screen.findByRole('img', { name: `${name} icon` });
+		expect(chipOf(tile).textContent).toBe(expected);
+	});
+
+	/**
+	 * The colour is DERIVED from the namespace, which is what makes it stable:
+	 * the same arrow is the same colour on every mount and in every window. A
+	 * random pick would recolour the rail each time it rendered, which is the one
+	 * thing a colour used to find a row again cannot do.
+	 */
+	it('gives a namespace the same colour every time it renders', async () => {
+		const first = await colourFor(MINECRAFT, 'Minecraft');
+		cleanup();
+		const second = await colourFor(MINECRAFT, 'Minecraft');
+
+		expect(second).toBe(first);
+	});
+
+	/**
+	 * And total, where a lookup table is not: neither of these namespaces is in
+	 * any table, and both still get a colour of their own rather than sharing one
+	 * default with every arrow published after the table was written.
+	 */
+	it('gives different namespaces different colours', async () => {
+		seed(entry(MINECRAFT, 'Minecraft', null), entry('github.com/mozilla/firefox@v1', 'Firefox', null));
+		renderList('/');
+
+		await screen.findByRole('navigation', { name: 'Arrows' });
+		const [first, second] = screen.getAllByRole('img').map((tile) => chipOf(tile).style.backgroundColor);
+		expect(first).not.toBe(second);
+	});
+
+	/**
+	 * Only the HUE is hashed. Lightness and chroma are fixed, which is what keeps
+	 * white 700-weight text above 4.5:1 on all 360 of them — 4.70:1 at the worst
+	 * hue. Hashing the lightness too would put some chips at 1.2:1.
+	 */
+	it('varies only the hue, at a lightness white text stays legible on', async () => {
+		expect(await colourFor(MINECRAFT, 'Minecraft')).toMatch(/^oklch\(0\.52 0\.15 \d{1,3}\)$/);
 	});
 });
 

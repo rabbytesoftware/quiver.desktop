@@ -30,6 +30,7 @@
 	--row: 34px;
 	--icon: 20px; /* content — arrow marks in the list */
 	--icon-chrome: 17px; /* chrome glyphs — back / forward */
+	--icon-nav: 14px; /* primary nav — Home / Remote / Settings */
 	--inset: calc((var(--row) - var(--icon)) / 2);
 
 	--background: oklch(1 0 0);
