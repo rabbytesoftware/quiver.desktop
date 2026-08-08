@@ -29,7 +29,11 @@
  * that instead.
  */
 :root {
-	--radius: 0.625rem;
+	/* PX, not CossUI's 0.625rem. `html` is 13px here (see @layer base), so every
+	 * rem-based Tailwind utility resolves at 13/16 — a 0.625rem radius would come
+	 * out at 8.125px and every component pulled from the registry would render at
+	 * 81% of the size it was drawn at. Absolute keeps the corner CossUI's. */
+	--radius: 10px;
 
 	/* Inter for everything except identifiers. JetBrains Mono is reserved for
 	 * namespaces and versions — never names, navigation, or shortcut hints. */
@@ -149,6 +153,16 @@
 }
 
 @theme inline {
+	/* Same reason as --radius. Tailwind derives its whole spacing scale as
+	 * `calc(var(--spacing) * n)` from a 0.25rem default, which at this app's 13px
+	 * root is 3.25px — so `h-9` measured 29px against the 36 it is drawn at, and
+	 * `px-1.5` 4.875px against 6. Pinning the step to 4px makes every spacing
+	 * utility absolute, so a pulled component is the size its designer chose.
+	 *
+	 * The app's own geometry tokens (--row, --icon, --inset) are already in px
+	 * and are unaffected. */
+	--spacing: 4px;
+
 	/* Derived from --radius rather than four literals, so the scale keeps its
 	 * proportions if the base ever moves again. `rounded-lg` IS --radius, which
 	 * is what ROW_BASE uses. */
