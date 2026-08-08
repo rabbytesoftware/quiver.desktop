@@ -8,6 +8,12 @@
  * written against these names, so they land already square and already
  * monochrome and need no editing.
  *
+ * One exception to the flattening: dark's --muted-foreground keeps design.pen's
+ * own #B8B9B6 verbatim, chroma and all — a whisper of green nobody will ever
+ * see. Zeroing it would be us editing the design instead of implementing it,
+ * and the drift only surfaces when someone next diffs the file against
+ * design.pen and has to guess which side was deliberate.
+ *
  * `destructive` is a grey like everything else, which means a Remove button
  * does not read as dangerous on its own. Weight and confirmation have to carry
  * that instead.
@@ -15,8 +21,19 @@
 :root {
 	--radius: 0rem;
 
-	--background: oklch(0.98 0 0);
-	--foreground: oklch(0.18 0 0);
+	/* Consumed as h-(--row), w-(--rail), p-(--inset) — never as arbitrary
+	 * values. --inset is DERIVED: it is the number that puts the icon the same
+	 * distance from a row's leading edge as from its top and bottom. Write
+	 * p-[7px] anywhere and that stops being true the next time --row or --icon
+	 * moves, silently, with no test to catch it. */
+	--rail: 246px;
+	--row: 34px;
+	--icon: 20px; /* content — arrow marks in the list */
+	--icon-chrome: 17px; /* chrome glyphs — back / forward */
+	--inset: calc((var(--row) - var(--icon)) / 2);
+
+	--background: oklch(1 0 0);
+	--foreground: oklch(0.145 0 0);
 	/* Not shadcn's; the third text tier every caption line needs. */
 	--foreground-subtle: oklch(0.62 0 0);
 
@@ -30,13 +47,13 @@
 	--secondary: oklch(0.94 0 0);
 	--secondary-foreground: oklch(0.18 0 0);
 	--muted: oklch(0.94 0 0);
-	--muted-foreground: oklch(0.44 0 0);
+	--muted-foreground: oklch(0.633 0 0);
 	--accent: oklch(0.94 0 0);
 	--accent-foreground: oklch(0.18 0 0);
 	--destructive: oklch(0.45 0 0);
 	--destructive-foreground: oklch(0.98 0 0);
 
-	--border: oklch(0.88 0 0);
+	--border: oklch(0.919 0 0);
 	--input: oklch(0.94 0 0);
 	--ring: oklch(0.5 0 0);
 
@@ -46,21 +63,25 @@
 	--chart-4: oklch(0.66 0 0);
 	--chart-5: oklch(0.78 0 0);
 
-	--sidebar: oklch(0.96 0 0);
-	--sidebar-foreground: oklch(0.18 0 0);
-	--sidebar-primary: oklch(0.18 0 0);
-	--sidebar-primary-foreground: oklch(0.98 0 0);
-	--sidebar-accent: oklch(0.92 0 0);
-	--sidebar-accent-foreground: oklch(0.18 0 0);
-	--sidebar-border: oklch(0.88 0 0);
+	--sidebar: oklch(0.951 0 0);
+	--sidebar-foreground: oklch(0.218 0 0);
+	--sidebar-primary: oklch(0.145 0 0);
+	--sidebar-primary-foreground: oklch(1 0 0);
+	/* Equal to --background on purpose, in both modes: a hovered rail row punches
+	 * through to the content column's colour. Not a duplicate to be collapsed
+	 * into var(--background) — that would tie hover to the content column
+	 * permanently, and the day one of them moves the other follows in silence. */
+	--sidebar-accent: oklch(0.97 0 0);
+	--sidebar-accent-foreground: oklch(0.218 0 0);
+	--sidebar-border: oklch(0.919 0 0);
 	--sidebar-ring: oklch(0.5 0 0);
 }
 
 /* Dark is the reviewed one; light exists so components are written against
  * tokens rather than dark values, and its values are expected to move. */
 .dark {
-	--background: oklch(0.16 0 0);
-	--foreground: oklch(0.97 0 0);
+	--background: oklch(0.178 0 0);
+	--foreground: oklch(1 0 0);
 	--foreground-subtle: oklch(0.54 0 0);
 
 	--card: oklch(0.21 0 0);
@@ -73,13 +94,14 @@
 	--secondary: oklch(0.26 0 0);
 	--secondary-foreground: oklch(0.97 0 0);
 	--muted: oklch(0.26 0 0);
-	--muted-foreground: oklch(0.72 0 0);
+	/* design.pen's #B8B9B6, chroma intact — see the header comment before flattening it. */
+	--muted-foreground: oklch(0.784 0.004 121.6);
 	--accent: oklch(0.26 0 0);
 	--accent-foreground: oklch(0.97 0 0);
 	--destructive: oklch(0.65 0 0);
 	--destructive-foreground: oklch(0.16 0 0);
 
-	--border: oklch(0.3 0 0);
+	--border: oklch(0.301 0 0);
 	--input: oklch(0.13 0 0);
 	--ring: oklch(0.66 0 0);
 
@@ -89,13 +111,14 @@
 	--chart-4: oklch(0.54 0 0);
 	--chart-5: oklch(0.42 0 0);
 
-	--sidebar: oklch(0.18 0 0);
-	--sidebar-foreground: oklch(0.97 0 0);
-	--sidebar-primary: oklch(0.97 0 0);
-	--sidebar-primary-foreground: oklch(0.16 0 0);
-	--sidebar-accent: oklch(0.26 0 0);
-	--sidebar-accent-foreground: oklch(0.97 0 0);
-	--sidebar-border: oklch(0.3 0 0);
+	--sidebar: oklch(0.239 0 0);
+	--sidebar-foreground: oklch(0.985 0 0);
+	--sidebar-primary: oklch(1 0 0);
+	--sidebar-primary-foreground: oklch(0.178 0 0);
+	/* Equal to --background here too, for the same reason as in :root. */
+	--sidebar-accent: oklch(0.178 0 0);
+	--sidebar-accent-foreground: oklch(0.985 0 0);
+	--sidebar-border: oklch(0.301 0 0);
 	--sidebar-ring: oklch(0.66 0 0);
 }
 
@@ -159,11 +182,13 @@
 	html,
 	body {
 		height: 100%;
-		/* Transparent, not --background: an opaque background here kills the macOS
-		   window vibrancy. The app's root element carries the colour. */
-		background: transparent;
+		/* The window is opaque on every platform — src-tauri/Cargo.toml declines
+		   macos-private-api, so there is no vibrancy here for transparent to protect. */
+		background: var(--background);
 		color: var(--foreground);
-		/* The whole scale is built on this: 26px buttons, 30px rail rows. */
+		/* --row, and every height derived from it, was sized against this. Move it and
+		   the rail rows, the chrome row and the macOS traffic-light offset in
+		   tauri.macos.conf.json all drift apart, each in its own file. */
 		font-size: 13px;
 		-webkit-font-smoothing: antialiased;
 	}
