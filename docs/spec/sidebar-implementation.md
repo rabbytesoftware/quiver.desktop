@@ -192,10 +192,31 @@ shared `tauri.conf.json` is untouched; `decorations` stays true everywhere and d
 edge. At `--row: 34` that is 11. It lives in a JSON file that cannot see a stylesheet, so a test
 reads both sides and fails when they disagree.
 
-**4.5 — Drag regions on macOS only.** Windows and Linux have a real title bar directly above the
-webview; a second draggable strip across the search field is redundant there and interferes with
-clicking near the input. Not on `<body>` — `index.html` already records why — and not on any button,
-since Tauri dispatches on the event target.
+**4.5 — The whole of row 1 is a window drag handle, on every platform.**
+~~Drag regions on macOS only.~~ macOS hides its title bar under
+`titleBarStyle: "Overlay"` and takes every draggable surface with it, so without
+this the top of the window is dead and the only way to move it is the 64px the
+lights sit on. Nothing about the page looks wrong — the window simply will not
+move.
+
+`data-tauri-drag-region` goes on the rail's top bar, on its spacer (most of the
+row's width, and a click lands on whichever element is actually under it), and
+on the search plate. Tauri dispatches on the event TARGET, so the two history
+buttons and the search input stay interactive by being their own targets.
+
+**The input must never carry it.** It would take mousedown away from focusing
+the field and from selecting the text already in it, and the failure reads as
+"the search box is broken" rather than as "the drag region is too greedy". That
+caps what is grabbable in the content column at whatever the field does not
+occupy — about 70px of 828 at a 1200px window, since the field is `flex-1`.
+Widening that means bounding the field, which is a design change and not one
+this rule makes.
+
+Not on `<body>` — `index.html` already records why — and not on any button.
+
+The reserve carries `data-slot="window-controls"` as well, because
+`data-tauri-drag-region` stopped identifying it the moment the rest of the row
+became a drag surface too.
 
 **4.6 — Four capability permissions become unused.** `allow-minimize`, `allow-toggle-maximize`,
 `allow-close` and `allow-is-maximized` were granted for caption buttons that will not exist. Only

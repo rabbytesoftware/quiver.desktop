@@ -33,14 +33,26 @@ export function RailTopBar(): JSX.Element {
 	const [leading, trailing] = side === 'left' ? [reserve, history] : [history, reserve];
 
 	return (
-		<div className="flex h-(--row) items-center">
+		// `data-tauri-drag-region` makes the whole strip a window handle. macOS
+		// hides its title bar under `titleBarStyle: "Overlay"` and takes every
+		// draggable surface with it, so without this the top of the window is
+		// dead and the only way to move it is the 64px the lights sit on.
+		//
+		// Tauri dispatches on the event TARGET, so the two history buttons stay
+		// clickable — they are their own targets and carry no such attribute.
+		<div data-tauri-drag-region className="flex h-(--row) items-center">
 			{leading}
-			{/* Holds the two ends apart at every rail width. `justify-between`
+			{/* Holds the two ends apart at every rail width. Inherits the drag
+			    region from the row rather than declaring its own — the attribute
+			    is not needed on a child for a click there to hit the parent,
+			    because this element is not a target of its own.
+
+			    Holds the two ends apart at every rail width. `justify-between`
 			    cannot: off macOS there is no reserve at all, and with a single
 			    child it collapses to `flex-start` — which puts the history
 			    buttons on the window's edge, the one place §5.8 says they never
 			    go, on the two platforms nobody develops on. */}
-			<div className="flex-1" />
+			<div data-tauri-drag-region className="flex-1" />
 			{trailing}
 		</div>
 	);

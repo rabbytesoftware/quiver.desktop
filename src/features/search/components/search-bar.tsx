@@ -79,6 +79,16 @@ export function SearchBar({ leading, trailing }: SearchBarProps): JSX.Element {
 		// by accident. It grows no ring either; the inversion is the focus
 		// indicator.
 		<div
+			// The chrome row is a window handle too, for the same reason the
+			// rail's top bar is: `titleBarStyle: "Overlay"` leaves macOS drawing
+			// no draggable surface at all, so every pixel of row 1 that is not an
+			// interactive control has to supply one.
+			//
+			// The INPUT is not a drag region and must not become one — it would
+			// take mousedown away from focusing and from selecting text. Tauri
+			// dispatches on the event target, so the plate's padding, the lens
+			// and the ⌘K hint drag while the field itself behaves like a field.
+			data-tauri-drag-region
 			className={cn(
 				'group flex h-(--row) w-full cursor-text items-center gap-[9px] bg-background/85 backdrop-blur-[14px]',
 				'focus-within:bg-foreground focus-within:text-background focus-within:backdrop-filter-none',

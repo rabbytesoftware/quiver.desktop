@@ -252,4 +252,23 @@ describe('SearchBar', () => {
 		expect(plate?.className).toContain('focus-within:text-background');
 		expect(plate?.className).not.toContain('primary');
 	});
+
+	/**
+	 * macOS hides its title bar under `titleBarStyle: "Overlay"` and takes every
+	 * draggable surface with it, so a chrome row that is not a drag region leaves
+	 * the top of the window dead — nothing about the page looks wrong, the window
+	 * simply cannot be moved from there.
+	 *
+	 * The input must NOT carry it. Tauri dispatches on the event target, so the
+	 * attribute on the field would take mousedown away from focusing it and from
+	 * selecting the text already in it — and the failure reads as "the search box
+	 * is broken", not as "the drag region is too greedy".
+	 */
+	it('makes the plate a window handle without making the field one', async () => {
+		await renderField();
+		const input = screen.getByRole('textbox', { name: 'Search' });
+
+		expect(input.parentElement).toHaveAttribute('data-tauri-drag-region');
+		expect(input).not.toHaveAttribute('data-tauri-drag-region');
+	});
 });

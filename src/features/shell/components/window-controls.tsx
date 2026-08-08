@@ -53,6 +53,14 @@ export function WindowControls(): JSX.Element | null {
 		// reserve narrows first at a small window and the lights end up painted
 		// over whatever slid underneath them. `h-full` for the same reason in the
 		// other axis: a zero-height drag region is a window that cannot be moved.
-		<div data-tauri-drag-region className="h-full shrink-0" style={{ width: controls.width }} />
+		<div
+			// A name of its own, because `data-tauri-drag-region` no longer
+			// identifies it: the whole of row 1 is a window handle now, so a query
+			// for that attribute matches the rail's spacer and the search plate too.
+			data-slot="window-controls"
+			data-tauri-drag-region
+			className="h-full shrink-0"
+			style={{ width: controls.width }}
+		/>
 	);
 }

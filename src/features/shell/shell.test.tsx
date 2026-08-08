@@ -87,7 +87,7 @@ const TRAFFIC_LIGHT_FRAME_PX = 14;
  */
 function renderControls(userAgent: string): HTMLElement | null {
 	runningOn(userAgent);
-	return render(<WindowControls />).container.querySelector('[data-tauri-drag-region]');
+	return render(<WindowControls />).container.querySelector('[data-slot="window-controls"]');
 }
 
 /**
@@ -337,7 +337,7 @@ describe('ChromeRow', () => {
 		// The one cell of the three that needs it (spec §4.5): the lights are
 		// still on the left edge and the rail has moved off it.
 		const field = await renderChromeRow(USER_AGENTS.macos, 'right');
-		expect(field.parentElement?.querySelector('[data-tauri-drag-region]')).not.toBeNull();
+		expect(field.parentElement?.querySelector('[data-slot="window-controls"]')).not.toBeNull();
 
 		// On the field's own surface, and the plate gives up its leading padding
 		// so the two insets do not stack into a double gap (spec §4.3). The
@@ -350,7 +350,7 @@ describe('ChromeRow', () => {
 		// Hold it here as well and the window opens 64px of space twice, once in
 		// each column, for one set of buttons.
 		const field = await renderChromeRow(USER_AGENTS.macos, 'left');
-		expect(field.parentElement?.querySelector('[data-tauri-drag-region]')).toBeNull();
+		expect(field.parentElement?.querySelector('[data-slot="window-controls"]')).toBeNull();
 		expect(field.parentElement?.className).toContain('pl-[12px]');
 	});
 
@@ -365,7 +365,7 @@ describe('ChromeRow', () => {
 		// unconditionally would still strip the field's leading padding, and the
 		// placeholder would sit flush against the edge on both platforms.
 		const field = await renderChromeRow(userAgent, side);
-		expect(field.parentElement?.querySelector('[data-tauri-drag-region]')).toBeNull();
+		expect(field.parentElement?.querySelector('[data-slot="window-controls"]')).toBeNull();
 		expect(field.parentElement?.className).toContain('pl-[12px]');
 	});
 });

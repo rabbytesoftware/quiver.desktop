@@ -293,7 +293,7 @@ describe('RailTopBar', () => {
 
 		// Reserve first, history last: the lights are on the window's left edge
 		// and the content column is to the rail's right.
-		expect(topBar().firstElementChild).toHaveAttribute('data-tauri-drag-region');
+		expect(topBar().firstElementChild).toHaveAttribute('data-slot', 'window-controls');
 		expect(topBar().lastElementChild).toContainElement(screen.getByRole('button', { name: 'Go back' }));
 	});
 
@@ -303,7 +303,7 @@ describe('RailTopBar', () => {
 		// each column — for one set of buttons.
 		runningOn(USER_AGENTS.macos);
 		await renderRail('/', 'right');
-		expect(topBar().querySelector('[data-tauri-drag-region]')).toBeNull();
+		expect(topBar().querySelector('[data-slot="window-controls"]')).toBeNull();
 	});
 
 	it.each([
@@ -313,7 +313,7 @@ describe('RailTopBar', () => {
 		runningOn(userAgent);
 		await renderRail('/', 'left');
 
-		expect(topBar().querySelector('[data-tauri-drag-region]')).toBeNull();
+		expect(topBar().querySelector('[data-slot="window-controls"]')).toBeNull();
 		// Still on the interior edge with nothing beside it — `justify-between`
 		// would have collapsed it onto the window's edge here.
 		expect(topBar().lastElementChild).toContainElement(screen.getByRole('button', { name: 'Go back' }));
@@ -324,6 +324,30 @@ describe('RailTopBar', () => {
 		// scale moves, with no layout assertion possible in jsdom to notice.
 		await renderRail('/');
 		expect(topBar().className).toContain('h-(--row)');
+	});
+
+	/**
+	 * The rail's top row is the other half of the window's drag surface. macOS
+	 * hides its title bar under `titleBarStyle: "Overlay"` and takes every
+	 * draggable surface with it, so a row that is not a drag region leaves the
+	 * top of the window dead — nothing looks wrong, the window just cannot be
+	 * moved from there.
+	 *
+	 * The spacer needs the attribute in its own right: it is most of the row's
+	 * width, and a click lands on whichever element is actually under it. The
+	 * chevrons are excluded by being their own targets, not by anything here —
+	 * putting it on them would trade two working buttons for two more inches of
+	 * drag surface.
+	 */
+	it('makes the whole row a window handle, leaving the history buttons clickable', async () => {
+		await renderRail('/', 'left');
+		const bar = topBar();
+
+		expect(bar).toHaveAttribute('data-tauri-drag-region');
+		expect(bar.querySelector('.flex-1')).toHaveAttribute('data-tauri-drag-region');
+		for (const label of ['Go back', 'Go forward']) {
+			expect(screen.getByRole('button', { name: label })).not.toHaveAttribute('data-tauri-drag-region');
+		}
 	});
 });
 
