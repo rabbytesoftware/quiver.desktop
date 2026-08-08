@@ -156,22 +156,20 @@ export function SearchBar({ leading, trailing }: SearchBarProps): JSX.Element {
 			// `dragWindowOrFocus`.
 			data-tauri-drag-region
 			className={cn(
-				'group flex h-(--row) w-full cursor-text items-center gap-[9px] bg-background/85 backdrop-blur-[14px]',
+				'group flex h-(--row) w-full cursor-text items-center gap-[9px] px-[12px]',
+				'bg-background/85 backdrop-blur-[14px]',
 				'focus-within:bg-foreground focus-within:text-background focus-within:backdrop-filter-none',
 				// The 12px belongs to the PLATE, not to the input: the lens sits
 				// ahead of the input, so padding worn by the input alone leaves
 				// the magnifier flush against the window's edge.
 				//
-				// One class per side rather than `px-[12px]` plus a conditional
-				// `pl-0`. `cn` is tailwind-merge v1, built against Tailwind v3 —
-				// it cannot parse this project's v4 syntax, so which of two
-				// conflicting padding classes wins would come down to the order
-				// Tailwind happens to emit them in rather than to anything here.
-				//
-				// A slot supplies its own inset (spec §4.3). Keep ours and the
-				// two stack into a double gap.
-				leading ? 'pl-0' : 'pl-[12px]',
-				trailing ? 'pr-0' : 'pr-[12px]'
+				// A slot supplies its own inset (spec §4.3), so ours has to come off
+				// that side or the two stack into a double gap. A plain override now —
+				// it could not be one until tailwind-merge 3, because the v1 build
+				// could not parse Tailwind v4 syntax and kept BOTH padding classes,
+				// leaving the winner to whatever order Tailwind happened to emit.
+				leading && 'pl-0',
+				trailing && 'pr-0'
 			)}
 		>
 			{leading}

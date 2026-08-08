@@ -351,7 +351,12 @@ describe('ChromeRow', () => {
 		// each column, for one set of buttons.
 		const field = await renderChromeRow(USER_AGENTS.macos, 'left');
 		expect(field.parentElement?.querySelector('[data-slot="window-controls"]')).toBeNull();
-		expect(field.parentElement?.className).toContain('pl-[12px]');
+		// The plate keeps its own inset when no slot supplies one. `px-`
+		// rather than a class per side since tailwind-merge 3 can resolve the
+		// slot override as a plain conflict; the point is that the leading
+		// edge is NOT zeroed here.
+		expect(field.parentElement?.className).toContain('px-[12px]');
+		expect(field.parentElement?.className).not.toContain('pl-0');
 	});
 
 	it.each([
@@ -366,7 +371,12 @@ describe('ChromeRow', () => {
 		// placeholder would sit flush against the edge on both platforms.
 		const field = await renderChromeRow(userAgent, side);
 		expect(field.parentElement?.querySelector('[data-slot="window-controls"]')).toBeNull();
-		expect(field.parentElement?.className).toContain('pl-[12px]');
+		// The plate keeps its own inset when no slot supplies one. `px-`
+		// rather than a class per side since tailwind-merge 3 can resolve the
+		// slot override as a plain conflict; the point is that the leading
+		// edge is NOT zeroed here.
+		expect(field.parentElement?.className).toContain('px-[12px]');
+		expect(field.parentElement?.className).not.toContain('pl-0');
 	});
 });
 

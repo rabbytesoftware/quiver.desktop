@@ -171,8 +171,13 @@ describe('SearchBar', () => {
 	 */
 	it('keeps its own 12px inset on both sides when no slot is given', async () => {
 		const plate = (await renderField()).input.parentElement;
-		expect(plate?.className).toContain('pl-[12px]');
-		expect(plate?.className).toContain('pr-[12px]');
+		// One `px-` rather than a class per side: with tailwind-merge 3 the slot
+		// overrides below are plain conflicts it can resolve, so the sides no
+		// longer have to be stated separately. Asserted as "12px on both, and
+		// neither side zeroed" so it still fails if a slot leaks its override in.
+		expect(plate?.className).toContain('px-[12px]');
+		expect(plate?.className).not.toContain('pl-0');
+		expect(plate?.className).not.toContain('pr-0');
 	});
 
 	it('drops the padding on whichever side a slot supplies its own inset', async () => {
