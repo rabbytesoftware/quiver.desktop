@@ -50,7 +50,7 @@ export function TabsList({
 							// behind the track. Quiver's selected surfaces flip instead —
 							// the same departure ROW_ACTIVE makes for an arrow row, and
 							// for the same reason: one selection language across the rail.
-							'-z-1 rounded-md bg-foreground shadow-sm/5'
+							'-z-1 rounded-md bg-foreground shadow-sm/5 inset-shadow-[0_1px_var(--selected-edge)]'
 				)}
 				data-slot="tab-indicator"
 			/>

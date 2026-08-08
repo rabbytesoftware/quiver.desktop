@@ -25,6 +25,21 @@ describe('row-base', () => {
 		expect(ROW_ACTIVE).not.toContain('bg-background');
 	});
 
+	/**
+	 * The 1px edge along the top of the selected row. Crowbar hardcodes
+	 * `white/16%`, which works because its selected surface is always the dark
+	 * one; ours inverts per theme, so the edge is taken from --background — the
+	 * opposite of the fill. That resolves to white/16% in light (Crowbar's own
+	 * value, reached by derivation) and to its mirror in dark.
+	 *
+	 * A literal here would be invisible in exactly one theme, which is the kind
+	 * of thing only a screenshot catches.
+	 */
+	it('takes the selected row’s top edge from a token, not a literal', () => {
+		expect(ROW_ACTIVE).toContain('inset-shadow-[0_1px_var(--selected-edge)]');
+		expect(ROW_ACTIVE).not.toContain('white');
+	});
+
 	it('matches the fill with the border rather than contrasting it', () => {
 		// A visible outline on the active row reads as focus, which the row can
 		// already be in for unrelated reasons.

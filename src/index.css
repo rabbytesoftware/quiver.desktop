@@ -100,6 +100,20 @@
 	 * lose contrast against the inverted active surface this line only ever
 	 * appears on, so the pale pair is taken down to 60% here and used neat in
 	 * dark. Values from crowbar's styles/theme.css. */
+	/* The 1px line along the top edge of a SELECTED surface — a row, or the tab
+	 * bar's indicator.
+	 *
+	 * Taken from --background, which is the opposite of the fill (--foreground),
+	 * so the one declaration reads in both themes: a lit edge on the light
+	 * theme's near-black row, and its mirror — a defined dark edge — on the dark
+	 * theme's near-white one. Crowbar hardcodes white/16% here, which works only
+	 * because its selected surface is always the dark one; ours inverts, so the
+	 * edge has to invert with it.
+	 *
+	 * Declared once for the same reason --sidebar-element-idle is: it is a share
+	 * of a token that already flips per theme. */
+	--selected-edge: color-mix(in oklch, var(--background) 16%, transparent);
+
 	/* The track a segmented control sits in — crowbar's own token. Declared ONCE
 	 * rather than per theme: it is a share of --foreground, so it resolves
 	 * against whichever value won the cascade and is correct in both. */

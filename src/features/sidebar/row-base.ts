@@ -76,7 +76,8 @@ export const ROW_INACTIVE =
  */
 export const ROW_ACTIVE =
 	'data-[status=active]:border-foreground data-[status=active]:bg-foreground ' +
-	'data-[status=active]:text-background data-[status=active]:shadow-xs data-[status=active]:shadow-black/10';
+	'data-[status=active]:text-background data-[status=active]:shadow-xs data-[status=active]:shadow-black/10 ' +
+	'data-[status=active]:inset-shadow-[0_1px_var(--selected-edge)]';
 
 /**
  * The box every LEADING glyph sits in.
