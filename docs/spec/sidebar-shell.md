@@ -12,7 +12,10 @@ over-specified CSS until you hit the case they exist for; each one names that ca
 gets "simplified" away will not fail a test — it will fail on one platform, at one rail side, at
 one window width.
 
-Related specs: [ipc-bridge.md](ipc-bridge.md).
+Related specs: [ipc-bridge.md](ipc-bridge.md), and
+[sidebar-implementation.md](sidebar-implementation.md) — how this gets built, in what order, and the
+ten rules below that were reversed or dissolved while planning it. Those are amended in place here;
+the implementation doc's §9 lists them with reasoning.
 
 ---
 
@@ -29,9 +32,11 @@ grid-template-rows:    var(--row)  1fr
 | Chrome row | 2 | 1 |
 | Content | 2 | 2 |
 
-**1.1 — The rail always spans the full window height.** `grid-row: 1 / 3` in every combination.
-Its first row is either the window controls or the primary nav; there is never a blank band held
-open above it. The only reason to reserve that space is that something is actually sitting in it.
+**1.1 — The rail always spans the full webview height.** `grid-row: 1 / 3` in every combination.
+Its first row holds the history buttons, and on macOS the reserved traffic-light space as well; there
+is never a blank band held open above it. The only reason to reserve that space is that something is
+actually sitting in it. (Webview, not window: on Windows and Linux the OS draws its title bar above
+the webview entirely, which is not ours to span.)
 
 **1.2 — The chrome row belongs to the content column only.** With the search field living there
 (§4), the rail is free to reach the top whenever it does not own the controls.
@@ -44,64 +49,65 @@ short of the top.
 
 ## 2. Window chrome
 
-Quiver draws its own chrome on every platform. macOS keeps its real traffic lights, positioned by
-the OS over space we reserve; Windows and Linux go frameless and get caption buttons we render.
+**macOS is frameless; Windows and Linux keep their native title bar.** This reverses an earlier
+position that all three platforms draw their own chrome. Hand-drawn window controls lose hover
+glyphs, tiling behaviour, inactive-window states and every OS convention we would then owe forever.
+macOS is the only platform offering a third way — `titleBarStyle: "Overlay"` with `hiddenTitle` hides
+the bar and keeps the real buttons — so it is the only platform where frameless costs nothing. On
+Windows, hiding the bar removes the buttons with it.
 
 **2.1 — The window is opaque.** Crowbar's *layout* pattern comes across — the column owns its
 strip, no standalone `Titlebar` component, a spacer element reserves the control space rather than
 padding. Its *transparency* stack does not: `transparent: true`, `macos-private-api` and
 `window-vibrancy` are all deliberately absent. `src-tauri/Cargo.toml` already says so in as many
-words, and the sidebar's opaque gradient would defeat vibrancy anyway.
+words, and the rail's opaque surface would defeat vibrancy anyway.
 
 **2.2 — Which edge holds the controls is a value, not a conditional.**
 
 ```ts
 // features/shell/geometry.ts
 export type SidebarSide = 'left' | 'right'
-export type ControlsKind = 'reserve' | 'render'
 
-export function windowControls(): { edge: 'left' | 'right'; kind: ControlsKind; width: number }
-//   macOS        → { edge: 'left',  kind: 'reserve', width: 64  }
-//   Win / Linux  → { edge: 'right', kind: 'render',  width: 138 }
+export function windowControls(): { edge: 'left' | 'right'; kind: 'reserve'; width: number } | null
+//   macOS        → { edge: 'left', kind: 'reserve', width: 64 }
+//   Win / Linux  → null   (the OS draws its own title bar)
 
-export const railOwnsControls = () => windowControls().edge === sidebarSide
+export function railOwnsControls(side: SidebarSide): boolean
 ```
 
-`kind: 'reserve'` renders an empty spacer — the OS paints the lights over it. `kind: 'render'`
-renders three real buttons wired to `getCurrentWindow().minimize() / toggleMaximize() / close()`.
-Same seam, two implementations, one place to look. Scattering `isMacOS()` through the JSX cannot
-express the four combinations without contradicting itself somewhere.
+`kind: 'reserve'` renders an empty spacer — the OS paints the lights over it. We never render window
+buttons ourselves. Taking `side` as a parameter rather than closing over a module global keeps this
+pure, so every cell below is unit-testable without a window.
 
 | Platform | Rail side | Controls render in | Rail's first row |
 | --- | --- | --- | --- |
-| macOS | Left | rail | 64px reserve |
-| macOS | Right | chrome row | **nav** |
-| Win / Linux | Left | chrome row | **nav** |
-| Win / Linux | Right | rail | 3 caption buttons |
+| macOS | Left | rail | 64px reserve → history |
+| macOS | Right | chrome row (inside the field) | **history** |
+| Win / Linux | Either | nowhere — the OS owns them | **history** |
 
-**2.3 — Frameless is configured from the shared config, not a new overlay.** Put
-`decorations: false` in `tauri.conf.json` and have the existing `tauri.macos.conf.json` restate
-`decorations: true`. macOS needs it true — `titleBarStyle: "Overlay"` hides the bar but keeps the
-buttons, and `decorations: false` would take the buttons with it. Doing it this way preserves the
-invariant `titlebar.test.tsx` already guards: **macOS remains the only platform with an overlay
-file.** Adding `tauri.windows.conf.json` would silently drop title, size, minimums and
+`isMacOS()` is called in exactly one place. Anything else that needs to know asks `windowControls()`
+or `railOwnsControls(side)`.
+
+**2.3 — There is no frameless configuration.** ~~`decorations: false` in the shared config with
+macOS restating true.~~ Dissolved: Windows and Linux keep native decorations, so `decorations` stays
+true everywhere and defaults there. The shared `tauri.conf.json` is untouched, and
+`tauri.macos.conf.json` remains the only platform overlay file — the invariant `titlebar.test.tsx`
+exists to protect. Adding `tauri.windows.conf.json` would silently drop title, size, minimums and
 `backgroundThrottling` on that platform, which is exactly the bug that file caused before.
 
 **2.4 — `trafficLightPosition.y` is derived, not chosen.** It is `(ROW_H - 12) / 2` — the lights
 are 12px and `y` is their top edge. At `--row: 34` that is **11**. Change the row height and this
 moves with it or the buttons sit visibly off-centre.
 
-**2.5 — This reverses a recorded decision.** `titlebar.test.tsx` currently asserts that `Titlebar`
-renders `null` off macOS, that `decorations` stays true everywhere, and states in a comment that
-"custom in-webview window controls were ruled out". Its whole `native window decorations` block
-inverts. **Rewrite its comments, not only its expectations** — a reader who finds the old reasoning
-next to new assertions learns something false.
+**2.5 — `titlebar.test.tsx` is retargeted, not inverted.** An earlier draft had its whole
+`native window decorations` block reversing. It does not: `decorations` stays true on every platform,
+macOS remains the only overlay file, and the comment stating that "custom in-webview window controls
+were ruled out" is true again. Only the row-height coupling moves — `h-12` / `y: 18` becomes
+`--row: 34` / `y: 11`.
 
-**2.6 — Spike frameless behaviour before building the rail.** `decorations: false` on Windows
-historically costs the resize border and the snap-layouts flyout on the maximize button; on Linux it
-varies by compositor. Tauri v2 handles more of this than v1 did, not all of it. Throwaway window,
-drag, resize from all eight edges, double-click-to-maximise, snap layouts. Cheap on day one,
-miserable at the end.
+**2.6 — There is nothing to spike.** ~~Spike frameless behaviour before building the rail.~~
+Dissolved with §2.3. The resize border, the snap-layouts flyout and the per-compositor Linux
+behaviour are all still the OS's to provide, because we never take the title bar away.
 
 ---
 
@@ -128,14 +134,16 @@ is the value that makes the icon sit the same distance from the row's leading ed
 and bottom. Hardcoding 7px works until `--row` or `--icon` moves, at which point the icon is
 silently off-centre again.
 
-**3.4 — Caption buttons are 46px wide** (the Windows convention) by full row height. Width and
-height are on different axes here; only the height follows `--row`.
+**3.4 — Dissolved.** ~~Caption buttons are 46px wide (the Windows convention) by full row
+height.~~ There are no caption buttons; see §2.2.
 
 **3.5 — History buttons are square**, `--row × --row`, so they match the rail's rhythm exactly.
 
-**3.6 — `SIDEBAR_MIN` needs re-deriving.** The thresholds in `src/store/ui.ts` (120 min) date from a
-208px rail with the search field inside it. With the field on top, the constraints are the nav's
-collapse point and the namespace subtitle's legibility. Do not carry the old numbers over.
+**3.6 — `SIDEBAR_MIN` is 160, derived from the nav's collapse point.** With the active segment
+capped at 54% and two collapsed segments at their `--row` floor, `0.54W + 2·34 ≤ W` gives `W ≥ 148`.
+The subtitle imposes no floor of its own, because it degrades rather than truncating (§5.11). The old
+120 dates from a 208px rail with the search field inside it and must not be carried over.
+`SIDEBAR_MAX` stays 320.
 
 ---
 
@@ -144,20 +152,22 @@ collapse point and the namespace subtitle's legibility. Do not carry the old num
 **4.1 — It lives in the chrome row, spanning the content column** — not in the rail. It was tried in
 the rail; at 208px it had ~130px of text room and collided with the active nav pill (§4.4).
 
-**4.2 — The field *is* the chrome row.** When the controls land in that column they render **inside**
-the field, on its surface, rather than beside it. Anything else leaves the controls on bare
-`--background` next to a different surface, and the seam reads as a notch cut out of the bar.
+**4.2 — The field *is* the chrome row.** In the one combination that puts the traffic lights in
+that column (macOS, rail right), the lights' reserved space sits **inside** the field, on its surface,
+rather than beside it. Anything else leaves reserved space on bare `--background` next to a different
+surface, and the seam reads as a notch cut out of the bar.
 
-**4.3 — Each control set supplies its own inset, and the field drops its padding on that side.**
-Otherwise you get the field's 12px plus the lights' 11px stacked as a double gap.
+**4.3 — The control set supplies its own inset, and the field drops its padding on that side.**
+`cn(leading && 'pl-0')`. Otherwise you get the field's 12px plus the lights' 11px stacked as a double
+gap.
 
-**4.4 — Controls take their host's colour: `color: inherit`, never a fixed `--foreground`.** This is
-load-bearing. The field inverts on focus (§5.4); a caption glyph pinned to `--foreground` goes
-white-on-white the instant someone clicks the search box.
+**4.4 — Dissolved.** ~~Controls take their host's colour: `color: inherit`, never a fixed
+`--foreground`.~~ There are no glyphs in the field to go white-on-white — macOS's reserve is an empty
+spacer and no other platform puts anything there. The principle survives for the ⌘K hint, which is
+text and inherits by default.
 
-**4.5 — Only two of the four combinations put controls in the field**: macOS + rail right (lights
-lead) and Windows/Linux + rail left (buttons trail). In the other two the rail owns them and paints
-them with its own gradient.
+**4.5 — Exactly one of the three combinations puts anything in the field**: macOS with the rail on
+the right. In the other two the rail owns the reserve, or there is nothing to own.
 
 **4.6 — The placeholder is "Search".** Not "Search your library".
 
@@ -168,16 +178,17 @@ There is therefore no "no matches" state in the rail, and typing does not distur
 
 ## 5. The rail
 
-**5.1 — One selection for the whole rail.** Home / Remote / Settings and the arrow rows are the same
-navigation, so exactly one thing is active at any time:
+**5.1 — One selection for the whole rail, and it lives in the router.** Home / Remote / Settings
+and the arrow rows are the same navigation, so exactly one thing is active at any time.
 
-```ts
-type Active = { kind: 'nav' | 'arrow'; i: number }
-```
+Every rail row is a destination, so each is a TanStack `<Link>` and the router marks the one that
+matches with `data-status="active"`. There is no selection store and no derived-selection function —
+the invariant stops being something we enforce and becomes something we cannot violate. ~~`type
+Active = { kind: 'nav' | 'arrow'; i: number }`~~
 
-Selecting an arrow clears the nav segment and vice versa. You cannot be on Home *and* have an arrow
-selected. This is also what gives back/forward (§5.8) an unambiguous meaning — it would not have one
-if the nav and the list held separate selections.
+Home needs `activeOptions={{ exact: true }}`: TanStack matches by prefix, so `/` otherwise lights up
+on every route and this rule is broken on the first click. Nothing matches `/search`, which is
+correct — the field's own inversion is what is lit while searching.
 
 **5.2 — The active treatment is identical for a nav segment and an arrow row**: `--foreground`
 background, `--background` foreground. They respond the same because they *are* the same thing.
@@ -188,33 +199,40 @@ background, `--background` foreground. They respond the same because they *are* 
 **5.4 — The nav always spans the full rail width.**
 
 ```css
-.pnav button[data-wide="true"]       { flex: 1 1 auto; max-width: 54%; }
-.pnav button:not([data-wide="true"]) { flex: 1 1 0; min-width: 44px; }
+.pnav > [data-status="active"]       { flex: 1 1 auto; max-width: 54%; }
+.pnav > :not([data-status="active"]) { flex: 1 1 0;    min-width: var(--row); }
 ```
 
 The active segment grows with the rail but stops at **54%** — the proportion the design gives it
-(112 of 208). Without the cap it eats the whole rail at wide settings; sized to its label alone it
-is too tight. The other segments split the remainder, so there is never dead space. With nothing
-active, all three match the second rule and share equally — which is why no separate "none active"
-selector is needed.
+(112 of 208). Without the cap it eats the whole rail at wide settings; sized to its label alone it is
+too tight. The other segments split the remainder, so there is never dead space. With nothing active,
+all three match the second rule and share equally — which is why no separate "none active" selector
+is needed.
+
+The collapsed floor is `--row` (34), not the design's 44: at 34 the segment is square like a history
+button (§3.5) and `--inset` centres its icon on all four sides literally rather than approximately.
 
 **5.5 — Nav segments are flush.** The design's `gap: 4` existed only to make `112 + 4 + 44 + 4 + 44`
 come out to exactly 208. Nothing else in the rail is separated, and the active segment absorbs the
 difference.
 
-**5.6 — One hover token, `--row-hover`, across arrow rows, nav segments and history buttons.** The
-active element is **excluded** from the rule (`:not([aria-current="true"])`, `:not(:disabled)`)
-rather than overridden by a later one, so it cannot flicker as the cursor crosses it.
+**5.6 — One hover token, `--sidebar-accent`, across arrow rows, nav segments and history buttons.**
+The active element is **excluded** from the rule
+(`not-data-[status=active]:not-disabled:hover:bg-sidebar-accent`) rather than overridden by a later
+one, so it cannot flicker as the cursor crosses it.
 
-**5.7 — Caption buttons deliberately do *not* share `--row-hover`.** They sit on two different
-surfaces depending on placement — the rail's gradient or the search field's plate — and a solid fill
-only works against one of them. They use a translucent tint instead.
+**5.7 — Dissolved.** ~~Caption buttons do not share `--row-hover`; they use a translucent tint.~~
+There are no caption buttons (§2.2). The technique survives where a tint must work over two surfaces:
+`bg-current/10` resolves against whatever `currentColor` is, so it needs no token of its own.
 
 **5.8 — Back / forward live in the rail's top bar, and always face the content.** Right edge of a
-left rail, left edge of a right one — never sharing an edge with the traffic lights or the caption
-buttons. The principle: **the window's edge belongs to the OS, the interior belongs to the app.**
-DOM order (`lights, histnav, wctl`) already achieves this when the rail is on the right; only the
-mirror case needs `margin-left: auto`.
+left rail, left edge of a right one — never sharing an edge with the traffic lights. The principle:
+**the window's edge belongs to the OS, the interior belongs to the app.** One ternary in
+`RailTopBar`: the reserve (when there is one) hugs the window edge, the history buttons the interior.
+
+They drive `router.history`. `canGoBack()` exists and `canGoForward()` does not, so back disables
+correctly and forward stays enabled — shadow-tracking an index to grey out a button is more state
+than a no-op click is worth.
 
 **5.9 — Re-selecting what is already active does not push a history entry**, or clicking Home twice
 leaves you with a back button that appears to do nothing.
@@ -223,10 +241,25 @@ leaves you with a back button that appears to do nothing.
 height.** The label is a centred flex column; the subtitle is `display: none` until selected, and
 the name re-centres upward to make room. 13px/1.25 + 10px/1.25 = 28.75px inside 34.
 
-**5.11 — The subtitle shows the parent namespace**, e.g. `github.com/rabbyte`, not the full
-versioned key. The row already names the arrow, so `…/minecraft` under "Minecraft Server" is
-redundant, and the full `github.com/rabbyte/minecraft@v1.21.4` cannot fit at this width — truncating
-it drops the version, which is the useful end.
+**5.11 — The subtitle shows the WHOLE namespace, and sheds the middle of the path first.** This
+reverses an earlier rule that showed only the parent namespace on the grounds that the full versioned
+key could not fit. It can: split at the last `@`, let the head truncate and pin the tail.
+
+```tsx
+<span className="flex min-w-0">
+  <span className="truncate">{head}</span>   {/* github.com/rabbyte/minecraft */}
+  <span className="shrink-0">{tail}</span>   {/* @v1.21.4                    */}
+</span>
+```
+
+```
+246px (default)   github.com/rabbyte/minecraft@v1.21.4
+~200px            github.com/rabbyte/minecr…@v1.21.4
+160px (min)       github.com/rabb…@v1.21.4
+```
+
+The version — the useful end — is never what gets dropped. No measurement, no `ResizeObserver`, and
+it reflows live while the resize handle is dragged. The full namespace fits above roughly 190px.
 
 **5.12 — The resize handle's drag direction flips with the side.** Dragging right grows a left rail
 and shrinks a right one. One sign flip, and exactly the kind of thing that ships broken because
@@ -236,8 +269,8 @@ nobody switches the setting while testing. **Test both directions.**
 
 ## 6. Tokens
 
-**6.1 — `src/index.css` and `docs/pen.dev/design.pen` are not the same palette. This is unresolved
-and blocks the restyling work.**
+**6.1 — `src/index.css` and `docs/pen.dev/design.pen` are not the same palette. Unresolved, but it
+does NOT block the shell.**
 
 | | `index.css` | `design.pen` |
 | --- | --- | --- |
@@ -250,27 +283,40 @@ and blocks the restyling work.**
 
 `index.css` is committed monochrome and its comments defend grey-as-destructive on principle. The
 design has an orange primary and a full semantic set. These are two different positions on whether
-Quiver has an accent colour, not drift in a couple of values. **Pick one and delete the other before
-building.** It is upstream of §6.5 and of how run state is eventually shown (§8).
+Quiver has an accent colour, not drift in a couple of values.
 
-**6.2 — Values below are read from `design.pen`.** Dark first, light second.
+**The rail uses no accent anywhere**, so the shell can be built without settling this — and must be
+built without touching `--primary`, or it settles it by accident. What it does gate: run state (§9.4)
+and any component restyled after this one.
 
-| Element | Dark | Light |
-| --- | --- | --- |
-| Rail gradient | `#242424 → #1A1A1A` | `#F4F4F4 → #E9E9E9` |
-| Row label | `#FAFAFA` | `#1A1A1A` |
-| Row hover | `#111111` | `#F5F5F5` |
-| Row / nav **active** | bg `--foreground`, fg `--background` | same |
-| Search idle | `--background-translucent` `#111111D9` | `#FFFFFFD9` |
-| Search active | `#FFFFFF` | `#151515` |
-| Placeholder, ⌘K | `#A8A8A8` | `#8A8A8A` |
+**6.2 — Values below are read from `design.pen`.** Dark first, light second. They ship as oklch on
+shadcn's existing token names — no new colour tokens; see sidebar-implementation.md §5.2 for the
+converted values.
 
-**6.3 — The selected row is `--background`.** It punches through to the content column's colour, so
-a selected row reads as connected to what it opened. It is not an alpha overlay.
+| Element | Dark | Light | Ships as |
+| --- | --- | --- | --- |
+| Rail surface | ~~`#242424 → #1A1A1A`~~ flat midpoint | ~~`#F4F4F4 → #E9E9E9`~~ flat midpoint | `--sidebar` |
+| Row label | `#FAFAFA` | `#1A1A1A` | `--sidebar-foreground` |
+| Row hover | `#111111` | `#F5F5F5` | `--sidebar-accent` |
+| Row / nav **active** | bg `--foreground`, fg `--background` | same | `--sidebar-primary` / `-foreground` |
+| Divider | `#2E2E2E` | `#E4E4E4` | `--sidebar-border` |
+| Search idle | `#111111D9` | `#FFFFFFD9` | `bg-background/85` |
+| Search active | the same inversion as an active row | same | `--foreground` / `--background` |
+| Placeholder, ⌘K | `#A8A8A8` | `#8A8A8A` | `--muted-foreground` |
 
-**6.4 — `--background-translucent` already exists in the design.** Do not invent a
-`--toolbar-input`. The idle field is that token plus `backdrop-filter: blur(14px)` — which works
-fine over an opaque window because it blurs our own content, not the desktop.
+The rail's gradient is not built (§5.7 of sidebar-implementation.md); the flat value is the
+perceptual midpoint of the two stops. The search field's focused state is **not** `--primary` — that
+is the accent slot §6.1 has not decided, and using it here would settle that by accident.
+
+**6.3 — The HOVERED row is `--background`.** It punches through to the content column's colour, so
+a row under the cursor reads as connected to what it would open. It is not an alpha overlay. (This
+rule previously said "selected", contradicting §5.2 and §6.2's own table — the selected row is the
+`--foreground` / `--background` inversion.)
+
+**6.4 — The idle field needs no token of its own.** `--background-translucent` (`#111111D9`) is
+`--background` at 85%, which is `bg-background/85` — plus `backdrop-filter: blur(14px)`, which works
+fine over an opaque window because it blurs our own content, not the desktop. Do not invent a
+`--toolbar-input`.
 
 **6.5 — The search field inverts in *both* directions**: white on dark, near-black on light. It is
 not "goes white on focus".
@@ -283,19 +329,17 @@ not "goes white on focus".
 
 ```
 src/features/shell/            window geometry — no data, no queries
-  components/{app-shell,chrome-row,window-controls,caption-buttons}.tsx
-  geometry.ts                  windowControls(), railOwnsControls(), ROW_H
+  components/{app-shell,chrome-row,window-controls}.tsx
+  geometry.ts                  windowControls(), railOwnsControls(side), ROW_H
   store.ts                     sidebarSide, sidebarWidth — persisted
 
 src/features/sidebar/          the rail
-  components/{sidebar,primary-nav,nav-segment,arrow-list,arrow-row,
-              arrow-icon,history-nav,resize-handle}.tsx
-  store.ts                     the single `active` selection
+  components/{sidebar,rail-top-bar,primary-nav,nav-segment,arrow-list,
+              arrow-row,arrow-icon,history-nav,resize-handle}.tsx
 
-src/features/search/           the query
+src/features/search/           the field
   components/search-bar.tsx
-  store.ts
-  index.ts                     public surface
+  index.ts                     public surface — no store; the query lives in ?q=
 ```
 
 **7.1 — A feature may import another feature's `index.ts`, never its internals.**
@@ -307,18 +351,29 @@ rule gets its first real test here.
 documentation in the repo of why macOS is special; move the reasoning across and amend it (§2.5),
 do not lose it in a rename.
 
-**7.3 — Retire `src/store/ui.ts`.** It holds three unrelated things (`sidebarWidth`,
-`selectedNamespace`, `navMode`) and has no production consumers — only its own test imports it.
-Width belongs to the shell, selection to the sidebar. `navMode: 'home' | 'arrow' | 'search'` matches
-neither the design nor §5.1 and should not be carried forward.
+**7.3 — Delete `src/store/ui.ts`, do not migrate it.** Zero consumers outside its own test. Width
+belongs to the shell store; selection belongs to the router (every rail row is a route, so the active
+row is `data-status="active"` and no selection state exists at all).
+`navMode: 'home' | 'arrow' | 'search'` matches neither the design nor §5.1 and must not be carried
+forward.
 
-**7.4 — Use shadcn primitives; do not use shadcn's `Sidebar` block.** The block brings a provider,
-off-canvas and icon collapse modes, a mobile `Sheet`, cookie persistence and its own keyboard
-shortcut. The rail is a fixed grid column with a custom segmented nav, a capped active segment,
-unified selection and a side-aware resize handle — the machinery does not apply and the parts that
-do would be fought. Hand-roll the rail; spend shadcn on `Tooltip` (icon-only segments need hover
-labels) and `ScrollArea`. Note this project is on **Base UI** (`base-vega`), not Radix — confirm
-what that registry actually ships before planning around any component.
+**7.4 — Use shadcn primitives; do not use shadcn's `Sidebar` block.** Confirmed against the
+`base-vega` registry rather than assumed:
+
+| | ships on base-vega | npm deps | registry deps |
+| --- | --- | --- | --- |
+| `tooltip` | yes | none | none |
+| `scroll-area` | yes | none | none |
+| `sidebar` | yes — **21,958 chars** | none | button, input, separator, **sheet**, skeleton, tooltip, **use-mobile** |
+
+The block brings a `Sheet` and a `use-mobile` hook into a desktop app with a `minWidth: 800` window,
+plus a provider, cookie persistence, off-canvas and icon-collapse modes and its own keyboard
+shortcut. Hand-roll the rail; spend shadcn on `Tooltip` and `ScrollArea`, both of which are thin
+wrappers over `@base-ui/react` and add nothing to `package.json`.
+
+The search field does **not** use `components/ui/input.tsx`. Its `h-9 rounded-md border shadow-xs
+focus-visible:ring-3` is cancelled by every rule the field needs (34px, radius 0, `bg-background/85`,
+inverts on focus rather than growing a ring), so it would be a primitive imported to be overridden.
 
 **7.5 — i18n is a prerequisite and is already in place.** Every user-facing string goes through
 `@/lib/i18n`; a missing key is a compile error. See `src/lib/i18n/locales/en.ts` for how to add one.
@@ -334,29 +389,33 @@ as a reference.
 | --- | --- | --- |
 | Row height | 28 rows / 34 strip | **34 throughout** |
 | Rail width | 208 | **246** |
-| Rail extent | starts below the toolbar | **full window height** |
+| Rail extent | starts below the toolbar | **full webview height** |
 | Nav gap | 4 | **0** |
-| Windows / Linux | native decorations | **frameless, our caption buttons** |
+| Collapsed nav segment | 44 wide | **`--row` (34), square** |
+| Rail surface | gradient `#242424 → #1A1A1A` | **flat, the perceptual midpoint** |
 | Icon size | 17 | **20** (chevrons 17) |
 | Namespace subtitle | — | **added** |
 | Back / forward | — | **added** |
+| Windows / Linux | native decorations | **native decorations** — no departure |
 
 ---
 
 ## 9. Open questions
 
-1. **`index.css` vs `design.pen` palette** (§6.1). Blocks restyling. Everything else here is decided.
-2. **What are Remote and Settings?** The design has `Window Toolbar / Host Menu` and
-   `Window Toolbar / Settings` variants, implying all three nav items are real destinations. But
-   Settings is already a dialog. Proposal: Remote is a popover anchored to its segment (it is a host
-   switcher, not a place); Settings stays the dialog. Only Home participates in §5.1.
-3. **What fills the chrome row** beside the search field, if anything. The design's `Host Control`
-   would sit there naturally — but that overlaps question 2.
-4. **Run state in the rail.** `ArrowEntry` carries `running`, `installing`, `active_run` with steps,
-   and the rail draws a list of things you *have* rather than things you are *running*. The design
-   shows no state at all. Not this branch, but it is the gap the design has not answered — and
-   whatever answers it will want the accent colour from question 1.
-5. **Caption button fidelity.** Windows convention is a red `#C42B1B` close hover, which contradicts
-   §6.1's monochrome position. Linux has no single convention (GNOME often close-only, KDE all
-   three). Proposal: keep the red — it is OS chrome we are impersonating, not a Quiver statement —
-   and ship the trio on both.
+Five of the original seven are answered or dissolved. What remains does not block the build.
+
+1. **`index.css` vs `design.pen` palette** (§6.1). Still open — two positions on whether Quiver has an
+   accent colour. **No longer blocking:** the rail uses no accent, so the shell is built without
+   touching `--primary`. It gates run state (4) and anything restyled after this.
+2. ~~**What are Remote and Settings?**~~ **Answered: destinations.** Every rail row is a route,
+   including Home, Remote and Settings; arrows route straight to the arrow. The Settings dialog
+   retires into `/settings` with its three panels intact. Selection therefore lives in the router and
+   nowhere else.
+3. **What else fills the chrome row** beside the search field. Still open, and now independent of (2).
+4. **Run state in the rail.** `ArrowEntry` carries `state`, `active_run` and `last_return`; the rail
+   draws what you *have*, not what is *running*, and the design shows no state at all. Not this
+   branch. Whatever answers it wants the accent colour from (1).
+5. ~~**Caption button fidelity.**~~ **Dissolved** — Windows and Linux keep native decorations, so
+   there are no caption buttons to colour and no Linux button-set question.
+6. **The arrow icon's empty state.** `ArrowEntry.icon` is `string | null` and the design draws no
+   fallback. A `--icon`-sized tile carrying the name's first letter is a proposal, not a decision.
