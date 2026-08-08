@@ -1,14 +1,14 @@
 # Quiver Desktop — Sidebar & Shell: Implementation
 
-How the decisions in [sidebar-shell.md](sidebar-shell.md) get built. That document records *what* the
-shell looks like and why; this one records *how* it is assembled, what it costs, and in what order.
+How the decisions in [sidebar-shell.md](sidebar-shell.md) get built. That document records _what_ the
+shell looks like and why; this one records _how_ it is assembled, what it costs, and in what order.
 
 Six of that document's rules were reversed or dissolved while planning this. They have been amended
 in place rather than left to contradict — see [§9](#9-what-changed-in-sidebar-shellmd) for the list
 and the reasoning, so nobody re-derives a decision that was already made and unmade.
 
 **Scope.** This branch builds the shell: the grid, the rail, the search field, and five navigable
-routes. It does not build what those routes *show*. `/`, `/remote` and `/arrow/$` render placeholders;
+routes. It does not build what those routes _show_. `/`, `/remote` and `/arrow/$` render placeholders;
 `/settings` renders the panels that already exist. The content column is separate work.
 
 ---
@@ -154,26 +154,26 @@ export const ROW_H = 34;
 export type SidebarSide = 'left' | 'right';
 
 export interface WindowControls {
-  edge: 'left' | 'right';
-  kind: 'reserve';   // the OS paints over our spacer; we never render buttons
-  width: number;
+	edge: 'left' | 'right';
+	kind: 'reserve'; // the OS paints over our spacer; we never render buttons
+	width: number;
 }
 
 export function windowControls(): WindowControls | null {
-  return isMacOS() ? { edge: 'left', kind: 'reserve', width: 64 } : null;
+	return isMacOS() ? { edge: 'left', kind: 'reserve', width: 64 } : null;
 }
 
 export function railOwnsControls(side: SidebarSide): boolean {
-  const controls = windowControls();
-  return controls !== null && controls.edge === side;
+	const controls = windowControls();
+	return controls !== null && controls.edge === side;
 }
 ```
 
-| Platform | Rail | Rail's row 1 | Chrome row |
-| --- | --- | --- | --- |
-| macOS | left | 64px reserve → history | search |
-| macOS | right | history | lights reserve → search |
-| Win / Linux | either | history | search |
+| Platform    | Rail   | Rail's row 1           | Chrome row              |
+| ----------- | ------ | ---------------------- | ----------------------- |
+| macOS       | left   | 64px reserve → history | search                  |
+| macOS       | right  | history                | lights reserve → search |
+| Win / Linux | either | history                | search                  |
 
 **4.1 — `railOwnsControls` takes the side as a parameter.** §2.2 had it closing over a module-level
 `sidebarSide`. As a parameter it is a pure function and every cell of the table above is unit-testable
@@ -238,9 +238,9 @@ first thing a reviewer asks about.
 ```css
 --rail: 246px;
 --row: 34px;
---icon: 20px;          /* content — arrow marks in the list */
---icon-chrome: 17px;   /* chrome glyphs — back / forward */
---inset: calc((var(--row) - var(--icon)) / 2);   /* 7px at 34 / 20 */
+--icon: 20px; /* content — arrow marks in the list */
+--icon-chrome: 17px; /* chrome glyphs — back / forward */
+--inset: calc((var(--row) - var(--icon)) / 2); /* 7px at 34 / 20 */
 ```
 
 `--inset` governs three distances: the row's leading and trailing padding, the gap between icon and
@@ -252,8 +252,8 @@ This is idiomatic to shadcn, not a departure from it: their own Sidebar block de
 
 **5.2 — No new colour tokens. Eleven existing ones are retuned to `design.pen`'s values, in oklch.**
 
-`index.css` already declares this policy in its own header — *"shadcn's token NAMES with this
-design's values"*. Every role the design names already had a token waiting for it; `--sidebar-border`
+`index.css` already declares this policy in its own header — _"shadcn's token NAMES with this
+design's values"_. Every role the design names already had a token waiting for it; `--sidebar-border`
 was already exactly `#2E2E2E`.
 
 ```
@@ -325,19 +325,19 @@ The old 120 dates from a 208px rail with the search field inside it and must not
 `SIDEBAR_MAX` stays 320.
 
 **6.3 — The namespace subtitle shows the whole namespace, and sheds the middle of the path first.**
-This inverts §5.11, which said to show the parent namespace *because* the full key could not fit. The
+This inverts §5.11, which said to show the parent namespace _because_ the full key could not fit. The
 rule is to show as much as fits and give up the least useful part first — and the version is the
 useful end.
 
 ```tsx
-const at   = ns.lastIndexOf('@');
-const head = at === -1 ? ns : ns.slice(0, at);   // github.com/rabbyte/minecraft
-const tail = at === -1 ? '' : ns.slice(at);      // @v1.21.4
+const at = ns.lastIndexOf('@');
+const head = at === -1 ? ns : ns.slice(0, at); // github.com/rabbyte/minecraft
+const tail = at === -1 ? '' : ns.slice(at); // @v1.21.4
 
 <span className="flex min-w-0">
-  <span className="truncate">{head}</span>
-  <span className="shrink-0">{tail}</span>
-</span>
+	<span className="truncate">{head}</span>
+	<span className="shrink-0">{tail}</span>
+</span>;
 ```
 
 ```
@@ -380,15 +380,15 @@ localStorage sixty times a second.
 
 **7.1 — What earns a test.**
 
-| | Why |
-| --- | --- |
-| `geometry.ts`, all platform × side combinations | The whole matrix is one function. `runningOn()` already exists in `src/__mocks__/user-agent.ts` |
-| `trafficLightPosition.y === (ROW_H - 12) / 2` | Two files that cannot see each other. `titlebar.test.tsx` already does this for the 48px bar — retarget it |
-| Exactly one `data-status="active"` per route; zero at `/search` | The invariant that replaced the store, and the only thing that catches §1.3's prefix-match trap |
-| Resize sign flip, **both directions** | Ships broken otherwise — nobody switches the setting while testing |
-| Width clamps to [160, 320] | |
-| The head/tail namespace split | With `@ref`, without, and `@` inside a path |
-| §5.9's `replace: true` guard | Clicking the active row must not grow history |
+|                                                                 | Why                                                                                                        |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `geometry.ts`, all platform × side combinations                 | The whole matrix is one function. `runningOn()` already exists in `src/__mocks__/user-agent.ts`            |
+| `trafficLightPosition.y === (ROW_H - 12) / 2`                   | Two files that cannot see each other. `titlebar.test.tsx` already does this for the 48px bar — retarget it |
+| Exactly one `data-status="active"` per route; zero at `/search` | The invariant that replaced the store, and the only thing that catches §1.3's prefix-match trap            |
+| Resize sign flip, **both directions**                           | Ships broken otherwise — nobody switches the setting while testing                                         |
+| Width clamps to [160, 320]                                      |                                                                                                            |
+| The head/tail namespace split                                   | With `@ref`, without, and `@` inside a path                                                                |
+| §5.9's `replace: true` guard                                    | Clicking the active row must not grow history                                                              |
 
 **7.2 — Every pixel detail in this document is verified by eye, not by CI.** jsdom has no layout
 engine; `getBoundingClientRect` returns zeros. The 54% cap, the flush nav, `--inset` centring the
@@ -446,18 +446,18 @@ Three units. All of them are testable on macOS, which is what removing the frame
 
 Amended in place. Recorded here so a decision that was made and unmade is not re-derived.
 
-| Rule | Was | Now | Why |
-| --- | --- | --- | --- |
-| §2.2 | four cells, `kind: 'reserve' \| 'render'` | three cells, returns `null` off macOS | Windows/Linux keep native decorations (§4) |
-| §2.3 | `decorations: false` shared, macOS restates true | no config change at all | nothing to make frameless |
-| §2.5 | `titlebar.test.tsx` inverts | its config assertions stand; only the row-height coupling moves | "custom in-webview controls were ruled out" is true again |
-| §2.6 | spike frameless before building the rail | dissolved | nothing to spike |
-| §3.4 | caption buttons are 46px wide | dissolved | there are no caption buttons |
-| §4.4 | `color: inherit` on the controls | dissolved | macOS's reserve is an empty spacer; no glyphs in the field |
-| §5.7 | caption hover needs its own token | dissolved | `bg-current/10` (§5.4), and nothing to hover anyway |
-| §5.11 | show the parent namespace | show the whole namespace, shed the path's middle first | the version is the useful end, and it can be kept (§6.3) |
-| §6.3 | "the **selected** row is `--background`" | hover is `--background`; selected is the `--foreground` inversion | §5.2 and §6.2's table always said so; §6.3 named the wrong state |
-| §9.5 | red close-hover, Linux button set | dissolved | no buttons to colour |
+| Rule  | Was                                              | Now                                                               | Why                                                              |
+| ----- | ------------------------------------------------ | ----------------------------------------------------------------- | ---------------------------------------------------------------- |
+| §2.2  | four cells, `kind: 'reserve' \| 'render'`        | three cells, returns `null` off macOS                             | Windows/Linux keep native decorations (§4)                       |
+| §2.3  | `decorations: false` shared, macOS restates true | no config change at all                                           | nothing to make frameless                                        |
+| §2.5  | `titlebar.test.tsx` inverts                      | its config assertions stand; only the row-height coupling moves   | "custom in-webview controls were ruled out" is true again        |
+| §2.6  | spike frameless before building the rail         | dissolved                                                         | nothing to spike                                                 |
+| §3.4  | caption buttons are 46px wide                    | dissolved                                                         | there are no caption buttons                                     |
+| §4.4  | `color: inherit` on the controls                 | dissolved                                                         | macOS's reserve is an empty spacer; no glyphs in the field       |
+| §5.7  | caption hover needs its own token                | dissolved                                                         | `bg-current/10` (§5.4), and nothing to hover anyway              |
+| §5.11 | show the parent namespace                        | show the whole namespace, shed the path's middle first            | the version is the useful end, and it can be kept (§6.3)         |
+| §6.3  | "the **selected** row is `--background`"         | hover is `--background`; selected is the `--foreground` inversion | §5.2 and §6.2's table always said so; §6.3 named the wrong state |
+| §9.5  | red close-hover, Linux button set                | dissolved                                                         | no buttons to colour                                             |
 
 ---
 
@@ -469,8 +469,39 @@ None of these block the three units above.
    accent colour. It does not gate the shell — the rail uses no accent anywhere — but it gates run
    state (§9.4) and any component restyled after this.
 2. **What `/`, `/remote` and `/arrow/$` show.** Out of scope here; they render placeholders.
-3. **The arrow icon's empty state.** `ArrowEntry.icon` is `string | null` and the design draws no
-   fallback. A `--icon`-sized tile carrying the name's first letter is a proposal, not a decision.
+3. ~~**The arrow icon's empty state.**~~ **Answered by the CossUI rebuild (§11).** `ArrowIcon` is
+   Base UI's `Avatar`: the manifest's image when one resolves, a two-glyph monogram otherwise, in an
+   18px box. Base UI holds the `<img>` out of the DOM until it loads, so a URL that 404s stays on the
+   monogram rather than leaving a broken-image glyph in the rail.
 4. **What else sits in the chrome row** beside the search field (§9.3).
 5. **Run state in the rail** (§9.4). The rail lists what you have, not what is running, and
    `ArrowEntry` carries `state`, `active_run` and `last_return` that nothing displays.
+
+---
+
+## 11. Amendment — the CossUI rebuild (2026-08-08)
+
+The rail was rebuilt on the `@coss` registry (style `base-nova`), the component set Crowbar uses.
+Plan: `docs/superpowers/plans/2026-08-08-cossui-sidebar-migration.md`. What changed against the
+three units above:
+
+|              | Before                                    | After                                                         | Why                                                                                                                                                                                  |
+| ------------ | ----------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| row chrome   | per-component class strings               | `src/features/sidebar/row-base.ts`                            | Ported from crowbar's `workspace-row-base.ts`. Several call sites draw rows; a change has to reach all of them.                                                                      |
+| row height   | `h-(--row)`, 34px                         | `h-9`, 36px                                                   | ROW_BASE's own height. The window chrome row keeps `--row`, because it aligns with the content column and the traffic lights.                                                        |
+| radius       | `0`                                       | `rounded-lg` = `--radius` = 10px                              | §6.1a of the shell spec.                                                                                                                                                             |
+| selected row | `--sidebar-primary` fill                  | `bg-foreground` / `text-background`, border matching the fill | Same inversion, now stated once in `ROW_ACTIVE`. Crowbar's own `ROW_ACTIVE` _raises_ from `--background`; that was deliberately not taken — see the file's comment.                  |
+| arrow icon   | hand-rolled `<img>` / tile                | `Avatar` + `AvatarFallback`, 18px                             | Handles a broken URL, which the `<img>` did not. Needs an explicit `role="img"` on the fallback: Base UI renders it as a bare span and `aria-label` on a generic element is ignored. |
+| history nav  | bare `<button>`                           | `Button variant="ghost"`                                      | One control vocabulary with the rest of the app.                                                                                                                                     |
+| arrow list   | `overflow-y-auto` + `::-webkit-scrollbar` | `ScrollArea`                                                  | Those pseudo-elements are ignored the moment anything sets `scrollbar-width`.                                                                                                        |
+| subtitle     | `text-[10px]` UI sans                     | `ROW_SUBLABEL`, JetBrains Mono 10.5px                         | Mono is for identifiers only. The head/tail split of §5.11 is unchanged.                                                                                                             |
+
+**Not changed:** the search bar (§4), except to collapse a `cn` workaround that only existed because
+`tailwind-merge` 1.14.0 could not parse Tailwind v4 syntax. The namespace split (§5.11), the
+reselect guard, the resize handle and the shell grid are untouched.
+
+**Two defects found while verifying on the live app.** The switch had no `rounded-*` at all — stripped
+when the app was pinned at radius 0 — and was fixed. The slider's `data-horizontal:` variants have
+never matched: Base UI emits `data-orientation="horizontal"`, so its track has been 0-height since
+`daa8c46`. That one is **pre-existing and unfixed** — out of scope for the rail, but it is a real
+broken control on `/settings`.

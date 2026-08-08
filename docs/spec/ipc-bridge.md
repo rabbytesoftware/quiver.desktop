@@ -10,7 +10,7 @@ The bridge has three channels:
 - **Commands** (TypeScript → Rust): TypeScript calls named Rust functions via `invoke()`. Used for connection management and for opening/closing the WebSocket legs.
 - **The `quiver://` scheme** (TypeScript → Rust → quiver.core): every HTTP call to quiver.core. TypeScript issues an ordinary `fetch()` against `quiver://localhost/v0/...`; Rust's registered scheme handler proxies it to whatever connection is active.
 
-Rust still owns every socket — TypeScript never opens one to quiver.core. What TypeScript owns is the *request*: reads and mutations are `fetch` calls over the `quiver://` scheme rather than per-endpoint Rust commands, and catalog/runtime data arrives on WebSockets bridged through Tauri Channels rather than on Tauri events.
+Rust still owns every socket — TypeScript never opens one to quiver.core. What TypeScript owns is the _request_: reads and mutations are `fetch` calls over the `quiver://` scheme rather than per-endpoint Rust commands, and catalog/runtime data arrives on WebSockets bridged through Tauri Channels rather than on Tauri events.
 
 Related specs: [connection-architecture.md](connection-architecture.md) (Rust + TypeScript implementation).
 
@@ -62,9 +62,9 @@ There are exactly two. Data no longer travels by event: the arrow catalog and ru
 
 ### 2.1 Event Catalog
 
-| Event | When emitted | Frequency |
-|---|---|---|
-| `core://status` | Active connection starts, becomes ready, or fails | Low — lifecycle only |
+| Event                  | When emitted                                               | Frequency            |
+| ---------------------- | ---------------------------------------------------------- | -------------------- |
+| `core://status`        | Active connection starts, becomes ready, or fails          | Low — lifecycle only |
 | `connection://changed` | `add_connection`, `remove_connection`, `rename_connection` | Low — user-triggered |
 
 ---
@@ -76,7 +76,9 @@ Emitted when the active connection lifecycle state changes. TypeScript uses this
 **Payload:**
 
 ```typescript
-{ status: "starting" | "ready" | "disconnected" }
+{
+	status: 'starting' | 'ready' | 'disconnected';
+}
 ```
 
 **Sequence — initial launch (local connection):**
@@ -98,7 +100,7 @@ New connection starts     → emit { status: "starting" }   ← TS resets projec
 
 `switch_connection` emits no `connection://changed` — see §3.3. The `ready` handler therefore does not rely on one: it calls `get_connections()` itself.
 
-**The emit is fire-and-forget.** `Emitter::emit_core_status` discards the result, Tauri buffers nothing, and there is no command to ask for the current status. An event emitted before the webview has registered its listener is dropped for good — and Rust emits `ready` on its *first* successful `/v0/health`, with no initial delay, so against an already-running daemon that can happen before `listen()` resolves. TypeScript must not treat this event as the only way it can learn the core is up. See §6.
+**The emit is fire-and-forget.** `Emitter::emit_core_status` discards the result, Tauri buffers nothing, and there is no command to ask for the current status. An event emitted before the webview has registered its listener is dropped for good — and Rust emits `ready` on its _first_ successful `/v0/health`, with no initial delay, so against an already-running daemon that can happen before `listen()` resolves. TypeScript must not treat this event as the only way it can learn the core is up. See §6.
 
 ---
 
@@ -129,21 +131,21 @@ There are eight, and none of them proxies a quiver.core endpoint: five manage co
 
 **Connection management** — handled entirely in Rust, do not call quiver.core:
 
-| Command | Returns | Description |
-|---|---|---|
-| `get_connections` | `{ connections, active_id }` | Current connection list and active ID |
-| `add_connection` | `ConnectionConfig` | Persist new remote connection |
-| `remove_connection` | `void` | Delete connection metadata and token |
-| `switch_connection` | `void` | Retire the active connection's streams, tear it down, start the new one |
-| `rename_connection` | `void` | Update display name only |
+| Command             | Returns                      | Description                                                             |
+| ------------------- | ---------------------------- | ----------------------------------------------------------------------- |
+| `get_connections`   | `{ connections, active_id }` | Current connection list and active ID                                   |
+| `add_connection`    | `ConnectionConfig`           | Persist new remote connection                                           |
+| `remove_connection` | `void`                       | Delete connection metadata and token                                    |
+| `switch_connection` | `void`                       | Retire the active connection's streams, tear it down, start the new one |
+| `rename_connection` | `void`                       | Update display name only                                                |
 
 **WebSocket bridge** — dial quiver.core over the active connection's transport:
 
-| Command | Returns | Description |
-|---|---|---|
-| `ws_open` | `void` | Dial `path`, upgrade to WS, stream frames down a `Channel<string>` |
-| `ws_send` | `void` | Send one raw text frame on an open leg |
-| `ws_close` | `void` | Close a leg and drop its socket |
+| Command    | Returns | Description                                                        |
+| ---------- | ------- | ------------------------------------------------------------------ |
+| `ws_open`  | `void`  | Dial `path`, upgrade to WS, stream frames down a `Channel<string>` |
+| `ws_send`  | `void`  | Send one raw text frame on an open leg                             |
+| `ws_close` | `void`  | Close a leg and drop its socket                                    |
 
 ---
 
@@ -216,7 +218,7 @@ invoke('ws_open', {
 }): Promise<void>
 ```
 
-Resolves the active transport *per open*, so a leg opened after a switch dials the new peer with nothing to re-register. Resolves once the HTTP→WS upgrade has completed and the leg is registered; rejects with a string if the dial or upgrade fails.
+Resolves the active transport _per open_, so a leg opened after a switch dials the new peer with nothing to re-register. Resolves once the HTTP→WS upgrade has completed and the leg is registered; rejects with a string if the dial or upgrade fails.
 
 **`ws_send`**
 
@@ -259,9 +261,9 @@ Legs are also retired, silently and without the sentinel, when a page load start
 
 Two endpoints are bridged:
 
-| Path | Role | Consumer |
-|---|---|---|
-| `/v0/arrow` | Catalog deltas — `{ event: "upserted" \| "removed", namespace, ... }` | `lib/persistence/entity-stream.ts`, merged into the IndexedDB cache |
+| Path          | Role                                                                  | Consumer                                                                     |
+| ------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `/v0/arrow`   | Catalog deltas — `{ event: "upserted" \| "removed", namespace, ... }` | `lib/persistence/entity-stream.ts`, merged into the IndexedDB cache          |
 | `/v0/runtime` | Runtime transitions — `{ namespace, state, active_run, last_return }` | `lib/core-store/listeners`, applied as an overlay onto existing entries only |
 
 Neither endpoint pushes anything on connect (both are transition-only, verified against `stable-26.5.1`). The initial state of every arrow therefore comes from the seed GET's own `versions[].state`, not from a frame.
@@ -278,25 +280,25 @@ TypeScript reaches it through `apiFetch` (`lib/transport/api.ts`), which unwraps
 
 Under a scheme proxy, a refused socket never surfaces as a `fetch()` rejection — it comes back as a well-formed response the Rust handler built. Retry therefore cannot key on rejection; it keys on a header.
 
-| Case | Status | `x-quiver-proxy` |
-|---|---|---|
-| Daemon answered | whatever the daemon said (200, 404, 500, …) | *absent* |
-| Transport failed before reaching the daemon | 502 | `error` |
-| Daemon accepted but never answered within `PROXY_TIMEOUT` | 504 | `error` |
+| Case                                                      | Status                                      | `x-quiver-proxy` |
+| --------------------------------------------------------- | ------------------------------------------- | ---------------- |
+| Daemon answered                                           | whatever the daemon said (200, 404, 500, …) | _absent_         |
+| Transport failed before reaching the daemon               | 502                                         | `error`          |
+| Daemon accepted but never answered within `PROXY_TIMEOUT` | 504                                         | `error`          |
 
-The contract is the marker, not the code: a response carrying `x-quiver-proxy: error` was generated by this proxy and the request may not have been applied, so `apiFetch` retries it — 502 and 504 alike — for idempotent reads only, with bounded backoff. A response *without* the marker came from the daemon and is never replayed: a 404 is meaningful and a 500 is a real server error. Mutations are never retried at all, because quiver.core has no idempotency keys and a replayed POST would double-apply.
+The contract is the marker, not the code: a response carrying `x-quiver-proxy: error` was generated by this proxy and the request may not have been applied, so `apiFetch` retries it — 502 and 504 alike — for idempotent reads only, with bounded backoff. A response _without_ the marker came from the daemon and is never replayed: a 404 is meaningful and a 500 is a real server error. Mutations are never retried at all, because quiver.core has no idempotency keys and a replayed POST would double-apply.
 
 ### 5.2 Endpoints TypeScript calls
 
-| Call site | Method | Endpoint |
-|---|---|---|
-| `useInstall` / `useUninstall` / `useStop` / `useExecute` | POST | `/v0/runtime/{ns}/{method}` |
-| `useRegisterArrow` | POST | `/v0/arrow/{ns}` |
-| `useRemoveArrow` | DELETE | `/v0/arrow/{ns}` |
-| `useFollowCollection` | POST | `/v0/collection/{ns}/follow` |
-| `useUnfollowCollection` | DELETE | `/v0/collection/{ns}/follow` |
-| entity-stream seed | GET | `/v0/arrow?user_installed=true` |
-| boot readiness probe | GET | `/v0/health` |
+| Call site                                                | Method | Endpoint                        |
+| -------------------------------------------------------- | ------ | ------------------------------- |
+| `useInstall` / `useUninstall` / `useStop` / `useExecute` | POST   | `/v0/runtime/{ns}/{method}`     |
+| `useRegisterArrow`                                       | POST   | `/v0/arrow/{ns}`                |
+| `useRemoveArrow`                                         | DELETE | `/v0/arrow/{ns}`                |
+| `useFollowCollection`                                    | POST   | `/v0/collection/{ns}/follow`    |
+| `useUnfollowCollection`                                  | DELETE | `/v0/collection/{ns}/follow`    |
+| entity-stream seed                                       | GET    | `/v0/arrow?user_installed=true` |
+| boot readiness probe                                     | GET    | `/v0/health`                    |
 
 `install`, `uninstall`, `stop` and `execute` are all just `{method}` values on the same route (verified against `stable-26.5.1`). Each returns as soon as quiver.core accepts the command (202); progress is observed on the `/v0/runtime` WebSocket.
 
@@ -310,20 +312,20 @@ The contract is the marker, not the code: a response carrying `x-quiver-proxy: e
 
 ```typescript
 interface ArrowEntry {
-    // from the IndexedDB entity cache, fed by the /v0/arrow seed + deltas
-    namespace:   string
-    name:        string
-    description: string
-    tags:        string[]
-    icon:        string | null
-    banner:      string | null
-    version:     string
+	// from the IndexedDB entity cache, fed by the /v0/arrow seed + deltas
+	namespace: string;
+	name: string;
+	description: string;
+	tags: string[];
+	icon: string | null;
+	banner: string | null;
+	version: string;
 
-    // from the /v0/runtime overlay (and, for the initial paint, from the
-    // seed GET's own versions[].state)
-    state:       ArrowState
-    active_run:  ActiveRun | null
-    last_return: LastReturn | null
+	// from the /v0/runtime overlay (and, for the initial paint, from the
+	// seed GET's own versions[].state)
+	state: ArrowState;
+	active_run: ActiveRun | null;
+	last_return: LastReturn | null;
 }
 ```
 
@@ -381,8 +383,8 @@ The five connection commands return a structured error on failure. TypeScript re
 
 ```typescript
 interface CommandError {
-    code:    number   // HTTP status code
-    message: string   // human-readable, safe to display
+	code: number; // HTTP status code
+	message: string; // human-readable, safe to display
 }
 ```
 
@@ -390,15 +392,15 @@ They use `503` for every connection-level failure (socket unreachable, sidecar c
 
 Everything quiver.core itself rejects arrives through `apiFetch` as an `ApiError` carrying the HTTP status:
 
-| status | source | meaning |
-|---|---|---|
-| 400 | quiver.core | invalid namespace |
-| 404 | quiver.core | not found / method not found |
-| 409 | quiver.core | already exists / cyclic dependency |
-| 422 | quiver.core | state violation / missing variable / invalid manifest / platform not supported |
-| 500 | quiver.core | internal error |
-| 502 | quiver.core | fetch failed (manifest registry unreachable) — **unmarked** |
-| 502 / 504 | this proxy | transport failed / daemon never answered — **marked** `x-quiver-proxy: error`, retried |
+| status    | source      | meaning                                                                                |
+| --------- | ----------- | -------------------------------------------------------------------------------------- |
+| 400       | quiver.core | invalid namespace                                                                      |
+| 404       | quiver.core | not found / method not found                                                           |
+| 409       | quiver.core | already exists / cyclic dependency                                                     |
+| 422       | quiver.core | state violation / missing variable / invalid manifest / platform not supported         |
+| 500       | quiver.core | internal error                                                                         |
+| 502       | quiver.core | fetch failed (manifest registry unreachable) — **unmarked**                            |
+| 502 / 504 | this proxy  | transport failed / daemon never answered — **marked** `x-quiver-proxy: error`, retried |
 
 TanStack `useMutation` surfaces the rejection via its `error` field. State transitions triggered by a rejected call are not reflected in the store — the `/v0/runtime` WebSocket is the authoritative source of state, not the response.
 

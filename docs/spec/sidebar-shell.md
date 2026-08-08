@@ -26,11 +26,11 @@ grid-template-columns: var(--rail) minmax(0, 1fr)    /* reversed when side = rig
 grid-template-rows:    var(--row)  1fr
 ```
 
-| Element | Column | Row |
-| --- | --- | --- |
-| Rail | 1 | **1 / 3** |
-| Chrome row | 2 | 1 |
-| Content | 2 | 2 |
+| Element    | Column | Row       |
+| ---------- | ------ | --------- |
+| Rail       | 1      | **1 / 3** |
+| Chrome row | 2      | 1         |
+| Content    | 2      | 2         |
 
 **1.1 — The rail always spans the full webview height.** `grid-row: 1 / 3` in every combination.
 Its first row holds the history buttons, and on macOS the reserved traffic-light space as well; there
@@ -56,9 +56,9 @@ macOS is the only platform offering a third way — `titleBarStyle: "Overlay"` w
 the bar and keeps the real buttons — so it is the only platform where frameless costs nothing. On
 Windows, hiding the bar removes the buttons with it.
 
-**2.1 — The window is opaque.** Crowbar's *layout* pattern comes across — the column owns its
+**2.1 — The window is opaque.** Crowbar's _layout_ pattern comes across — the column owns its
 strip, no standalone `Titlebar` component, a spacer element reserves the control space rather than
-padding. Its *transparency* stack does not: `transparent: true`, `macos-private-api` and
+padding. Its _transparency_ stack does not: `transparent: true`, `macos-private-api` and
 `window-vibrancy` are all deliberately absent. `src-tauri/Cargo.toml` already says so in as many
 words, and the rail's opaque surface would defeat vibrancy anyway.
 
@@ -66,24 +66,24 @@ words, and the rail's opaque surface would defeat vibrancy anyway.
 
 ```ts
 // features/shell/geometry.ts
-export type SidebarSide = 'left' | 'right'
+export type SidebarSide = 'left' | 'right';
 
-export function windowControls(): { edge: 'left' | 'right'; kind: 'reserve'; width: number } | null
+export function windowControls(): { edge: 'left' | 'right'; kind: 'reserve'; width: number } | null;
 //   macOS        → { edge: 'left', kind: 'reserve', width: 64 }
 //   Win / Linux  → null   (the OS draws its own title bar)
 
-export function railOwnsControls(side: SidebarSide): boolean
+export function railOwnsControls(side: SidebarSide): boolean;
 ```
 
 `kind: 'reserve'` renders an empty spacer — the OS paints the lights over it. We never render window
 buttons ourselves. Taking `side` as a parameter rather than closing over a module global keeps this
 pure, so every cell below is unit-testable without a window.
 
-| Platform | Rail side | Controls render in | Rail's first row |
-| --- | --- | --- | --- |
-| macOS | Left | rail | 64px reserve → history |
-| macOS | Right | chrome row (inside the field) | **history** |
-| Win / Linux | Either | nowhere — the OS owns them | **history** |
+| Platform    | Rail side | Controls render in            | Rail's first row       |
+| ----------- | --------- | ----------------------------- | ---------------------- |
+| macOS       | Left      | rail                          | 64px reserve → history |
+| macOS       | Right     | chrome row (inside the field) | **history**            |
+| Win / Linux | Either    | nowhere — the OS owns them    | **history**            |
 
 `isMacOS()` is called in exactly one place. Anything else that needs to know asks `windowControls()`
 or `railOwnsControls(side)`.
@@ -115,10 +115,10 @@ behaviour are all still the OS's to provide, because we never take the title bar
 
 ```css
 --rail: 246px;
---row:  34px;
---icon: 20px;         /* content — arrow marks in the list */
---icon-chrome: 17px;  /* chrome glyphs — back / forward */
---inset: calc((var(--row) - var(--icon)) / 2);   /* 7px at 34 / 20 */
+--row: 34px;
+--icon: 20px; /* content — arrow marks in the list */
+--icon-chrome: 17px; /* chrome glyphs — back / forward */
+--inset: calc((var(--row) - var(--icon)) / 2); /* 7px at 34 / 20 */
 ```
 
 **3.1 — One row height, no exceptions.** The search field, each nav segment, every arrow row, the
@@ -158,7 +158,7 @@ The subtitle imposes no floor of its own, because it degrades rather than trunca
 **4.1 — It lives in the chrome row, spanning the content column** — not in the rail. It was tried in
 the rail; at 208px it had ~130px of text room and collided with the active nav pill (§4.4).
 
-**4.2 — The field *is* the chrome row.** In the one combination that puts the traffic lights in
+**4.2 — The field _is_ the chrome row.** In the one combination that puts the traffic lights in
 that column (macOS, rail right), the lights' reserved space sits **inside** the field, on its surface,
 rather than beside it. Anything else leaves reserved space on bare `--background` next to a different
 surface, and the seam reads as a notch cut out of the bar.
@@ -197,7 +197,7 @@ on every route and this rule is broken on the first click. Nothing matches `/sea
 correct — the field's own inversion is what is lit while searching.
 
 **5.2 — The active treatment is identical for a nav segment and an arrow row**: `--foreground`
-background, `--background` foreground. They respond the same because they *are* the same thing.
+background, `--background` foreground. They respond the same because they _are_ the same thing.
 
 **5.3 — Selecting an arrow collapses every nav segment to an icon.** No segment keeps the wide slot
 "to stop the geometry jumping" — that was tried and rejected; it reads as Home still being active.
@@ -205,8 +205,14 @@ background, `--background` foreground. They respond the same because they *are* 
 **5.4 — The nav always spans the full rail width.**
 
 ```css
-.pnav > [data-status="active"]       { flex: 1 1 auto; max-width: 54%; }
-.pnav > :not([data-status="active"]) { flex: 1 1 0;    min-width: var(--row); }
+.pnav > [data-status='active'] {
+	flex: 1 1 auto;
+	max-width: 54%;
+}
+.pnav > :not([data-status='active']) {
+	flex: 1 1 0;
+	min-width: var(--row);
+}
 ```
 
 The active segment grows with the rail but stops at **54%** — the proportion the design gives it
@@ -247,7 +253,7 @@ and state are both identical, so clicking Home twice pushes nothing with no code
 
 The reachable case is a row that is active at a location its href does not equal — which is the
 rail's normal state, because a rail link carries no search params and the router marks a link active
-on a path prefix with a *subset* of the search. `/settings?tab=developer` is that case in this app
+on a path prefix with a _subset_ of the search. `/settings?tab=developer` is that case in this app
 today. The guard is `preventDefault()` on the router's own `data-status`, not a `replace` prop:
 `replace` is decided at render, so choosing it needs `isActive` outside `<Link>`'s children function
 — a second matcher with its own spelling of `exact`/`fuzzy`, free to disagree with the
@@ -263,8 +269,8 @@ key could not fit. It can: split at the last `@`, let the head truncate and pin 
 
 ```tsx
 <span className="flex min-w-0">
-  <span className="truncate">{head}</span>   {/* github.com/rabbyte/minecraft */}
-  <span className="shrink-0">{tail}</span>   {/* @v1.21.4                    */}
+	<span className="truncate">{head}</span> {/* github.com/rabbyte/minecraft */}
+	<span className="shrink-0">{tail}</span> {/* @v1.21.4                    */}
 </span>
 ```
 
@@ -288,18 +294,36 @@ nobody switches the setting while testing. **Test both directions.**
 **6.1 — `src/index.css` and `docs/pen.dev/design.pen` are not the same palette. Unresolved, but it
 does NOT block the shell.**
 
-| | `index.css` | `design.pen` |
-| --- | --- | --- |
-| `--primary` | `oklch(0.97 0 0)` grey | **`#FF8400`** orange |
-| `--destructive` | `oklch(0.65 0 0)` grey | `#FF5C33` |
-| `--sidebar` | `oklch(0.18 0 0)` | `#18181b` |
-| `--background` | `oklch(0.16 0 0)` | `#111111` |
-| semantic colours | none | success / warning / error / info, each with a foreground |
-| radius | `0` only | `--radius-none: 0`, `--radius-m: 16`, `--radius-pill: 999` |
+|                  | `index.css`            | `design.pen`                                               |
+| ---------------- | ---------------------- | ---------------------------------------------------------- |
+| `--primary`      | `oklch(0.97 0 0)` grey | **`#FF8400`** orange                                       |
+| `--destructive`  | `oklch(0.65 0 0)` grey | `#FF5C33`                                                  |
+| `--sidebar`      | `oklch(0.18 0 0)`      | `#18181b`                                                  |
+| `--background`   | `oklch(0.16 0 0)`      | `#111111`                                                  |
+| semantic colours | none                   | success / warning / error / info, each with a foreground   |
+| radius           | `0` only               | `--radius-none: 0`, `--radius-m: 16`, `--radius-pill: 999` |
 
 `index.css` is committed monochrome and its comments defend grey-as-destructive on principle. The
 design has an orange primary and a full semantic set. These are two different positions on whether
 Quiver has an accent colour, not drift in a couple of values.
+
+**6.1a — AMENDED (2026-08-08). Two of the six rows above are now settled; `--primary` is not.**
+
+The rail was rebuilt on CossUI, the component registry Crowbar uses
+(`@coss`, style `base-nova`). Three of its decisions were adopted and one refused:
+
+|                  | Decision                                       | Why                                                                                                                                                                                                                                                   |
+| ---------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| radius           | **`--radius: 10px`**, scale derived            | The rail is rounded. Pinned in **px**, not CossUI's `0.625rem`: `html` is 13px here, so every rem-based utility resolves at 13/16 and each pulled component would render at 81% of its designed size. `--spacing: 4px` is pinned for the same reason. |
+| semantic colours | **`--sidebar-count-added` / `-deleted` added** | green-300 / red-300 in dark, mixed 60% with black in light. NOT `--success`/`--destructive`, which lose contrast against the inverted active row this line only ever appears on.                                                                      |
+| typefaces        | **Inter + JetBrains Mono**, self-hosted        | Inter was named in the design but never declared, so the app rendered in the host's `ui-sans-serif`. Mono is for **identifiers only** — namespaces and versions, never names or navigation.                                                           |
+| `--primary`      | **untouched**                                  | CossUI's is an olive `oklch(0.49 0.082 130)`. Taking it would settle §6.1 by accident and against the evidence — see 6.1b.                                                                                                                            |
+
+**6.1b — the mark answers the accent question, and it is neither of the two candidates.**
+
+`docs/quiver-icon.png` samples to exactly two colours: **`#FFC857`** amber on **`#323031`** charcoal.
+That is not `index.css`'s grey and not `design.pen`'s `#FF8400`. §6.1 stays open as a decision, but
+whoever closes it should start from the mark rather than from either file.
 
 **The rail uses no accent anywhere**, so the shell can be built without settling this — and must be
 built without touching `--primary`, or it settles it by accident. What it does gate: run state (§9.4)
@@ -309,16 +333,16 @@ and any component restyled after this one.
 shadcn's existing token names — no new colour tokens; see sidebar-implementation.md §5.2 for the
 converted values.
 
-| Element | Dark | Light | Ships as |
-| --- | --- | --- | --- |
-| Rail surface | ~~`#242424 → #1A1A1A`~~ flat midpoint | ~~`#F4F4F4 → #E9E9E9`~~ flat midpoint | `--sidebar` |
-| Row label | `#FAFAFA` | `#1A1A1A` | `--sidebar-foreground` |
-| Row hover | `#111111` | `#F5F5F5` | `--sidebar-accent` |
-| Row / nav **active** | bg `--foreground`, fg `--background` | same | `--sidebar-primary` / `-foreground` |
-| Divider | `#2E2E2E` | `#E4E4E4` | `--sidebar-border` |
-| Search idle | `#111111D9` | `#FFFFFFD9` | `bg-background/85` |
-| Search active | the same inversion as an active row | same | `--foreground` / `--background` |
-| Placeholder, ⌘K | `#A8A8A8` | `#8A8A8A` | `--muted-foreground` |
+| Element              | Dark                                  | Light                                 | Ships as                            |
+| -------------------- | ------------------------------------- | ------------------------------------- | ----------------------------------- |
+| Rail surface         | ~~`#242424 → #1A1A1A`~~ flat midpoint | ~~`#F4F4F4 → #E9E9E9`~~ flat midpoint | `--sidebar`                         |
+| Row label            | `#FAFAFA`                             | `#1A1A1A`                             | `--sidebar-foreground`              |
+| Row hover            | `#111111`                             | `#F5F5F5`                             | `--sidebar-accent`                  |
+| Row / nav **active** | bg `--foreground`, fg `--background`  | same                                  | `--sidebar-primary` / `-foreground` |
+| Divider              | `#2E2E2E`                             | `#E4E4E4`                             | `--sidebar-border`                  |
+| Search idle          | `#111111D9`                           | `#FFFFFFD9`                           | `bg-background/85`                  |
+| Search active        | the same inversion as an active row   | same                                  | `--foreground` / `--background`     |
+| Placeholder, ⌘K      | `#A8A8A8`                             | `#8A8A8A`                             | `--muted-foreground`                |
 
 The rail's gradient is not built (§5.7 of sidebar-implementation.md); the flat value is the
 perceptual midpoint of the two stops. The search field's focused state is **not** `--primary` — that
@@ -334,7 +358,7 @@ rule previously said "selected", contradicting §5.2 and §6.2's own table — t
 fine over an opaque window because it blurs our own content, not the desktop. Do not invent a
 `--toolbar-input`.
 
-**6.5 — The search field inverts in *both* directions**: white on dark, near-black on light. It is
+**6.5 — The search field inverts in _both_ directions**: white on dark, near-black on light. It is
 not "goes white on focus".
 
 **6.6 — The traffic lights are never ours to colour.** macOS draws them.
@@ -382,11 +406,11 @@ forward.
 **7.4 — Use shadcn primitives; do not use shadcn's `Sidebar` block.** Confirmed against the
 `base-vega` registry rather than assumed:
 
-| | ships on base-vega | npm deps | registry deps |
-| --- | --- | --- | --- |
-| `tooltip` | yes | none | none |
-| `scroll-area` | yes | none | none |
-| `sidebar` | yes — **21,958 chars** | none | button, input, separator, **sheet**, skeleton, tooltip, **use-mobile** |
+|               | ships on base-vega     | npm deps | registry deps                                                          |
+| ------------- | ---------------------- | -------- | ---------------------------------------------------------------------- |
+| `tooltip`     | yes                    | none     | none                                                                   |
+| `scroll-area` | yes                    | none     | none                                                                   |
+| `sidebar`     | yes — **21,958 chars** | none     | button, input, separator, **sheet**, skeleton, tooltip, **use-mobile** |
 
 The block brings a `Sheet` and a `use-mobile` hook into a desktop app with a `minWidth: 800` window,
 plus a provider, cookie persistence, off-canvas and icon-collapse modes and its own keyboard
@@ -407,18 +431,18 @@ inverts on focus rather than growing a ring), so it would be a primitive importe
 The design file is now behind the decisions above. Bring it into line before it stops being useful
 as a reference.
 
-| | Design | Built |
-| --- | --- | --- |
-| Row height | 28 rows / 34 strip | **34 throughout** |
-| Rail width | 208 | **246** |
-| Rail extent | starts below the toolbar | **full webview height** |
-| Nav gap | 4 | **0** |
-| Collapsed nav segment | 44 wide | **`--row` (34), square** |
-| Rail surface | gradient `#242424 → #1A1A1A` | **flat, the perceptual midpoint** |
-| Icon size | 17 | **20** (chevrons 17) |
-| Namespace subtitle | — | **added** |
-| Back / forward | — | **added** |
-| Windows / Linux | native decorations | **native decorations** — no departure |
+|                       | Design                       | Built                                 |
+| --------------------- | ---------------------------- | ------------------------------------- |
+| Row height            | 28 rows / 34 strip           | **34 throughout**                     |
+| Rail width            | 208                          | **246**                               |
+| Rail extent           | starts below the toolbar     | **full webview height**               |
+| Nav gap               | 4                            | **0**                                 |
+| Collapsed nav segment | 44 wide                      | **`--row` (34), square**              |
+| Rail surface          | gradient `#242424 → #1A1A1A` | **flat, the perceptual midpoint**     |
+| Icon size             | 17                           | **20** (chevrons 17)                  |
+| Namespace subtitle    | —                            | **added**                             |
+| Back / forward        | —                            | **added**                             |
+| Windows / Linux       | native decorations           | **native decorations** — no departure |
 
 ---
 
@@ -426,16 +450,17 @@ as a reference.
 
 Five of the original seven are answered or dissolved. What remains does not block the build.
 
-1. **`index.css` vs `design.pen` palette** (§6.1). Still open — two positions on whether Quiver has an
-   accent colour. **No longer blocking:** the rail uses no accent, so the shell is built without
-   touching `--primary`. It gates run state (4) and anything restyled after this.
+1. **`index.css` vs `design.pen` palette** (§6.1). Still open on `--primary` alone; radius, semantic
+   counts and typefaces are settled by the CossUI adoption (§6.1a). **Still not blocking:** the rail
+   uses no accent, so it was rebuilt without touching `--primary`. A third candidate is now on the
+   table — the mark's own amber (§6.1b). It gates run state (4) and anything restyled after this.
 2. ~~**What are Remote and Settings?**~~ **Answered: destinations.** Every rail row is a route,
    including Home, Remote and Settings; arrows route straight to the arrow. The Settings dialog
    retires into `/settings` with its three panels intact. Selection therefore lives in the router and
    nowhere else.
 3. **What else fills the chrome row** beside the search field. Still open, and now independent of (2).
 4. **Run state in the rail.** `ArrowEntry` carries `state`, `active_run` and `last_return`; the rail
-   draws what you *have*, not what is *running*, and the design shows no state at all. Not this
+   draws what you _have_, not what is _running_, and the design shows no state at all. Not this
    branch. Whatever answers it wants the accent colour from (1).
 5. ~~**Caption button fidelity.**~~ **Dissolved** — Windows and Linux keep native decorations, so
    there are no caption buttons to colour and no Linux button-set question.
