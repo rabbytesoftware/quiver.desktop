@@ -1,14 +1,14 @@
 import type { JSX } from 'react';
 
-import type { Icon as PhosphorIcon, IconWeight } from '@phosphor-icons/react';
+import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 
+import { TabsTab } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { cn } from '@/lib/cn';
 
 import { blockReselect } from '../reselect';
-import { ROW_ACTIVE, ROW_BASE, ROW_INACTIVE } from '../row-base';
 
 /**
  * The three destinations the nav can point at. A `string` here would compile and
@@ -20,141 +20,77 @@ export type NavDestination = '/' | '/remote' | '/settings';
 
 export interface NavSegmentProps {
 	to: NavDestination;
-	/**
-	 * Whether the segment lights up only on its own route rather than on
-	 * everything beneath it. Off for the leaves, and required for `/` — see
-	 * `primary-nav.tsx`.
-	 */
-	exact?: boolean;
+	/** Matches `PrimaryNav`'s derived value; Base UI raises the indicator over it. */
+	value: string;
+	/** True when this is the destination the router is currently on. */
+	active: boolean;
 	/**
 	 * Phosphor's own component type, aliased because the destructure below binds
-	 * this prop to `Icon` in order to render it, and an unaliased import would
-	 * be shadowed by it.
+	 * this prop to `Icon` in order to render it, and an unaliased import would be
+	 * shadowed by it.
 	 */
 	icon: PhosphorIcon;
 	/** Already translated. Doubles as the accessible name and the tooltip text. */
 	label: string;
 }
 
-/**
- * The full width of the rail is divided between the three segments, always.
- *
- * The active one is capped at 54% — the proportion design.pen gives it, 112 of
- * 208. Uncapped it eats the rail at SIDEBAR_MAX; sized to its label alone it is
- * too tight at SIDEBAR_MIN. The other two split what is left, so there is never
- * dead space, and with nothing active all three fall through to the collapsed
- * rule and share equally. That is why there is no third selector for "nothing
- * active" here: three inactive links already are it.
- *
- * `not-data-[status=active]:` rather than a later rule that overrides the active
- * fill. An override still paints for the frame before it wins, so the hover
- * flickers as the cursor crosses the active segment. Same reasoning as the
- * history buttons' `not-disabled:`.
- *
- * No gap between segments. design.pen's `gap: 4` existed only to make
- * `112 + 4 + 44 + 4 + 44` come out to 208; the rail is 246 now, the active
- * segment absorbs the difference, and nothing else in the rail is separated.
- *
- * 610 and -0.1px are design.pen's own numbers, written literally because no
- * token carries them. The weight lands on the active segment alone, which is
- * the only one that renders text — a collapsed segment inherits it and has
- * nothing to apply it to. Dropping it does not break a layout or a test; it
- * just leaves the one label on screen reading a shade lighter than the design,
- * against a fill that is already inverted and unforgiving about weight.
- */
-const SEGMENT = cn(
-	ROW_BASE,
-	ROW_INACTIVE,
-	ROW_ACTIVE,
-	// The rail's full width is divided between the three segments, always. The
-	// active one is capped at 54% — the proportion design.pen gives it, 112 of
-	// 208. Uncapped it eats the rail at SIDEBAR_MAX; sized to its label alone it
-	// is too tight at SIDEBAR_MIN. The other two split what is left, so there is
-	// never dead space, and with nothing active all three fall through to the
-	// collapsed rule and share equally. That is why there is no third selector
-	// for "nothing active": three inactive segments already are it.
-	'overflow-hidden data-[status=active]:max-w-[54%] data-[status=active]:flex-[1_1_auto]',
-	'data-[status=active]:justify-start data-[status=active]:font-[610]',
-	'not-data-[status=active]:min-w-9 not-data-[status=active]:flex-1',
-	// ROW_BASE's own inline margin would put a gap between segments; design.pen
-	// draws them flush, and the active one absorbs the slack.
-	'mx-0'
-);
+/** crowbar's `sidebar-tab-bar.tsx`, verbatim. */
+const TAB = 'flex flex-1 items-center justify-center gap-1';
 
 /**
- * `--icon-nav` (14), the smallest of the three tiers — NOT `--icon` (20), which
- * belongs to the arrow rows. A nav segment is mostly icon: at 20 the glyph fills
- * a collapsed segment edge to edge and the three of them read as toolbar buttons
- * rather than as one segmented control. The design draws these at 14 and the
- * list at 20 for exactly that reason.
+ * The label's visibility ladder, also crowbar's, thresholds included: under
+ * 280px nobody gets a label, 280–420 only the active tab, 420 and up all of
+ * them. Measured against the CONTAINER — this rail is dragged between 160 and
+ * 320px and the window's width says nothing about it.
  *
- * A class and not Phosphor's `size` prop. `size` is written to the svg's
- * `width`/`height` ATTRIBUTES — the icon carries `width="1em"` underneath this
- * class and renders at 14 anyway, because a rule beats a presentation
- * attribute. Chromium does substitute `var()` inside one, so
- * `size="var(--icon-nav)"` is not broken there; it is avoided because the app
- * ships in three webviews and only one of them is Chromium, and an engine that
- * does not substitute drops the attribute and falls back to the context default
- * of 1em. That is 13px against a design asking for 14 — the kind of wrong
- * nobody catches in review.
+ * At Quiver's 246px default the container is 230px, so the bar is icons only
+ * and the labels arrive as the rail is widened. That falls out of the control's
+ * own thresholds rather than being a number picked for this app.
  */
-const ICON = 'size-(--icon-nav) shrink-0';
+function labelClass(active: boolean): string {
+	return cn('hidden', active && '@[280px]:inline', '@[420px]:inline');
+}
 
 /**
- * One weight for all three segments, and `bold` rather than Phosphor's default
- * `regular` because of the size above. Phosphor draws regular at 16 units of a
- * 256 grid and bold at 24, so at 14px they come out at 0.88px and 1.31px of
- * stroke; design.pen draws these glyphs at 2.1 of a 24 grid, which is 1.23px.
- * Bold is the one that matches. Regular is the tempting default and reads
- * visibly wispier than the design at this size, most of all on the inverted
- * fill the active segment paints behind it.
+ * One destination in the rail's primary nav.
  *
- * Stated rather than left to the default so an `IconContext` mounted anywhere
- * above the rail cannot restyle it from a distance.
+ * A `TabsTab` rendered THROUGH the router's `Link`, so the segment stays a real
+ * anchor — middle-click, copy-link and keyboard activation keep working, and
+ * navigation stays the router's. Base UI supplies only the active marking and
+ * the sliding indicator.
+ *
+ * Weight follows state — Phosphor `fill` when active, `regular` otherwise — and
+ * the glyph takes crowbar's `size={14}` prop rather than a class. A number is
+ * safe there; only a `var()` would not be, since a presentation attribute
+ * carrying one is substituted by Chromium and dropped by engines that are not,
+ * and this app ships in three webviews.
+ *
+ * The tooltip is Quiver's, not crowbar's, and it stays because this rail
+ * collapses to 160px where crowbar's does not: below 280px every segment is
+ * icon-only and the tooltip is the only affordance a pointer has. It goes
+ * INSIDE the tab — wrapping one makes Base UI's render composition overwrite
+ * `data-slot="tabs-tab"` with the tooltip's own.
  */
-const WEIGHT: IconWeight = 'bold';
+export function NavSegment({ to, value, active, icon: Icon, label }: NavSegmentProps): JSX.Element {
+	const glyph = <Icon size={14} weight={active ? 'fill' : 'regular'} />;
 
-/**
- * One destination in the rail's primary nav: an icon that grows a label when the
- * router says this is where we are.
- *
- * `isActive` comes out of `<Link>` itself rather than from a second
- * `useMatchRoute` call. The router writing `data-status` is the entire selection
- * model (spec §5.1) — asking it the same question a second time, through a
- * different API with its own spelling of "exact", is how the tooltip ends up
- * disagreeing with the highlight about which segment is open.
- *
- * That is also why the tooltip's trigger is a span inside the link rather than
- * the link itself: `isActive` is only in scope below `<Link>`. The cost is that
- * the tooltip opens on hover but not on keyboard focus, which is why `aria-label`
- * is unconditional — the accessible name is what serves assistive tech here, and
- * the tooltip is the pointer affordance on top of it.
- */
-export function NavSegment({ to, exact = false, icon: Icon, label }: NavSegmentProps): JSX.Element {
 	return (
-		<Link to={to} activeOptions={{ exact }} onClick={blockReselect} aria-label={label} className={SEGMENT}>
-			{({ isActive }) =>
-				isActive ? (
-					<>
-						<Icon className={ICON} weight={WEIGHT} />
-						<span className="min-w-0 truncate text-[13px]/[16px]">{label}</span>
-					</>
-				) : (
-					<Tooltip>
-						{/* Fills the segment so the whole of it is hoverable, not just
-						 * the 14px the icon occupies once flex has handed this segment
-						 * a share of the rail wider than a square. */}
-						<TooltipTrigger render={<span className="flex size-full items-center justify-center" />}>
-							<Icon className={ICON} weight={WEIGHT} />
-						</TooltipTrigger>
-						{/* Below, not above: the rail's top bar is directly above the
-						 * nav, so a tooltip on the default side covers the history
-						 * buttons. Below is clear on either edge of the window, which
-						 * `side="inline-end"` would not be for a right-docked rail. */}
-						<TooltipContent side="bottom">{label}</TooltipContent>
-					</Tooltip>
-				)
-			}
-		</Link>
+		<TabsTab value={value} className={TAB} render={<Link to={to} onClick={blockReselect} aria-label={label} />}>
+			{active ? (
+				glyph
+			) : (
+				<Tooltip>
+					<TooltipTrigger render={<span className="flex items-center justify-center" />}>
+						{glyph}
+					</TooltipTrigger>
+					{/* Below, not above: the rail's top bar sits directly over the nav,
+					 * so a tooltip on the default side covers the history buttons.
+					 * Below is clear on either edge of the window, which
+					 * `side="inline-end"` would not be for a right-docked rail. */}
+					<TooltipContent side="bottom">{label}</TooltipContent>
+				</Tooltip>
+			)}
+			<span className={labelClass(active)}>{label}</span>
+		</TabsTab>
 	);
 }

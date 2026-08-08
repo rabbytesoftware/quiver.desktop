@@ -93,7 +93,7 @@ async function renderRail(at: string, side: SidebarSide = 'left') {
 	});
 
 	const { container } = render(<RouterProvider router={router} />);
-	await screen.findAllByRole('link');
+	await screen.findAllByRole('tab');
 
 	const rail = container.querySelector<HTMLElement>('[data-slot="sidebar"]');
 	if (rail === null) throw new Error('the rail did not render');
@@ -263,7 +263,7 @@ describe('Sidebar', () => {
 		const scroller = rail.querySelector('[data-slot="scroll-area"]');
 		expect(scroller).toContainElement(screen.getByRole('navigation', { name: 'Arrows' }));
 		expect(scroller).not.toContainElement(topBar());
-		expect(scroller).not.toContainElement(screen.getByRole('link', { name: 'Home' }));
+		expect(scroller).not.toContainElement(screen.getByRole('tab', { name: 'Home' }));
 	});
 });
 
@@ -385,7 +385,7 @@ describe('re-selecting the active row', () => {
 		expect(activeNames(rail)).toEqual(['Settings']);
 		const before = router.history.length;
 
-		await user.click(screen.getByRole('link', { name: 'Settings' }));
+		await user.click(screen.getByRole('tab', { name: 'Settings' }));
 
 		expect(router.history.length).toBe(before);
 		// Not merely "no entry" — the click is a no-op, so the tab the panel is
@@ -397,7 +397,7 @@ describe('re-selecting the active row', () => {
 		const user = userEvent.setup();
 		const { router } = await renderRail('/settings?tab=developer');
 
-		await user.click(screen.getByRole('link', { name: 'Home' }));
+		await user.click(screen.getByRole('tab', { name: 'Home' }));
 
 		expect(await screen.findByTestId('page-home')).toBeInTheDocument();
 		expect(router.history.canGoBack()).toBe(true);

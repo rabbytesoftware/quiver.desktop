@@ -18,7 +18,7 @@ import { PrimaryNav } from './components/primary-nav';
 /**
  * The five real routes, hand-built rather than imported from `routeTree.gen`:
  * `__root.tsx` mounts the whole app, so importing the generated tree would put a
- * second rail on screen and leave every `getAllByRole('link')` below counting
+ * second rail on screen and leave every `getAllByRole('tab')` below counting
  * somebody else's links.
  *
  * The nav goes in the ROOT component, which is where the rail puts it — under a
@@ -66,7 +66,7 @@ async function renderNav(at: string) {
 	});
 
 	render(<RouterProvider router={router} />);
-	await screen.findAllByRole('link');
+	await screen.findAllByRole('tab');
 	return router;
 }
 
@@ -78,7 +78,7 @@ async function renderNav(at: string) {
  */
 function activeLabels(): string[] {
 	return screen
-		.getAllByRole('link')
+		.getAllByRole('tab')
 		.filter((link) => link.getAttribute('data-status') === 'active')
 		.map((link) => link.getAttribute('aria-label') ?? '');
 }
@@ -107,7 +107,7 @@ describe('PrimaryNav', () => {
 	 */
 	it('does not light Home at /remote', async () => {
 		await renderNav('/remote');
-		expect(screen.getByRole('link', { name: 'Home' })).not.toHaveAttribute('data-status');
+		expect(screen.getByRole('tab', { name: 'Home' })).not.toHaveAttribute('data-status');
 	});
 
 	// Nothing in the rail owns /search — the field's own inversion is what is lit
@@ -128,7 +128,7 @@ describe('PrimaryNav', () => {
 		const user = userEvent.setup();
 		await renderNav('/');
 
-		await user.click(screen.getByRole('link', { name: 'Settings' }));
+		await user.click(screen.getByRole('tab', { name: 'Settings' }));
 
 		expect(await screen.findByTestId('settings-page')).toBeInTheDocument();
 		expect(activeLabels()).toEqual(['Settings']);
@@ -136,12 +136,31 @@ describe('PrimaryNav', () => {
 
 	// The label is what makes the wide slot worth 54% of the rail; a collapsed
 	// segment that rendered its text too would just clip it.
-	it('shows the label on the active segment and on no other', async () => {
+	/**
+	 * Every segment carries its label in the DOM at every width; only the CLASSES
+	 * differ, because the ladder is a container query and jsdom has no layout to
+	 * resolve one against. So the assertion is on the opt-in, not on the text:
+	 * hidden by default, the active tab appearing at 280px and all three at 420.
+	 * Those thresholds are crowbar's, copied rather than chosen — at Quiver's
+	 * 246px rail the container is 230px, so the bar is icons only until it is
+	 * dragged wider.
+	 */
+	it('reveals labels on crowbar’s ladder — active at 280px, all at 420px', async () => {
 		await renderNav('/remote');
 
-		expect(screen.getByRole('link', { name: 'Remote' })).toHaveTextContent('Remote');
-		expect(screen.getByRole('link', { name: 'Home' })).toHaveTextContent('');
-		expect(screen.getByRole('link', { name: 'Settings' })).toHaveTextContent('');
+		const labelOf = (name: string) =>
+			[...screen.getByRole('tab', { name }).querySelectorAll('span')].find((span) => span.textContent === name);
+
+		const active = labelOf('Remote');
+		expect(active?.className).toContain('hidden');
+		expect(active?.className).toContain('@[280px]:inline');
+		expect(active?.className).toContain('@[420px]:inline');
+
+		const collapsed = labelOf('Home');
+		expect(collapsed?.className).toContain('hidden');
+		// The inactive segments wait for the wide threshold and skip the middle one.
+		expect(collapsed?.className).not.toContain('@[280px]:inline');
+		expect(collapsed?.className).toContain('@[420px]:inline');
 	});
 
 	/**
@@ -153,88 +172,101 @@ describe('PrimaryNav', () => {
 	it('gives the collapsed segments a tooltip and the active one none', async () => {
 		await renderNav('/remote');
 
-		expect(screen.getByRole('link', { name: 'Remote' }).querySelector('[data-slot=tooltip-trigger]')).toBeNull();
-		expect(screen.getByRole('link', { name: 'Home' }).querySelector('[data-slot=tooltip-trigger]')).not.toBeNull();
+		expect(screen.getByRole('tab', { name: 'Remote' }).querySelector('[data-slot=tooltip-trigger]')).toBeNull();
+		expect(screen.getByRole('tab', { name: 'Home' }).querySelector('[data-slot=tooltip-trigger]')).not.toBeNull();
 		expect(
-			screen.getByRole('link', { name: 'Settings' }).querySelector('[data-slot=tooltip-trigger]')
+			screen.getByRole('tab', { name: 'Settings' }).querySelector('[data-slot=tooltip-trigger]')
 		).not.toBeNull();
 	});
 
 	/**
+	 * The tooltip goes INSIDE the tab. Wrapping the tab in the trigger instead
+	 * makes Base UI's render composition overwrite `data-slot="tabs-tab"` with
+	 * the tooltip's own — the tab still works, but anything selecting on the slot
+	 * silently stops finding two of the three.
+	 */
+	it('keeps every segment addressable as a tab, tooltip or not', async () => {
+		await renderNav('/remote');
+		expect(document.querySelectorAll('[data-slot="tabs-tab"]')).toHaveLength(3);
+	});
+
+	/**
 	 * Names the collapsed, icon-only segments. Without it a screen reader reads
-	 * "link" three times over, and the tooltip is no help: it hangs off a span
-	 * inside the anchor, so its `aria-describedby` never reaches the link.
+	 * the role three times over, and the tooltip is no help: it hangs off a span
+	 * inside the anchor, so its `aria-describedby` never reaches it.
 	 */
 	it('names every segment whether or not it is showing its label', async () => {
 		await renderNav('/search');
 		for (const name of ['Home', 'Remote', 'Settings']) {
-			expect(screen.getByRole('link', { name })).toHaveAttribute('aria-label', name);
+			expect(screen.getByRole('tab', { name })).toHaveAttribute('aria-label', name);
 		}
 	});
 
 	/**
-	 * The failure this catches is silent: `min-w-[34px]` and `size-5` both LOOK
-	 * right today and stop tracking `--row` and `--icon` the moment either moves,
-	 * with no layout assertion possible in jsdom to notice.
+	 * Equal thirds, and the active one does NOT grow. The previous design gave it
+	 * 54% of the rail; a segmented control marks itself by raising one of three
+	 * fixed positions, and a segment that resized its neighbours as the indicator
+	 * slid would read as three controls rather than one.
 	 */
-	it('sizes itself from the geometry tokens rather than from pixels', async () => {
+	it('shares the track equally, with no segment growing when active', async () => {
 		await renderNav('/');
 		for (const name of ['Home', 'Remote', 'Settings']) {
-			const link = screen.getByRole('link', { name });
-			expect(link.className).toContain('h-9');
-			expect(link.className).toContain('not-data-[status=active]:min-w-9');
-			expect(link.querySelector('svg')?.getAttribute('class')).toContain('size-(--icon-nav)');
+			const tab = screen.getByRole('tab', { name });
+			expect(tab.className).toContain('flex-1');
+			expect(tab.className).not.toContain('max-w-[54%]');
 		}
 	});
 
-	// 54% of the rail, the proportion design.pen gives the active segment (112 of
-	// 208). Uncapped it eats the whole rail at SIDEBAR_MAX.
-	it('caps the active segment at 54% of the rail', async () => {
+	/**
+	 * The theming caveat, and the one place this departs from crowbar. CossUI
+	 * fills the indicator from `--background`, raising it toward the surface
+	 * behind the track. Quiver's selected surfaces invert — the same call
+	 * ROW_ACTIVE makes for an arrow row. Asserted here because nothing else in
+	 * the suite would notice the registry's own value coming back on a re-pull.
+	 */
+	it('inverts the indicator rather than raising it', async () => {
 		await renderNav('/');
-		expect(screen.getByRole('link', { name: 'Home' }).className).toContain('data-[status=active]:max-w-[54%]');
+
+		const indicator = document.querySelector('[data-slot="tab-indicator"]');
+		expect(indicator?.className).toContain('bg-foreground');
+		expect(indicator?.className).not.toContain('bg-background');
 	});
 
 	/**
-	 * design.pen's own 610 and -0.1px, and the reason the weight is scoped to the
-	 * active segment: it is the only one that renders text. Nothing here has a
-	 * layout consequence, so the only way this drifts back to the browser default
-	 * is silently.
+	 * The capability crowbar's own tab bar does not have. Its tabs are a store
+	 * value that is always one of the four; these three compete with every arrow
+	 * in the list below, so "none of them" is a real answer. Base UI then has no
+	 * tab to measure and drops the indicator, leaving a bare track.
 	 */
-	it('sets the active segment in design.pen weight and tracking', async () => {
-		await renderNav('/');
-		const home = screen.getByRole('link', { name: 'Home' });
+	it('drops the indicator entirely when no destination is active', async () => {
+		await renderNav('/search');
 
-		expect(home.className).toContain('data-[status=active]:font-[610]');
-		expect(home.className).toContain('tracking-[-0.1px]');
+		expect(document.querySelector('[data-slot="tab-indicator"]')).toBeNull();
+		for (const name of ['Home', 'Remote', 'Settings']) {
+			expect(screen.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'false');
+		}
 	});
 
 	/**
-	 * Phosphor's weight is invisible to every other assertion here: delete
-	 * `weight={WEIGHT}` and the nav still renders, still lights up, still sizes
-	 * itself from the token, and all three glyphs quietly thin to the `regular`
-	 * default — 0.88px of stroke at 14px where design.pen draws 1.23px. Only the
-	 * path data changes, so only the path data can catch it, and comparing
-	 * against a reference render says it without a geometry literal in the test.
+	 * Weight follows state, which is crowbar's rule: `fill` on the active glyph,
+	 * `regular` on the rest. Invisible to every other assertion here — drop the
+	 * prop and the nav still renders, still lights up, still sizes itself — so
+	 * only the path data can catch it, and comparing against a reference render
+	 * says so without a geometry literal in the test.
 	 *
-	 * Both branches of the segment are covered by the one loop: Home is active at
-	 * `/` and renders its icon bare, the other two render theirs inside a tooltip
-	 * trigger.
-	 *
-	 * `fill` belongs here for the same reason. It is Phosphor's default rather
-	 * than something this code sets, and it is what carries the glyph from
-	 * `text-sidebar-primary-foreground` when the active segment inverts — pass a
-	 * `color` and the icon stays dark on the dark fill.
+	 * Both branches of the segment are covered: Home is active at `/` and renders
+	 * its icon bare, the other two render theirs inside a tooltip trigger.
 	 */
-	it('draws all three segments at one Phosphor weight, in the inherited colour', async () => {
+	it('fills the active glyph and leaves the others regular', async () => {
 		await renderNav('/');
 
-		for (const [name, Icon] of [
-			['Home', HouseIcon],
-			['Remote', HardDrivesIcon],
-			['Settings', GearIcon],
+		for (const [name, Icon, weight] of [
+			['Home', HouseIcon, 'fill'],
+			['Remote', HardDrivesIcon, 'regular'],
+			['Settings', GearIcon, 'regular'],
 		] as const) {
-			const glyph = screen.getByRole('link', { name }).querySelector('svg');
-			const { container } = render(<Icon weight="bold" />);
+			const glyph = screen.getByRole('tab', { name }).querySelector('svg');
+			const { container } = render(<Icon weight={weight} />);
 
 			expect(glyph).toHaveAttribute('fill', 'currentColor');
 			expect(glyph?.innerHTML).toBe(container.querySelector('svg')?.innerHTML);
