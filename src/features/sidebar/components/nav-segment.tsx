@@ -1,6 +1,6 @@
 import type { JSX } from 'react';
 
-import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
+import type { Icon as PhosphorIcon, IconWeight } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -76,12 +76,15 @@ const SEGMENT = [
  * rather than as one segmented control. The design draws these at 14 and the
  * list at 20 for exactly that reason.
  *
- * A class and not Phosphor's `size` prop, which is not a substitute for it:
- * `size` is written to the svg's `width`/`height` ATTRIBUTES, and `var()` is
- * not substituted in an attribute, so `size="var(--icon-nav)"` would be
- * discarded and leave the icon at the context default of 1em — 13px, tracking
- * the font instead of the token. The class wins over the attribute regardless:
- * presentation attributes lose to every author rule.
+ * A class and not Phosphor's `size` prop. `size` is written to the svg's
+ * `width`/`height` ATTRIBUTES — the icon carries `width="1em"` underneath this
+ * class and renders at 14 anyway, because a rule beats a presentation
+ * attribute. Chromium does substitute `var()` inside one, so
+ * `size="var(--icon-nav)"` is not broken there; it is avoided because the app
+ * ships in three webviews and only one of them is Chromium, and an engine that
+ * does not substitute drops the attribute and falls back to the context default
+ * of 1em. That is 13px against a design asking for 14 — the kind of wrong
+ * nobody catches in review.
  */
 const ICON = 'size-(--icon-nav) shrink-0';
 
@@ -97,7 +100,7 @@ const ICON = 'size-(--icon-nav) shrink-0';
  * Stated rather than left to the default so an `IconContext` mounted anywhere
  * above the rail cannot restyle it from a distance.
  */
-const WEIGHT = 'bold';
+const WEIGHT: IconWeight = 'bold';
 
 /**
  * One destination in the rail's primary nav: an icon that grows a label when the
@@ -127,7 +130,7 @@ export function NavSegment({ to, exact = false, icon: Icon, label }: NavSegmentP
 				) : (
 					<Tooltip>
 						{/* Fills the segment so the whole of it is hoverable, not just
-						 * the 20px the icon occupies once flex has handed this segment
+						 * the 14px the icon occupies once flex has handed this segment
 						 * a share of the rail wider than a square. */}
 						<TooltipTrigger render={<span className="flex size-full items-center justify-center" />}>
 							<Icon className={ICON} weight={WEIGHT} />

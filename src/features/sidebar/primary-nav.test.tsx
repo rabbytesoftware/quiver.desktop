@@ -1,3 +1,4 @@
+import { GearIcon, HardDrivesIcon, HouseIcon } from '@phosphor-icons/react';
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -205,5 +206,38 @@ describe('PrimaryNav', () => {
 
 		expect(home.className).toContain('data-[status=active]:font-[610]');
 		expect(home.className).toContain('tracking-[-0.1px]');
+	});
+
+	/**
+	 * Phosphor's weight is invisible to every other assertion here: delete
+	 * `weight={WEIGHT}` and the nav still renders, still lights up, still sizes
+	 * itself from the token, and all three glyphs quietly thin to the `regular`
+	 * default — 0.88px of stroke at 14px where design.pen draws 1.23px. Only the
+	 * path data changes, so only the path data can catch it, and comparing
+	 * against a reference render says it without a geometry literal in the test.
+	 *
+	 * Both branches of the segment are covered by the one loop: Home is active at
+	 * `/` and renders its icon bare, the other two render theirs inside a tooltip
+	 * trigger.
+	 *
+	 * `fill` belongs here for the same reason. It is Phosphor's default rather
+	 * than something this code sets, and it is what carries the glyph from
+	 * `text-sidebar-primary-foreground` when the active segment inverts — pass a
+	 * `color` and the icon stays dark on the dark fill.
+	 */
+	it('draws all three segments at one Phosphor weight, in the inherited colour', async () => {
+		await renderNav('/');
+
+		for (const [name, Icon] of [
+			['Home', HouseIcon],
+			['Remote', HardDrivesIcon],
+			['Settings', GearIcon],
+		] as const) {
+			const glyph = screen.getByRole('link', { name }).querySelector('svg');
+			const { container } = render(<Icon weight="bold" />);
+
+			expect(glyph).toHaveAttribute('fill', 'currentColor');
+			expect(glyph?.innerHTML).toBe(container.querySelector('svg')?.innerHTML);
+		}
 	});
 });

@@ -1,10 +1,9 @@
 import type { JSX } from 'react';
 
+import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { useCanGoBack, useRouter } from '@tanstack/react-router';
 
 import { useTranslation } from '@/lib/i18n';
-
-import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
 
 /**
  * Shared by both buttons, and the reason `not-disabled:` is a variant rather
