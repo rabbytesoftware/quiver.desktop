@@ -1,6 +1,6 @@
 {
 	"$schema": "https://ui.shadcn.com/schema.json",
-	"style": "base-vega",
+	"style": "base-nova",
 	"rsc": false,
 	"tsx": true,
 	"tailwind": {
@@ -17,5 +17,8 @@
 		"ui": "@/components/ui",
 		"lib": "@/lib",
 		"hooks": "@/hooks"
+	},
+	"registries": {
+		"@coss": "https://coss.com/ui/r/{name}.json"
 	}
 }

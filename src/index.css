@@ -1,12 +1,22 @@
 @import 'tailwindcss';
 
+/* Self-hosted, never a CDN: the app runs offline under Tauri, and a webfont URL
+ * would fail silently into the system stack. Inter was named in the design but
+ * never actually declared, so until now the app rendered in whatever
+ * `ui-sans-serif` resolved to on the host. */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+
 @custom-variant dark (&:is(.dark *));
 
 /*
  * shadcn's token NAMES with this design's values: every hue flattened to a
- * grey, and --radius pinned to 0. Components pulled with `shadcn add` are
- * written against these names, so they land already square and already
- * monochrome and need no editing.
+ * grey. Components pulled from the @coss registry are written against these
+ * names, so they land already monochrome and need no editing.
+ *
+ * --radius carries CossUI's own 0.625rem. It was pinned to 0 through the whole
+ * scale until the rail moved onto CossUI; see
+ * docs/superpowers/plans/2026-08-08-cossui-sidebar-migration.md.
  *
  * One exception to the flattening: dark's --muted-foreground keeps design.pen's
  * own #B8B9B6 verbatim, chroma and all — a whisper of green nobody will ever
@@ -19,7 +29,12 @@
  * that instead.
  */
 :root {
-	--radius: 0rem;
+	--radius: 0.625rem;
+
+	/* Inter for everything except identifiers. JetBrains Mono is reserved for
+	 * namespaces and versions — never names, navigation, or shortcut hints. */
+	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
 
 	/* Consumed as h-(--row), w-(--rail), p-(--inset) — never as arbitrary
 	 * values. --inset is DERIVED: it is the number that puts the icon the same
@@ -76,6 +91,13 @@
 	--sidebar-accent-foreground: oklch(0.218 0 0);
 	--sidebar-border: oklch(0.919 0 0);
 	--sidebar-ring: oklch(0.5 0 0);
+
+	/* The counts on a rail row's second line. NOT --destructive/--success: those
+	 * lose contrast against the inverted active surface this line only ever
+	 * appears on, so the pale pair is taken down to 60% here and used neat in
+	 * dark. Values from crowbar's styles/theme.css. */
+	--sidebar-count-added: color-mix(in srgb, var(--color-green-300) 60%, black);
+	--sidebar-count-deleted: color-mix(in srgb, var(--color-red-300) 60%, black);
 }
 
 /* Dark is the reviewed one; light exists so components are written against
@@ -121,16 +143,22 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(0.301 0 0);
 	--sidebar-ring: oklch(0.66 0 0);
+
+	--sidebar-count-added: var(--color-green-300);
+	--sidebar-count-deleted: var(--color-red-300);
 }
 
 @theme inline {
-	/* Every step resolves to 0. Kept rather than deleted because pulled
-	 * components reference the whole scale, and a missing one is a class that
-	 * silently does nothing. */
-	--radius-sm: 0rem;
-	--radius-md: 0rem;
-	--radius-lg: 0rem;
-	--radius-xl: 0rem;
+	/* Derived from --radius rather than four literals, so the scale keeps its
+	 * proportions if the base ever moves again. `rounded-lg` IS --radius, which
+	 * is what ROW_BASE uses. */
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+
+	--font-sans: var(--font-sans);
+	--font-mono: var(--font-mono);
 
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
@@ -165,6 +193,8 @@
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-ring: var(--sidebar-ring);
+	--color-sidebar-count-added: var(--sidebar-count-added);
+	--color-sidebar-count-deleted: var(--sidebar-count-deleted);
 
 	--animate-skeleton: skeleton 2s -1s infinite linear;
 
@@ -187,6 +217,7 @@
 		   macos-private-api, so there is no vibrancy here for transparent to protect. */
 		background: var(--background);
 		color: var(--foreground);
+		font-family: var(--font-sans);
 		/* --row, and every height derived from it, was sized against this. Move it and
 		   the rail rows, the chrome row and the macOS traffic-light offset in
 		   tauri.macos.conf.json all drift apart, each in its own file. */
