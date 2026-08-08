@@ -22,18 +22,32 @@
  *
  * `rounded-lg` resolves to `--radius`, so the corner follows the token rather
  * than pinning a literal that would survive the next time the scale moves.
+ *
+ * `tracking-[-0.1px]` is design.pen's own number and NOT part of the port —
+ * Crowbar's base sets no tracking. Kept because it is Quiver's type spec rather
+ * than CossUI's structure, and left off, the whole rail reads a shade looser
+ * than every mock it was drawn against.
  */
 export const ROW_BASE =
 	'flex cursor-pointer select-none items-center gap-1.5 rounded-lg border ' +
-	'h-9 px-1.5 mx-1.5 my-0.5 text-[13px] font-medium outline-none ' +
+	'h-9 px-1.5 mx-1.5 my-0.5 text-[13px] font-medium tracking-[-0.1px] outline-none ' +
 	'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background';
 
 /**
  * An idle row carries no fill and no visible border — it is a name on the rail.
  * Hover is the only surface it ever grows, and `--accent` is a 4% overlay, not
  * a solid grey, so it composites the same over whatever the rail is showing.
+ *
+ * Selected by the ROUTER's `data-status`, not by a React branch. Selection is
+ * not state in this app (spec §5.1): the router marks the active link and CSS
+ * reads it, so there is no second copy to disagree with the URL. That also
+ * makes hover EXCLUDE the active row rather than be overridden by it — an
+ * override still paints for the frame before it wins, which flickers as the
+ * cursor crosses the selected row.
  */
-export const ROW_INACTIVE = 'border-transparent text-foreground hover:bg-accent';
+export const ROW_INACTIVE =
+	'not-data-[status=active]:border-transparent not-data-[status=active]:text-foreground ' +
+	'not-data-[status=active]:hover:bg-accent';
 
 /**
  * Selection INVERTS. This is the one place the port deliberately departs from
@@ -60,7 +74,9 @@ export const ROW_INACTIVE = 'border-transparent text-foreground hover:bg-accent'
  * (dark theme, near-white fill) or a dark line that reads as a cut rather than
  * a lift. The inversion is the whole signal and needs no help.
  */
-export const ROW_ACTIVE = 'border-foreground bg-foreground text-background shadow-xs shadow-black/10';
+export const ROW_ACTIVE =
+	'data-[status=active]:border-foreground data-[status=active]:bg-foreground ' +
+	'data-[status=active]:text-background data-[status=active]:shadow-xs data-[status=active]:shadow-black/10';
 
 /**
  * The box every LEADING glyph sits in.

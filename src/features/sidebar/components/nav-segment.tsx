@@ -5,7 +5,10 @@ import { Link } from '@tanstack/react-router';
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
+import { cn } from '@/lib/cn';
+
 import { blockReselect } from '../reselect';
+import { ROW_ACTIVE, ROW_BASE, ROW_INACTIVE } from '../row-base';
 
 /**
  * The three destinations the nav can point at. A `string` here would compile and
@@ -59,15 +62,24 @@ export interface NavSegmentProps {
  * just leaves the one label on screen reading a shade lighter than the design,
  * against a fill that is already inverted and unforgiving about weight.
  */
-const SEGMENT = [
-	'flex h-(--row) items-center overflow-hidden text-[13px] tracking-[-0.1px]',
-	'data-[status=active]:max-w-[54%] data-[status=active]:flex-[1_1_auto]',
-	'data-[status=active]:gap-(--inset) data-[status=active]:px-(--inset)',
-	'data-[status=active]:font-[610] data-[status=active]:bg-sidebar-primary',
-	'data-[status=active]:text-sidebar-primary-foreground',
-	'not-data-[status=active]:min-w-(--row) not-data-[status=active]:flex-1',
-	'not-data-[status=active]:hover:bg-sidebar-accent',
-].join(' ');
+const SEGMENT = cn(
+	ROW_BASE,
+	ROW_INACTIVE,
+	ROW_ACTIVE,
+	// The rail's full width is divided between the three segments, always. The
+	// active one is capped at 54% — the proportion design.pen gives it, 112 of
+	// 208. Uncapped it eats the rail at SIDEBAR_MAX; sized to its label alone it
+	// is too tight at SIDEBAR_MIN. The other two split what is left, so there is
+	// never dead space, and with nothing active all three fall through to the
+	// collapsed rule and share equally. That is why there is no third selector
+	// for "nothing active": three inactive segments already are it.
+	'overflow-hidden data-[status=active]:max-w-[54%] data-[status=active]:flex-[1_1_auto]',
+	'data-[status=active]:justify-start data-[status=active]:font-[610]',
+	'not-data-[status=active]:min-w-9 not-data-[status=active]:flex-1',
+	// ROW_BASE's own inline margin would put a gap between segments; design.pen
+	// draws them flush, and the active one absorbs the slack.
+	'mx-0'
+);
 
 /**
  * `--icon-nav` (14), the smallest of the three tiers — NOT `--icon` (20), which
@@ -125,7 +137,7 @@ export function NavSegment({ to, exact = false, icon: Icon, label }: NavSegmentP
 				isActive ? (
 					<>
 						<Icon className={ICON} weight={WEIGHT} />
-						<span className="min-w-0 truncate">{label}</span>
+						<span className="min-w-0 truncate text-[13px]/[16px]">{label}</span>
 					</>
 				) : (
 					<Tooltip>

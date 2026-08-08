@@ -181,8 +181,8 @@ describe('PrimaryNav', () => {
 		await renderNav('/');
 		for (const name of ['Home', 'Remote', 'Settings']) {
 			const link = screen.getByRole('link', { name });
-			expect(link.className).toContain('h-(--row)');
-			expect(link.className).toContain('not-data-[status=active]:min-w-(--row)');
+			expect(link.className).toContain('h-9');
+			expect(link.className).toContain('not-data-[status=active]:min-w-9');
 			expect(link.querySelector('svg')?.getAttribute('class')).toContain('size-(--icon-nav)');
 		}
 	});

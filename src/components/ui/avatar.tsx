@@ -1,7 +1,9 @@
 'use client';
 
-import { Avatar as AvatarPrimitive } from '@base-ui/react/avatar';
 import type React from 'react';
+
+import { Avatar as AvatarPrimitive } from '@base-ui/react/avatar';
+
 import { cn } from '@/lib/cn';
 
 export function Avatar({ className, ...props }: AvatarPrimitive.Root.Props): React.ReactElement {

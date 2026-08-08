@@ -1,6 +1,11 @@
 import type { JSX } from 'react';
 
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+
+import { cn } from '@/lib/cn';
 import { useTranslation } from '@/lib/i18n';
+
+import { ROW_GLYPH_BOX } from '../row-base';
 
 /**
  * The chip's hue, derived from the arrow's namespace.
@@ -63,22 +68,25 @@ function monogram(name: string): string {
 	return glyphs.slice(0, 2).join('');
 }
 
-/** The `--icon` slot itself, so a lettered row and an imaged one line their labels up. */
-const TILE = 'grid size-(--icon) shrink-0 place-items-center';
+/**
+ * `rounded-md`, a step tighter than the row's `rounded-lg`: nested corners have
+ * to tighten inward or the inner one bulges against the outer. `bg-transparent`
+ * because the fallback below carries the hue, and Avatar's own `bg-background`
+ * would otherwise flash behind an image while it loads.
+ */
+const AVATAR = cn(ROW_GLYPH_BOX, 'overflow-hidden rounded-md bg-transparent');
 
 /**
- * `leading` set to the chip's own height, not `place-items` on the parent: the
- * grid centres the box, and only the line box centres the text inside it. Left
- * to the row's inherited 1.25 the two capitals sit a pixel or so high in an
- * 18px square, which every chip in the column repeats.
+ * `leading` set to the box's own height, not `place-items` on the parent: the
+ * flex centres the box, and only the line box centres the text inside it. Left
+ * to the row's inherited leading the two capitals sit a pixel high in an 18px
+ * square, which every chip in the column then repeats.
  *
- * `tracking-[0]` because the row sets -0.1px for its 13px label, and the same
- * negative tracking on two 8.5px capitals reads as a kerning fault.
+ * `tracking-[0]` because the rail's label carries -0.1px, and the same negative
+ * tracking on two 8.5px capitals reads as a kerning fault.
  */
-const MONOGRAM = [
-	'block size-[calc(var(--icon)_-_2px)] text-center text-[8.5px]',
-	'leading-[calc(var(--icon)_-_2px)] font-[700] tracking-[0] text-white uppercase',
-].join(' ');
+const MONOGRAM =
+	'size-full rounded-none bg-transparent text-[8.5px] font-[700] leading-[18px] tracking-[0] text-white uppercase';
 
 interface ArrowIconProps {
 	/** Keys the chip's colour — see `chipHue`. */
@@ -91,27 +99,49 @@ interface ArrowIconProps {
 /**
  * An arrow's mark in the rail.
  *
- * The monogram chip is ours, not the design's — `design.pen` draws every row
+ * Base UI's Avatar is exactly this component's shape — an image when one
+ * resolves, initials when it does not — including the case the hand-rolled
+ * version could not reach: an `icon` URL that is present but fails to load. A
+ * bare `<img>` leaves a broken-image glyph in the row; `AvatarFallback` takes
+ * over and the row keeps its monogram.
+ *
+ * The monogram itself is ours, not the design's — `design.pen` draws every row
  * with an icon and says nothing about the arrows that have none, and today that
- * is all of them. Without it those rows lose their `--icon` box entirely and
- * their labels sit one column left of every other row's.
+ * is all of them. Without it those rows lose their glyph box entirely and their
+ * labels sit one column left of every other row's.
+ *
+ * One behaviour worth knowing: Base UI holds the <img> out of the DOM until it
+ * has loaded, so a row with an icon shows its monogram first and swaps. That is
+ * the point — a URL that 404s stays on the monogram forever instead of leaving
+ * a broken-image glyph in the rail, which is what the bare <img> this replaces
+ * did.
  */
 export function ArrowIcon({ namespace, name, icon }: ArrowIconProps): JSX.Element {
 	const { t } = useTranslation();
 
-	if (icon !== null) {
-		// Decorative on purpose: the name is the next thing in the row, so a
-		// named image would make every row announce it twice.
-		return <img data-slot="arrow-icon" src={icon} alt="" className="size-(--icon) shrink-0 object-cover" />;
-	}
-
 	return (
-		// Labelled where the image above is not: the monogram is not the name,
-		// and two lettered chips are indistinguishable to a screen reader.
-		<span data-slot="arrow-icon" role="img" aria-label={t('arrow.icon.fallback', { name })} className={TILE}>
-			<span data-slot="arrow-monogram" className={MONOGRAM} style={{ backgroundColor: chipColour(namespace) }}>
+		<Avatar className={AVATAR} data-slot="arrow-icon">
+			{/* Decorative on purpose: the name is the next thing in the row, so a
+			 * named image would make every row announce itself twice. Rendered
+			 * only when there is a URL — Base UI keeps the fallback mounted until
+			 * an image resolves, and a null `src` would leave it waiting. */}
+			{icon !== null && <AvatarImage src={icon} alt="" className="object-cover" />}
+			{/* Labelled where the image is not: a monogram is not the name, and
+			 * two lettered chips are indistinguishable to a screen reader.
+			 *
+			 * `role="img"` is REQUIRED for that label to be read at all. Base UI
+			 * renders the fallback as a bare <span>, and `aria-label` on a generic
+			 * element is ignored — the chip would announce as the two letters it
+			 * happens to contain, or as nothing. */}
+			<AvatarFallback
+				data-slot="arrow-monogram"
+				role="img"
+				aria-label={t('arrow.icon.fallback', { name })}
+				className={MONOGRAM}
+				style={{ backgroundColor: chipColour(namespace) }}
+			>
 				{monogram(name)}
-			</span>
-		</span>
+			</AvatarFallback>
+		</Avatar>
 	);
 }

@@ -7,15 +7,16 @@ import {
 	RouterProvider,
 	useParams,
 } from '@tanstack/react-router';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ArrowEntry } from '@/domain/arrow';
 import { useArrowStore } from '@/lib/core-store';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
 
 import { ArrowList } from './components/arrow-list';
+import { ROW_BASE } from './row-base';
 
 const MINECRAFT = 'github.com/rabbyte/minecraft@v1.21.4';
 
@@ -105,23 +106,41 @@ function nameOf(row: HTMLElement): string {
 	return row.querySelector('[data-slot="arrow-name"]')?.textContent ?? '';
 }
 
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
+
 function subtitleOf(row: HTMLElement): HTMLElement {
 	const subtitle = row.querySelector<HTMLElement>('[data-slot="arrow-namespace"]');
 	if (!subtitle) throw new Error('the row has no namespace subtitle');
 	return subtitle;
 }
 
-function chipOf(tile: HTMLElement): HTMLElement {
-	const chip = tile.querySelector<HTMLElement>('[data-slot="arrow-monogram"]');
-	if (!chip) throw new Error('the fallback tile has no monogram chip');
-	return chip;
+/**
+ * Base UI holds the <img> out of the DOM until it has actually loaded, and in
+ * jsdom nothing ever loads. This stands in a window.Image that reports success
+ * on the next microtask, which is what lets the loaded branch be reached at all.
+ */
+function resolveImagesImmediately(): void {
+	class LoadedImage {
+		onload: (() => void) | null = null;
+		onerror: (() => void) | null = null;
+		referrerPolicy = '';
+		crossOrigin: string | null = null;
+
+		set src(_value: string) {
+			queueMicrotask(() => this.onload?.());
+		}
+	}
+
+	vi.stubGlobal('Image', LoadedImage);
 }
 
 /** The chip's own background, which is the only place the derived colour lands. */
 async function colourFor(namespace: string, name: string): Promise<string> {
 	seed(entry(namespace, name, null));
 	renderList('/');
-	return chipOf(await screen.findByRole('img', { name: `${name} icon` })).style.backgroundColor;
+	return (await screen.findByRole('img', { name: `${name} icon` })).style.backgroundColor;
 }
 
 beforeEach(() => {
@@ -164,13 +183,31 @@ describe('ArrowList', () => {
 
 describe('ArrowIcon', () => {
 	it('shows the arrow’s own icon when it has one, unnamed', async () => {
+		resolveImagesImmediately();
 		seed(entry(MINECRAFT, 'Minecraft', 'https://example.test/mc.png'));
 		renderList('/');
 
-		const icon = (await screen.findByRole('link')).querySelector('[data-slot="arrow-icon"]');
+		const row = await screen.findByRole('link');
+		await waitFor(() => expect(row.querySelector('img')).not.toBeNull());
+
+		const icon = row.querySelector('img');
 		expect(icon).toHaveAttribute('src', 'https://example.test/mc.png');
 		// The name is the next thing in the row; a named image says it twice.
 		expect(icon).toHaveAttribute('alt', '');
+	});
+
+	/**
+	 * The case the bare <img> this replaced could not reach. A URL that never
+	 * resolves leaves the monogram in place instead of a broken-image glyph in
+	 * the middle of the rail — and since jsdom resolves nothing by default, the
+	 * default IS the failure path.
+	 */
+	it('keeps the monogram when the icon URL never resolves', async () => {
+		seed(entry(MINECRAFT, 'Minecraft', 'https://example.test/gone.png'));
+		renderList('/');
+
+		expect(await screen.findByRole('img', { name: 'Minecraft icon' })).toBeInTheDocument();
+		expect((await screen.findByRole('link')).querySelector('img')).toBeNull();
 	});
 
 	/**
@@ -185,8 +222,9 @@ describe('ArrowIcon', () => {
 		renderList('/');
 
 		const tile = await screen.findByRole('img', { name: 'Minecraft icon' });
-		expect(tile.className).toContain('size-(--icon)');
-		expect(chipOf(tile).textContent).toBe('Mi');
+		// The box is on the avatar root; the tile fills it.
+		expect(tile.closest('[data-slot="arrow-icon"]')?.className).toContain('size-[18px]');
+		expect(tile.textContent).toBe('Mi');
 	});
 
 	/**
@@ -206,7 +244,7 @@ describe('ArrowIcon', () => {
 		renderList('/');
 
 		const tile = await screen.findByRole('img', { name: `${name} icon` });
-		expect(chipOf(tile).textContent).toBe(expected);
+		expect(tile.textContent).toBe(expected);
 	});
 
 	/**
@@ -233,7 +271,7 @@ describe('ArrowIcon', () => {
 		renderList('/');
 
 		await screen.findByRole('navigation', { name: 'Arrows' });
-		const [first, second] = screen.getAllByRole('img').map((tile) => chipOf(tile).style.backgroundColor);
+		const [first, second] = screen.getAllByRole('img').map((tile) => tile.style.backgroundColor);
 		expect(first).not.toBe(second);
 	});
 
@@ -314,7 +352,7 @@ describe('ArrowRow', () => {
 		await selectArrow(router, MINECRAFT);
 		const active = rows()[0].className;
 
-		expect(inactive).toContain('h-(--row)');
+		expect(inactive).toContain('h-9');
 		// The only class the row gains on selection is the router's own marker.
 		// Anything else here would be a second geometry, applied conditionally.
 		const added = active.split(' ').filter((name) => !inactive.split(' ').includes(name));
@@ -331,9 +369,13 @@ describe('ArrowRow', () => {
 		renderList('/');
 
 		const row = await screen.findByRole('link');
-		expect(row.className).toContain('h-(--row)');
-		expect(row.className).toContain('p-(--inset)');
-		expect(row.className).toContain('gap-(--inset)');
+		// Composed from the shared base rather than re-stated here, so a row and
+		// a nav segment cannot drift apart.
+		expect(row.className).toContain(ROW_BASE);
+		// `rounded-lg` resolves to --radius; a literal corner would survive the
+		// next time the scale moves.
+		expect(row.className).toContain('rounded-lg');
+		expect(row.className).not.toMatch(/rounded-\[/);
 	});
 
 	/**
@@ -346,6 +388,6 @@ describe('ArrowRow', () => {
 		renderList('/');
 
 		const row = await screen.findByRole('link');
-		expect(row.className).toContain('not-data-[status=active]:hover:bg-sidebar-accent');
+		expect(row.className).toContain('not-data-[status=active]:hover:bg-accent');
 	});
 });
