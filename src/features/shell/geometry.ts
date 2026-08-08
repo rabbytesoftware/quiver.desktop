@@ -16,7 +16,7 @@ import { isMacOS } from '@/lib/platform';
  * `--row` in index.css and `trafficLightPosition.y` in tauri.macos.conf.json
  * are the same number seen from a stylesheet and from a JSON file that cannot
  * read one. Neither can import this, so moving it here alone leaves the lights
- * off-centre in the row; `titlebar.test.tsx` is what notices.
+ * off-centre in the row; `shell.test.tsx` is what notices.
  */
 export const ROW_H = 34;
 

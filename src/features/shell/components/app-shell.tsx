@@ -1,0 +1,82 @@
+import type { CSSProperties, JSX, ReactNode } from 'react';
+
+import { TooltipProvider } from '@/components/ui/tooltip';
+
+import { cn } from '@/lib/cn';
+
+import { useShellStore } from '../store';
+import { ChromeRow } from './chrome-row';
+
+export interface AppShellProps {
+	/** The content column's row 2 — the mock banner and the router's outlet. */
+	children: ReactNode;
+}
+
+/**
+ * The whole window: two columns, two rows, and the rail spanning both rows of
+ * whichever column it is docked to (spec §1).
+ *
+ * Every one of the three cells is placed explicitly. Auto-placement fills row
+ * by row, so the moment the template reverses it would drop the rail into the
+ * `1fr` track and the content into the `--rail` one — the rail rendered as the
+ * content column, at 246px, with no setting on screen that looks wrong.
+ */
+export function AppShell({ children }: AppShellProps): JSX.Element {
+	const side = useShellStore((s) => s.sidebarSide);
+	const width = useShellStore((s) => s.sidebarWidth);
+
+	const railColumn = side === 'left' ? 'col-start-1' : 'col-start-2';
+	const contentColumn = side === 'left' ? 'col-start-2' : 'col-start-1';
+
+	return (
+		// One provider for the whole tree (spec §3.2). Mounted per tooltip
+		// instead, every collapsed nav segment would open on its own delay clock
+		// and the rail would stop behaving as one control strip.
+		<TooltipProvider>
+			<div
+				// `data-shell` is a contract with `ResizeHandle`, which resolves
+				// its write target as `closest('[data-shell], [style*="--rail"]')`
+				// — drop the attribute and a drag silently retargets whatever
+				// else happens to carry the property.
+				data-shell
+				// `--rail` is declared HERE and not only on `:root`. The handle
+				// writes the live width to this element on every pointermove, and
+				// an inline declaration outranks the `:root` rule — so with the
+				// property left on the root alone this style would overrule sixty
+				// writes a second and the rail would sit still until the store
+				// commits on pointer-up, then snap.
+				style={{ '--rail': `${width}px` } as CSSProperties}
+				className={cn(
+					'grid h-screen overflow-hidden bg-background text-foreground',
+					'grid-rows-[var(--row)_1fr]',
+					side === 'left' ? 'grid-cols-[var(--rail)_minmax(0,1fr)]' : 'grid-cols-[minmax(0,1fr)_var(--rail)]'
+				)}
+			>
+				{/* PLACEHOLDER — Task 13 replaces this with `<Sidebar/>`, which
+				    does not exist yet. It holds the column open so the grid can
+				    be seen and tested; the divider and everything inside the rail
+				    arrive with the real component. */}
+				<div
+					data-testid="rail-placeholder"
+					// `row-span-2` in both settings, never a blank band above it:
+					// the rail's own first row is what the reserve and the history
+					// buttons live in (spec §1.1).
+					className={cn('row-span-2 bg-sidebar', railColumn)}
+				/>
+
+				{/* The cell, not the row: `ChromeRow` renders the field itself and
+				    the field is the row, so the placement has to go somewhere and
+				    this is the only file that knows which column is which. */}
+				<div className={cn('row-start-1', contentColumn)}>
+					<ChromeRow />
+				</div>
+
+				{/* `min-h-0` because a grid item's default `min-height: auto`
+				    refuses to shrink below its content: without it a long list
+				    grows this cell past the `1fr` track and scrolls the window
+				    instead of the column. */}
+				<main className={cn('row-start-2 min-h-0 overflow-auto', contentColumn)}>{children}</main>
+			</div>
+		</TooltipProvider>
+	);
+}

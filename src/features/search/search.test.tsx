@@ -26,9 +26,10 @@ interface Slots {
  * value from a stale closure would look reactive.
  *
  * `/search` restates `src/routes/search.tsx`'s `validateSearch` rather than
- * importing the real route tree: `__root.tsx` still mounts the titlebar, the
- * mock indicator and the devtools panel, none of which this field has anything
- * to do with, and Task 8 rewrites all three.
+ * importing the real route tree: `__root.tsx` mounts the whole shell, whose
+ * chrome row is this very component — every query below would then be choosing
+ * between two search fields, and the slot assertions would be reading the one
+ * that was passed nothing.
  */
 async function renderField(slots: Slots = {}, initialEntries = ['/']) {
 	const rootRoute = createRootRoute({
