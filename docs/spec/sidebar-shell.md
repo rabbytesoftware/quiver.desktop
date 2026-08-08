@@ -234,8 +234,18 @@ They drive `router.history`. `canGoBack()` exists and `canGoForward()` does not,
 correctly and forward stays enabled — shadow-tracking an index to grey out a button is more state
 than a no-op click is worth.
 
-**5.9 — Re-selecting what is already active does not push a history entry**, or clicking Home twice
-leaves you with a back button that appears to do nothing.
+**5.9 — Re-selecting what is already active does not push a history entry.** ~~Or clicking Home
+twice leaves you with a back button that appears to do nothing.~~ **That example is wrong, and a test
+written from it proves nothing:** router-core's `commitLocation` already short-circuits when the URL
+and state are both identical, so clicking Home twice pushes nothing with no code at all.
+
+The reachable case is a row that is active at a location its href does not equal — which is the
+rail's normal state, because a rail link carries no search params and the router marks a link active
+on a path prefix with a *subset* of the search. `/settings?tab=developer` is that case in this app
+today. The guard is `preventDefault()` on the router's own `data-status`, not a `replace` prop:
+`replace` is decided at render, so choosing it needs `isActive` outside `<Link>`'s children function
+— a second matcher with its own spelling of `exact`/`fuzzy`, free to disagree with the
+`activeOptions` on the very link it is attached to.
 
 **5.10 — The namespace appears as a subtitle on the selected row only, without changing row
 height.** The label is a centred flex column; the subtitle is `display: none` until selected, and
@@ -344,8 +354,14 @@ src/features/search/           the field
 
 **7.1 — A feature may import another feature's `index.ts`, never its internals.**
 `src/lib/core-store/index.ts` already works exactly this way, re-exporting a curated set rather than
-letting callers reach into `store/` and `mutations/`. The sidebar renders the search field, so this
-rule gets its first real test here.
+letting callers reach into `store/` and `mutations/`. ~~The sidebar renders the search field, so this
+rule gets its first real test here.~~ It does not — `ChromeRow` renders the field. The rule's first
+real test is the rail importing `@/features/shell` to ask which side it is docked to, and that import
+is also why the shell and the sidebar form a deliberate cycle (`shell/index → app-shell →
+sidebar/index → sidebar → shell/index`). It is safe because `geometry` and `store` are fully
+evaluated before `app-shell` in the index's import order and every component is a hoisted function
+declaration — but it is inherent to the design, not an accident: the shell mounts the rail, and the
+rail asks the shell where it is.
 
 **7.2 — `src/components/titlebar.tsx` moves into `features/shell`.** Its comment block is the best
 documentation in the repo of why macOS is special; move the reasoning across and amend it (§2.5),
