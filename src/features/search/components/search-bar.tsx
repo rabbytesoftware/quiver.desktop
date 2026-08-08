@@ -1,6 +1,9 @@
-import type { JSX, ReactNode } from 'react';
+import type { JSX, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
+import { useRef } from 'react';
 
 import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
+
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { cn } from '@/lib/cn';
 import { useTranslation } from '@/lib/i18n';
@@ -63,6 +66,68 @@ export function SearchBar({ leading, trailing }: SearchBarProps): JSX.Element {
 		void navigate({ to: RESULTS, search: { q: next }, replace: showingResults });
 	}
 
+	const field = useRef<HTMLInputElement>(null);
+
+	/**
+	 * How far the pointer travels before a press on the FIELD is treated as a
+	 * window drag rather than as a click. Four px is the usual slop for a hand
+	 * that is not perfectly still; below it every click would land as a one-pixel
+	 * window move and the field would never take focus.
+	 */
+	const DRAG_SLOP_PX = 4;
+
+	/**
+	 * The field is most of the chrome row — 758px of 828 at a 1200px window — so
+	 * a row that drags everywhere except the field drags almost nowhere. But the
+	 * field cannot simply carry `data-tauri-drag-region`: Tauri's own handler
+	 * fires on `mousedown` with no threshold, which would take the press away
+	 * from focusing and from selecting text, and read as a broken search box.
+	 *
+	 * So the gesture is resolved by what the pointer does next. Press and
+	 * release: focus. Press and move: drag the window. Two behaviours from one
+	 * press, decided at the first movement rather than at the press.
+	 *
+	 * ALREADY FOCUSED IS THE EXCEPTION and it is the important one: a field in
+	 * use has to keep drag-to-select, so once it has focus this hands the gesture
+	 * straight back. Miss that and selecting a query by dragging across it throws
+	 * the window across the desktop instead.
+	 */
+	function dragWindowOrFocus(event: ReactPointerEvent<HTMLInputElement>) {
+		const input = field.current;
+		if (input === null || event.button !== 0 || document.activeElement === input) return;
+
+		// Deferred, not suppressed. Without this the field focuses on the way
+		// down, `document.activeElement` is already the input by the time the
+		// pointer moves, and the gesture can never become a drag.
+		event.preventDefault();
+
+		const { clientX: fromX, clientY: fromY } = event;
+
+		const stop = () => {
+			window.removeEventListener('pointermove', onMove);
+			window.removeEventListener('pointerup', onUp);
+			window.removeEventListener('pointercancel', stop);
+		};
+		const onMove = (moved: PointerEvent) => {
+			if (Math.abs(moved.clientX - fromX) < DRAG_SLOP_PX && Math.abs(moved.clientY - fromY) < DRAG_SLOP_PX)
+				return;
+			stop();
+			// The OS takes the pointer from here, so there is no pointerup to
+			// wait for — everything is torn down before handing it over.
+			void getCurrentWindow().startDragging();
+		};
+		const onUp = () => {
+			stop();
+			// The focus `preventDefault` withheld, now that the gesture has
+			// resolved into a click.
+			input.focus();
+		};
+
+		window.addEventListener('pointermove', onMove);
+		window.addEventListener('pointerup', onUp);
+		window.addEventListener('pointercancel', stop);
+	}
+
 	return (
 		// `bg-background/85` over a 14px backdrop blur — spec §6.4. The blur is
 		// not a vibrancy effect and does not need a transparent window: it blurs
@@ -84,10 +149,11 @@ export function SearchBar({ leading, trailing }: SearchBarProps): JSX.Element {
 			// no draggable surface at all, so every pixel of row 1 that is not an
 			// interactive control has to supply one.
 			//
-			// The INPUT is not a drag region and must not become one — it would
-			// take mousedown away from focusing and from selecting text. Tauri
-			// dispatches on the event target, so the plate's padding, the lens
-			// and the ⌘K hint drag while the field itself behaves like a field.
+			// The plate's own surface — padding, lens, ⌘K — drags on mousedown,
+			// which is what Tauri's handler does and all these need. The FIELD
+			// carries no such attribute: it resolves the same gesture on a
+			// threshold instead, so a press can still become a focus. See
+			// `dragWindowOrFocus`.
 			data-tauri-drag-region
 			className={cn(
 				'group flex h-(--row) w-full cursor-text items-center gap-[9px] bg-background/85 backdrop-blur-[14px]',
@@ -122,8 +188,10 @@ export function SearchBar({ leading, trailing }: SearchBarProps): JSX.Element {
 				</svg>
 			</span>
 			<input
+				ref={field}
 				type="text"
 				value={query}
+				onPointerDown={dragWindowOrFocus}
 				onChange={(event) => commit(event.target.value)}
 				aria-label={t('search.label')}
 				placeholder={t('search.placeholder')}

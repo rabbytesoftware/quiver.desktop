@@ -1,3 +1,7 @@
+// Hoisted so the spy exists before the module factory runs and the tests can
+// assert on the same function the component calls.
+const { startDragging } = vi.hoisted(() => ({ startDragging: vi.fn() }));
+vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: () => ({ startDragging }) }));
 import type { ReactNode } from 'react';
 
 import {
@@ -8,9 +12,9 @@ import {
 	Outlet,
 	RouterProvider,
 } from '@tanstack/react-router';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SearchBar } from './index';
 
@@ -270,5 +274,81 @@ describe('SearchBar', () => {
 
 		expect(input.parentElement).toHaveAttribute('data-tauri-drag-region');
 		expect(input).not.toHaveAttribute('data-tauri-drag-region');
+	});
+
+	describe('dragging the window by the field', () => {
+		beforeEach(() => {
+			startDragging.mockClear();
+		});
+
+		/** Press, move past the slop, and the OS takes over. */
+		it('drags the window when the pointer moves off the press', async () => {
+			await renderField();
+			const input = screen.getByRole('textbox', { name: 'Search' });
+
+			fireEvent.pointerDown(input, { button: 0, clientX: 100, clientY: 10 });
+			fireEvent.pointerMove(window, { clientX: 140, clientY: 10 });
+
+			expect(startDragging).toHaveBeenCalledTimes(1);
+			expect(input).not.toHaveFocus();
+		});
+
+		/**
+		 * The other half of the same gesture. `preventDefault` withholds focus on
+		 * the way down so the press can still become a drag, so something has to
+		 * give it back when it does not — without this the field can never be
+		 * focused by clicking it at all.
+		 */
+		it('focuses the field when the pointer is released without moving', async () => {
+			await renderField();
+			const input = screen.getByRole('textbox', { name: 'Search' });
+
+			fireEvent.pointerDown(input, { button: 0, clientX: 100, clientY: 10 });
+			fireEvent.pointerUp(window, { clientX: 100, clientY: 10 });
+
+			expect(startDragging).not.toHaveBeenCalled();
+			expect(input).toHaveFocus();
+		});
+
+		/** A hand is never perfectly still; a 1px wobble is a click, not a drag. */
+		it('treats movement inside the slop as a click', async () => {
+			await renderField();
+			const input = screen.getByRole('textbox', { name: 'Search' });
+
+			fireEvent.pointerDown(input, { button: 0, clientX: 100, clientY: 10 });
+			fireEvent.pointerMove(window, { clientX: 102, clientY: 11 });
+			fireEvent.pointerUp(window, { clientX: 102, clientY: 11 });
+
+			expect(startDragging).not.toHaveBeenCalled();
+			expect(input).toHaveFocus();
+		});
+
+		/**
+		 * The exception that matters. A field in use has to keep drag-to-select —
+		 * miss this and dragging across a query to select it throws the window
+		 * across the desktop instead.
+		 */
+		it('leaves the gesture alone once the field has focus, so text can be selected', async () => {
+			await renderField();
+			const input = screen.getByRole('textbox', { name: 'Search' });
+			input.focus();
+
+			fireEvent.pointerDown(input, { button: 0, clientX: 100, clientY: 10 });
+			fireEvent.pointerMove(window, { clientX: 180, clientY: 10 });
+
+			expect(startDragging).not.toHaveBeenCalled();
+			expect(input).toHaveFocus();
+		});
+
+		/** A right-click opens a context menu; it does not move the window. */
+		it('ignores a non-primary button', async () => {
+			await renderField();
+			const input = screen.getByRole('textbox', { name: 'Search' });
+
+			fireEvent.pointerDown(input, { button: 2, clientX: 100, clientY: 10 });
+			fireEvent.pointerMove(window, { clientX: 180, clientY: 10 });
+
+			expect(startDragging).not.toHaveBeenCalled();
+		});
 	});
 });

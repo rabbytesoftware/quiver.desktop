@@ -204,13 +204,19 @@ row's width, and a click lands on whichever element is actually under it), and
 on the search plate. Tauri dispatches on the event TARGET, so the two history
 buttons and the search input stay interactive by being their own targets.
 
-**The input must never carry it.** It would take mousedown away from focusing
-the field and from selecting the text already in it, and the failure reads as
-"the search box is broken" rather than as "the drag region is too greedy". That
-caps what is grabbable in the content column at whatever the field does not
-occupy — about 70px of 828 at a 1200px window, since the field is `flex-1`.
-Widening that means bounding the field, which is a design change and not one
-this rule makes.
+**The input drags too, but on a threshold rather than on the attribute.** Tauri's
+own handler fires on `mousedown` with no slop, so `data-tauri-drag-region` on the
+field would take the press away from focusing it and from selecting the text in
+it — and that failure reads as "the search box is broken", not as "the drag
+region is too greedy". `dragWindowOrFocus` resolves the same gesture by what the
+pointer does next: press and release focuses, press and move past 4px calls
+`startDragging()`. That is what makes the whole 828px row grabbable rather than
+the ~70px the field leaves over.
+
+**A focused field is the exception, and it is the one that matters.** Once the
+input has focus the handler returns immediately, so drag-to-select works. Miss
+that and dragging across a query to select it throws the window across the
+desktop.
 
 Not on `<body>` — `index.html` already records why — and not on any button.
 
