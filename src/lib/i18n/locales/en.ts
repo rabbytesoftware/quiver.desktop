@@ -38,6 +38,29 @@ export const en = {
 
 	'app.settings': 'Settings',
 
+	// The rail's three destinations, then the two history glyphs. Back and
+	// forward render as bare icons, so these are the whole accessible name — no
+	// label, and a screen reader announces them as "button".
+	'nav.home': 'Home',
+	'nav.remote': 'Remote',
+	'nav.settings': 'Settings',
+	'nav.back': 'Go back',
+	'nav.forward': 'Go forward',
+
+	// Exactly `Search`, not "Search your library": the field owns the chrome row
+	// at every window width, and the placeholder is the first thing the rail
+	// takes back as it widens. `search.label` is the accessible name — the field
+	// has no visible label to borrow one from.
+	'search.placeholder': 'Search',
+	'search.label': 'Search',
+	'search.shortcut': '⌘K',
+
+	'sidebar.resize': 'Resize sidebar',
+	'sidebar.arrows': 'Arrows',
+	// An arrow that ships no icon falls back to a lettered tile. Two such tiles
+	// are indistinguishable to a screen reader without the name in the label.
+	'arrow.icon.fallback': '{name} icon',
+
 	'settings.title': 'Settings',
 	'settings.search.placeholder': 'Search settings',
 	'settings.search.label': 'Search settings',
