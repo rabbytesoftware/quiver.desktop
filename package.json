@@ -32,7 +32,7 @@
   },
   "quiver": {
     "_comment": "Must be an immutable quiver.core tag. Never `nightly`: that tag is deleted and recreated on every push to quiver.core's develop, so a build pinned to it is not reproducible — and CI's check only asks whether the tag exists, which `nightly` always does.",
-    "coreVersion": "stable-26.5.1"
+    "coreVersion": "nightly"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
