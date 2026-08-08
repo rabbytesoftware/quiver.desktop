@@ -2,6 +2,7 @@ import { render } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { restoreUserAgent, runningOn, USER_AGENTS } from '@/__mocks__/user-agent';
+import { ROW_H } from '@/features/shell/geometry';
 
 import { Titlebar } from './titlebar';
 import baseConfig from '../../src-tauri/tauri.conf.json';
@@ -45,7 +46,7 @@ function effectiveWindow(platform: string): Record<string, unknown> {
 const TRAFFIC_LIGHT_DIAMETER_PX = 12;
 const TRAFFIC_LIGHTS_WIDTH_PX = 64;
 
-/** Tailwind's spacing scale is 0.25rem — 4px — per unit: `h-12` is 48px. */
+/** Tailwind's spacing scale is 0.25rem — 4px — per unit: `pl-20` is 80px. */
 function tailwindPx(pattern: RegExp, className: string): number {
 	const match = pattern.exec(className);
 	if (!match) throw new Error(`expected a ${pattern.source} class, got: ${className}`);
@@ -111,7 +112,7 @@ describe('window chrome configuration', () => {
 	it('applies them in the macOS overlay', () => {
 		expect(macosWindow.titleBarStyle).toBe('Overlay');
 		expect(macosWindow.hiddenTitle).toBe(true);
-		expect(macosWindow.trafficLightPosition).toEqual({ x: 12, y: 18 });
+		expect(macosWindow.trafficLightPosition).toEqual({ x: 12, y: 11 });
 	});
 
 	it('leaves every shared window setting exactly as the shared config has it', () => {
@@ -128,17 +129,17 @@ describe('window chrome configuration', () => {
 		expect(shared).toEqual(baseWindow);
 	});
 
-	it('positions the traffic lights to match the strip the frontend renders', () => {
-		// The coupling titlebar.tsx documents: the padding and
-		// `trafficLightPosition` describe the same three buttons from two sides,
-		// in two files, and until now nothing checked that they agreed.
-		const className = renderTitlebar(USER_AGENTS.macos)?.className ?? '';
-		const barHeightPx = tailwindPx(/\bh-(\d+)\b/, className);
-		const leftPaddingPx = tailwindPx(/\bpl-(\d+)\b/, className);
+	it('centres the traffic lights in the row height the shell is built on', () => {
+		// `y` is derived, not chosen: it is the buttons' top edge, so centring
+		// them takes (ROW_H - 12) / 2. The row lives in `--row` and in `ROW_H`,
+		// and a JSON file can read neither — retune the scale without this
+		// assertion and the lights sit visibly high in the row, on macOS only,
+		// with nothing else failing.
+		expect(macosWindow.trafficLightPosition.y).toBe((ROW_H - TRAFFIC_LIGHT_DIAMETER_PX) / 2);
 
-		// `y` is the buttons' top edge, so this is what centres them in the bar.
-		expect(macosWindow.trafficLightPosition.y).toBe((barHeightPx - TRAFFIC_LIGHT_DIAMETER_PX) / 2);
-		// ...and the strip's padding has to clear all three of them.
+		// ...and whatever the frontend puts on that edge still has to clear all
+		// three of them, or app chrome renders underneath the buttons.
+		const leftPaddingPx = tailwindPx(/\bpl-(\d+)\b/, renderTitlebar(USER_AGENTS.macos)?.className ?? '');
 		expect(leftPaddingPx).toBeGreaterThanOrEqual(macosWindow.trafficLightPosition.x + TRAFFIC_LIGHTS_WIDTH_PX);
 	});
 });
