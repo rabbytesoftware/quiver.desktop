@@ -2,6 +2,7 @@ import type { CSSProperties, JSX, ReactNode } from 'react';
 
 import { TooltipProvider } from '@/components/ui/tooltip';
 
+import { Sidebar } from '@/features/sidebar';
 import { cn } from '@/lib/cn';
 
 import { useShellStore } from '../store';
@@ -52,17 +53,15 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
 					side === 'left' ? 'grid-cols-[var(--rail)_minmax(0,1fr)]' : 'grid-cols-[minmax(0,1fr)_var(--rail)]'
 				)}
 			>
-				{/* PLACEHOLDER — Task 13 replaces this with `<Sidebar/>`, which
-				    does not exist yet. It holds the column open so the grid can
-				    be seen and tested; the divider and everything inside the rail
-				    arrive with the real component. */}
-				<div
-					data-testid="rail-placeholder"
-					// `row-span-2` in both settings, never a blank band above it:
-					// the rail's own first row is what the reserve and the history
-					// buttons live in (spec §1.1).
-					className={cn('row-span-2 bg-sidebar', railColumn)}
-				/>
+				{/* The rail IS the grid item, not something wrapped in one: it
+				    carries the divider as a border (spec §1.3), and on a wrapper
+				    that border would be dividing a box other than the surface it
+				    separates. `row-span-2` travels with it — never a blank band
+				    above the rail, because its own first row is what the reserve
+				    and the history buttons live in (spec §1.1). Only the column
+				    comes from here, because this is the only file that knows
+				    which track is which. */}
+				<Sidebar className={railColumn} />
 
 				{/* The cell, not the row: `ChromeRow` renders the field itself and
 				    the field is the row, so the placement has to go somewhere and

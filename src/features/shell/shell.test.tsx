@@ -98,11 +98,18 @@ function renderAt(component: () => JSX.Element, at: string) {
 		path: '/settings',
 		component: () => <div data-testid="settings-page" />,
 	});
+	// The rail links to all three destinations, so all three have to exist here
+	// or `<Link to="/remote">` resolves against a tree that has no such route.
+	const remote = createRoute({
+		getParentRoute: () => root,
+		path: '/remote',
+		component: () => <div data-testid="remote-page" />,
+	});
 
 	return render(
 		<RouterProvider
 			router={createRouter({
-				routeTree: root.addChildren([index, settings]),
+				routeTree: root.addChildren([index, settings, remote]),
 				history: createMemoryHistory({ initialEntries: [at] }),
 			})}
 		/>
@@ -115,6 +122,17 @@ async function renderChromeRow(userAgent: string, side: SidebarSide): Promise<HT
 	useShellStore.setState({ sidebarSide: side });
 	renderAt(() => <ChromeRow />, '/');
 	return await screen.findByRole('textbox', { name: 'Search' });
+}
+
+/**
+ * The rail inside a rendered shell. Queried by the slot the rail marks itself
+ * with rather than by position: which child of the grid it is depends on the
+ * side, and that is the thing under test here.
+ */
+function railOf(shell: HTMLElement): HTMLElement {
+	const rail = shell.querySelector<HTMLElement>('[data-slot="sidebar"]');
+	if (rail === null) throw new Error('the shell rendered no rail');
+	return rail;
 }
 
 /** The grid, with the routed page in the content column. Returns the grid element. */
@@ -146,6 +164,11 @@ function renderRoot(at: string) {
 				getParentRoute: () => appRoot,
 				path: '/settings',
 				component: () => <div data-testid="settings-page" />,
+			}),
+			createRoute({
+				getParentRoute: () => appRoot,
+				path: '/remote',
+				component: () => <div data-testid="remote-page" />,
 			}),
 		]),
 		history: createMemoryHistory({ initialEntries: [at] }),
@@ -337,7 +360,7 @@ describe('AppShell', () => {
 			// of the top, and a blank band sits above a rail whose own first row
 			// is what the reserve and the history buttons live in.
 			const shell = await renderShell(side);
-			const rail = screen.getByTestId('rail-placeholder');
+			const rail = railOf(shell);
 			expect(shell).toContainElement(rail);
 			expect(rail.className).toContain('row-span-2');
 		}
@@ -345,8 +368,8 @@ describe('AppShell', () => {
 
 	it('puts the rail in column 1 and the content in column 2 with the rail on the left', async () => {
 		const shell = await renderShell('left');
+		expect(railOf(shell).className).toContain('col-start-1');
 		expect(shell.className).toContain('grid-cols-[var(--rail)_minmax(0,1fr)]');
-		expect(screen.getByTestId('rail-placeholder').className).toContain('col-start-1');
 		expect(shell.querySelector('main')?.className).toContain('col-start-2');
 	});
 
@@ -356,8 +379,18 @@ describe('AppShell', () => {
 		// render as a 246px content column with the real content beside it.
 		const shell = await renderShell('right');
 		expect(shell.className).toContain('grid-cols-[minmax(0,1fr)_var(--rail)]');
-		expect(screen.getByTestId('rail-placeholder').className).toContain('col-start-2');
+		expect(railOf(shell).className).toContain('col-start-2');
 		expect(shell.querySelector('main')?.className).toContain('col-start-1');
+	});
+
+	it('leaves the column to the shell rather than letting the rail derive it', async () => {
+		// The template and the placements have to reverse TOGETHER. Two copies
+		// of the side-to-column mapping drift into the rail auto-placing itself
+		// in the `1fr` track: a full-width rail beside a 246px content column,
+		// with nothing on screen that looks like a setting.
+		const rail = railOf(await renderShell('left'));
+		expect(rail.className).toContain('col-start-1');
+		expect(rail.className).not.toContain('col-start-2');
 	});
 
 	it('keeps the chrome row in row 1 of the content column and the outlet in row 2', async () => {

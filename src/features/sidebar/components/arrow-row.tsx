@@ -5,6 +5,7 @@ import { Link } from '@tanstack/react-router';
 import type { ArrowEntry } from '@/domain/arrow';
 
 import { splitNamespace } from '../namespace';
+import { blockReselect } from '../reselect';
 import { ArrowIcon } from './arrow-icon';
 
 /**
@@ -48,7 +49,7 @@ export function ArrowRow({ arrow }: ArrowRowProps): JSX.Element {
 	const { head, tail } = splitNamespace(arrow.namespace);
 
 	return (
-		<Link to="/arrow/$" params={{ _splat: arrow.namespace }} className={ROW}>
+		<Link to="/arrow/$" params={{ _splat: arrow.namespace }} onClick={blockReselect} className={ROW}>
 			<ArrowIcon name={arrow.name} icon={arrow.icon} />
 			{/* `min-w-0` on the column, or `truncate` below it has nothing to
 			 * shrink against and the name overflows the rail instead of ending

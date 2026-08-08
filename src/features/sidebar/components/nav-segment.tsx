@@ -6,6 +6,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 import type { LucideIcon } from 'lucide-react';
 
+import { blockReselect } from '../reselect';
+
 /**
  * The three destinations the nav can point at. A `string` here would compile and
  * then 404 at runtime: `<Link to>` only type-checks against the generated route
@@ -76,7 +78,7 @@ const ICON = 'size-(--icon) shrink-0';
  */
 export function NavSegment({ to, exact = false, icon: Icon, label }: NavSegmentProps): JSX.Element {
 	return (
-		<Link to={to} activeOptions={{ exact }} aria-label={label} className={SEGMENT}>
+		<Link to={to} activeOptions={{ exact }} onClick={blockReselect} aria-label={label} className={SEGMENT}>
 			{({ isActive }) =>
 				isActive ? (
 					<>
