@@ -11,6 +11,16 @@ import { ChromeRow } from './chrome-row';
 export interface AppShellProps {
 	/** The content column's row 2 — the router's outlet. */
 	children: ReactNode;
+	/**
+	 * Pinned to the bottom of the content column, below the scroll region and
+	 * inside the same track — so it never runs past the rail.
+	 *
+	 * A slot rather than an import, because the only thing that goes here is the
+	 * dev-only mock band: the shell would otherwise reach into `@/lib/mock` to
+	 * render something a release build never shows, and every consumer of the
+	 * shell would carry that dependency.
+	 */
+	footer?: ReactNode;
 }
 
 /**
@@ -22,7 +32,7 @@ export interface AppShellProps {
  * `1fr` track and the content into the `--rail` one — the rail rendered as the
  * content column, at 246px, with no setting on screen that looks wrong.
  */
-export function AppShell({ children }: AppShellProps): JSX.Element {
+export function AppShell({ children, footer }: AppShellProps): JSX.Element {
 	const side = useShellStore((s) => s.sidebarSide);
 	const width = useShellStore((s) => s.sidebarWidth);
 
@@ -48,13 +58,11 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
 				// commits on pointer-up, then snap.
 				style={{ '--rail': `${width}px` } as CSSProperties}
 				className={cn(
-					// `flex-1 min-h-0`, not `h-screen`: the root is a flex column and
-					// the dev-only mock strip is the row above this one, so a full
-					// viewport height here would push the rail's last row off the
-					// bottom of the window by the strip's 22px — on exactly the
-					// builds anyone is looking at it in. `min-h-0` because a flex
-					// item refuses to shrink below its content by default.
-					'grid min-h-0 flex-1 overflow-hidden bg-background text-foreground',
+					// `h-screen` again: nothing stacks above the grid any more, so
+					// the window IS the shell. The mock band moved into the content
+					// column's own footer, which is what keeps it from running past
+					// the rail.
+					'grid h-screen overflow-hidden bg-background text-foreground',
 					'grid-rows-[var(--row)_1fr]',
 					side === 'left' ? 'grid-cols-[var(--rail)_minmax(0,1fr)]' : 'grid-cols-[minmax(0,1fr)_var(--rail)]'
 				)}
@@ -87,7 +95,13 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
 				    refuses to shrink below its content: without it a long list
 				    grows this cell past the `1fr` track and scrolls the window
 				    instead of the column. */}
-				<main className={cn('row-start-2 min-h-0 overflow-auto bg-background', contentColumn)}>{children}</main>
+				<main className={cn('row-start-2 flex min-h-0 flex-col bg-background', contentColumn)}>
+					{/* The scroll lives on this wrapper, not on `main`: with it on the
+					    cell, a footer inside would scroll away with the page instead
+					    of staying pinned to the bottom of the column. */}
+					<div className="min-h-0 flex-1 overflow-auto">{children}</div>
+					{footer}
+				</main>
 			</div>
 		</TooltipProvider>
 	);

@@ -435,36 +435,50 @@ describe('AppShell', () => {
 });
 
 describe('the root layout', () => {
-	it('puts the mock banner above the whole grid, not inside the content column', async () => {
-		// Inside the content column it cut the shell in half: a full-width black
-		// bar wedged between the chrome row and the page, with the rail running
-		// past it on one side. It describes the app's data rather than the page's,
-		// so it spans the window — and that is also what keeps every geometry rule
-		// in the spec written against a grid whose first row starts at the top.
+	it('puts the mock banner at the bottom of the content column, clear of the rail', async () => {
+		// Two placements were tried and both were wrong on screen. Spanning the
+		// window ran it across the rail and up against the traffic lights; between
+		// the chrome row and the page it cut the shell in half. It belongs to the
+		// page, so it sits under the page — in the content column's own track,
+		// where it stops at the divider.
 		installMock('normal');
 		const { container } = renderRoot('/');
 
 		const badge = await screen.findByText('Mock');
-		const shell = container.querySelector<HTMLElement>('[data-shell]');
+		const main = container.querySelector<HTMLElement>('main');
 
-		expect(container.querySelector('main')).not.toContainElement(badge);
-		expect(shell).not.toContainElement(badge);
-		expect(shell?.previousElementSibling).toContainElement(badge);
+		expect(main).toContainElement(badge);
+		expect(container.querySelector('[data-slot="sidebar"]')).not.toContainElement(badge);
+		// Last child of the column, so the scroll region above it can grow and
+		// the band stays put.
+		expect(main?.lastElementChild).toContainElement(badge);
 	});
 
-	it('leaves the shell whatever height the banner did not take', async () => {
-		// The strip is a row of the window now, so the grid can no longer be a
-		// viewport tall as well: `h-screen` on both is a shell hanging 22px past
-		// the bottom edge, with the rail's last row and the resize grip under it.
+	it('scrolls the page above the banner rather than scrolling the banner away', async () => {
+		// The overflow belongs to the wrapper, not to the cell. On the cell, the
+		// band is inside the scrolling box and leaves the bottom of the window the
+		// moment the page is taller than the column.
+		installMock('normal');
+		const { container } = renderRoot('/');
+
+		await screen.findByText('Mock');
+		const main = container.querySelector<HTMLElement>('main');
+
+		expect(main?.className).not.toContain('overflow-auto');
+		expect(main?.firstElementChild?.className).toContain('overflow-auto');
+		expect(main?.firstElementChild?.className).toContain('flex-1');
+	});
+
+	it('gives the grid the whole window again, now that nothing stacks above it', async () => {
+		// The band used to be a row of the window, which forced the grid to take
+		// `flex-1` instead. It is a cell's child now, so the shell is the window.
 		installMock('normal');
 		const { container } = renderRoot('/');
 
 		await screen.findByText('Mock');
 		const shell = container.querySelector<HTMLElement>('[data-shell]');
 
-		expect(shell?.parentElement?.className).toContain('h-screen');
-		expect(shell?.className).toContain('flex-1');
-		expect(shell?.className).not.toContain('h-screen');
+		expect(shell?.className).toContain('h-screen');
 	});
 
 	it('keeps the mock banner out of the chrome row', async () => {
