@@ -155,14 +155,9 @@ describe('shouldFault', () => {
 });
 
 describe('the settings ui store', () => {
-	it('opens on the current tab when none is named', () => {
-		useSettingsUI.setState({ open: false, tab: 'developer', query: '' });
-		useSettingsUI.getState().openSettings();
-		expect(useSettingsUI.getState()).toMatchObject({ open: true, tab: 'developer' });
-	});
-
-	it('switches tabs without closing', () => {
+	it('switches tabs without touching the query', () => {
+		useSettingsUI.setState({ tab: 'developer', query: 'fault' });
 		useSettingsUI.getState().setTab('connections');
-		expect(useSettingsUI.getState()).toMatchObject({ open: true, tab: 'connections' });
+		expect(useSettingsUI.getState()).toMatchObject({ tab: 'connections', query: 'fault' });
 	});
 });

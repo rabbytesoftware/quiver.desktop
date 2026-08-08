@@ -1,4 +1,5 @@
-import { useSettingsUI } from '@/features/settings/store';
+import { Link } from '@tanstack/react-router';
+
 import { useTranslation } from '@/lib/i18n';
 import { currentMock } from '@/lib/mock';
 import { getScenario } from '@/lib/mock/world/scenarios';
@@ -11,7 +12,6 @@ import { getScenario } from '@/lib/mock/world/scenarios';
  */
 export function MockIndicator() {
 	const { t } = useTranslation();
-	const openSettings = useSettingsUI((s) => s.openSettings);
 	const mock = currentMock();
 	if (!mock) return null;
 
@@ -27,13 +27,16 @@ export function MockIndicator() {
 		>
 			<span className="text-[11px] font-medium uppercase tracking-[0.12em]">{t('mock.badge')}</span>
 			<span className="text-[11px] opacity-70">{t('mock.status', { scenario: label })}</span>
-			<button
-				type="button"
-				onClick={() => openSettings('developer')}
+			{/* A link, not a button that opens a dialog: Settings is a route now,
+			    and `?tab=developer` is what puts the switch on screen rather than
+			    whichever tab was last looked at. */}
+			<Link
+				to="/settings"
+				search={{ tab: 'developer' }}
 				className="ml-1 text-[11px] underline underline-offset-2 opacity-70 hover:opacity-100"
 			>
 				{t('mock.turnOff')}
-			</button>
+			</Link>
 		</div>
 	);
 }

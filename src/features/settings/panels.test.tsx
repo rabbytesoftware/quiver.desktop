@@ -1,8 +1,17 @@
-import { render, screen, within } from '@testing-library/react';
+import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(() => Promise.resolve()) }));
+
+/**
+ * `__root.tsx` mounts the real devtools panel in a dev build, and vitest is one.
+ * Left alone it fires an async `import()` that resolves after the test that
+ * triggered it has torn its DOM down, so the failure lands on whichever case
+ * runs next.
+ */
+vi.mock('@tanstack/react-router-devtools', () => ({ TanStackRouterDevtools: () => null }));
 
 import { invoke } from '@tauri-apps/api/core';
 
@@ -13,8 +22,8 @@ import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
 import { createMockBackend, currentMock, disposeMock, installMock } from '@/lib/mock';
 import { useMockStore } from '@/lib/mock/store';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
+import { routeTree } from '@/routeTree.gen';
 
-import { SettingsDialog } from './components/settings-dialog';
 import { ConnectionsSettings } from './components/tabs/connections';
 import { DeveloperSettings } from './components/tabs/developer';
 import { GeneralSettings } from './components/tabs/general';
@@ -29,7 +38,7 @@ beforeEach(() => {
 	reload = vi.fn();
 	Object.defineProperty(window, 'location', { value: { ...window.location, reload }, writable: true });
 
-	useSettingsUI.setState({ open: false, tab: 'connections', query: '' });
+	useSettingsUI.setState({ tab: 'connections', query: '' });
 	useMockStore.setState({ enabled: false, scenario: 'normal', latency: 0, errorRate: 0, unreachable: false });
 	useMockStore.getState().resetFaults();
 	useConnectionStore.setState({ connections: [], activeId: 'local' });
@@ -44,6 +53,18 @@ afterEach(() => {
 	disposeMock();
 	resetBackend();
 });
+
+/**
+ * Settings and the mock indicator's Turn off link are both routes now, and a
+ * `<Link>` outside a router throws rather than degrading. Memory history, and a
+ * router built per case: the instance carries the current location, so a shared
+ * one would leave every test standing wherever the last one navigated to.
+ */
+function renderApp(path: string) {
+	const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) });
+	render(<RouterProvider router={router} />);
+	return router;
+}
 
 describe('the Developer panel', () => {
 	it('reloads when the mock switch is flipped, because the backend is chosen at boot', async () => {
@@ -254,51 +275,52 @@ describe('the Connections panel', () => {
 	});
 });
 
-describe('the settings dialog', () => {
-	it('renders nothing until it is opened', () => {
-		render(<SettingsDialog />);
-		expect(screen.queryByText('Settings')).not.toBeInTheDocument();
+describe('the settings page', () => {
+	// The dialog rendered nothing until something opened it. A route has no
+	// closed state, so the invariant inverts: the URL is the whole gesture.
+	it('renders its panels on arrival, with nothing to open first', async () => {
+		renderApp('/settings');
+		expect(await screen.findByRole('tab', { name: 'General' })).toBeInTheDocument();
 	});
 
-	it('opens on the tab it was asked for, and closes on the close button', async () => {
+	it('lands on the tab the URL names', async () => {
+		renderApp('/settings?tab=developer');
+		expect(await screen.findByRole('tab', { name: 'Developer' })).toHaveAttribute('aria-selected', 'true');
+	});
+
+	// The param is the point: it is what lets anything in the app link straight
+	// at a panel instead of opening Settings and asking the reader to find it.
+	it('writes the picked tab back into the URL', async () => {
 		const user = userEvent.setup();
-		render(<SettingsDialog />);
+		const router = renderApp('/settings');
 
-		useSettingsUI.getState().openSettings('developer');
-		const dialog = await screen.findByRole('dialog');
-		expect(within(dialog).getByRole('tab', { name: 'Developer' })).toHaveAttribute('aria-selected', 'true');
-
-		await user.click(within(dialog).getByRole('button', { name: 'Close settings' }));
-		expect(useSettingsUI.getState().open).toBe(false);
+		// Not Connections: `beforeEach` remembers that one, so clicking it is a
+		// no-op and the case would pass against a page that never navigates.
+		await user.click(await screen.findByRole('tab', { name: 'Developer' }));
+		await waitFor(() => expect(router.state.location.searchStr).toBe('?tab=developer'));
 	});
 
 	it('filters rows across the panel as you search', async () => {
 		const user = userEvent.setup();
-		render(<SettingsDialog />);
-		useSettingsUI.getState().openSettings('developer');
+		renderApp('/settings?tab=developer');
 
-		const dialog = await screen.findByRole('dialog');
-		await user.type(within(dialog).getByRole('textbox', { name: 'Search settings' }), 'unreachable');
+		await user.type(await screen.findByRole('textbox', { name: 'Search settings' }), 'unreachable');
 
-		expect(within(dialog).getByText('Daemon unreachable')).toBeInTheDocument();
-		expect(within(dialog).queryByText('Error rate')).not.toBeInTheDocument();
+		expect(screen.getByText('Daemon unreachable')).toBeInTheDocument();
+		expect(screen.queryByText('Error rate')).not.toBeInTheDocument();
 	});
 
-	// The tab can be revoked by a build change, so a persisted `developer`
-	// must not leave the dialog pointing at a panel that no longer exists.
+	// The tab can be revoked by a build change, so a remembered `developer`
+	// must not leave the page pointing at a panel that no longer exists.
 	it('falls back to the first tab when the remembered one is gone', async () => {
-		useSettingsUI.setState({ open: true, tab: 'developer' });
+		useSettingsUI.setState({ tab: 'developer' });
 		useMockStore.setState({ devUnlocked: false });
-		render(<SettingsDialog />);
+		renderApp('/settings');
 
-		const dialog = await screen.findByRole('dialog');
 		// In dev the Developer tab is always present, so it stays selected —
 		// what must hold either way is that SOME tab is selected.
-		expect(
-			within(dialog)
-				.getAllByRole('tab')
-				.some((t) => t.getAttribute('aria-selected') === 'true')
-		).toBe(true);
+		const tabs = await screen.findAllByRole('tab');
+		expect(tabs.some((tab) => tab.getAttribute('aria-selected') === 'true')).toBe(true);
 	});
 });
 
@@ -308,23 +330,24 @@ describe('the mock indicator', () => {
 		expect(container).toBeEmptyDOMElement();
 	});
 
-	// Reads the RUNNING backend, not the store's intent.
-	it('names the live scenario once a mock is actually installed', () => {
+	// Reads the RUNNING backend, not the store's intent. Rendered through the
+	// router because the Turn off control is a `<Link>`, which needs one.
+	it('names the live scenario once a mock is actually installed', async () => {
 		installMock('extreme');
 		expect(currentMock()).not.toBeNull();
 
-		render(<MockIndicator />);
-		expect(screen.getByText('Mock')).toBeInTheDocument();
+		renderApp('/');
+		expect(await screen.findByText('Mock')).toBeInTheDocument();
 		expect(screen.getByText(/Extreme · no daemon is being contacted/)).toBeInTheDocument();
 	});
 
 	it('opens the Developer tab from its own Turn off link', async () => {
 		const user = userEvent.setup();
 		installMock('normal');
-		render(<MockIndicator />);
+		renderApp('/');
 
-		await user.click(screen.getByRole('button', { name: 'Turn off' }));
-		expect(useSettingsUI.getState()).toMatchObject({ open: true, tab: 'developer' });
+		await user.click(await screen.findByRole('link', { name: 'Turn off' }));
+		expect(await screen.findByRole('tab', { name: 'Developer' })).toHaveAttribute('aria-selected', 'true');
 	});
 
 	it('stays silent when the store says enabled but no backend was installed', () => {

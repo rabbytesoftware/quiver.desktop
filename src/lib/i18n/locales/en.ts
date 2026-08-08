@@ -64,7 +64,6 @@ export const en = {
 	'settings.title': 'Settings',
 	'settings.search.placeholder': 'Search settings',
 	'settings.search.label': 'Search settings',
-	'settings.close': 'Close settings',
 	'settings.tab.general': 'General',
 	'settings.tab.connections': 'Connections',
 	'settings.tab.developer': 'Developer',

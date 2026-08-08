@@ -4,6 +4,7 @@ export const Route = createFileRoute('/')({
 	component: HomePage,
 });
 
+/** A destination with nothing in it yet — see `remote.tsx`. */
 function HomePage() {
-	return <main />;
+	return <div data-testid="home-page" />;
 }

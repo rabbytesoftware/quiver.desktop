@@ -3,24 +3,23 @@ import { create } from 'zustand';
 export type SettingsTab = 'general' | 'connections' | 'developer';
 
 interface SettingsUIState {
-	open: boolean;
+	/**
+	 * Where a bare `/settings` lands. `?tab=` in the URL wins when it is there —
+	 * this is only the fallback for the rail's Settings row, which carries no
+	 * search params of its own and would otherwise drop you on General every
+	 * time, however deep in Developer you were a moment ago.
+	 */
 	tab: SettingsTab;
 	/** Filters rows across every tab. */
 	query: string;
-	openSettings: (tab?: SettingsTab) => void;
-	closeSettings: () => void;
 	setTab: (tab: SettingsTab) => void;
 	setQuery: (query: string) => void;
 }
 
 export const useSettingsUI = create<SettingsUIState>((set) => ({
-	open: false,
 	tab: 'general',
 	query: '',
 
-	openSettings: (tab) => set((s) => ({ open: true, tab: tab ?? s.tab })),
-	// Cleared on close: reopening to a filtered panel reads as a broken one.
-	closeSettings: () => set({ open: false, query: '' }),
 	setTab: (tab) => set({ tab }),
 	setQuery: (query) => set({ query }),
 }));

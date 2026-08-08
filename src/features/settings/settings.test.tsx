@@ -5,12 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMockStore } from '@/lib/mock/store';
 
 import { Section, SettingRow } from './components/section';
-import { visibleTabs } from './components/settings-dialog';
 import { UNLOCK_CLICKS, VersionUnlock } from './components/version-unlock';
 import { rowMatchesQuery, useSettingsUI } from './store';
+import { visibleTabs } from './tabs';
 
 beforeEach(() => {
-	useSettingsUI.setState({ open: false, tab: 'connections', query: '' });
+	useSettingsUI.setState({ tab: 'connections', query: '' });
 	useMockStore.setState({ devUnlocked: false });
 });
 
@@ -64,6 +64,16 @@ describe('the developer tab', () => {
 	it('is listed once the unlock flag is set', () => {
 		expect(visibleTabs(true).map((t) => t.id)).toContain('developer');
 	});
+
+	// The half of the `||` that vitest can never reach on its own: DEV is true
+	// here, so the unlock flag is short-circuited past and the release-build
+	// behaviour — the whole reason the version tap exists — goes untested.
+	it('is absent in a release build until the tap unlocks it', () => {
+		vi.stubEnv('DEV', false);
+		expect(visibleTabs(false).map((t) => t.id)).toEqual(['general', 'connections']);
+		expect(visibleTabs(true).map((t) => t.id)).toContain('developer');
+		vi.unstubAllEnvs();
+	});
 });
 
 describe('the version unlock', () => {
@@ -95,15 +105,15 @@ describe('the version unlock', () => {
 	});
 });
 
-describe('the settings dialog store', () => {
-	it('clears the search when it closes, so it does not reopen filtered', () => {
-		useSettingsUI.getState().openSettings('developer');
+describe('the settings store', () => {
+	// What `/settings` with no `?tab=` lands on. Without this the rail's Settings
+	// row drops you on General every time, however deep in Developer you were.
+	it('remembers the tab across a visit, and the query alongside it', () => {
+		useSettingsUI.getState().setTab('developer');
 		useSettingsUI.getState().setQuery('fault');
-		useSettingsUI.getState().closeSettings();
 
-		expect(useSettingsUI.getState().query).toBe('');
-		// The tab, unlike the query, is remembered.
 		expect(useSettingsUI.getState().tab).toBe('developer');
+		expect(useSettingsUI.getState().query).toBe('fault');
 	});
 });
 
