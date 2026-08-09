@@ -6,4 +6,3 @@
 // nothing else; see `components/search-bar.tsx` for what a second copy costs.
 
 export { SearchBar } from './components/search-bar';
-export type { SearchBarProps } from './components/search-bar';

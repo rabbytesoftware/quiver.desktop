@@ -77,7 +77,7 @@ export function PrimaryNav(): JSX.Element {
 	const active = activeDestination(pathname);
 
 	return (
-		<nav className="@container flex shrink-0 items-center px-2 py-1.5">
+		<nav className="@container flex shrink-0 items-center">
 			{/* No `onValueChange`: the tabs do not own the selection. Each segment is
 			    a Link, the URL changes, and `active` is re-derived from it — so the
 			    control cannot get out of step with where the app actually is. */}

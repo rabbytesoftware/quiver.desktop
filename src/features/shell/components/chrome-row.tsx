@@ -1,32 +1,41 @@
 import type { JSX } from 'react';
 
-import { SearchBar } from '@/features/search';
-
 import { railOwnsControls, windowControls } from '../geometry';
 import { useShellStore } from '../store';
 import { WindowControls } from './window-controls';
 
 /**
- * Row 1 of the content column. The search field IS the row rather than a
- * control sitting in one (spec §4.2), so there is no plate around it here —
- * anything wrapped about the field is a second surface, and the seam between
- * them reads as a notch cut out of the bar.
+ * Whether the content column has to hold the macOS traffic-light reserve.
+ *
+ * True in exactly one of the three combinations: macOS with the rail on the
+ * RIGHT, where the lights stay on the left and the rail is no longer there to
+ * hold them (spec §4.5). Both halves carry weight — `!railOwnsControls` alone
+ * is true on Windows and Linux too, where there is nothing to hold.
+ *
+ * Exported because `AppShell` needs the same answer to decide whether row 1
+ * exists at all, and two copies of this rule would disagree on the day either
+ * moves.
+ */
+export function useContentHoldsControls(): boolean {
+	const side = useShellStore((s) => s.sidebarSide);
+	return windowControls() !== null && !railOwnsControls(side);
+}
+
+/**
+ * Row 1 of the content column, and now ONLY the traffic-light reserve.
+ *
+ * The search field used to be this row — it is in the rail now, above the
+ * changer — which leaves the row with one job and only on one platform in one
+ * orientation. `AppShell` collapses the track to zero everywhere else rather
+ * than painting an empty 34px band across the top of the content.
  */
 export function ChromeRow(): JSX.Element {
-	const side = useShellStore((s) => s.sidebarSide);
-
-	// True in exactly one of the three combinations: macOS with the rail on the
-	// right, where the lights stay on the left and the rail is no longer there
-	// to hold them (spec §4.5). Both halves carry weight — `!railOwnsControls`
-	// on its own is true on Windows and Linux too, where there is nothing to
-	// hold in the first place.
-	const controls = windowControls();
-	const hostsControls = controls !== null && !railOwnsControls(side);
-
-	// Passing `<WindowControls/>` unconditionally and letting it return `null`
-	// off macOS is NOT the same thing: `leading` is a ReactNode, and an element
-	// is truthy whatever it renders, so `SearchBar` would drop its leading
-	// padding on every platform (spec §4.3) and the placeholder would sit flush
-	// against the field's edge on the two that render no spacer at all.
-	return <SearchBar leading={hostsControls ? <WindowControls /> : undefined} />;
+	return (
+		// A window handle, as the row it replaces was: `titleBarStyle: "Overlay"`
+		// leaves macOS drawing no draggable surface of its own, and this strip is
+		// the only chrome above the content on the one layout that renders it.
+		<div data-tauri-drag-region className="flex h-(--row) items-center">
+			<WindowControls />
+		</div>
+	);
 }

@@ -6,7 +6,7 @@ import { Sidebar } from '@/features/sidebar';
 import { cn } from '@/lib/cn';
 
 import { useShellStore } from '../store';
-import { ChromeRow } from './chrome-row';
+import { ChromeRow, useContentHoldsControls } from './chrome-row';
 
 export interface AppShellProps {
 	/** The content column's row 2 — the router's outlet. */
@@ -36,6 +36,13 @@ export function AppShell({ children, footer }: AppShellProps): JSX.Element {
 	const side = useShellStore((s) => s.sidebarSide);
 	const width = useShellStore((s) => s.sidebarWidth);
 
+	// The content column's row 1 exists only to reserve space for the macOS
+	// traffic lights, and only when the rail is not the one holding them. With
+	// the search field moved into the rail there is nothing else up there, so
+	// everywhere else the track collapses rather than banding the top of the
+	// content with 34 empty pixels.
+	const holdsControls = useContentHoldsControls();
+
 	const railColumn = side === 'left' ? 'col-start-1' : 'col-start-2';
 	const contentColumn = side === 'left' ? 'col-start-2' : 'col-start-1';
 
@@ -63,7 +70,7 @@ export function AppShell({ children, footer }: AppShellProps): JSX.Element {
 					// column's own footer, which is what keeps it from running past
 					// the rail.
 					'grid h-screen overflow-hidden bg-background text-foreground',
-					'grid-rows-[var(--row)_1fr]',
+					holdsControls ? 'grid-rows-[var(--row)_minmax(0,1fr)]' : 'grid-rows-[0_minmax(0,1fr)]',
 					side === 'left' ? 'grid-cols-[var(--rail)_minmax(0,1fr)]' : 'grid-cols-[minmax(0,1fr)_var(--rail)]'
 				)}
 			>
@@ -77,19 +84,15 @@ export function AppShell({ children, footer }: AppShellProps): JSX.Element {
 				    which track is which. */}
 				<Sidebar className={railColumn} />
 
-				{/* The cell, not the row: `ChromeRow` renders the field itself and
-				    the field is the row, so the placement has to go somewhere and
-				    this is the only file that knows which column is which.
-
-				    `bg-background` is what the field is composited against (spec
-				    §6.4): the plate is `--background` at 85% over a blur, so with
-				    nothing opaque behind it the row resolves against whatever the
-				    window happens to be showing and the field, its lens and its
-				    placeholder wash out — worst in light mode, which has the least
-				    contrast to lose. */}
-				<div className={cn('row-start-1 bg-background', contentColumn)}>
-					<ChromeRow />
-				</div>
+				{/* Rendered at all only when it has something to hold — see
+				    `useContentHoldsControls`. An always-present cell in a collapsed
+				    0px track still paints its background over the content's first
+				    row of pixels. */}
+				{holdsControls && (
+					<div className={cn('row-start-1 bg-background', contentColumn)}>
+						<ChromeRow />
+					</div>
+				)}
 
 				{/* `min-h-0` because a grid item's default `min-height: auto`
 				    refuses to shrink below its content: without it a long list

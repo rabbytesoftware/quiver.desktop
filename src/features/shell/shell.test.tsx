@@ -25,7 +25,6 @@ import { resetBackend } from '@/lib/transport/backend';
 import { Route as appRoot } from '@/routes/__root';
 
 import { AppShell } from './components/app-shell';
-import { ChromeRow } from './components/chrome-row';
 import { WindowControls } from './components/window-controls';
 import { ROW_H, windowControls, type SidebarSide } from './geometry';
 import { SIDEBAR_DEFAULT, useShellStore } from './store';
@@ -126,14 +125,6 @@ function renderAt(component: () => JSX.Element, at: string) {
 	);
 }
 
-/** The chrome row alone, on a given platform and with the rail on a given side. */
-async function renderChromeRow(userAgent: string, side: SidebarSide): Promise<HTMLElement> {
-	runningOn(userAgent);
-	useShellStore.setState({ sidebarSide: side });
-	renderAt(() => <ChromeRow />, '/');
-	return await screen.findByRole('textbox', { name: 'Search' });
-}
-
 /**
  * The rail inside a rendered shell. Queried by the slot the rail marks itself
  * with rather than by position: which child of the grid it is depends on the
@@ -146,7 +137,10 @@ function railOf(shell: HTMLElement): HTMLElement {
 }
 
 /** The grid, with the routed page in the content column. Returns the grid element. */
-async function renderShell(side: SidebarSide): Promise<HTMLElement> {
+async function renderShell(side: SidebarSide, userAgent?: string): Promise<HTMLElement> {
+	// The platform decides whether the content column reserves a row at all, so
+	// the shell's own grid depends on it — see `useContentHoldsControls`.
+	if (userAgent !== undefined) runningOn(userAgent);
 	useShellStore.setState({ sidebarSide: side });
 	const { container } = renderAt(
 		() => (
@@ -332,31 +326,34 @@ describe('native window decorations', () => {
 	});
 });
 
-describe('ChromeRow', () => {
-	it('hosts the reserve on macOS with the rail on the right', async () => {
-		// The one cell of the three that needs it (spec §4.5): the lights are
-		// still on the left edge and the rail has moved off it.
-		const field = await renderChromeRow(USER_AGENTS.macos, 'right');
-		expect(field.parentElement?.querySelector('[data-slot="window-controls"]')).not.toBeNull();
+describe('the content column’s reserve row', () => {
+	/**
+	 * The chrome row used to BE the search field. The field is in the rail now,
+	 * which leaves this row one job — reserving space for the macOS traffic
+	 * lights — and only in the single combination that needs it.
+	 */
+	it('reserves a row on macOS with the rail on the right', async () => {
+		// The one case of the three (spec §4.5): the lights are still on the left
+		// edge and the rail has moved off it.
+		const shell = await renderShell('right', USER_AGENTS.macos);
 
-		// On the field's own surface, and the plate gives up its leading padding
-		// so the two insets do not stack into a double gap (spec §4.3). The
-		// plate and not the input: the lens sits ahead of the input, so an inset
-		// worn by the input alone leaves the magnifier flush against the edge.
-		expect(field.parentElement?.className).toContain('pl-0');
+		expect(shell.querySelector('[data-slot="window-controls"]')).not.toBeNull();
+		expect(shell.className).toContain('grid-rows-[var(--row)_minmax(0,1fr)]');
 	});
 
-	it('leaves the reserve to the rail on macOS with the rail on the left', async () => {
-		// Hold it here as well and the window opens 64px of space twice, once in
-		// each column, for one set of buttons.
-		const field = await renderChromeRow(USER_AGENTS.macos, 'left');
-		expect(field.parentElement?.querySelector('[data-slot="window-controls"]')).toBeNull();
-		// The plate keeps its own inset when no slot supplies one. `px-`
-		// rather than a class per side since tailwind-merge 3 can resolve the
-		// slot override as a plain conflict; the point is that the leading
-		// edge is NOT zeroed here.
-		expect(field.parentElement?.className).toContain('px-[12px]');
-		expect(field.parentElement?.className).not.toContain('pl-0');
+	it('collapses the row to nothing on macOS with the rail on the left', async () => {
+		// The rail holds the reserve there, and holding it here as well opens
+		// 64px twice in one window for one set of buttons. With the field gone
+		// there is nothing else up here, so the track goes to zero rather than
+		// banding the top of the content with 34 empty pixels.
+		const shell = await renderShell('left', USER_AGENTS.macos);
+
+		// Scoped to the RAIL: on this platform the reserve does exist, it is just
+		// the rail holding it. Querying the whole shell would find that one and
+		// pass whatever the content column did.
+		expect(railOf(shell).querySelector('[data-slot="window-controls"]')).not.toBeNull();
+		expect(shell.querySelector('main [data-slot="window-controls"]')).toBeNull();
+		expect(shell.className).toContain('grid-rows-[0_minmax(0,1fr)]');
 	});
 
 	it.each([
@@ -364,19 +361,13 @@ describe('ChromeRow', () => {
 		['Linux', 'right', USER_AGENTS.linux],
 		['Windows', 'left', USER_AGENTS.windows],
 		['Windows', 'right', USER_AGENTS.windows],
-	] as const)('puts nothing in the field on %s with the rail on the %s', async (_platform, side, userAgent) => {
-		// `<WindowControls/>` renders `null` here, but an element is truthy
-		// whatever it renders — so a `ChromeRow` that passed the slot
-		// unconditionally would still strip the field's leading padding, and the
-		// placeholder would sit flush against the edge on both platforms.
-		const field = await renderChromeRow(userAgent, side);
-		expect(field.parentElement?.querySelector('[data-slot="window-controls"]')).toBeNull();
-		// The plate keeps its own inset when no slot supplies one. `px-`
-		// rather than a class per side since tailwind-merge 3 can resolve the
-		// slot override as a plain conflict; the point is that the leading
-		// edge is NOT zeroed here.
-		expect(field.parentElement?.className).toContain('px-[12px]');
-		expect(field.parentElement?.className).not.toContain('pl-0');
+	] as const)('reserves nothing on %s with the rail on the %s', async (_platform, side, userAgent) => {
+		// These platforms draw their own title bar, so there is no reserve to
+		// hold on either side.
+		const shell = await renderShell(side, userAgent);
+
+		expect(shell.querySelector('[data-slot="window-controls"]')).toBeNull();
+		expect(shell.className).toContain('grid-rows-[0_minmax(0,1fr)]');
 	});
 });
 
@@ -422,22 +413,22 @@ describe('AppShell', () => {
 		expect(rail.className).not.toContain('col-start-2');
 	});
 
-	it('keeps the chrome row in row 1 of the content column and the outlet in row 2', async () => {
-		const shell = await renderShell('left');
-		const field = screen.getByRole('textbox', { name: 'Search' });
-		expect(field.closest('[data-shell] > *')?.className).toContain('row-start-1');
+	it('puts the reserve row in row 1 of the content column and the outlet in row 2', async () => {
+		const shell = await renderShell('right', USER_AGENTS.macos);
+		const reserve = shell.querySelector('[data-slot="window-controls"]');
+
+		expect(reserve?.closest('[data-shell] > *')?.className).toContain('row-start-1');
 		expect(shell.querySelector('main')?.className).toContain('row-start-2');
 	});
 
-	it('paints both cells of the content column, which the field composites against', async () => {
-		// The plate is `--background` at 85% over a backdrop blur. With nothing
-		// opaque behind it there is nothing for the 85% to resolve against and
-		// the field, its lens and its placeholder wash out — worst in light mode,
-		// which has the least contrast to lose.
-		const shell = await renderShell('left');
-		const chromeCell = screen.getByRole('textbox', { name: 'Search' }).closest('[data-shell] > *');
+	it('paints the content column, and the reserve row with it', async () => {
+		// The rail is a different surface from the content column, and the
+		// reserve row belongs to the content — unpainted, the 34px above the
+		// outlet shows the window's own ground and reads as a seam.
+		const shell = await renderShell('right', USER_AGENTS.macos);
+		const reserveCell = shell.querySelector('[data-slot="window-controls"]')?.closest('[data-shell] > *');
 
-		expect(chromeCell?.className).toContain('bg-background');
+		expect(reserveCell?.className).toContain('bg-background');
 		expect(shell.querySelector('main')?.className).toContain('bg-background');
 	});
 

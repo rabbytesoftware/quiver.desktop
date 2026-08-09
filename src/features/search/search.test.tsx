@@ -1,9 +1,3 @@
-// Hoisted so the spy exists before the module factory runs and the tests can
-// assert on the same function the component calls.
-const { startDragging } = vi.hoisted(() => ({ startDragging: vi.fn() }));
-vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: () => ({ startDragging }) }));
-import type { ReactNode } from 'react';
-
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -12,34 +6,28 @@ import {
 	Outlet,
 	RouterProvider,
 } from '@tanstack/react-router';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { SearchBar } from './index';
 
-interface Slots {
-	leading?: ReactNode;
-	trailing?: ReactNode;
-}
-
 /**
- * The field goes in the ROOT component, which is where the chrome row puts it —
+ * The field goes in the ROOT component, which is where the rail puts it —
  * above the `<Outlet/>`, so nothing re-renders it when the route changes. Under
  * a leaf route it would remount on every navigation and a field that reads its
  * value from a stale closure would look reactive.
  *
  * `/search` restates `src/routes/search.tsx`'s `validateSearch` rather than
  * importing the real route tree: `__root.tsx` mounts the whole shell, whose
- * chrome row is this very component — every query below would then be choosing
- * between two search fields, and the slot assertions would be reading the one
- * that was passed nothing.
+ * rail is where this component now lives — every query below would then be
+ * choosing between two search fields.
  */
-async function renderField(slots: Slots = {}, initialEntries = ['/']) {
+async function renderField(initialEntries = ['/']) {
 	const rootRoute = createRootRoute({
 		component: () => (
 			<>
-				<SearchBar {...slots} />
+				<SearchBar />
 				<Outlet />
 			</>
 		),
@@ -95,7 +83,7 @@ describe('SearchBar', () => {
 	});
 
 	it('reflects the URL back into the field, so the back button cannot desync it', async () => {
-		const { input } = await renderField({}, ['/search?q=minecraft']);
+		const { input } = await renderField(['/search?q=minecraft']);
 		expect(input).toHaveValue('minecraft');
 	});
 
@@ -106,7 +94,7 @@ describe('SearchBar', () => {
 	 * once, then stops, and the field silently stops tracking the URL.
 	 */
 	it('reads a missing ?q= as an empty query', async () => {
-		const { input } = await renderField({}, ['/search']);
+		const { input } = await renderField(['/search']);
 		expect(input).toHaveValue('');
 	});
 
@@ -150,49 +138,6 @@ describe('SearchBar', () => {
 		expect(router.history.length).toBe(2);
 	});
 
-	it('renders both slots', async () => {
-		await renderField({
-			leading: <div data-testid="leading" />,
-			trailing: <div data-testid="trailing" />,
-		});
-
-		expect(screen.getByTestId('leading')).toBeInTheDocument();
-		expect(screen.getByTestId('trailing')).toBeInTheDocument();
-	});
-
-	/**
-	 * The doubled gap is invisible to jsdom, which has no layout: the caller's
-	 * own inset and the field's stack, and the only place that can be caught is
-	 * the class list.
-	 *
-	 * On the PLATE and not on the input, which is the half that was wrong: the
-	 * lens sits ahead of the input, so an inset worn by the input alone leaves
-	 * the magnifier flush against the window's edge.
-	 */
-	it('keeps its own 12px inset on both sides when no slot is given', async () => {
-		const plate = (await renderField()).input.parentElement;
-		// One `px-` rather than a class per side: with tailwind-merge 3 the slot
-		// overrides below are plain conflicts it can resolve, so the sides no
-		// longer have to be stated separately. Asserted as "12px on both, and
-		// neither side zeroed" so it still fails if a slot leaks its override in.
-		expect(plate?.className).toContain('px-[12px]');
-		expect(plate?.className).not.toContain('pl-0');
-		expect(plate?.className).not.toContain('pr-0');
-	});
-
-	it('drops the padding on whichever side a slot supplies its own inset', async () => {
-		const { input } = await renderField({
-			leading: <div data-testid="leading" />,
-			trailing: <div data-testid="trailing" />,
-		});
-		const plate = input.parentElement;
-
-		expect(plate?.className).toContain('pl-0');
-		expect(plate?.className).not.toContain('pl-[12px]');
-		expect(plate?.className).toContain('pr-0');
-		expect(plate?.className).not.toContain('pr-[12px]');
-	});
-
 	/**
 	 * The lens went missing once already, in a shell that still looked plausible
 	 * because the placeholder rendered — so it is asserted by position rather
@@ -217,143 +162,66 @@ describe('SearchBar', () => {
 	});
 
 	/**
-	 * Both focus behaviours are invisible to jsdom — it applies no `:focus-within`
-	 * rule and composites nothing — so the class list is the only place they can
-	 * be caught, and both were missing from the first build.
-	 */
-	it('hides the hint and drops the blur on focus', async () => {
-		const { input } = await renderField();
-
-		// The hint explains how to reach a field you are already typing in, and
-		// it is the one thing left on the plate competing with the query.
-		expect(screen.getByText('⌘K').className).toContain('group-focus-within:hidden');
-		// The focused plate is opaque, so the blur is a compositor pass over
-		// every scrolled frame underneath that paints nothing anyone can see.
-		expect(input.parentElement?.className).toContain('focus-within:backdrop-filter-none');
-	});
-
-	/**
-	 * None of these sizes has a token — they are the design's own, and the only
-	 * record of them outside `design.pen` is the class list.
-	 */
-	it('types the query at 12/480 and the hint at 9.5, with an italic placeholder', async () => {
-		const { input } = await renderField();
-
-		expect(input.className).toContain('text-[12px]');
-		expect(input.className).toContain('font-[480]');
-		expect(input.className).toContain('placeholder:italic');
-		expect(screen.getByText('⌘K').className).toContain('text-[9.5px]');
-	});
-
-	/**
-	 * `h-[34px]` and `h-(--row)` look identical today and stop tracking each
-	 * other the moment the row height moves, with no layout assertion possible
-	 * in jsdom to notice. The inversion is checked the same way and for the same
-	 * reason — and `--primary` must not appear, or the field settles the accent
-	 * question the palette has not.
-	 */
-	it('takes its height and its focused inversion from the tokens', async () => {
-		const { input } = await renderField();
-		const plate = input.parentElement;
-
-		expect(plate?.className).toContain('h-(--row)');
-		expect(plate?.className).toContain('focus-within:bg-foreground');
-		expect(plate?.className).toContain('focus-within:text-background');
-		expect(plate?.className).not.toContain('primary');
-	});
-
-	/**
-	 * macOS hides its title bar under `titleBarStyle: "Overlay"` and takes every
-	 * draggable surface with it, so a chrome row that is not a drag region leaves
-	 * the top of the window dead — nothing about the page looks wrong, the window
-	 * simply cannot be moved from there.
+	 * The field is a DESTINATION now, not a control that happens to sit above the
+	 * content (spec §1.6). It lives in the rail beside Home, Remote and Settings,
+	 * and reaching it is a navigation like reaching any of them.
 	 *
-	 * The input must NOT carry it. Tauri dispatches on the event target, so the
-	 * attribute on the field would take mousedown away from focusing it and from
-	 * selecting the text already in it — and the failure reads as "the search box
-	 * is broken", not as "the drag region is too greedy".
+	 * On `focus` rather than `click`, so the keyboard arrives at the same place —
+	 * tabbing in, and the shortcut the field advertises, both land here without a
+	 * second handler that could drift from this one.
 	 */
-	it('makes the plate a window handle without making the field one', async () => {
-		await renderField();
-		const input = screen.getByRole('textbox', { name: 'Search' });
+	it('navigates to /search when the field is focused', async () => {
+		const { input, router } = await renderField();
+		expect(router.state.location.pathname).toBe('/');
 
-		expect(input.parentElement).toHaveAttribute('data-tauri-drag-region');
-		expect(input).not.toHaveAttribute('data-tauri-drag-region');
+		input.focus();
+		await screen.findByTestId('search-page');
+
+		expect(router.state.location.pathname).toBe('/search');
 	});
 
-	describe('dragging the window by the field', () => {
-		beforeEach(() => {
-			startDragging.mockClear();
-		});
+	/**
+	 * Without the guard every re-focus pushes another entry, and the back button
+	 * then walks a stack of identical URLs instead of leaving.
+	 */
+	it('does not push another entry when focused again on /search', async () => {
+		const { input } = await renderField(['/search?q=redis']);
+		const before = window.history.length;
 
-		/** Press, move past the slop, and the OS takes over. */
-		it('drags the window when the pointer moves off the press', async () => {
-			await renderField();
-			const input = screen.getByRole('textbox', { name: 'Search' });
+		input.focus();
+		input.blur();
+		input.focus();
 
-			fireEvent.pointerDown(input, { button: 0, clientX: 100, clientY: 10 });
-			fireEvent.pointerMove(window, { clientX: 140, clientY: 10 });
+		expect(screen.getByRole('textbox', { name: 'Search' })).toHaveValue('redis');
+		expect(window.history.length).toBe(before);
+	});
 
-			expect(startDragging).toHaveBeenCalledTimes(1);
-			expect(input).not.toHaveFocus();
-		});
+	/**
+	 * The same inversion the rail uses everywhere else to say "this is where you
+	 * are" — a selected arrow row, and the changer's active segment. Marked with
+	 * `data-active` rather than a class so the styling stays in one place.
+	 */
+	it('marks itself active on the results route', async () => {
+		const field = (await renderField(['/search?q=x'])).input.parentElement;
+		expect(field).toHaveAttribute('data-active');
+	});
 
-		/**
-		 * The other half of the same gesture. `preventDefault` withholds focus on
-		 * the way down so the press can still become a drag, so something has to
-		 * give it back when it does not — without this the field can never be
-		 * focused by clicking it at all.
-		 */
-		it('focuses the field when the pointer is released without moving', async () => {
-			await renderField();
-			const input = screen.getByRole('textbox', { name: 'Search' });
+	it('is not marked active anywhere else', async () => {
+		// Two renders in one test would leave two fields mounted and every
+		// `screen` query ambiguous, so the pair is split.
+		const field = (await renderField()).input.parentElement;
+		expect(field).not.toHaveAttribute('data-active');
+	});
 
-			fireEvent.pointerDown(input, { button: 0, clientX: 100, clientY: 10 });
-			fireEvent.pointerUp(window, { clientX: 100, clientY: 10 });
+	/**
+	 * The window-drag gesture went with the move into the rail: a drag region
+	 * fires on `mousedown` with no threshold, which would take the press away
+	 * from the navigation above. `RailTopBar` is the handle now.
+	 */
+	it('is not a window drag handle', async () => {
+		const { input } = await renderField();
 
-			expect(startDragging).not.toHaveBeenCalled();
-			expect(input).toHaveFocus();
-		});
-
-		/** A hand is never perfectly still; a 1px wobble is a click, not a drag. */
-		it('treats movement inside the slop as a click', async () => {
-			await renderField();
-			const input = screen.getByRole('textbox', { name: 'Search' });
-
-			fireEvent.pointerDown(input, { button: 0, clientX: 100, clientY: 10 });
-			fireEvent.pointerMove(window, { clientX: 102, clientY: 11 });
-			fireEvent.pointerUp(window, { clientX: 102, clientY: 11 });
-
-			expect(startDragging).not.toHaveBeenCalled();
-			expect(input).toHaveFocus();
-		});
-
-		/**
-		 * The exception that matters. A field in use has to keep drag-to-select —
-		 * miss this and dragging across a query to select it throws the window
-		 * across the desktop instead.
-		 */
-		it('leaves the gesture alone once the field has focus, so text can be selected', async () => {
-			await renderField();
-			const input = screen.getByRole('textbox', { name: 'Search' });
-			input.focus();
-
-			fireEvent.pointerDown(input, { button: 0, clientX: 100, clientY: 10 });
-			fireEvent.pointerMove(window, { clientX: 180, clientY: 10 });
-
-			expect(startDragging).not.toHaveBeenCalled();
-			expect(input).toHaveFocus();
-		});
-
-		/** A right-click opens a context menu; it does not move the window. */
-		it('ignores a non-primary button', async () => {
-			await renderField();
-			const input = screen.getByRole('textbox', { name: 'Search' });
-
-			fireEvent.pointerDown(input, { button: 2, clientX: 100, clientY: 10 });
-			fireEvent.pointerMove(window, { clientX: 180, clientY: 10 });
-
-			expect(startDragging).not.toHaveBeenCalled();
-		});
+		expect(input.parentElement).not.toHaveAttribute('data-tauri-drag-region');
+		expect(input).not.toHaveAttribute('data-tauri-drag-region');
 	});
 });

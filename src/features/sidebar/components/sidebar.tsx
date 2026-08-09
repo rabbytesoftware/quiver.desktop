@@ -1,5 +1,6 @@
 import type { JSX } from 'react';
 
+import { SearchBar } from '@/features/search';
 import { useShellStore } from '@/features/shell';
 import { cn } from '@/lib/cn';
 
@@ -52,8 +53,24 @@ export function Sidebar({ className }: SidebarProps): JSX.Element {
 				className
 			)}
 		>
+			{/* The top bar stays FIRST. It carries the macOS traffic-light
+			    reserve, which has to sit at the window's own top edge, and the
+			    history arrows that face the content column beside it. */}
 			<RailTopBar />
-			<PrimaryNav />
+			{/* Search and the changer are one stack of controls, so ONE element
+			    owns the spacing around both: `gap-1.5` between them, and `pb-1`
+			    below.
+			
+			    The two are different numbers on purpose, because they are measured
+			    against different things. Nothing sits between the field and the
+			    track, so 6px of gap IS 6px of space. Every row below carries
+			    ROW_BASE's own `my-0.5`, so the first one already contributes 2 —
+			    and 6 there would read as 8. 4 + 2 lands both gaps on the same six
+			    pixels on screen, which is the only place it matters. */}
+			<div className="flex shrink-0 flex-col gap-1.5 px-2 pt-0.5 pb-1">
+				<SearchBar />
+				<PrimaryNav />
+			</div>
 			{/* The only part that scrolls. Give the scroll to the rail instead and
 			    the top bar and the three destinations leave the screen as soon as
 			    the library is longer than the window — including the back button,
