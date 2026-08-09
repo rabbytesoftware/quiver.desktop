@@ -3,7 +3,6 @@ import type { JSX } from 'react';
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 
-import { TabsTab } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { cn } from '@/lib/cn';
@@ -20,8 +19,6 @@ export type NavDestination = '/' | '/remote' | '/settings';
 
 export interface NavSegmentProps {
 	to: NavDestination;
-	/** Matches `PrimaryNav`'s derived value; Base UI raises the indicator over it. */
-	value: string;
 	/** True when this is the destination the router is currently on. */
 	active: boolean;
 	/**
@@ -34,8 +31,21 @@ export interface NavSegmentProps {
 	label: string;
 }
 
-/** crowbar's `sidebar-tab-bar.tsx`, verbatim. */
-const TAB = 'flex flex-1 items-center justify-center gap-1';
+/**
+ * crowbar's `sidebar-tab-bar.tsx` classes, verbatim, plus the two this rail
+ * needs: `h-9` — which Base UI's own tab supplied before the segments stopped
+ * being tabs — and `relative z-10`, which puts the segment above the travelling
+ * indicator so the fill passes underneath its icon and label.
+ */
+const TAB = [
+	'relative z-10 flex h-9 flex-1 cursor-pointer items-center justify-center gap-1',
+	'rounded-lg font-medium text-sm outline-none',
+	'focus-visible:ring-2 focus-visible:ring-ring',
+	'text-muted-foreground/72 hover:text-foreground',
+	// Matches the arrow rows exactly — see ROW_ACTIVE for why the delay is only
+	// on the arriving side.
+	'data-[status=active]:text-background data-[status=active]:[transition:color_0ms_200ms]',
+].join(' ');
 
 /**
  * The label's visibility ladder, also crowbar's, thresholds included: under
@@ -54,10 +64,16 @@ function labelClass(active: boolean): string {
 /**
  * One destination in the rail's primary nav.
  *
- * A `TabsTab` rendered THROUGH the router's `Link`, so the segment stays a real
- * anchor — middle-click, copy-link and keyboard activation keep working, and
- * navigation stays the router's. Base UI supplies only the active marking and
- * the sliding indicator.
+ * A plain router `<Link>`. It was a Base UI `TabsTab` rendered through one,
+ * which gave the segment `role="tab"` and its own sliding indicator — and both
+ * had to go once the whole rail took a single travelling indicator, because
+ * `Tabs.Indicator` can only measure inside its own list. What is left is what
+ * these always were semantically: three destinations, competing with every
+ * arrow below them. Nothing here is a tabpanel.
+ *
+ * `activeOptions={{ exact }}` for Home is load-bearing. TanStack matches by
+ * prefix and `/` is a prefix of every route in the app, so without it Home is
+ * lit on top of Remote, on top of Settings, on top of every open arrow.
  *
  * Weight follows state — Phosphor `fill` when active, `regular` otherwise — and
  * the glyph takes crowbar's `size={14}` prop rather than a class. A number is
@@ -67,15 +83,13 @@ function labelClass(active: boolean): string {
  *
  * The tooltip is Quiver's, not crowbar's, and it stays because this rail
  * collapses to 160px where crowbar's does not: below 280px every segment is
- * icon-only and the tooltip is the only affordance a pointer has. It goes
- * INSIDE the tab — wrapping one makes Base UI's render composition overwrite
- * `data-slot="tabs-tab"` with the tooltip's own.
+ * icon-only and the tooltip is the only affordance a pointer has.
  */
-export function NavSegment({ to, value, active, icon: Icon, label }: NavSegmentProps): JSX.Element {
+export function NavSegment({ to, active, icon: Icon, label }: NavSegmentProps): JSX.Element {
 	const glyph = <Icon size={14} weight={active ? 'fill' : 'regular'} />;
 
 	return (
-		<TabsTab value={value} className={TAB} render={<Link to={to} onClick={blockReselect} aria-label={label} />}>
+		<Link to={to} activeOptions={{ exact: to === '/' }} onClick={blockReselect} aria-label={label} className={TAB}>
 			{active ? (
 				glyph
 			) : (
@@ -91,6 +105,6 @@ export function NavSegment({ to, value, active, icon: Icon, label }: NavSegmentP
 				</Tooltip>
 			)}
 			<span className={labelClass(active)}>{label}</span>
-		</TabsTab>
+		</Link>
 	);
 }

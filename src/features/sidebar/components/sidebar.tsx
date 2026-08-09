@@ -5,6 +5,7 @@ import { cn } from '@/lib/cn';
 
 import { ArrowList } from './arrow-list';
 import { PrimaryNav } from './primary-nav';
+import { RailIndicator } from './rail-indicator';
 import { RailTopBar } from './rail-top-bar';
 import { ResizeHandle } from './resize-handle';
 
@@ -46,12 +47,20 @@ export function Sidebar({ className }: SidebarProps): JSX.Element {
 				// grows the rail past its track, `flex-1` inside resolves against
 				// the grown height, and the list never scrolls — it is simply
 				// clipped by the shell, with the rows below the fold unreachable.
-				'relative row-span-2 flex min-h-0 flex-col',
+				// `isolate` so the three paint orders the indicator depends on —
+				// track background, indicator at z-0, segments and rows at z-10 —
+				// resolve in this element's own stacking context and cannot be
+				// reordered by anything above the rail.
+				'relative isolate row-span-2 flex min-h-0 flex-col',
 				'bg-sidebar text-sidebar-foreground border-sidebar-border',
 				side === 'left' ? 'border-r' : 'border-l',
 				className
 			)}
 		>
+			{/* Before the nav and the list in DOM order, but the layering is done
+			    with z-index rather than order: it has to sit above the nav track's
+			    background and below every segment and row. See `RailIndicator`. */}
+			<RailIndicator />
 			<RailTopBar />
 			<PrimaryNav />
 			{/* The only part that scrolls. Give the scroll to the rail instead and

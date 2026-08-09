@@ -3,13 +3,12 @@ import type { JSX } from 'react';
 import { GearIcon, HardDrivesIcon, HouseIcon } from '@phosphor-icons/react';
 import { useRouterState } from '@tanstack/react-router';
 
-import { Tabs, TabsList } from '@/components/ui/tabs';
-
 import { useTranslation } from '@/lib/i18n';
 
 import { NavSegment, type NavDestination } from './nav-segment';
 
 interface Destination {
+	/** Identity for the map key and for `activeDestination`'s answer. */
 	value: string;
 	to: NavDestination;
 	/** Phosphor's component type; `PrimaryNav` only passes it through. */
@@ -63,10 +62,11 @@ function activeDestination(pathname: string): string | null {
  * `flex flex-1 items-center justify-center gap-1`, the 14px glyph and the
  * label thresholds are all crowbar's.
  *
- * The one departure is theming, and it is the same one the arrow rows make:
- * CossUI's indicator fills from `--background` and lifts, Quiver's fills from
- * `--foreground` and inverts (see `components/ui/tabs.tsx`). One selection
- * language across the whole rail.
+ * Two departures. Theming, the same one the arrow rows make: CossUI's indicator
+ * fills from `--background` and lifts, Quiver's fills from `--foreground` and
+ * inverts. And the marking itself, which is no longer Base UI's — one indicator
+ * spans the rail so it can travel between a segment here and a row below, which
+ * `Tabs.Indicator` cannot do from inside its own list.
  *
  * `@container` so the labels below can respond to the RAIL's width. The window's
  * width says nothing about it: the rail is dragged between 160 and 320px.
@@ -78,23 +78,20 @@ export function PrimaryNav(): JSX.Element {
 
 	return (
 		<nav className="@container flex shrink-0 items-center px-2 py-1.5">
-			{/* No `onValueChange`: the tabs do not own the selection. Each segment is
-			    a Link, the URL changes, and `active` is re-derived from it — so the
-			    control cannot get out of step with where the app actually is. */}
-			<Tabs value={active} className="w-full">
-				<TabsList variant="default" className="w-full bg-sidebar-element-idle text-foreground/70">
-					{DESTINATIONS.map((destination) => (
-						<NavSegment
-							key={destination.value}
-							to={destination.to}
-							value={destination.value}
-							active={active === destination.value}
-							icon={destination.icon}
-							label={t(destination.key)}
-						/>
-					))}
-				</TabsList>
-			</Tabs>
+			{/* crowbar's track. The segments sit on it; the fill that marks one of
+			    them belongs to RailIndicator, which spans the whole rail so the
+			    mark can travel from here down into the arrow list. */}
+			<div className="flex w-full items-center gap-x-0.5 rounded-lg bg-sidebar-element-idle p-0.5">
+				{DESTINATIONS.map((destination) => (
+					<NavSegment
+						key={destination.value}
+						to={destination.to}
+						active={active === destination.value}
+						icon={destination.icon}
+						label={t(destination.key)}
+					/>
+				))}
+			</div>
 		</nav>
 	);
 }

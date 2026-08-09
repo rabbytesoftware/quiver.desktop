@@ -9,6 +9,7 @@ export default defineConfig({
             '@testing-library/jest-dom/vitest',
             './src/__mocks__/setup-local-storage.ts',
             './src/__mocks__/setup-pointer-capture.ts',
+            './src/__mocks__/setup-resize-observer.ts',
         ],
         coverage: {
             provider: 'v8',

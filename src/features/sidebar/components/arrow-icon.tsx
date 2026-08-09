@@ -69,15 +69,23 @@ function monogram(name: string): string {
 }
 
 /**
- * `rounded-md`, a step tighter than the row's `rounded-lg`: nested corners have
- * to tighten inward or the inner one bulges against the outer. `bg-transparent`
- * because the fallback below carries the hue, and Avatar's own `bg-background`
- * would otherwise flash behind an image while it loads.
+ * The corner is DERIVED from the row's, not stepped down the token scale.
+ *
+ * The steps are absolute offsets meant for surfaces several times this size,
+ * so on a small box they run away with it: `rounded-md` is `--radius - 2px`,
+ * which is 8px, and on a 16px chip that is exactly half the box — a circle.
+ *
+ * What the chip should keep is the row's PROPORTION. 10px on a 36px row is
+ * 0.28; `rounded-sm` is 6px, which on this 20px box is 0.30. Close enough to
+ * read as the same corner, and it still tracks `--radius`.
+ *
+ * `bg-transparent` because the fallback below carries the hue, and Avatar's own
+ * `bg-background` would otherwise flash behind an image while it loads.
  */
-const AVATAR = cn(ROW_GLYPH_BOX, 'overflow-hidden rounded-md bg-transparent');
+const AVATAR = cn(ROW_GLYPH_BOX, 'overflow-hidden rounded-sm bg-transparent');
 
 /**
- * `leading` set to the box's own height, not `place-items` on the parent: the
+ * `leading-(--icon)` matches the box exactly — set by the box's own height, not
  * flex centres the box, and only the line box centres the text inside it. Left
  * to the row's inherited leading the two capitals sit a pixel high in an 18px
  * square, which every chip in the column then repeats.
@@ -86,7 +94,7 @@ const AVATAR = cn(ROW_GLYPH_BOX, 'overflow-hidden rounded-md bg-transparent');
  * tracking on two 8.5px capitals reads as a kerning fault.
  */
 const MONOGRAM =
-	'size-full rounded-none bg-transparent text-[8.5px] font-[700] leading-[18px] tracking-[0] text-white uppercase';
+	'size-full rounded-none bg-transparent text-[8.5px] font-[700] leading-(--icon) tracking-[0] text-white uppercase';
 
 interface ArrowIconProps {
 	/** Keys the chip's colour — see `chipHue`. */

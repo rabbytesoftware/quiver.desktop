@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ROW_ACTIVE, ROW_BASE, ROW_GLYPH_BOX, ROW_INACTIVE, ROW_SUBLABEL } from './row-base';
+import { RAIL_INDICATOR, ROW_ACTIVE, ROW_BASE, ROW_GLYPH_BOX, ROW_INACTIVE, ROW_SUBLABEL } from './row-base';
 
 /**
  * These assertions exist because each one has already been got wrong once while
@@ -20,9 +20,31 @@ describe('row-base', () => {
 		// which is a one-shade difference. Quiver flips instead. Getting this
 		// backwards is the single change that makes the rail read as a different
 		// product, so it is asserted in both directions.
-		expect(ROW_ACTIVE).toContain('bg-foreground');
+		expect(RAIL_INDICATOR).toContain('bg-foreground');
 		expect(ROW_ACTIVE).toContain('text-background');
-		expect(ROW_ACTIVE).not.toContain('bg-background');
+		expect(RAIL_INDICATOR).not.toContain('bg-background');
+	});
+
+	/**
+	 * The row owns its TEXT colour; the fill belongs to the one travelling
+	 * indicator. A row painting its own background would light up instantly and
+	 * the box would then slide onto an already-filled row — two marks for one
+	 * selection.
+	 */
+	it('leaves the fill to the indicator rather than painting its own', () => {
+		expect(ROW_ACTIVE).not.toContain('bg-');
+	});
+
+	/**
+	 * Asymmetric on purpose. The destination's text flips to `--background`,
+	 * which is invisible against the rail, so it waits for the box to arrive
+	 * while the row being left returns to `--foreground` at once. Both ends stay
+	 * legible for the whole journey; a plain `transition-colors` would delay both
+	 * directions and leave the source unreadable instead.
+	 */
+	it('delays only the arriving text, so neither end goes invisible mid-travel', () => {
+		expect(ROW_ACTIVE).toContain('[transition:color_0ms_200ms]');
+		expect(ROW_BASE).not.toContain('transition-colors');
 	});
 
 	/**
@@ -35,15 +57,40 @@ describe('row-base', () => {
 	 * A literal here would be invisible in exactly one theme, which is the kind
 	 * of thing only a screenshot catches.
 	 */
-	it('takes the selected row’s top edge from a token, not a literal', () => {
-		expect(ROW_ACTIVE).toContain('inset-shadow-[0_1px_var(--selected-edge)]');
-		expect(ROW_ACTIVE).not.toContain('white');
+	it('takes the selected surface’s top edge from a token, not a literal', () => {
+		expect(RAIL_INDICATOR).toContain('inset-shadow-[0_1px_var(--selected-edge)]');
+		expect(RAIL_INDICATOR).not.toContain('white');
 	});
 
-	it('matches the fill with the border rather than contrasting it', () => {
-		// A visible outline on the active row reads as focus, which the row can
-		// already be in for unrelated reasons.
-		expect(ROW_ACTIVE).toContain('border-foreground');
+	/**
+	 * Position and fade ride the compositor; `width` is the only property here
+	 * that costs layout, and it is affordable solely because the indicator is
+	 * absolutely positioned. Animating `left`/`top` would relayout the rail on
+	 * every frame of every selection change.
+	 */
+	it('animates on the compositor, not on layout', () => {
+		expect(RAIL_INDICATOR).toContain('transition-[transform,width,opacity]');
+		expect(RAIL_INDICATOR).toContain('absolute');
+		expect(RAIL_INDICATOR).not.toContain('transition-all');
+	});
+
+	/**
+	 * Each of these guards a distinct failure. Without `ready` the indicator
+	 * flies in from the rail's corner on first paint; without `scrolling` it
+	 * smears behind a scrolling row; without `motion-reduce` it ignores the
+	 * setting entirely.
+	 */
+	it('suppresses the transition in the three cases that need it', () => {
+		expect(RAIL_INDICATOR).toContain('not-data-[ready=true]:transition-none');
+		expect(RAIL_INDICATOR).toContain('data-[scrolling=true]:transition-none');
+		expect(RAIL_INDICATOR).toContain('motion-reduce:transition-none');
+	});
+
+	it('keeps the indicator under the surfaces it highlights', () => {
+		// z-0 against the rows' and segments' z-10, so the fill passes beneath a
+		// label rather than over it.
+		expect(RAIL_INDICATOR).toContain('z-0');
+		expect(ROW_BASE).toContain('z-10');
 	});
 
 	it('keeps the 36px row and its 13px medium label', () => {
@@ -59,7 +106,7 @@ describe('row-base', () => {
 	});
 
 	it('fixes the leading glyph box so labels start at one x', () => {
-		expect(ROW_GLYPH_BOX).toContain('size-[18px]');
+		expect(ROW_GLYPH_BOX).toContain('size-(--icon)');
 		expect(ROW_GLYPH_BOX).toContain('shrink-0');
 	});
 

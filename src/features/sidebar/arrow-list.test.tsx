@@ -223,7 +223,7 @@ describe('ArrowIcon', () => {
 
 		const tile = await screen.findByRole('img', { name: 'Minecraft icon' });
 		// The box is on the avatar root; the tile fills it.
-		expect(tile.closest('[data-slot="arrow-icon"]')?.className).toContain('size-[18px]');
+		expect(tile.closest('[data-slot="arrow-icon"]')?.className).toContain('size-(--icon)');
 		expect(tile.textContent).toBe('Mi');
 	});
 
