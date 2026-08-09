@@ -110,15 +110,23 @@ describe('HistoryNav', () => {
 	});
 
 	/**
-	 * The failure this catches is silent: `size-[34px]` and `size-8` both LOOK
-	 * right today and stop tracking `--row` the moment it moves, with no layout
-	 * assertion possible in jsdom to notice.
+	 * These are crowbar's history buttons, so they take their size from the
+	 * shared Button (`icon-sm`) and their glyph from Lucide's 16px `size` prop
+	 * rather than from geometry stated here. What this guards is the pair that
+	 * IS local: the corner, a step tighter than the rail's rows, and the hover
+	 * fill.
+	 *
+	 * `hover:bg-sidebar-element-hover` and not the button's default `bg-muted`:
+	 * these sit on the rail's surface rather than on a page, and `--muted` is a
+	 * solid grey picked against the content column. Nothing about that reads as
+	 * wrong in jsdom, or in a screenshot of the light theme.
 	 */
-	it('sizes itself from the geometry tokens rather than from pixels', async () => {
+	it('takes its hover from the rail’s element token, not the button default', async () => {
 		const { back, forward } = await renderNav();
 		for (const button of [back, forward]) {
-			expect(button.className).toContain('size-(--row)');
-			expect(button.querySelector('svg')?.getAttribute('class')).toContain('size-(--icon-chrome)');
+			expect(button.className).toContain('hover:bg-sidebar-element-hover');
+			expect(button.className).toContain('rounded-sm');
+			expect(button.querySelector('svg')).toHaveAttribute('width', '16');
 		}
 	});
 });

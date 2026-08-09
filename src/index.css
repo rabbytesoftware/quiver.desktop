@@ -48,7 +48,6 @@
 	--rail: 246px;
 	--row: 34px;
 	--icon: 20px; /* content — arrow marks in the list */
-	--icon-chrome: 17px; /* chrome glyphs — back / forward */
 	--icon-nav: 14px; /* primary nav — Home / Remote / Settings */
 	--inset: calc((var(--row) - var(--icon)) / 2);
 
@@ -119,6 +118,12 @@
 	 * against whichever value won the cascade and is correct in both. */
 	--sidebar-element-idle: color-mix(in oklch, var(--foreground) 6%, transparent);
 
+	/* What a chrome control fills with under the pointer. Per theme rather than
+	 * derived: crowbar carries 8% in light and 10% in dark, because the same
+	 * share of black over a light surface is more visible than white over a dark
+	 * one. */
+	--sidebar-element-hover: oklch(0 0 0 / 8%);
+
 	--sidebar-count-added: color-mix(in srgb, var(--color-green-300) 60%, black);
 	--sidebar-count-deleted: color-mix(in srgb, var(--color-red-300) 60%, black);
 }
@@ -166,6 +171,8 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(0.301 0 0);
 	--sidebar-ring: oklch(0.66 0 0);
+
+	--sidebar-element-hover: oklch(1 0 0 / 10%);
 
 	--sidebar-count-added: var(--color-green-300);
 	--sidebar-count-deleted: var(--color-red-300);
@@ -227,6 +234,7 @@
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-ring: var(--sidebar-ring);
 	--color-sidebar-element-idle: var(--sidebar-element-idle);
+	--color-sidebar-element-hover: var(--sidebar-element-hover);
 	--color-sidebar-count-added: var(--sidebar-count-added);
 	--color-sidebar-count-deleted: var(--sidebar-count-deleted);
 
