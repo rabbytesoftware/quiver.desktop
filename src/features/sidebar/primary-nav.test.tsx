@@ -18,7 +18,7 @@ import { PrimaryNav } from './components/primary-nav';
 /**
  * The five real routes, hand-built rather than imported from `routeTree.gen`:
  * `__root.tsx` mounts the whole app, so importing the generated tree would put a
- * second rail on screen and leave every `getAllByRole('link')` below counting
+ * second rail on screen and leave every `getAllByRole('tab')` below counting
  * somebody else's links.
  *
  * The nav goes in the ROOT component, which is where the rail puts it — under a
@@ -66,7 +66,7 @@ async function renderNav(at: string) {
 	});
 
 	render(<RouterProvider router={router} />);
-	await screen.findAllByRole('link');
+	await screen.findAllByRole('tab');
 	return router;
 }
 
@@ -78,7 +78,7 @@ async function renderNav(at: string) {
  */
 function activeLabels(): string[] {
 	return screen
-		.getAllByRole('link')
+		.getAllByRole('tab')
 		.filter((link) => link.getAttribute('data-status') === 'active')
 		.map((link) => link.getAttribute('aria-label') ?? '');
 }
@@ -107,7 +107,7 @@ describe('PrimaryNav', () => {
 	 */
 	it('does not light Home at /remote', async () => {
 		await renderNav('/remote');
-		expect(screen.getByRole('link', { name: 'Home' })).not.toHaveAttribute('data-status');
+		expect(screen.getByRole('tab', { name: 'Home' })).not.toHaveAttribute('data-status');
 	});
 
 	// Nothing in the rail owns /search — the field's own inversion is what is lit
@@ -128,7 +128,7 @@ describe('PrimaryNav', () => {
 		const user = userEvent.setup();
 		await renderNav('/');
 
-		await user.click(screen.getByRole('link', { name: 'Settings' }));
+		await user.click(screen.getByRole('tab', { name: 'Settings' }));
 
 		expect(await screen.findByTestId('settings-page')).toBeInTheDocument();
 		expect(activeLabels()).toEqual(['Settings']);
@@ -149,7 +149,7 @@ describe('PrimaryNav', () => {
 		await renderNav('/remote');
 
 		const labelOf = (name: string) =>
-			[...screen.getByRole('link', { name }).querySelectorAll('span')].find((span) => span.textContent === name);
+			[...screen.getByRole('tab', { name }).querySelectorAll('span')].find((span) => span.textContent === name);
 
 		const active = labelOf('Remote');
 		expect(active?.className).toContain('hidden');
@@ -172,11 +172,22 @@ describe('PrimaryNav', () => {
 	it('gives the collapsed segments a tooltip and the active one none', async () => {
 		await renderNav('/remote');
 
-		expect(screen.getByRole('link', { name: 'Remote' }).querySelector('[data-slot=tooltip-trigger]')).toBeNull();
-		expect(screen.getByRole('link', { name: 'Home' }).querySelector('[data-slot=tooltip-trigger]')).not.toBeNull();
+		expect(screen.getByRole('tab', { name: 'Remote' }).querySelector('[data-slot=tooltip-trigger]')).toBeNull();
+		expect(screen.getByRole('tab', { name: 'Home' }).querySelector('[data-slot=tooltip-trigger]')).not.toBeNull();
 		expect(
-			screen.getByRole('link', { name: 'Settings' }).querySelector('[data-slot=tooltip-trigger]')
+			screen.getByRole('tab', { name: 'Settings' }).querySelector('[data-slot=tooltip-trigger]')
 		).not.toBeNull();
+	});
+
+	/**
+	 * The tooltip goes INSIDE the tab. Wrapping the tab in the trigger instead
+	 * makes Base UI's render composition overwrite `data-slot="tabs-tab"` with
+	 * the tooltip's own — the tab still works, but anything selecting on the slot
+	 * silently stops finding two of the three.
+	 */
+	it('keeps every segment addressable as a tab, tooltip or not', async () => {
+		await renderNav('/remote');
+		expect(document.querySelectorAll('[data-slot="tabs-tab"]')).toHaveLength(3);
 	});
 
 	/**
@@ -187,7 +198,7 @@ describe('PrimaryNav', () => {
 	it('names every segment whether or not it is showing its label', async () => {
 		await renderNav('/search');
 		for (const name of ['Home', 'Remote', 'Settings']) {
-			expect(screen.getByRole('link', { name })).toHaveAttribute('aria-label', name);
+			expect(screen.getByRole('tab', { name })).toHaveAttribute('aria-label', name);
 		}
 	});
 
@@ -200,9 +211,39 @@ describe('PrimaryNav', () => {
 	it('shares the track equally, with no segment growing when active', async () => {
 		await renderNav('/');
 		for (const name of ['Home', 'Remote', 'Settings']) {
-			const tab = screen.getByRole('link', { name });
+			const tab = screen.getByRole('tab', { name });
 			expect(tab.className).toContain('flex-1');
 			expect(tab.className).not.toContain('max-w-[54%]');
+		}
+	});
+
+	/**
+	 * The theming caveat, and the one place this departs from crowbar. CossUI
+	 * fills the indicator from `--background`, raising it toward the surface
+	 * behind the track. Quiver's selected surfaces invert — the same call
+	 * ROW_ACTIVE makes for an arrow row. Asserted here because nothing else in
+	 * the suite would notice the registry's own value coming back on a re-pull.
+	 */
+	it('inverts the indicator rather than raising it', async () => {
+		await renderNav('/');
+
+		const indicator = document.querySelector('[data-slot="tab-indicator"]');
+		expect(indicator?.className).toContain('bg-foreground');
+		expect(indicator?.className).not.toContain('bg-background');
+	});
+
+	/**
+	 * The capability crowbar's own tab bar does not have. Its tabs are a store
+	 * value that is always one of the four; these three compete with every arrow
+	 * in the list below, so "none of them" is a real answer. Base UI then has no
+	 * tab to measure and drops the indicator, leaving a bare track.
+	 */
+	it('drops the indicator entirely when no destination is active', async () => {
+		await renderNav('/search');
+
+		expect(document.querySelector('[data-slot="tab-indicator"]')).toBeNull();
+		for (const name of ['Home', 'Remote', 'Settings']) {
+			expect(screen.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'false');
 		}
 	});
 
@@ -224,7 +265,7 @@ describe('PrimaryNav', () => {
 			['Remote', HardDrivesIcon, 'regular'],
 			['Settings', GearIcon, 'regular'],
 		] as const) {
-			const glyph = screen.getByRole('link', { name }).querySelector('svg');
+			const glyph = screen.getByRole('tab', { name }).querySelector('svg');
 			const { container } = render(<Icon weight={weight} />);
 
 			expect(glyph).toHaveAttribute('fill', 'currentColor');
