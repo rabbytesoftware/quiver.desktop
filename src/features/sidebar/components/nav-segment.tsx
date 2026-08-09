@@ -38,13 +38,19 @@ export interface NavSegmentProps {
  * indicator so the fill passes underneath its icon and label.
  */
 const TAB = [
-	'relative z-10 flex h-9 flex-1 cursor-pointer items-center justify-center gap-1',
-	'rounded-lg font-medium text-sm outline-none',
-	'focus-visible:ring-2 focus-visible:ring-ring',
-	'text-muted-foreground/72 hover:text-foreground',
-	// Matches the arrow rows exactly — see ROW_ACTIVE for why the delay is only
-	// on the arriving side.
-	'data-[status=active]:text-background data-[status=active]:[transition:color_0ms_200ms]',
+	// crowbar's TabsTab, verbatim — including `sm:h-8`, which is what makes the
+	// segment 32px at any window this app runs at. Pinning it to h-9 made the
+	// whole bar 4px taller than the control it was copied from.
+	'relative flex h-9 shrink-0 grow cursor-pointer items-center justify-center gap-1.5',
+	'whitespace-nowrap rounded-md border border-transparent px-[calc(--spacing(2.5)-1px)]',
+	'font-medium text-base outline-none transition-[color,background-color,box-shadow]',
+	'focus-visible:ring-2 focus-visible:ring-ring sm:h-8 sm:text-sm',
+	// crowbar's per-call className from sidebar-tab-bar.tsx
+	'flex flex-1 items-center justify-center gap-1',
+	// Ours: z-10 keeps the segment above the travelling indicator, and the
+	// active colour inverts where crowbar's lifts. The delay is the arriving
+	// side only — see ROW_ACTIVE.
+	'z-10 data-[status=active]:text-background data-[status=active]:[transition:color_0ms_200ms]',
 ].join(' ');
 
 /**
@@ -75,11 +81,10 @@ function labelClass(active: boolean): string {
  * prefix and `/` is a prefix of every route in the app, so without it Home is
  * lit on top of Remote, on top of Settings, on top of every open arrow.
  *
- * Weight follows state — Phosphor `fill` when active, `regular` otherwise — and
- * the glyph takes crowbar's `size={14}` prop rather than a class. A number is
- * safe there; only a `var()` would not be, since a presentation attribute
- * carrying one is substituted by Chromium and dropped by engines that are not,
- * and this app ships in three webviews.
+ * Weight follows state — Phosphor `fill` when active, `regular` otherwise — at
+ * crowbar's `size={14}`. A literal is safe in that prop; only a `var()` would
+ * not be, since it writes to the svg's width/height attributes and an engine
+ * that does not substitute custom properties there falls back to 1em.
  *
  * The tooltip is Quiver's, not crowbar's, and it stays because this rail
  * collapses to 160px where crowbar's does not: below 280px every segment is

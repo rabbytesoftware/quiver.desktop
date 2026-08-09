@@ -81,7 +81,7 @@ export function PrimaryNav(): JSX.Element {
 			{/* crowbar's track. The segments sit on it; the fill that marks one of
 			    them belongs to RailIndicator, which spans the whole rail so the
 			    mark can travel from here down into the arrow list. */}
-			<div className="flex w-full items-center gap-x-0.5 rounded-lg bg-sidebar-element-idle p-0.5">
+			<div className="relative flex w-full items-center justify-center gap-x-0.5 rounded-lg bg-sidebar-element-idle p-0.5 text-foreground/70">
 				{DESTINATIONS.map((destination) => (
 					<NavSegment
 						key={destination.value}

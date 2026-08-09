@@ -48,7 +48,6 @@
 	--rail: 246px;
 	--row: 34px;
 	--icon: 20px; /* content — arrow marks in the list */
-	--icon-nav: 14px; /* primary nav — Home / Remote / Settings */
 	--inset: calc((var(--row) - var(--icon)) / 2);
 
 	--background: oklch(1 0 0);
@@ -260,11 +259,32 @@
 		background: var(--background);
 		color: var(--foreground);
 		font-family: var(--font-sans);
-		/* --row, and every height derived from it, was sized against this. Move it and
-		   the rail rows, the chrome row and the macOS traffic-light offset in
-		   tauri.macos.conf.json all drift apart, each in its own file. */
-		font-size: 13px;
 		-webkit-font-smoothing: antialiased;
+	}
+
+	/*
+	 * `html` carries 16px and `body` carries the app's 13px, where the two used
+	 * to share one declaration.
+	 *
+	 * `rem` resolves against the ROOT, so a 13px html scaled every rem-based
+	 * Tailwind utility to 13/16 — and Tailwind's scales are the units every
+	 * component pulled from the @coss registry was drawn in. `text-sm` came out
+	 * at 11.375px where its designer meant 14, which is the same bug --spacing
+	 * and --radius were pinned to px to avoid, still live for type.
+	 *
+	 * Splitting them fixes the cause rather than the symptoms: rem resolves at
+	 * the 16px Tailwind assumes, and the app's own base text stays 13px because
+	 * it inherits from `body`.
+	 *
+	 * --row and the heights derived from it are px and unaffected, as are this
+	 * file's own `text-[13px]`-style literals. See the migration plan.
+	 */
+	html {
+		font-size: 16px;
+	}
+
+	body {
+		font-size: 13px;
 	}
 
 	[data-tauri-drag-region]:active {
