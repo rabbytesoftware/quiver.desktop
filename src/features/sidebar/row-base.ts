@@ -154,7 +154,19 @@ export const ROW_SUBLABEL = 'flex min-w-0 font-mono text-[10.5px]/[13px] tabular
 export const RAIL_INDICATOR = [
 	'pointer-events-none absolute top-0 left-0 z-0 rounded-lg',
 	'bg-foreground shadow-xs shadow-black/10 inset-shadow-[0_1px_var(--selected-edge)]',
-	'will-change-transform transition-[transform,width,opacity] duration-200 ease-out',
+	'will-change-transform transition-[transform,width,opacity] duration-200',
+	// `ease-out` leaves at full speed and decelerates the whole way, which reads
+	// as a lurch at the start — most of the distance is covered in the first
+	// third. This curve eases in as well, so the fastest part is the MIDDLE:
+	// per-frame steps are small at both ends, and small steps are what the eye
+	// reads as smooth. Same 200ms; only the distribution changes.
+	//
+	// It also hides the one rough edge here. `transform` is composited and
+	// interpolates on its own thread, `width` does not — so when the main thread
+	// is busy (a selection change re-renders the list) the width lags the
+	// position and the box appears to stretch. Small deltas at the ends make
+	// that lag far harder to see.
+	'ease-[cubic-bezier(0.4,0,0.2,1)]',
 	'data-[visible=false]:opacity-0',
 	'not-data-[ready=true]:transition-none data-[scrolling=true]:transition-none',
 	'motion-reduce:transition-none',
