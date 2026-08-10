@@ -1,7 +1,7 @@
 import type { JSX } from 'react';
 
 import { SearchBar } from '@/features/search';
-import { useShellStore } from '@/features/shell';
+import { useShellStore } from '@/features/shell/store';
 import { cn } from '@/lib/cn';
 
 import { ArrowList } from './arrow-list';

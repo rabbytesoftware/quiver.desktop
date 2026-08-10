@@ -11,10 +11,12 @@ function memo<T>(kind: string, locale: string, options: object | undefined, buil
 }
 
 export function numberFormatter(locale: string, options?: Intl.NumberFormatOptions): Intl.NumberFormat {
+	// react-doctor-disable-next-line react-doctor/js-hoist-intl -- memo() is the hoist; one formatter per locale+options, not per call
 	return memo('number', locale, options, () => new Intl.NumberFormat(locale, options));
 }
 
 export function dateFormatter(locale: string, options?: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+	// react-doctor-disable-next-line react-doctor/js-hoist-intl -- memo() is the hoist; one formatter per locale+options, not per call
 	return memo('date', locale, options, () => new Intl.DateTimeFormat(locale, options));
 }
 
@@ -22,10 +24,12 @@ export function relativeTimeFormatter(
 	locale: string,
 	options?: Intl.RelativeTimeFormatOptions
 ): Intl.RelativeTimeFormat {
+	// react-doctor-disable-next-line react-doctor/js-hoist-intl -- memo() is the hoist; one formatter per locale+options, not per call
 	return memo('relative', locale, options, () => new Intl.RelativeTimeFormat(locale, options));
 }
 
 export function pluralRules(locale: string, options?: Intl.PluralRulesOptions): Intl.PluralRules {
+	// react-doctor-disable-next-line react-doctor/js-hoist-intl -- memo() is the hoist; one formatter per locale+options, not per call
 	return memo('plural', locale, options, () => new Intl.PluralRules(locale, { type: 'cardinal', ...options }));
 }
 

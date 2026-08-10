@@ -25,6 +25,16 @@ export function ConnectionsSettings() {
 	const [error, setError] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
 
+	function addConnection() {
+		// react-doctor-disable-next-line react-doctor/no-impure-state-updater -- `run` is a local async helper, not a setState updater
+		void run(async () => {
+			await invoke('add_connection', { name, url, token });
+			setName('');
+			setUrl('');
+			setToken('');
+		});
+	}
+
 	async function run(action: () => Promise<unknown>) {
 		setBusy(true);
 		setError(null);
@@ -115,18 +125,7 @@ export function ConnectionsSettings() {
 					/>
 				</SettingRow>
 				<SettingRow label="" className="justify-end">
-					<Button
-						variant="default"
-						disabled={busy || mockEnabled || !name || !url}
-						onClick={() =>
-							run(async () => {
-								await invoke('add_connection', { name, url, token });
-								setName('');
-								setUrl('');
-								setToken('');
-							})
-						}
-					>
+					<Button variant="default" disabled={busy || mockEnabled || !name || !url} onClick={addConnection}>
 						{t('settings.connections.add.submit')}
 					</Button>
 				</SettingRow>

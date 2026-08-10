@@ -52,9 +52,9 @@ export async function setupListeners(): Promise<void> {
 					if (pendingInitialStates !== myBatch) return;
 					if (myBatch.length === 0) return;
 					const visible = new Set(records.map((r) => r.namespace));
-					myBatch
-						.filter((update) => visible.has(update.namespace))
-						.forEach((update) => useArrowStore.getState().seedInitialState(update));
+					for (const update of myBatch) {
+						if (visible.has(update.namespace)) useArrowStore.getState().seedInitialState(update);
+					}
 					pendingInitialStates = [];
 				});
 			},

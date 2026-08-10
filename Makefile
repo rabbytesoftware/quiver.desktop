@@ -6,7 +6,7 @@
 	fetch-sidecar dev dev-desktop dev-mock dev-web build-app dev-bundle icon \
 	test-frontend coverage-frontend \
 	test-rust coverage-rust \
-	pr-checks clean
+	pr-checks clean doctor-frontend
 
 .DEFAULT_GOAL := help
 
@@ -192,7 +192,13 @@ audit-frontend:
 	@$(BUN) audit || (echo "⚠️  Security vulnerabilities found" && exit 1)
 	@echo "✅ Security audit passed"
 
-code-quality-frontend: fmt-check-frontend lint-frontend typecheck-frontend
+doctor-frontend:
+	@echo "🩺 Running React Doctor..."
+	@$(BUNX) react-doctor --yes --no-telemetry --blocking warning || \
+	  (echo "❌ React Doctor is not clean. The gate requires 100/100 — every diagnostic, warning included." && exit 1)
+	@echo "✅ React Doctor: 100/100"
+
+code-quality-frontend: fmt-check-frontend lint-frontend typecheck-frontend doctor-frontend
 	@echo "✅ All frontend code quality checks passed!"
 
 fmt-check-rust:
@@ -426,6 +432,7 @@ pr-checks:
 	@echo "📋 Summary:"
 	@echo "  ✅ quiver.core release exists"
 	@echo "  ✅ Frontend code quality checks passed"
+	@echo "  ✅ React Doctor 100/100"
 	@echo "  ✅ Rust code quality checks passed"
 	@echo "  ✅ Frontend builds successfully"
 	@echo "  ✅ Tauri backend builds successfully"

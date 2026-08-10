@@ -72,7 +72,9 @@ export function createSocketHub(): SocketHub {
 		},
 
 		closeAll() {
-			[...byPath.values()].flatMap((set) => [...set]).forEach((socket) => socket.close());
+			for (const set of byPath.values()) {
+				for (const socket of [...set]) socket.close();
+			}
 			byPath.clear();
 		},
 

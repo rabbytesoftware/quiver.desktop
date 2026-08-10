@@ -1,14 +1,19 @@
 import type { JSX } from 'react';
 
-import { railOwnsControls, useShellStore, WindowControls } from '@/features/shell';
+import { WindowControls } from '@/features/shell/components/window-controls';
+import { railOwnsControls } from '@/features/shell/geometry';
+import { useShellStore } from '@/features/shell/store';
 
 import { HistoryNav } from './history-nav';
+
+const CONTROLS = <WindowControls />;
+const HISTORY = <HistoryNav />;
 
 export function RailTopBar(): JSX.Element {
 	const side = useShellStore((s) => s.sidebarSide);
 
-	const reserve = railOwnsControls(side) ? <WindowControls /> : null;
-	const history = <HistoryNav />;
+	const reserve = railOwnsControls(side) ? CONTROLS : null;
+	const history = HISTORY;
 
 	const [leading, trailing] = side === 'left' ? [reserve, history] : [history, reserve];
 
