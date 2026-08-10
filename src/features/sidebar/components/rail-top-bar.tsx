@@ -40,7 +40,13 @@ export function RailTopBar(): JSX.Element {
 		//
 		// Tauri dispatches on the event TARGET, so the two history buttons stay
 		// clickable — they are their own targets and carry no such attribute.
-		<div data-tauri-drag-region className="flex h-(--row) items-center">
+		//
+		// `px-1.5` and not `px-2`, because the buttons carry a 2px margin of
+		// their own: 6 + 2 lands their outer edge on the same 8px inset the
+		// search field and the changer use. Without it the arrows sat 6px further
+		// out than everything below them, which is exactly the kind of thing that
+		// reads as "off" without being obvious why.
+		<div data-tauri-drag-region className="flex h-(--row) items-center px-1.5">
 			{leading}
 			{/* Holds the two ends apart at every rail width. Inherits the drag
 			    region from the row rather than declaring its own — the attribute
