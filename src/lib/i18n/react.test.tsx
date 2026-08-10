@@ -40,10 +40,6 @@ describe('useTranslation', () => {
 		expect(screen.getByText('1,234.5 40%')).toBeInTheDocument();
 	});
 
-	// The regression this guards is invisible at the call site and expensive
-	// three components down: an unmemoised translator has a new identity every
-	// render, which defeats every `useMemo`, `useCallback` and `React.memo`
-	// that lists `t` as a dependency. Nobody would trace that back to i18n.
 	it('hands back the same translator across a render that did not change the locale', async () => {
 		const seen: unknown[] = [];
 
@@ -83,10 +79,6 @@ describe('useLocale', () => {
 		render(<Fixture />);
 		expect(screen.getByRole('button')).toHaveTextContent('en');
 
-		// One catalogue ships, so the resolved locale cannot move yet. What this
-		// pins is that the component is SUBSCRIBED — a selector that threw, or
-		// one returning a fresh object and looping, would fail here rather than
-		// on the day a second catalogue lands.
 		await user.click(screen.getByRole('button'));
 		expect(useLocaleStore.getState().preference).toBe('en');
 		expect(screen.getByRole('button')).toHaveTextContent('en');

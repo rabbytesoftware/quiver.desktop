@@ -1,67 +1,21 @@
 import type { Catalogue, Message } from '../types';
 
-/**
- * The source locale. Every other catalogue is defined against this one.
- *
- * FLAT DOTTED KEYS, not nested objects. Nesting reads better in a diff and is
- * worse at everything else that matters here: `keyof typeof en` gives the key
- * union for free where a nested tree needs a recursive path type that TypeScript
- * will eventually refuse to expand, `satisfies Record<MessageKey, Message>` is
- * what makes an incomplete translation a compile error, and the guard in
- * locales.test.ts becomes a `for` over `Object.keys` rather than a tree walk.
- *
- * `as const` is load-bearing twice over: it is what gives each value a literal
- * string type, which is what lets `PlaceholdersIn` read the `{name}` holes out
- * of it — drop it and every message widens to `string`, `ParamsFor` collapses
- * to `undefined`, and `t` stops asking for interpolation values entirely,
- * silently. `satisfies Catalogue` then checks the shape without widening it,
- * which `: Catalogue` would.
- *
- * TO ADD A LOCALE:
- *   1. copy this file to `./<tag>.ts`, translate the values, and type it
- *      `satisfies LocaleCatalogue` (exported below) rather than `Catalogue` —
- *      that is what makes a missing or misspelled key fail `tsc`;
- *   2. add it to `CATALOGUES` in `../catalogue.ts`. That is the whole
- *      registration: `Locale`, `LOCALES` and the Settings picker are all
- *      derived from that object;
- *   3. give it its own `locale.name`, written in that language — a French
- *      speaker scanning the picker is looking for "Français", not "French".
- *
- * Nothing here is a translation of anything a daemon says. Host names, arrow
- * descriptions and error messages come off the wire in whatever language
- * quiver.core produced them in, and are passed through untouched.
- */
 export const en = {
-	// The language's own name, in that language. Read out of each catalogue by
-	// the Settings picker, so adding a locale never means editing a second list.
 	'locale.name': 'English',
 
 	'app.settings': 'Settings',
 
-	// The rail's three destinations, then the two history glyphs. Back and
-	// forward render as bare icons, so these are the whole accessible name — no
-	// label, and a screen reader announces them as "button".
 	'nav.home': 'Home',
 	'nav.remote': 'Remote',
 	'nav.settings': 'Settings',
 	'nav.back': 'Go back',
 	'nav.forward': 'Go forward',
 
-	// Names what is searched rather than the act of searching. The field sits in
-	// the rail now, directly above the library it filters, so "Search" alone left
-	// the one question a new user actually has — what is in here? — unanswered by
-	// the only text on screen.
-	//
-	// `search.label` stays the short form: it is the accessible NAME, and a
-	// screen reader announcing the placeholder as well would read the long
-	// version twice.
 	'search.placeholder': 'Search Arrows or Collections',
 	'search.label': 'Search',
 
 	'sidebar.resize': 'Resize sidebar',
 	'sidebar.arrows': 'Arrows',
-	// An arrow that ships no icon falls back to a lettered tile. Two such tiles
-	// are indistinguishable to a screen reader without the name in the label.
 	'arrow.icon.fallback': '{name} icon',
 
 	'settings.title': 'Settings',
@@ -109,9 +63,6 @@ export const en = {
 
 	'settings.version.label': 'Quiver version {version}',
 	'settings.version.text': 'Quiver {version}',
-	// The one plural in the app today, and the reason `t` takes `count` rather
-	// than letting call sites pick the form with a ternary: a ternary is correct
-	// in English and wrong in every language with a third category.
 	'settings.version.remaining': {
 		one: '{count} more tap…',
 		other: '{count} more taps…',
@@ -151,9 +102,6 @@ export const en = {
 		"Force one route family to fail, so you can see a single panel's error state without breaking the rest of the app.",
 	'settings.developer.faults.rateLabel': '{family} fault rate',
 	'settings.developer.faults.reset': 'Reset all faults',
-	// One per FAULT_KEYS entry in `@/lib/mock/store`. The key suffixes ARE those
-	// slugs, so `t(`settings.developer.faults.${key}`)` type-checks: a fault key
-	// added without a label fails to compile at the call site.
 	'settings.developer.faults.arrows': 'Arrow catalog',
 	'settings.developer.faults.arrow-detail': 'Arrow detail',
 	'settings.developer.faults.search': 'Search',
@@ -168,15 +116,8 @@ export const en = {
 	'mock.turnOff': 'Turn off',
 } as const satisfies Catalogue;
 
-/** Dotted key of every message in the app. A `t` call with anything else fails `tsc`. */
 export type MessageKey = keyof typeof en;
 
-/** The literal message behind a key, which is what `ParamsFor` reads. */
 export type MessageFor<K extends MessageKey> = (typeof en)[K];
 
-/**
- * What a non-source locale has to be. Required (not `Partial`) keys are the
- * point: an untranslated key is a build failure, not a runtime fallback that
- * nobody notices until a screenshot comes back half in English.
- */
 export type LocaleCatalogue = Readonly<Record<MessageKey, Message>>;

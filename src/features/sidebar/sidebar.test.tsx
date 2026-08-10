@@ -38,20 +38,6 @@ function entry(namespace: string, name: string): ArrowEntry {
 	};
 }
 
-/**
- * The whole rail, on the five routes the app has.
- *
- * Hand-built rather than taken from `routeTree.gen`: the generated tree mounts
- * `__root.tsx`, which mounts an `AppShell` that mounts a rail of its own — and
- * every "exactly one thing is active" assertion below would then be counting
- * two rails' worth of links. The route PATHS still have to match the real ones
- * exactly, because those strings are what the rail's `<Link>`s resolve against.
- *
- * The rail goes in the ROOT component, which is where the shell puts it: above
- * the `<Outlet/>`, so nothing here re-renders on navigation. A rail mounted
- * under a leaf would re-render every time and a row that failed to pick up the
- * router's marking on its own would look like it worked.
- */
 async function renderRail(at: string, side: SidebarSide = 'left') {
 	useShellStore.setState({ sidebarSide: side, sidebarWidth: SIDEBAR_DEFAULT });
 
@@ -100,17 +86,6 @@ async function renderRail(at: string, side: SidebarSide = 'left') {
 	return { rail, router };
 }
 
-/**
- * Opens an arrow the way the rail does — through the router, with the namespace
- * as a param.
- *
- * NOT `initialEntries: ['/arrow/' + namespace]`. TanStack percent-encodes the
- * `@` when it builds a location, so `/arrow/github.com/rabbyte/minecraft@v1`
- * written by hand is a different string from the `%40` href on the row: no link
- * matches, no row is marked, and `activeNames` comes back empty. The trap is
- * that the invariant below reads that as a rail with nothing wrongly lit and
- * PASSES — for a route that never loaded.
- */
 async function openArrow(router: Awaited<ReturnType<typeof renderRail>>['router'], namespace: string) {
 	await act(async () => {
 		await router.navigate({ to: '/arrow/$', params: { _splat: namespace } });
@@ -118,21 +93,12 @@ async function openArrow(router: Awaited<ReturnType<typeof renderRail>>['router'
 	await screen.findByTestId('page-arrow');
 }
 
-/**
- * Everything in the rail the router has marked, named.
- *
- * Names rather than a count so a failure says WHICH row lit up — the prefix
- * trap fails as `['Home', 'Minecraft']`, and a count alone would not say which
- * of the two was the intruder. A nav segment carries its name as `aria-label`;
- * an arrow row's is the slot inside it.
- */
 function activeNames(rail: HTMLElement): string[] {
 	return Array.from(rail.querySelectorAll('[data-status="active"]')).map(
 		(row) => row.getAttribute('aria-label') ?? row.querySelector('[data-slot="arrow-name"]')?.textContent ?? ''
 	);
 }
 
-/** The rail's top bar — the row the history buttons and the reserve share. */
 function topBar(): HTMLElement {
 	const back = screen.getByRole('button', { name: 'Go back' });
 	const bar = back.parentElement?.parentElement;
@@ -154,23 +120,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-	// Module state otherwise: a case that pretends to be macOS answers for every
-	// case after it, and the reserve appears in rails that never asked for one.
 	restoreUserAgent();
 });
 
-/**
- * THE invariant, and the reason there is no selection store to test instead
- * (spec §5.1). Home, Remote, Settings and the arrow rows are one navigation, so
- * exactly one thing in the rail is active — and because every row is a `<Link>`
- * and the router does the marking, that is something the rail cannot violate
- * rather than something a reducer has to get right.
- *
- * Scoped to the rail element, not the document: the assertion is about the
- * WHOLE rail at once, which is what a per-component test cannot say. A nav
- * segment lit on top of an arrow row passes both `primary-nav.test.tsx` and
- * `arrow-list.test.tsx` and fails only here.
- */
 describe('the rail has exactly one active row', () => {
 	beforeEach(() => {
 		useArrowStore.setState({
@@ -202,12 +154,6 @@ describe('the rail has exactly one active row', () => {
 		expect(activeNames(rail)).toEqual(['Minecraft']);
 	});
 
-	/**
-	 * Nothing in the rail owns `/search`; the field's own inversion is what is
-	 * lit while searching (spec §5.1). Zero is the correct answer here and the
-	 * one a broken `@` in `openArrow` also produces, which is why that helper
-	 * navigates through the router.
-	 */
 	it('lights nothing anywhere at /search', async () => {
 		const { rail } = await renderRail('/search');
 		expect(activeNames(rail)).toEqual([]);
@@ -216,19 +162,10 @@ describe('the rail has exactly one active row', () => {
 
 describe('Sidebar', () => {
 	it('spans both grid rows so no blank band sits above the rail', async () => {
-		// `grid-row: 1 / 3` in every combination (spec §1.1). Without the span
-		// the rail starts below the chrome row and its own first row — the one
-		// holding the reserve and the history buttons — has nowhere to be.
 		const { rail } = await renderRail('/');
 		expect(rail.className).toContain('row-span-2');
 	});
 
-	/**
-	 * `ResizeHandle` is `absolute inset-y-0`. With no positioned ancestor it
-	 * resolves against whatever further up happens to be positioned, so the
-	 * four-pixel strip lands somewhere across the window and the rail cannot be
-	 * dragged at all — while looking entirely correct.
-	 */
 	it('is the positioned ancestor the resize handle anchors to', async () => {
 		const { rail } = await renderRail('/');
 		const handle = screen.getByRole('separator', { name: 'Resize sidebar' });
@@ -242,20 +179,11 @@ describe('Sidebar', () => {
 		['left', 'border-r', 'border-l'],
 		['right', 'border-l', 'border-r'],
 	] as const)('puts the divider on the content-facing edge with the rail on the %s', async (side, faces, away) => {
-		// The divider rides the RAIL (spec §1.3): the content column occupies
-		// row 2 only, so the same border over there stops short of the top and
-		// leaves the chrome row undivided.
 		const { rail } = await renderRail('/', side);
 		expect(rail.className).toContain(faces);
 		expect(rail.className).not.toContain(away);
 	});
 
-	/**
-	 * The rail's own top bar and nav are fixed heads of the column. Scroll the
-	 * rail instead and the back button — the one control that undoes a wrong
-	 * click — leaves the screen as soon as the library is longer than the
-	 * window.
-	 */
 	it('scrolls the arrow list and nothing above it', async () => {
 		useArrowStore.setState({ arrows: new Map([[MINECRAFT, entry(MINECRAFT, 'Minecraft')]]) });
 		const { rail } = await renderRail('/');
@@ -267,15 +195,6 @@ describe('Sidebar', () => {
 	});
 });
 
-/**
- * Spec §5.8: the window's edge belongs to the OS, the interior belongs to the
- * app. The two never share an edge, or macOS paints its three lights over back
- * and forward and both are unreachable for the window's life.
- *
- * Asserted as DOM order within the top bar, which is the only thing jsdom can
- * see — it has no layout engine, so "on the right" is not a question it can
- * answer.
- */
 describe('RailTopBar', () => {
 	it('faces the history buttons at the content with the rail on the left', async () => {
 		await renderRail('/', 'left');
@@ -291,16 +210,11 @@ describe('RailTopBar', () => {
 		runningOn(USER_AGENTS.macos);
 		await renderRail('/', 'left');
 
-		// Reserve first, history last: the lights are on the window's left edge
-		// and the content column is to the rail's right.
 		expect(topBar().firstElementChild).toHaveAttribute('data-slot', 'window-controls');
 		expect(topBar().lastElementChild).toContainElement(screen.getByRole('button', { name: 'Go back' }));
 	});
 
 	it('leaves the reserve to the chrome row on macOS with the rail on the right', async () => {
-		// The one combination where the lights are not on the rail's edge at all
-		// (spec §4.5). Held here as well, the window opens 64px twice — once in
-		// each column — for one set of buttons.
 		runningOn(USER_AGENTS.macos);
 		await renderRail('/', 'right');
 		expect(topBar().querySelector('[data-slot="window-controls"]')).toBeNull();
@@ -314,31 +228,14 @@ describe('RailTopBar', () => {
 		await renderRail('/', 'left');
 
 		expect(topBar().querySelector('[data-slot="window-controls"]')).toBeNull();
-		// Still on the interior edge with nothing beside it — `justify-between`
-		// would have collapsed it onto the window's edge here.
 		expect(topBar().lastElementChild).toContainElement(screen.getByRole('button', { name: 'Go back' }));
 	});
 
 	it('is one row tall, from the token rather than from pixels', async () => {
-		// `h-[34px]` looks right today and stops tracking `--row` the moment the
-		// scale moves, with no layout assertion possible in jsdom to notice.
 		await renderRail('/');
 		expect(topBar().className).toContain('h-(--row)');
 	});
 
-	/**
-	 * The rail's top row is the other half of the window's drag surface. macOS
-	 * hides its title bar under `titleBarStyle: "Overlay"` and takes every
-	 * draggable surface with it, so a row that is not a drag region leaves the
-	 * top of the window dead — nothing looks wrong, the window just cannot be
-	 * moved from there.
-	 *
-	 * The spacer needs the attribute in its own right: it is most of the row's
-	 * width, and a click lands on whichever element is actually under it. The
-	 * chevrons are excluded by being their own targets, not by anything here —
-	 * putting it on them would trade two working buttons for two more inches of
-	 * drag surface.
-	 */
 	it('makes the whole row a window handle, leaving the history buttons clickable', async () => {
 		await renderRail('/', 'left');
 		const bar = topBar();
@@ -351,24 +248,6 @@ describe('RailTopBar', () => {
 	});
 });
 
-/**
- * Spec §5.9. Clicking the row you are already on must not push, or the entry
- * behind you is the page you are looking at: Back re-renders the same screen,
- * nothing moves, and there is nothing on screen saying how many identical
- * entries are stacked up.
- *
- * THE TRAP IN TESTING THIS: TanStack already declines to push when the href it
- * builds is byte-identical to the current one, so `/` → `/` proves nothing and
- * passes with the guard deleted. The reachable case is a row that is ACTIVE at
- * a location its own href does not equal — which is the normal state of the
- * rail, because a rail link carries no search and no sub-path, and the router
- * marks a link active on a path prefix with a subset of its search.
- *
- * `/settings?tab=developer` is that case in this app today: the Settings panel
- * writes the tab into the URL, the rail's segment stays lit, and the panel
- * remembers its tab in a store — so a push lands you on a page that looks
- * identical, and Back returns you to one that looks identical too.
- */
 describe('re-selecting the active row', () => {
 	beforeEach(() => {
 		useArrowStore.setState({
@@ -388,8 +267,6 @@ describe('re-selecting the active row', () => {
 		await user.click(screen.getByRole('tab', { name: 'Settings' }));
 
 		expect(router.history.length).toBe(before);
-		// Not merely "no entry" — the click is a no-op, so the tab the panel is
-		// showing is still in the URL that opened it.
 		expect(router.state.location.searchStr).toBe('?tab=developer');
 	});
 
@@ -403,12 +280,6 @@ describe('re-selecting the active row', () => {
 		expect(router.history.canGoBack()).toBe(true);
 	});
 
-	/**
-	 * The same shape one level down: `/arrow/$` is a splat, so the row for an
-	 * arrow is marked active anywhere beneath its own path — and its href is
-	 * then not where you are. Without the guard this is a push per click onto a
-	 * row that was already lit.
-	 */
 	it('pushes nothing when the active arrow row is clicked again', async () => {
 		const user = userEvent.setup();
 		const { rail, router } = await renderRail('/');

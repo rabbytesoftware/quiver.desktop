@@ -18,16 +18,6 @@ export interface SettingsParams {
 	tab?: SettingsTab;
 }
 
-/**
- * Declared even though the component tolerates a junk `?tab=` on its own: this
- * is what types the route's search schema, and without it `<Link to="/settings"
- * search={{ tab: 'developer' }}>` in `MockIndicator` fails to compile — TanStack
- * infers `{}` for a route that validates nothing.
- *
- * A bookmarked `?tab=developer` from a dev build opened against a release one is
- * the case the `TABS` check exists for; it is dropped here rather than echoed
- * back into every link the page builds.
- */
 function validateSearch(search: Record<string, unknown>): SettingsParams {
 	const tab = search.tab;
 	return typeof tab === 'string' && TABS.includes(tab) ? { tab: tab as SettingsTab } : {};
@@ -49,15 +39,11 @@ function SettingsPage() {
 	const devUnlocked = useMockStore((s) => s.devUnlocked);
 
 	const tabs = visibleTabs(devUnlocked);
-	// A dev → release build change can leave the remembered tab, or a bookmarked
-	// URL, naming a tab that is gone.
 	const requested = tab ?? remembered;
 	const activeTab = tabs.some((item) => item.id === requested) ? requested : tabs[0].id;
 
 	function selectTab(next: SettingsTab) {
 		setTab(next);
-		// `replace`, or a browse through four tabs costs four presses of Back to
-		// leave the page — the same trap §1.7 guards the search field against.
 		navigate({ search: { tab: next }, replace: true });
 	}
 
@@ -86,15 +72,7 @@ function SettingsPage() {
 							key={item.id}
 							value={item.id}
 							className={cn(
-								// flex-none and a fixed height override the stock
-								// `flex-1 h-[calc(100%-1px)]`, which in a full-height
-								// vertical list stretches every tab to fill the rail.
 								'h-[30px] w-full flex-none justify-start px-2 text-left text-sm',
-								// The selection idiom: a solid block with knocked-out
-								// contents. `data-active` is what Base UI sets, and the
-								// `dark:` copy is required — the stock trigger ships
-								// `dark:data-active:bg-input/30`, and twMerge cannot
-								// dedupe across a variant prefix the override lacks.
 								'data-[active]:bg-primary data-[active]:text-primary-foreground data-[active]:shadow-none',
 								'dark:data-[active]:bg-primary dark:data-[active]:text-primary-foreground'
 							)}

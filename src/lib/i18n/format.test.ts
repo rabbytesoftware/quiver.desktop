@@ -17,12 +17,6 @@ beforeEach(() => {
 	clearFormatterCache();
 });
 
-// Asserted against the SHAPE the locale imposes rather than against a literal
-// rendering wherever a literal would be an ICU-version hostage. `1,234.5` and
-// `1.234,5` have been those two things since CLDR existed; the exact spelling
-// of a medium date has not, and pinning it is how a suite starts failing on a
-// Node upgrade that changed nothing anyone cares about.
-
 describe('numbers', () => {
 	it('uses the separators the reader expects', () => {
 		expect(formatNumber(1234.5, 'en')).toBe('1,234.5');
@@ -35,15 +29,11 @@ describe('numbers', () => {
 });
 
 describe('percentages', () => {
-	// The trap the signature is named for. A caller holding the chaos slider's
-	// 0–100 has to divide, and this is what happens when they forget.
 	it('takes a fraction, and multiplies a percentage into nonsense', () => {
 		expect(formatPercent(0.4, 'en')).toBe('40%');
 		expect(formatPercent(40, 'en')).toBe('4,000%');
 	});
 
-	// Worth going through Intl at all for what looks like `${n}%`: not every
-	// locale writes the symbol tight against the digits.
 	it('places the symbol the way the locale does', () => {
 		expect(formatPercent(0.4, 'fr-FR')).not.toBe(formatPercent(0.4, 'en'));
 	});
@@ -56,16 +46,10 @@ describe('dates', () => {
 		const us = formatDate(noon, 'en-US', { timeZone: 'UTC' });
 		const gb = formatDate(noon, 'en-GB', { timeZone: 'UTC' });
 
-		// Same language, same words, opposite order — which is the whole reason
-		// a date cannot be assembled by hand.
 		expect(us.indexOf('Mar')).toBeLessThan(us.indexOf('5'));
 		expect(gb.indexOf('5')).toBeLessThan(gb.indexOf('Mar'));
 	});
 
-	// The trap named in `formatDate`'s comment, demonstrated rather than
-	// described: the same instant is two different days depending on where you
-	// are standing, so a test that omits `timeZone` passes in CI and fails in
-	// Denver.
 	it('renders one instant as two different dates in two zones', () => {
 		const nearMidnight = new Date('2026-03-05T02:00:00Z');
 		expect(formatDate(nearMidnight, 'en-US', { timeZone: 'UTC' })).toContain('5');
@@ -102,8 +86,6 @@ describe('relative time', () => {
 		expect(ago(-3 * 60 * 60 * 1000)).toBe('in 3 hours');
 	});
 
-	// `numeric: 'auto'` is the default here, so the language gets to use its own
-	// word where it has one. "1 day ago" is understood; "yesterday" is written.
 	it('prefers the word over the number where the language has one', () => {
 		expect(ago(24 * 60 * 60 * 1000)).toBe('yesterday');
 		expect(ago(-24 * 60 * 60 * 1000)).toBe('tomorrow');
@@ -120,9 +102,6 @@ describe('relative time', () => {
 });
 
 describe('the formatter cache', () => {
-	// Construction is the expensive half of Intl and formatting is the cheap
-	// one, so a panel that formats one value per row must not build one
-	// formatter per row per render.
 	it('hands back the same instance for the same locale and options', () => {
 		expect(numberFormatter('en')).toBe(numberFormatter('en'));
 		expect(dateFormatter('en', { dateStyle: 'medium' })).toBe(dateFormatter('en', { dateStyle: 'medium' }));

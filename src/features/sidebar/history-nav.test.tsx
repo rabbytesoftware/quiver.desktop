@@ -12,12 +12,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { HistoryNav } from './components/history-nav';
 
-/**
- * A two-route tree with the nav in the ROOT component, which is where the rail
- * puts it. Rendering it under a leaf route would hide the interesting failure:
- * a leaf re-renders on every navigation, so a stale `canGoBack` read would look
- * reactive and the disabled state would appear to work.
- */
 async function renderNav() {
 	const rootRoute = createRootRoute({
 		component: () => (
@@ -83,8 +77,6 @@ describe('HistoryNav', () => {
 		expect(goBack).toHaveBeenCalled();
 	});
 
-	// No `canGoForward()` exists to ask, and shadow-tracking an index to answer
-	// it would be a second copy of the router's state, free to drift.
 	it('never disables forward', async () => {
 		const { forward, router } = await renderNav();
 		expect(forward).toBeEnabled();
@@ -109,18 +101,6 @@ describe('HistoryNav', () => {
 		expect(goForward).toHaveBeenCalled();
 	});
 
-	/**
-	 * These are crowbar's history buttons, so they take their size from the
-	 * shared Button (`icon-sm`) and their glyph from Lucide's 16px `size` prop
-	 * rather than from geometry stated here. What this guards is the pair that
-	 * IS local: the corner, a step tighter than the rail's rows, and the hover
-	 * fill.
-	 *
-	 * `hover:bg-sidebar-element-hover` and not the button's default `bg-muted`:
-	 * these sit on the rail's surface rather than on a page, and `--muted` is a
-	 * solid grey picked against the content column. Nothing about that reads as
-	 * wrong in jsdom, or in a screenshot of the light theme.
-	 */
 	it('takes its hover from the rail’s element token, not the button default', async () => {
 		const { back, forward } = await renderNav();
 		for (const button of [back, forward]) {

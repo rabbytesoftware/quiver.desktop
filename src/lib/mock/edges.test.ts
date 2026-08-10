@@ -1,6 +1,3 @@
-// The fallbacks and defaults — the paths that only run when something has
-// already gone slightly wrong, and therefore the paths nothing else exercises.
-
 import { describe, expect, it, vi } from 'vitest';
 
 import { useSettingsUI } from '@/features/settings/store';
@@ -19,8 +16,6 @@ describe('getScenario', () => {
 		expect(getScenario('extreme').label).toBe('Extreme');
 	});
 
-	// A stale `quiver.mock` naming a scenario that no longer exists must not be
-	// able to brick a release build for someone who cannot reach the setting.
 	it('falls back to the first scenario rather than throwing on an unknown name', () => {
 		expect(getScenario('rabbyte-only-2024')).toBe(SCENARIOS[0]);
 	});
@@ -75,8 +70,6 @@ describe('the clock', () => {
 		vi.useRealTimers();
 	});
 
-	// A fired timeout can never be cleared meaningfully again; it has to leave
-	// the set before its callback runs, because that callback may arm another.
 	it('forgets a timeout before running it, so re-arming from inside is safe', () => {
 		vi.useFakeTimers();
 		const clock = createClock();
@@ -137,8 +130,6 @@ describe('shouldFault', () => {
 		useMockStore.getState().resetFaults();
 	});
 
-	// The improvement over the reference implementation, which calls
-	// Math.random() inline and so cannot be tested at all.
 	it('honours an injected rng rather than reaching for Math.random', () => {
 		useMockStore.getState().setFault('search', 50);
 		expect(shouldFault('search', () => 0.49)).toBe(true);

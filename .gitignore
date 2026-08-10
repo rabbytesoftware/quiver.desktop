@@ -37,4 +37,14 @@ icons-compiler/build/
 docs/superpowers/
 .superpowers/
 
+# Specs. Working documents that churn far faster than the code they describe
+# and go stale the moment they don't — kept out so a stale spec in the tree is
+# never mistaken for the source of truth. Shared out of band.
+docs/spec/
+
 coverage/
+
+# Pencil design sources. Encrypted single-blob files that re-serialize whole on
+# every edit — 3MB and ~75k lines of diff per touch, unreviewable in a PR.
+# Kept on disk, shared out of band.
+*.pen

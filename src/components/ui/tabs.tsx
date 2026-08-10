@@ -45,12 +45,7 @@ export function TabsList({
 					'absolute bottom-0 left-0 h-(--active-tab-height) w-(--active-tab-width) translate-x-(--active-tab-left) -translate-y-(--active-tab-bottom) transition-[width,translate] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]',
 					variant === 'underline'
 						? 'z-10 bg-primary data-[orientation=horizontal]:h-0.5 data-[orientation=vertical]:w-0.5 data-[orientation=vertical]:-translate-x-px data-[orientation=horizontal]:translate-y-px'
-						: // INVERTED, where the registry raises. CossUI fills the
-							// indicator from --background, lifting it toward the surface
-							// behind the track. Quiver's selected surfaces flip instead —
-							// the same departure ROW_ACTIVE makes for an arrow row, and
-							// for the same reason: one selection language across the rail.
-							'-z-1 rounded-md bg-foreground shadow-sm/5 inset-shadow-[0_1px_var(--selected-edge)]'
+						: '-z-1 rounded-md bg-foreground shadow-sm/5 inset-shadow-[0_1px_var(--selected-edge)]'
 				)}
 				data-slot="tab-indicator"
 			/>

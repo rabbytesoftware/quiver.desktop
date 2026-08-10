@@ -33,7 +33,6 @@ export function DeveloperSettings() {
 
 	const forcedByEnv = mockForcedByEnv();
 
-	// Local until Apply, so browsing options does not reload the app.
 	const [pending, setPending] = useState<ScenarioName>(scenario);
 	const scenarioChanged = pending !== scenario;
 	const anyFault = FAULT_KEYS.some((k) => faults[k] > 0);
@@ -49,29 +48,16 @@ export function DeveloperSettings() {
 				>
 					<Switch
 						checked={enabled || forcedByEnv}
-						// Left live it would write `enabled: false`, reload, and come
-						// straight back on because the environment still says so.
 						disabled={forcedByEnv}
 						onCheckedChange={(next) => applyAndReload({ enabled: next })}
 						aria-label={t('settings.developer.mock.toggle')}
 					/>
 				</SettingRow>
 
-				{/* The scenario labels and summaries stay in `SCENARIOS` and stay in
-				    English, unlike everything else on this tab. They are fixture
-				    metadata, not copy: `descriptor.label` is also what names the mock
-				    connection (`Mock · Extreme`) in the host list, next to real hosts
-				    whose names come off the wire untranslated, and the slugs beneath
-				    them are what `VITE_QUIVER_SCENARIO=extreme` takes. Translating the
-				    display side alone would either desync the two or drag the locale
-				    store into the mock's data layer, where a language change after
-				    boot could not reach the name that was captured at install time. */}
 				<SettingRow
 					label={t('settings.developer.mock.scenario')}
 					description={SCENARIOS.find((s) => s.name === pending)?.summary}
 				>
-					{/* `items` is what lets SelectValue render the label rather than
-					    the raw slug. */}
 					<Select
 						items={SCENARIOS.map((s) => ({ value: s.name, label: s.label }))}
 						value={pending}
@@ -98,8 +84,6 @@ export function DeveloperSettings() {
 				</SettingRow>
 			</Section>
 
-			{/* Shown rather than hidden when the mock is off, so the tab does not
-			    change shape depending on a switch three rows up. */}
 			<Section
 				title={t('settings.developer.chaos.title')}
 				description={enabled ? t('settings.developer.chaos.description') : t('settings.developer.chaos.inert')}
@@ -162,9 +146,6 @@ export function DeveloperSettings() {
 				description={t('settings.developer.faults.description')}
 			>
 				{FAULT_KEYS.map((key) => (
-					// The key suffix IS the fault slug, so a fault family added to
-					// FAULT_KEYS without a matching message fails `tsc` right here
-					// rather than rendering its own slug at runtime.
 					<SettingRow key={key} label={t(`settings.developer.faults.${key}`)}>
 						<Slider
 							value={faults[key]}
@@ -175,9 +156,6 @@ export function DeveloperSettings() {
 								family: t(`settings.developer.faults.${key}`),
 							})}
 						/>
-						{/* `/100` because `formatPercent` takes a fraction and the
-						    slider holds 0–100. Through `Intl` rather than `${n}%` so
-						    the symbol lands where the language puts it. */}
 						<span className="w-[34px] text-right text-xs tabular-nums text-muted-foreground">
 							{formatPercent(faults[key] / 100)}
 						</span>

@@ -13,11 +13,6 @@ import { useMockStore } from '@/lib/mock/store';
 import { Section, SettingRow } from '../section';
 import { VersionUnlock } from '../version-unlock';
 
-/**
- * Calls `invoke` directly rather than through the `Backend` seam: these are
- * shell operations against the keyring and the Tauri store, meaningless against
- * a fabricated daemon. Under the mock they are disabled, and the panel says why.
- */
 export function ConnectionsSettings() {
 	const { t } = useTranslation();
 	const connections = useConnectionStore((s) => s.connections);
@@ -53,10 +48,6 @@ export function ConnectionsSettings() {
 				{connections.map((connection) => (
 					<SettingRow
 						key={connection.id}
-						// NOT translated, and it must not be: a host's name is
-						// whatever the user or the daemon called it. Running it
-						// through the catalogue would be a category error — there is
-						// no key for "Basement box".
 						label={connection.name}
 						description={
 							mockEnabled
@@ -78,7 +69,6 @@ export function ConnectionsSettings() {
 								{t('settings.connections.host.switch')}
 							</Button>
 						)}
-						{/* `manager.rs` refuses to remove the local connection. */}
 						{connection.id !== LOCAL_CONNECTION_ID && (
 							<Button
 								size="sm"
@@ -110,9 +100,6 @@ export function ConnectionsSettings() {
 						value={url}
 						onChange={(e) => setUrl(e.target.value)}
 						type="url"
-						// Left out of the catalogue on purpose: it is an example URL,
-						// not prose. A translator has nothing to do to it, and the
-						// only edit they could make would be a wrong one.
 						placeholder="https://quiver.example.com"
 						aria-label={t('settings.connections.add.urlLabel')}
 						className="w-[200px]"
@@ -143,10 +130,6 @@ export function ConnectionsSettings() {
 						{t('settings.connections.add.submit')}
 					</Button>
 				</SettingRow>
-				{/* Straight from the shell command, so straight from the OS: a
-				    keyring error is worded by the platform and there is no key for
-				    it here. Showing it verbatim is more useful than a generic
-				    translated sentence that loses which keyring refused. */}
 				{error && <p className="px-1 pt-1 text-xs text-muted-foreground">{error}</p>}
 			</Section>
 

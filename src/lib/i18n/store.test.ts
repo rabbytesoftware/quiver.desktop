@@ -27,8 +27,6 @@ describe('the saved preference', () => {
 			state?: { preference?: string; detected?: string };
 		};
 		expect(persisted.state?.preference).toBe('en');
-		// `detected` is a fact about the machine, not a setting. Persisted, it
-		// would pin a stale answer across an OS language change.
 		expect(persisted.state?.detected).toBeUndefined();
 	});
 
@@ -39,9 +37,6 @@ describe('the saved preference', () => {
 		expect(useLocaleStore.getState().preference).toBe('en');
 	});
 
-	// A build that drops a locale leaves the old tag on disk. Resolving to a
-	// catalogue that is not there would brick a release build for the one user
-	// who had it set — the same failure `getScenario` exists to prevent.
 	it('degrades a stored locale that no longer ships back to "system"', async () => {
 		localStorage.setItem(LOCALE_STORAGE_KEY, JSON.stringify({ state: { preference: 'de' }, version: 0 }));
 		await useLocaleStore.persist.rehydrate();
@@ -56,8 +51,6 @@ describe('normalisePreference', () => {
 		expect(normalisePreference('en')).toBe('en');
 	});
 
-	// Falls back to "system" rather than to English: someone whose German went
-	// away is better served by their system language than by the source locale.
 	it.each([['de'], [null], [undefined], [42], [{ preference: 'en' }]])('rejects %o', (value) => {
 		expect(normalisePreference(value)).toBe('system');
 	});
@@ -72,9 +65,6 @@ describe('the locale in force', () => {
 		expect(localeOf({ preference: 'en', detected: 'en' })).toBe('en');
 	});
 
-	// Mirrors `mockForcedByEnv`: the environment wins over the saved preference,
-	// or `VITE_QUIVER_LOCALE=…` would do nothing on the one machine that already
-	// had a preference saved — the developer's.
 	it('is the forced one when the environment says so, over both', () => {
 		vi.stubEnv('VITE_QUIVER_LOCALE', 'en');
 		expect(localeOf({ preference: 'system', detected: 'en' })).toBe('en');
@@ -90,10 +80,6 @@ describe('re-detection', () => {
 		speaking(['fr-FR', 'fr']);
 		useLocaleStore.getState().redetect();
 
-		// One catalogue ships, so the observable outcome is the fallback. What is
-		// being asserted is that detection RAN again — the boot value was seeded
-		// from jsdom's `en-US`, and a store that never re-read would be
-		// indistinguishable from one that did until a second locale exists.
 		expect(useLocaleStore.getState().detected).toBe('en');
 	});
 });
@@ -112,7 +98,6 @@ describe('installLocaleSync', () => {
 		teardown();
 	});
 
-	// Without this, "follow the system" is only true at boot.
 	it('re-detects when the OS language changes under the running app', () => {
 		const teardown = installLocaleSync();
 		const redetect = vi.spyOn(useLocaleStore.getState(), 'redetect');

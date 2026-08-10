@@ -15,16 +15,6 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 
 import { PrimaryNav } from './components/primary-nav';
 
-/**
- * The five real routes, hand-built rather than imported from `routeTree.gen`:
- * `__root.tsx` mounts the whole app, so importing the generated tree would put a
- * second rail on screen and leave every `getAllByRole('tab')` below counting
- * somebody else's links.
- *
- * The nav goes in the ROOT component, which is where the rail puts it — under a
- * leaf it would re-render on every navigation and a stale active state would
- * look reactive.
- */
 async function renderNav(at: string) {
 	const rootRoute = createRootRoute({
 		component: () => (
@@ -70,12 +60,6 @@ async function renderNav(at: string) {
 	return router;
 }
 
-/**
- * Every segment the router has marked, named. An array rather than a count so a
- * failure says *which* segment lit up instead of only how many did — the
- * prefix-match trap fails as `['Home', 'Remote']`, and the count alone would not
- * say which one was the intruder.
- */
 function activeLabels(): string[] {
 	return screen
 		.getAllByRole('tab')
@@ -99,26 +83,16 @@ describe('PrimaryNav', () => {
 		expect(activeLabels()).toEqual(['Settings']);
 	});
 
-	/**
-	 * The prefix-match trap, and the reason `activeOptions={{ exact: true }}` is
-	 * on the Home segment. TanStack matches by prefix, so `/` is a prefix of
-	 * every route in the app: without it Home stays lit on top of whatever else
-	 * is lit and "exactly one thing is active" is broken on the first click.
-	 */
 	it('does not light Home at /remote', async () => {
 		await renderNav('/remote');
 		expect(screen.getByRole('tab', { name: 'Home' })).not.toHaveAttribute('data-status');
 	});
 
-	// Nothing in the rail owns /search — the field's own inversion is what is lit
-	// while searching (spec §5.1).
 	it('lights nothing at /search', async () => {
 		await renderNav('/search');
 		expect(activeLabels()).toEqual([]);
 	});
 
-	// An open arrow collapses all three segments, which needs no code: no nav
-	// link matches, so all three hit the collapsed rule (spec §1.2).
 	it('lights nothing at an arrow route', async () => {
 		await renderNav('/arrow/github.com/x/y@v1');
 		expect(activeLabels()).toEqual([]);
@@ -134,17 +108,6 @@ describe('PrimaryNav', () => {
 		expect(activeLabels()).toEqual(['Settings']);
 	});
 
-	// The label is what makes the wide slot worth 54% of the rail; a collapsed
-	// segment that rendered its text too would just clip it.
-	/**
-	 * Every segment carries its label in the DOM at every width; only the CLASSES
-	 * differ, because the ladder is a container query and jsdom has no layout to
-	 * resolve one against. So the assertion is on the opt-in, not on the text:
-	 * hidden by default, the active tab appearing at 280px and all three at 420.
-	 * Those thresholds are crowbar's, copied rather than chosen — at Quiver's
-	 * 246px rail the container is 230px, so the bar is icons only until it is
-	 * dragged wider.
-	 */
 	it('reveals labels on crowbar’s ladder — active at 280px, all at 420px', async () => {
 		await renderNav('/remote');
 
@@ -158,17 +121,10 @@ describe('PrimaryNav', () => {
 
 		const collapsed = labelOf('Home');
 		expect(collapsed?.className).toContain('hidden');
-		// The inactive segments wait for the wide threshold and skip the middle one.
 		expect(collapsed?.className).not.toContain('@[280px]:inline');
 		expect(collapsed?.className).toContain('@[420px]:inline');
 	});
 
-	/**
-	 * A tooltip on the active segment would repeat the label already on screen.
-	 * Asserting the trigger rather than hovering because Base UI mounts the popup
-	 * in a portal on a delay, and the question here is which segments have one at
-	 * all — not what the popup looks like when it opens.
-	 */
 	it('gives the collapsed segments a tooltip and the active one none', async () => {
 		await renderNav('/remote');
 
@@ -179,22 +135,11 @@ describe('PrimaryNav', () => {
 		).not.toBeNull();
 	});
 
-	/**
-	 * The tooltip goes INSIDE the tab. Wrapping the tab in the trigger instead
-	 * makes Base UI's render composition overwrite `data-slot="tabs-tab"` with
-	 * the tooltip's own — the tab still works, but anything selecting on the slot
-	 * silently stops finding two of the three.
-	 */
 	it('keeps every segment addressable as a tab, tooltip or not', async () => {
 		await renderNav('/remote');
 		expect(document.querySelectorAll('[data-slot="tabs-tab"]')).toHaveLength(3);
 	});
 
-	/**
-	 * Names the collapsed, icon-only segments. Without it a screen reader reads
-	 * the role three times over, and the tooltip is no help: it hangs off a span
-	 * inside the anchor, so its `aria-describedby` never reaches it.
-	 */
 	it('names every segment whether or not it is showing its label', async () => {
 		await renderNav('/search');
 		for (const name of ['Home', 'Remote', 'Settings']) {
@@ -202,12 +147,6 @@ describe('PrimaryNav', () => {
 		}
 	});
 
-	/**
-	 * Equal thirds, and the active one does NOT grow. The previous design gave it
-	 * 54% of the rail; a segmented control marks itself by raising one of three
-	 * fixed positions, and a segment that resized its neighbours as the indicator
-	 * slid would read as three controls rather than one.
-	 */
 	it('shares the track equally, with no segment growing when active', async () => {
 		await renderNav('/');
 		for (const name of ['Home', 'Remote', 'Settings']) {
@@ -217,13 +156,6 @@ describe('PrimaryNav', () => {
 		}
 	});
 
-	/**
-	 * The theming caveat, and the one place this departs from crowbar. CossUI
-	 * fills the indicator from `--background`, raising it toward the surface
-	 * behind the track. Quiver's selected surfaces invert — the same call
-	 * ROW_ACTIVE makes for an arrow row. Asserted here because nothing else in
-	 * the suite would notice the registry's own value coming back on a re-pull.
-	 */
 	it('inverts the indicator rather than raising it', async () => {
 		await renderNav('/');
 
@@ -232,12 +164,6 @@ describe('PrimaryNav', () => {
 		expect(indicator?.className).not.toContain('bg-background');
 	});
 
-	/**
-	 * The capability crowbar's own tab bar does not have. Its tabs are a store
-	 * value that is always one of the four; these three compete with every arrow
-	 * in the list below, so "none of them" is a real answer. Base UI then has no
-	 * tab to measure and drops the indicator, leaving a bare track.
-	 */
 	it('drops the indicator entirely when no destination is active', async () => {
 		await renderNav('/search');
 
@@ -247,16 +173,6 @@ describe('PrimaryNav', () => {
 		}
 	});
 
-	/**
-	 * Weight follows state, which is crowbar's rule: `fill` on the active glyph,
-	 * `regular` on the rest. Invisible to every other assertion here — drop the
-	 * prop and the nav still renders, still lights up, still sizes itself — so
-	 * only the path data can catch it, and comparing against a reference render
-	 * says so without a geometry literal in the test.
-	 *
-	 * Both branches of the segment are covered: Home is active at `/` and renders
-	 * its icon bare, the other two render theirs inside a tooltip trigger.
-	 */
 	it('fills the active glyph and leaves the others regular', async () => {
 		await renderNav('/');
 

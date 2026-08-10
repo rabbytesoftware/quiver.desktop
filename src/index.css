@@ -1,58 +1,23 @@
 @import 'tailwindcss';
 
-/* Self-hosted, never a CDN: the app runs offline under Tauri, and a webfont URL
- * would fail silently into the system stack. Inter was named in the design but
- * never actually declared, so until now the app rendered in whatever
- * `ui-sans-serif` resolved to on the host. */
 @import '@fontsource-variable/inter';
 @import '@fontsource-variable/jetbrains-mono';
 
 @custom-variant dark (&:is(.dark *));
 
-/*
- * shadcn's token NAMES with this design's values: every hue flattened to a
- * grey. Components pulled from the @coss registry are written against these
- * names, so they land already monochrome and need no editing.
- *
- * --radius carries CossUI's own 0.625rem. It was pinned to 0 through the whole
- * scale until the rail moved onto CossUI; see
- * docs/superpowers/plans/2026-08-08-cossui-sidebar-migration.md.
- *
- * One exception to the flattening: dark's --muted-foreground keeps design.pen's
- * own #B8B9B6 verbatim, chroma and all — a whisper of green nobody will ever
- * see. Zeroing it would be us editing the design instead of implementing it,
- * and the drift only surfaces when someone next diffs the file against
- * design.pen and has to guess which side was deliberate.
- *
- * `destructive` is a grey like everything else, which means a Remove button
- * does not read as dangerous on its own. Weight and confirmation have to carry
- * that instead.
- */
 :root {
-	/* PX, not CossUI's 0.625rem. `html` is 13px here (see @layer base), so every
-	 * rem-based Tailwind utility resolves at 13/16 — a 0.625rem radius would come
-	 * out at 8.125px and every component pulled from the registry would render at
-	 * 81% of the size it was drawn at. Absolute keeps the corner CossUI's. */
 	--radius: 10px;
 
-	/* Inter for everything except identifiers. JetBrains Mono is reserved for
-	 * namespaces and versions — never names, navigation, or shortcut hints. */
 	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 	--font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-	/* Consumed as h-(--row), w-(--rail), p-(--inset) — never as arbitrary
-	 * values. --inset is DERIVED: it is the number that puts the icon the same
-	 * distance from a row's leading edge as from its top and bottom. Write
-	 * p-[7px] anywhere and that stops being true the next time --row or --icon
-	 * moves, silently, with no test to catch it. */
 	--rail: 246px;
 	--row: 34px;
-	--icon: 20px; /* content — arrow marks in the list */
+	--icon: 20px;
 	--inset: calc((var(--row) - var(--icon)) / 2);
 
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.145 0 0);
-	/* Not shadcn's; the third text tier every caption line needs. */
 	--foreground-subtle: oklch(0.62 0 0);
 
 	--card: oklch(1 0 0);
@@ -85,50 +50,21 @@
 	--sidebar-foreground: oklch(0.218 0 0);
 	--sidebar-primary: oklch(0.145 0 0);
 	--sidebar-primary-foreground: oklch(1 0 0);
-	/* Equal to --background on purpose, in both modes: a hovered rail row punches
-	 * through to the content column's colour. Not a duplicate to be collapsed
-	 * into var(--background) — that would tie hover to the content column
-	 * permanently, and the day one of them moves the other follows in silence. */
 	--sidebar-accent: oklch(0.97 0 0);
 	--sidebar-accent-foreground: oklch(0.218 0 0);
 	--sidebar-border: oklch(0.919 0 0);
 	--sidebar-ring: oklch(0.5 0 0);
 
-	/* The counts on a rail row's second line. NOT --destructive/--success: those
-	 * lose contrast against the inverted active surface this line only ever
-	 * appears on, so the pale pair is taken down to 60% here and used neat in
-	 * dark. Values from crowbar's styles/theme.css. */
-	/* The 1px line along the top edge of a SELECTED surface — a row, or the tab
-	 * bar's indicator.
-	 *
-	 * Taken from --background, which is the opposite of the fill (--foreground),
-	 * so the one declaration reads in both themes: a lit edge on the light
-	 * theme's near-black row, and its mirror — a defined dark edge — on the dark
-	 * theme's near-white one. Crowbar hardcodes white/16% here, which works only
-	 * because its selected surface is always the dark one; ours inverts, so the
-	 * edge has to invert with it.
-	 *
-	 * Declared once for the same reason --sidebar-element-idle is: it is a share
-	 * of a token that already flips per theme. */
 	--selected-edge: color-mix(in oklch, var(--background) 16%, transparent);
 
-	/* The track a segmented control sits in — crowbar's own token. Declared ONCE
-	 * rather than per theme: it is a share of --foreground, so it resolves
-	 * against whichever value won the cascade and is correct in both. */
 	--sidebar-element-idle: color-mix(in oklch, var(--foreground) 6%, transparent);
 
-	/* What a chrome control fills with under the pointer. Per theme rather than
-	 * derived: crowbar carries 8% in light and 10% in dark, because the same
-	 * share of black over a light surface is more visible than white over a dark
-	 * one. */
 	--sidebar-element-hover: oklch(0 0 0 / 8%);
 
 	--sidebar-count-added: color-mix(in srgb, var(--color-green-300) 60%, black);
 	--sidebar-count-deleted: color-mix(in srgb, var(--color-red-300) 60%, black);
 }
 
-/* Dark is the reviewed one; light exists so components are written against
- * tokens rather than dark values, and its values are expected to move. */
 .dark {
 	--background: oklch(0.178 0 0);
 	--foreground: oklch(1 0 0);
@@ -144,7 +80,6 @@
 	--secondary: oklch(0.26 0 0);
 	--secondary-foreground: oklch(0.97 0 0);
 	--muted: oklch(0.26 0 0);
-	/* design.pen's #B8B9B6, chroma intact — see the header comment before flattening it. */
 	--muted-foreground: oklch(0.784 0.004 121.6);
 	--accent: oklch(0.26 0 0);
 	--accent-foreground: oklch(0.97 0 0);
@@ -165,7 +100,6 @@
 	--sidebar-foreground: oklch(0.985 0 0);
 	--sidebar-primary: oklch(1 0 0);
 	--sidebar-primary-foreground: oklch(0.178 0 0);
-	/* Equal to --background here too, for the same reason as in :root. */
 	--sidebar-accent: oklch(0.178 0 0);
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(0.301 0 0);
@@ -178,19 +112,8 @@
 }
 
 @theme inline {
-	/* Same reason as --radius. Tailwind derives its whole spacing scale as
-	 * `calc(var(--spacing) * n)` from a 0.25rem default, which at this app's 13px
-	 * root is 3.25px — so `h-9` measured 29px against the 36 it is drawn at, and
-	 * `px-1.5` 4.875px against 6. Pinning the step to 4px makes every spacing
-	 * utility absolute, so a pulled component is the size its designer chose.
-	 *
-	 * The app's own geometry tokens (--row, --icon, --inset) are already in px
-	 * and are unaffected. */
 	--spacing: 4px;
 
-	/* Derived from --radius rather than four literals, so the scale keeps its
-	 * proportions if the base ever moves again. `rounded-lg` IS --radius, which
-	 * is what ROW_BASE uses. */
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
@@ -254,31 +177,12 @@
 	html,
 	body {
 		height: 100%;
-		/* The window is opaque on every platform — src-tauri/Cargo.toml declines
-		   macos-private-api, so there is no vibrancy here for transparent to protect. */
 		background: var(--background);
 		color: var(--foreground);
 		font-family: var(--font-sans);
 		-webkit-font-smoothing: antialiased;
 	}
 
-	/*
-	 * `html` carries 16px and `body` carries the app's 13px, where the two used
-	 * to share one declaration.
-	 *
-	 * `rem` resolves against the ROOT, so a 13px html scaled every rem-based
-	 * Tailwind utility to 13/16 — and Tailwind's scales are the units every
-	 * component pulled from the @coss registry was drawn in. `text-sm` came out
-	 * at 11.375px where its designer meant 14, which is the same bug --spacing
-	 * and --radius were pinned to px to avoid, still live for type.
-	 *
-	 * Splitting them fixes the cause rather than the symptoms: rem resolves at
-	 * the 16px Tailwind assumes, and the app's own base text stays 13px because
-	 * it inherits from `body`.
-	 *
-	 * --row and the heights derived from it are px and unaffected, as are this
-	 * file's own `text-[13px]`-style literals. See the migration plan.
-	 */
 	html {
 		font-size: 16px;
 	}
