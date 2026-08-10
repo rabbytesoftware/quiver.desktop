@@ -57,9 +57,12 @@ async function renderField(initialEntries = ['/']) {
 }
 
 describe('SearchBar', () => {
-	it('placeholds with exactly "Search"', async () => {
+	it('names what is searched, not the act of searching', async () => {
+		// The field sits above the library it filters, and the placeholder is the
+		// only text on screen there — "Search" alone left the one question a new
+		// user has, what is in here, unanswered.
 		const { input } = await renderField();
-		expect(input).toHaveAttribute('placeholder', 'Search');
+		expect(input).toHaveAttribute('placeholder', 'Search Arrows or Collections');
 	});
 
 	it('names the field for screen readers, which have no visible label to read', async () => {
@@ -67,9 +70,13 @@ describe('SearchBar', () => {
 		expect(input).toHaveAttribute('aria-label', 'Search');
 	});
 
-	it('shows the keyboard hint', async () => {
+	it('shows no keyboard hint', async () => {
+		// The ⌘K badge went with the move into the rail. It advertised a shortcut
+		// to a field that was then the only thing in the window chrome; here it
+		// sits in the rail beside three other destinations, and the badge was
+		// competing with the placeholder for the only text on the control.
 		await renderField();
-		expect(screen.getByText('⌘K')).toBeInTheDocument();
+		expect(screen.queryByText('⌘K')).toBeNull();
 	});
 
 	it('puts what is typed into ?q= on /search', async () => {

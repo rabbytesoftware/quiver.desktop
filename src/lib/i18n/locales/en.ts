@@ -47,13 +47,16 @@ export const en = {
 	'nav.back': 'Go back',
 	'nav.forward': 'Go forward',
 
-	// Exactly `Search`, not "Search your library": the field owns the chrome row
-	// at every window width, and the placeholder is the first thing the rail
-	// takes back as it widens. `search.label` is the accessible name — the field
-	// has no visible label to borrow one from.
-	'search.placeholder': 'Search',
+	// Names what is searched rather than the act of searching. The field sits in
+	// the rail now, directly above the library it filters, so "Search" alone left
+	// the one question a new user actually has — what is in here? — unanswered by
+	// the only text on screen.
+	//
+	// `search.label` stays the short form: it is the accessible NAME, and a
+	// screen reader announcing the placeholder as well would read the long
+	// version twice.
+	'search.placeholder': 'Search Arrows or Collections',
 	'search.label': 'Search',
-	'search.shortcut': '⌘K',
 
 	'sidebar.resize': 'Resize sidebar',
 	'sidebar.arrows': 'Arrows',

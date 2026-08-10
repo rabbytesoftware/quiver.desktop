@@ -131,15 +131,6 @@ export function SearchBar(): JSX.Element {
 					'placeholder:text-inherit placeholder:opacity-100'
 				)}
 			/>
-			{/* Gone once search IS the route: the hint tells you how to reach a
-			    field you are already in, and it is the one thing left competing
-			    with the query for the eye. */}
-			<kbd
-				aria-hidden="true"
-				className="flex-none font-sans text-[10px] tracking-[-0.1px] opacity-60 group-data-[active]:hidden"
-			>
-				{t('search.shortcut')}
-			</kbd>
 		</div>
 	);
 }
