@@ -14,8 +14,6 @@ const healthRoutes: Route[] = [
 	},
 ];
 
-/** Order is not load-bearing: patterns must agree on segment count before any
- *  segment is compared, so no route can shadow another at a different depth. */
 export const ALL_ROUTES: Route[] = [
 	...healthRoutes,
 	...arrowRoutes,

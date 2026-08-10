@@ -1,4 +1,4 @@
-export type ConnectionKind = 'local' | 'remote';
+type ConnectionKind = 'local' | 'remote';
 
 export interface ConnectionConfig {
 	id: string;

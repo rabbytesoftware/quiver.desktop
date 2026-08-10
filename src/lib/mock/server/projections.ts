@@ -1,16 +1,9 @@
-// World → wire, so the DTO shapes live in one file.
-
 import type { ArrowListResponseItemDTO } from '@/lib/core-store/dtos/v0/arrow';
 import type { RuntimeUpdateDTO } from '@/lib/core-store/dtos/v0/runtime';
 
 import type { MockArrow, MockCollection, MockDiscoveryJob } from '../world/types';
 import { versioned } from '../world/types';
 
-/**
- * Grouped by base namespace with refs under `versions`, because
- * `toArrowCatalogRecords` joins the two itself — a flat list keyed by versioned
- * namespace would come out as `github.com/x/y@v1@v1`.
- */
 export function toArrowListDTO(arrows: MockArrow[]): ArrowListResponseItemDTO[] {
 	const byBase = new Map<string, MockArrow[]>();
 	for (const arrow of arrows) {
@@ -34,7 +27,6 @@ export function toArrowListDTO(arrows: MockArrow[]): ArrowListResponseItemDTO[] 
 	}));
 }
 
-/** The catalog fields ride along on an upsert and are absent on a tombstone. */
 export function toArrowFrame(arrow: MockArrow, event: 'upserted' | 'removed'): unknown {
 	if (event === 'removed') return { event, namespace: versioned(arrow) };
 	return {
@@ -59,14 +51,6 @@ export function toRuntimeFrame(arrow: MockArrow): RuntimeUpdateDTO {
 	};
 }
 
-/**
- * A superset of core's `ArrowDetailDTO`: variables, targets, netbridge and
- * requirement come back on the same read.
- *
- * `license` is populated. Core declares the field and never assigns it — a core
- * bug on the ask-list, and imitating it here would hide it rather than surface
- * it.
- */
 export function toArrowDetailDTO(arrow: MockArrow): unknown {
 	return {
 		namespace: arrow.namespace,
@@ -91,7 +75,6 @@ export function toArrowDetailDTO(arrow: MockArrow): unknown {
 	};
 }
 
-/** No state and no ports, matching core's `SearchResultDTO`. */
 export function toSearchResultDTO(arrow: MockArrow): unknown {
 	return {
 		namespace: versioned(arrow),

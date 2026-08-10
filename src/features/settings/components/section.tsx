@@ -4,10 +4,6 @@ import { cn } from '@/lib/cn';
 
 import { rowMatchesQuery, useSettingsUI } from '../store';
 
-/**
- * Lets a row tell its section whether it survived the filter, so a section with
- * nothing left can hide its own heading. `null` unregisters, on unmount.
- */
 const RowVisibility = createContext<((rowId: string, visible: boolean | null) => void) | null>(null);
 
 export function Section({
@@ -29,8 +25,6 @@ export function Section({
 		setVisibleRows([...visibility.current.values()].filter(Boolean).length);
 	}, []);
 
-	// `hidden` rather than unmounting: the rows must stay mounted to keep
-	// reporting, or the section could never come back when the query clears.
 	const hidden = searching && visibleRows === 0;
 
 	return (

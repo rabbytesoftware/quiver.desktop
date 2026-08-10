@@ -16,7 +16,6 @@ const POSTGRES = `${NS}/postgres@v17.2`;
 
 let mock: MockRuntime;
 
-/** Reads through the mock the way the app does — envelope unwrapped by apiFetch. */
 function get<T>(path: string): Promise<T> {
 	return apiFetch<T>(path);
 }
@@ -47,8 +46,6 @@ describe('routing', () => {
 		await expect(res.json()).resolves.toEqual({ status: 'ok' });
 	});
 
-	// Namespaces contain `/`, `@` and `.`, and every caller encodes them. If the
-	// router did not decode, every arrow detail page would 404.
 	it('decodes a percent-encoded namespace containing / @ and .', async () => {
 		const detail = await get<{ namespace: string; installed_ref: string }>(
 			`/v0/arrow/${encodeURIComponent(MINECRAFT)}`
@@ -57,8 +54,6 @@ describe('routing', () => {
 		expect(detail.installed_ref).toBe('v1.21.4');
 	});
 
-	// An unrouted path answered with an empty 200 would render as "you have no
-	// arrows" — a plausible screen that is a lie.
 	it('404s an unrouted path loudly rather than answering it empty', async () => {
 		const res = await mock.backend.fetch('/v0/nonsense');
 		expect(res.status).toBe(404);
@@ -74,8 +69,6 @@ describe('the catalog', () => {
 		expect(library.some((a) => a.namespace === `${NS}/mariadb`)).toBe(false);
 	});
 
-	// `toArrowCatalogRecords` joins namespace and ref itself. A flat list keyed
-	// by versioned namespace would come out as `github.com/x/y@v1@v1`.
 	it('groups refs under versions rather than flattening them', async () => {
 		const library = await get<ArrowListResponseItemDTO[]>('/v0/arrow?user_installed=true');
 		const minecraft = library.find((a) => a.namespace === `${NS}/minecraft`);
@@ -130,7 +123,6 @@ describe('the normal scenario', () => {
 		expect(unresolved[0].reason).toMatch(/yanked/);
 	});
 
-	// A package has no methods, so nothing may offer a Run button for it.
 	it('ships a package with no methods at all', async () => {
 		const detail = await get<{ targets: Array<{ methods: Record<string, unknown> }> }>(
 			`/v0/arrow/${encodeURIComponent(`${NS}/pixelmon-assets@v9.2.1`)}`
@@ -165,7 +157,7 @@ describe('install', () => {
 		const socket = mock.backend.openSocket('/v0/runtime');
 		const frames: unknown[] = [];
 		socket.onmessage = (e) => frames.push(JSON.parse(e.data));
-		await vi.advanceTimersByTimeAsync(0); // let the socket finish opening
+		await vi.advanceTimersByTimeAsync(0);
 
 		const key = POSTGRES;
 		mock.world.arrows.get(key)!.state = 'absent';
@@ -177,8 +169,6 @@ describe('install', () => {
 		expect(frames[frames.length - 1]).toMatchObject({ namespace: key, state: 'ready' });
 	});
 
-	// The Valheim fixture's whole reason for existing: the arrow page must be
-	// able to say "no build for your platform" BEFORE the button hits this.
 	it('refuses with 422 when no target matches the host platform', async () => {
 		const res = await mock.backend.fetch(`/v0/runtime/${encodeURIComponent(VALHEIM)}/install`, { method: 'POST' });
 		expect(res.status).toBe(422);
@@ -187,7 +177,6 @@ describe('install', () => {
 		});
 	});
 
-	// Core has no cancel, which is why the UI offers nothing in a transitional state.
 	it('refuses a second action while one is already in flight', async () => {
 		const key = POSTGRES;
 		mock.world.arrows.get(key)!.state = 'absent';
@@ -197,7 +186,6 @@ describe('install', () => {
 		expect(res.status).toBe(409);
 	});
 
-	// Disposal is what a scenario switch and a page teardown both do.
 	it('stops mid-flight when the world is disposed, leaving no orphan timer', async () => {
 		const key = POSTGRES;
 		const arrow = mock.world.arrows.get(key)!;
@@ -218,12 +206,10 @@ describe('methods', () => {
 	beforeEach(() => vi.useFakeTimers());
 
 	it('refuses a method that is not available in the current state', async () => {
-		// `rcon` is available_in ['running']; postgres is ready.
 		const res = await mock.backend.fetch(`/v0/runtime/${encodeURIComponent(MINECRAFT)}/_execute`, {
 			method: 'POST',
 			body: JSON.stringify({ method: 'stop' }),
 		});
-		// minecraft IS running, so stop is allowed — assert the inverse case.
 		expect(res.status).toBe(202);
 
 		const bad = await mock.backend.fetch(`/v0/runtime/${encodeURIComponent(POSTGRES)}/_execute`, {
@@ -253,7 +239,6 @@ describe('library membership', () => {
 
 		await apiFetch(`/v0/arrow/${encodeURIComponent(key)}`, { method: 'DELETE' });
 		expect(mock.world.arrows.get(key)?.user_installed).toBe(false);
-		// Still findable — leaving the library is not ceasing to exist.
 		const hits = await get<Array<{ namespace: string }>>('/v0/search?q=mariadb');
 		expect(hits.map((h) => h.namespace)).toContain(key);
 	});
@@ -262,8 +247,6 @@ describe('library membership', () => {
 describe('discovery', () => {
 	beforeEach(() => vi.useFakeTimers());
 
-	// The single most misleading thing a search screen can do is render "a host refused"
-	// as "there is nothing called that".
 	it('reports a rate-limited provider with a retry-after rather than as no results', async () => {
 		const started = await apiFetch<{ id: string; status: string }>('/v0/search/discover', {
 			method: 'POST',
@@ -286,8 +269,6 @@ describe('discovery', () => {
 });
 
 describe('determinism', () => {
-	// Scenarios must build byte-identically every run, or screenshots drift and
-	// a random source could creep in unnoticed.
 	it('builds the extreme world identically twice', () => {
 		const noEmitter = { emit: () => {} };
 		const a = buildWorld('extreme', noEmitter);
@@ -339,9 +320,6 @@ describe('chaos', () => {
 		expect(res.status).toBe(200);
 	});
 
-	// The one fault that is not a probability, and the only one that exercises apiFetch's
-	// retry ladder: a proxy-marked 502 is what a refused socket actually looks like under
-	// a URI-scheme proxy.
 	it('marks an unreachable daemon the way the Rust proxy does, and apiFetch retries it', async () => {
 		useMockStore.getState().setUnreachable(true);
 

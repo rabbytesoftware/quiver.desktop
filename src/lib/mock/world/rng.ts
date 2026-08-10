@@ -1,7 +1,3 @@
-/**
- * mulberry32. Seeded so scenarios build identically on every machine and
- * `buildWorld` can be asserted deep-equal to itself.
- */
 export function createRng(seed: number): () => number {
 	let a = seed >>> 0;
 	return () => {

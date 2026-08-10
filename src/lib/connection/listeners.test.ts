@@ -65,10 +65,6 @@ describe('setupConnectionListeners', () => {
 		);
 	});
 
-	// `connection://changed` fires on add/remove/rename only, and
-	// `switch_connection` emits nothing at all — so a session where nobody
-	// touches a host used to leave this store at its empty initial value for its
-	// whole life. Invisible until something rendered the list.
 	it('seeds the store from the current connection list, without waiting for an event', async () => {
 		const connections = [{ id: 'local', name: 'Local', kind: 'local' as const, api_version: 'v0' }];
 		invokeMock.mockResolvedValue({ connections, active_id: 'local' });
@@ -79,8 +75,6 @@ describe('setupConnectionListeners', () => {
 		expect(mockSetFromEvent).toHaveBeenCalledWith(connections, 'local');
 	});
 
-	// The subscription is what recovers from this, so a failed seed must not
-	// take the whole listener down with it.
 	it('survives a failed seed with the subscription still registered', async () => {
 		invokeMock.mockRejectedValue(new Error('ipc gone'));
 		vi.spyOn(console, 'error').mockImplementation(() => {});

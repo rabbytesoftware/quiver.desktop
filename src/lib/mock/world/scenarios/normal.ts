@@ -1,8 +1,3 @@
-// The default world. Failures are data rather than knobs, because none of the
-// interesting ones are 500s: no target for your platform is a 422, a
-// rate-limited provider is a 429 inside a successful job, an unresolved
-// collection member is a perfectly good 200.
-
 import type { MockArrow, MockCollection, MockProvider } from '../types';
 import {
 	arrow,
@@ -21,7 +16,6 @@ import { DEMO_BANNER, DEMO_ICON } from './media';
 const NS = 'github.com/rabbyte';
 
 export const NORMAL_ARROWS: MockArrow[] = [
-	// The showcase: media, variables, ports, a real method set.
 	arrow({
 		namespace: `${NS}/minecraft`,
 		name: 'Minecraft Server',
@@ -68,7 +62,6 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		},
 	}),
 
-	// No target for the host platform — install would 422.
 	arrow({
 		namespace: `${NS}/valheim`,
 		name: 'Valheim Server',
@@ -87,7 +80,6 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		targets: [target(OTHER_PLATFORM, [method('start', 'Start the server', ['ready'], START_STEPS)])],
 	}),
 
-	// Last install died at step 3 of 5.
 	arrow({
 		namespace: `${NS}/factorio`,
 		name: 'Factorio Headless',
@@ -104,7 +96,6 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		},
 	}),
 
-	// A newer ref exists upstream.
 	arrow({
 		namespace: `${NS}/terraria`,
 		name: 'Terraria Server',
@@ -116,7 +107,6 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		netbridge: [{ name: 'game', protocol: 'tcp', default: 7777, required: true }],
 	}),
 
-	// A package: no methods at all, so no Run button may be offered.
 	arrow({
 		namespace: `${NS}/pixelmon-assets`,
 		name: 'Pixelmon Asset Pack',
@@ -130,7 +120,6 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		last_return: { method: 'install', outcome: 'success', variables: {}, steps: stepsAllDone(INSTALL_STEPS) },
 	}),
 
-	// The remaining states, so all eleven are reachable at once.
 	arrow({
 		namespace: `${NS}/postgres`,
 		name: 'PostgreSQL',
@@ -221,7 +210,6 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		tags: ['media', 'service'],
 	}),
 
-	// Not in the library. Only reachable through search.
 	arrow({
 		namespace: `${NS}/mariadb`,
 		name: 'MariaDB',
@@ -299,12 +287,6 @@ export const NORMAL_COLLECTIONS: MockCollection[] = [
 	},
 ];
 
-/**
- * One host answers, one refuses. That second row is why the job returns
- * per-provider outcomes: "rate-limited, retry in 40s" and "nothing found" are
- * opposite facts, and rendering the first as the second is the most misleading
- * thing a search screen can do.
- */
 export const NORMAL_PROVIDERS: MockProvider[] = [
 	{ host: 'github.com', ok: true, returned: 4 },
 	{ host: 'gitlab.com', ok: false, returned: 0, reason: 'rate limited', retry_after: 40 },

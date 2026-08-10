@@ -2,11 +2,6 @@ import { NumberField as NumberFieldPrimitive } from '@base-ui/react/number-field
 
 import { cn } from '@/lib/cn';
 
-/**
- * Hand-written because shadcn's registry has no number field. Styled to match
- * `input.tsx` so it does not read as a different family, and kept here so
- * `shadcn add` can replace it the day one lands.
- */
 function NumberField({
 	className,
 	suffix,

@@ -1,6 +1,3 @@
-// The mock driving the REAL data layer, end to end.
-
-// jsdom ships no IndexedDB, and this suite goes through the real cache.
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,21 +6,6 @@ import { createMockBackend, type MockRuntime } from './index';
 
 let mock: MockRuntime;
 
-/**
- * Boot the app on a FRESH module graph, with the mock installed into that same
- * graph.
- *
- * `setupListeners` keeps its generation counter, its in-flight count and its
- * stream disposers in closure state created once per call, and it is written to
- * run exactly once per app lifetime. Sharing one graph across cases would let
- * the first test's streams stay live against a disposed world and answer for
- * the second's.
- *
- * Everything must come from the same fresh graph — `installBackend` included.
- * Installing into the outer module instance would leave the freshly-imported
- * listeners talking to `realBackend`, which reaches for Tauri IPC that does not
- * exist here and fails several layers from the cause.
- */
 async function boot() {
 	vi.resetModules();
 
@@ -39,20 +21,16 @@ async function boot() {
 	const { apiFetch } = await import('@/lib/transport/api');
 
 	await setupListeners();
-	// REAL timers here, deliberately.
 	await realDelay(700);
 
 	return { useArrowStore, useStatusStore, apiFetch };
 }
 
-/** A wait the fake-timer switch below cannot swallow. */
 function realDelay(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 beforeEach(() => {
-	// fake-indexeddb keeps its backing store across `it()`s in a file; a fresh
-	// factory is the standard idiom for real isolation between them.
 	globalThis.indexedDB = new IDBFactory();
 	mock = createMockBackend('normal');
 });
@@ -68,8 +46,6 @@ describe('booting the app against the mock', () => {
 		expect(useStatusStore.getState().status).toBe('ready');
 	});
 
-	// The one that matters: rows reaching IndexedDB is NOT the same as rows
-	// reaching the projection, and the app renders the projection.
 	it('fills the arrow projection, not just the cache', async () => {
 		const { useArrowStore } = await boot();
 		expect(useArrowStore.getState().arrows.size).toBeGreaterThan(0);
@@ -78,8 +54,6 @@ describe('booting the app against the mock', () => {
 	it('paints the seeded state rather than defaulting everything to absent', async () => {
 		const { useArrowStore } = await boot();
 		const arrows = useArrowStore.getState().arrows;
-		// If `toInitialRuntimeUpdates` were not applied, every entry would sit on
-		// the store's neutral default and this would be the single value {absent}.
 		expect(new Set([...arrows.values()].map((a) => a.state)).size).toBeGreaterThan(1);
 		expect(arrows.get('github.com/rabbyte/minecraft@v1.21.4')?.state).toBe('running');
 	});
@@ -103,7 +77,6 @@ describe('a live install, through the whole stack', () => {
 		const ns = 'github.com/rabbyte/postgres@v17.2';
 		mock.world.arrows.get(ns)!.state = 'absent';
 
-		// Fake timers only from HERE.
 		vi.useFakeTimers();
 
 		await apiFetch(`/v0/runtime/${encodeURIComponent(ns)}/install`, { method: 'POST' });

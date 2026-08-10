@@ -11,7 +11,7 @@ export type ArrowState =
 	| 'removed'
 	| 'outdated';
 
-export type StepStatus = 'pending' | 'running' | 'completed' | 'failed';
+type StepStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 export interface StepProgress {
 	index: number;
@@ -33,7 +33,6 @@ export interface LastReturn {
 	outcome: 'success' | 'failed' | 'cancelled';
 }
 
-/** Merged catalog + runtime view. Key: versioned namespace (base@ref). */
 export interface ArrowEntry {
 	namespace: string;
 	name: string;
@@ -53,9 +52,3 @@ export interface RuntimeUpdate {
 	active_run: ActiveRun | null;
 	last_return: LastReturn | null;
 }
-
-/** @deprecated Use ArrowEntry */
-export type ArrowListItem = ArrowEntry;
-
-/** @deprecated Use LastReturn */
-export type LastOutcome = LastReturn;

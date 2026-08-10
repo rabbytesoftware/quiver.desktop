@@ -1,6 +1,6 @@
 import type { CollectionListItem, CollectionDetail } from '@/domain/collection';
 
-export interface CollectionArrowDTO {
+interface CollectionArrowDTO {
 	namespace: string;
 	name: string;
 	version?: string;

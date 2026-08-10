@@ -4,8 +4,6 @@ import { toArrowCatalogRecords, toInitialRuntimeUpdates } from './arrow';
 
 describe('toArrowCatalogRecords', () => {
 	it('reads icon and banner from the nested media object', () => {
-		// stable-26.5.1 returns {"media":{"icon":"...","banner":"..."}}, NOT flat
-		// icon/banner. The flat DTO silently produced null for every arrow.
 		const records = toArrowCatalogRecords(
 			[
 				{
@@ -78,9 +76,6 @@ describe('toArrowCatalogRecords', () => {
 });
 
 describe('toInitialRuntimeUpdates', () => {
-	// Neither /v0/arrow nor /v0/runtime push anything on connect (verified
-	// against stable-26.5.1) — the seed GET's own versions[].state is the only
-	// source for a correct initial paint until the first live transition.
 	it('carries versions[].state through as the initial state', () => {
 		const updates = toInitialRuntimeUpdates([
 			{
@@ -110,8 +105,6 @@ describe('toInitialRuntimeUpdates', () => {
 		expect(updates.map((u) => u.namespace)).toEqual(['a@1', 'a@2']);
 	});
 
-	// The list DTO has no active_run/last_return at all (detail-only fields) —
-	// both must be null, never undefined, matching RuntimeUpdate's contract.
 	it('always nulls active_run and last_return, since the list endpoint never carries them', () => {
 		const updates = toInitialRuntimeUpdates([
 			{

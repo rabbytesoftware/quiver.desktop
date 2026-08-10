@@ -32,7 +32,6 @@ export const arrowRoutes: Route[] = [
 		handler: (req, world) => {
 			const arrow = world.arrows.get(req.params.ns);
 			if (!arrow) return fail(`arrow ${req.params.ns} not found`, 404);
-			// Core 500s on a POST to a namespace already in the library.
 			if (arrow.user_installed) return fail(`arrow ${req.params.ns} is already in the library`, 500);
 
 			arrow.user_installed = true;
@@ -49,7 +48,6 @@ export const arrowRoutes: Route[] = [
 			if (!arrow) return fail(`arrow ${req.params.ns} not found`, 404);
 
 			arrow.user_installed = false;
-			// A tombstone, not a delete: leaving the library is not ceasing to exist.
 			world.emitter.emit(ARROW_ENDPOINT, toArrowFrame(arrow, 'removed'));
 			return ok(null);
 		},
