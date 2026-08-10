@@ -14,7 +14,7 @@ import { useMockStore } from '@/lib/mock/store';
 
 const TABS: readonly string[] = ['general', 'connections', 'developer'];
 
-interface SettingsParams {
+export interface SettingsParams {
 	tab?: SettingsTab;
 }
 

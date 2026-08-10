@@ -6,6 +6,8 @@ import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
 
 import { cn } from '@/lib/cn';
 
+export const TooltipCreateHandle: typeof TooltipPrimitive.createHandle = TooltipPrimitive.createHandle;
+
 export const TooltipProvider: typeof TooltipPrimitive.Provider = TooltipPrimitive.Provider;
 
 export const Tooltip: typeof TooltipPrimitive.Root = TooltipPrimitive.Root;
@@ -14,7 +16,7 @@ export function TooltipTrigger(props: TooltipPrimitive.Trigger.Props): React.Rea
 	return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
 
-function TooltipPopup({
+export function TooltipPopup({
 	className,
 	align = 'center',
 	sideOffset = 4,
@@ -60,4 +62,4 @@ function TooltipPopup({
 	);
 }
 
-export { TooltipPopup as TooltipContent };
+export { TooltipPrimitive, TooltipPopup as TooltipContent };

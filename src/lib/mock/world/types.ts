@@ -17,7 +17,7 @@ export interface MockVariable {
 	sensitive?: boolean;
 }
 
-interface MockPort {
+export interface MockPort {
 	name: string;
 	protocol: 'tcp' | 'udp';
 	default: number;
@@ -36,13 +36,13 @@ export interface MockTarget {
 	methods: Record<string, MockMethod>;
 }
 
-interface MockRequirement {
+export interface MockRequirement {
 	cpu_cores: number;
 	memory_gb: number;
 	disk_gb: number;
 }
 
-interface MockLastReturn {
+export interface MockLastReturn {
 	method: string;
 	outcome: 'success' | 'failed' | 'cancelled';
 	variables: Record<string, string>;

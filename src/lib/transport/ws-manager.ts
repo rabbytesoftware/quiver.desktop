@@ -21,7 +21,7 @@ function closeSocketQuietly(socket: SocketLike): void {
 	socket.close();
 }
 
-const RECONNECT_SENTINEL = Object.freeze({ reconnected: true });
+export const RECONNECT_SENTINEL = Object.freeze({ reconnected: true });
 
 export function isReconnectSentinel(data: unknown): boolean {
 	return typeof data === 'object' && data !== null && (data as { reconnected?: unknown }).reconnected === true;

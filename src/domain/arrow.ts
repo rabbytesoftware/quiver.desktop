@@ -11,7 +11,7 @@ export type ArrowState =
 	| 'removed'
 	| 'outdated';
 
-type StepStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type StepStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 export interface StepProgress {
 	index: number;

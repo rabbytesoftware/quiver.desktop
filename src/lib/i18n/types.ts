@@ -16,7 +16,7 @@ type PlaceholdersOf<M> = M extends string
 		? { [K in keyof M]: M[K] extends string ? PlaceholdersIn<M[K]> : never }[keyof M]
 		: never;
 
-type ParamsFor<M> = M extends string
+export type ParamsFor<M> = M extends string
 	? [PlaceholdersOf<M>] extends [never]
 		? undefined
 		: Readonly<Record<PlaceholdersOf<M>, string | number>>

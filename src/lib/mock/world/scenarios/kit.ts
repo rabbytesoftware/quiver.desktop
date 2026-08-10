@@ -2,7 +2,7 @@ import type { StepProgress } from '@/domain/arrow';
 
 import { MOCK_HOST_PLATFORM, type MockArrow, type MockMethod, type MockTarget, type MockVariable } from '../types';
 
-const EPOCH = '2026-07-14T09:20:00Z';
+export const EPOCH = '2026-07-14T09:20:00Z';
 
 export const HOST_PLATFORM = MOCK_HOST_PLATFORM;
 export const OTHER_PLATFORM = 'linux/amd64';

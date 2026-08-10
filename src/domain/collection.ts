@@ -1,4 +1,4 @@
-interface CollectionArrow {
+export interface CollectionArrow {
 	namespace: string;
 	name: string;
 	version?: string;

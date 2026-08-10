@@ -1,7 +1,7 @@
-import type { ArrowState, RuntimeUpdate } from '@/domain/arrow';
+import type { ActiveRun, ArrowState, RuntimeUpdate, StepProgress } from '@/domain/arrow';
 import type { ArrowCatalogRecord } from '@/lib/persistence/schemas';
 
-interface InstalledVersionDTO {
+export interface InstalledVersionDTO {
 	ref: string;
 	version: string;
 	state: ArrowState;
@@ -18,6 +18,29 @@ export interface ArrowListResponseItemDTO {
 		banner?: string | null;
 	};
 	versions: InstalledVersionDTO[];
+}
+
+export interface LastReturnDTO {
+	method: string;
+	outcome: 'success' | 'failed' | 'cancelled';
+	variables: Record<string, string>;
+	steps: StepProgress[];
+}
+
+export interface ArrowDetailDTO {
+	namespace: string;
+	name: string;
+	version: string;
+	description: string;
+	license: string;
+	state: ArrowState;
+	tags: string[];
+	installed_ref: string;
+	installed_at: string;
+	installed_constraint?: string;
+	user_installed: boolean;
+	active_run?: ActiveRun | null;
+	last_return?: LastReturnDTO | null;
 }
 
 export function toArrowCatalogRecords(items: ArrowListResponseItemDTO[], connectionId: string): ArrowCatalogRecord[] {

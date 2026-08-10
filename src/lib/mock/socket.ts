@@ -6,7 +6,7 @@ const CONNECTING = 0;
 const OPEN = 1;
 const CLOSED = 3;
 
-class MockWebSocket implements SocketLike {
+export class MockWebSocket implements SocketLike {
 	readyState = CONNECTING;
 	onopen: (() => void) | null = null;
 	onmessage: ((event: { data: string }) => void) | null = null;

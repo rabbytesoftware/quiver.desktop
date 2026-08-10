@@ -2,7 +2,7 @@ import type { MockArrow, MockCollection, MockProvider, ScenarioName } from '../t
 import { buildExtremeArrows, buildExtremeCollections } from './extreme';
 import { NORMAL_ARROWS, NORMAL_COLLECTIONS, NORMAL_PROVIDERS } from './normal';
 
-interface ScenarioDataset {
+export interface ScenarioDataset {
 	arrows: MockArrow[];
 	collections: MockCollection[];
 	providers: MockProvider[];

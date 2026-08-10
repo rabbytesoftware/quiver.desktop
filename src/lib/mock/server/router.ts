@@ -3,7 +3,7 @@ import { applyChaos, type Rng } from './chaos';
 import { fail } from './envelope';
 import type { MockWorld } from '../world/types';
 
-interface MockRequest {
+export interface MockRequest {
 	method: string;
 	path: string;
 	query: URLSearchParams;
@@ -11,7 +11,7 @@ interface MockRequest {
 	body: unknown;
 }
 
-type Handler = (req: MockRequest, world: MockWorld) => Response | Promise<Response>;
+export type Handler = (req: MockRequest, world: MockWorld) => Response | Promise<Response>;
 
 export interface Route {
 	method: 'GET' | 'POST' | 'DELETE';

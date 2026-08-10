@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-interface SearchParams {
+export interface SearchParams {
 	q: string;
 }
 

@@ -1,4 +1,4 @@
-const PROXY_ERROR_HEADER = 'x-quiver-proxy';
+export const PROXY_ERROR_HEADER = 'x-quiver-proxy';
 
 const JSON_HEADERS = { 'content-type': 'application/json' };
 

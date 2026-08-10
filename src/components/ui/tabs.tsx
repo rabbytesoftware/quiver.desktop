@@ -66,8 +66,8 @@ export function TabsTab({ className, ...props }: TabsPrimitive.Tab.Props): React
 	);
 }
 
-function TabsPanel({ className, ...props }: TabsPrimitive.Panel.Props): React.ReactElement {
+export function TabsPanel({ className, ...props }: TabsPrimitive.Panel.Props): React.ReactElement {
 	return <TabsPrimitive.Panel className={cn('flex-1 outline-none', className)} data-slot="tabs-content" {...props} />;
 }
 
-export { TabsTab as TabsTrigger, TabsPanel as TabsContent };
+export { TabsPrimitive, TabsTab as TabsTrigger, TabsPanel as TabsContent };
