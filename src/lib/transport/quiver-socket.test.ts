@@ -25,11 +25,6 @@ describe('QuiverWebSocket', () => {
 		expect(invoke).toHaveBeenCalledWith('ws_open', expect.objectContaining({ connId: expect.any(String) }));
 	});
 
-	// Self-referential guard against drift: everything else in this file only
-	// compares against the imported binding, which would stay green even if the
-	// literal itself silently changed (a bad merge, a typo). This pins the
-	// actual byte value against bridge.rs's WS_CLOSE_SENTINEL independently of
-	// the import.
 	it('is the exact sentinel bridge.rs sends, independent of the import', () => {
 		expect(WS_CLOSE_SENTINEL).toBe('\u0000quiver-ws-close');
 	});
@@ -56,10 +51,6 @@ describe('QuiverWebSocket', () => {
 		expect(ws.readyState).toBe(QuiverWebSocket.CLOSED);
 	});
 
-	// Rust registers the connection only AFTER the async dial completes, so a
-	// ws_close issued while CONNECTING is a no-op on that side. Without the
-	// deferral the now-registered connection — a daemon socket and two tokio
-	// tasks — leaks for every StrictMode double-mount.
 	it('defers ws_close when closed while still connecting', async () => {
 		let resolveOpen: () => void = () => {};
 		invoke.mockImplementation((cmd: string) => {
@@ -115,11 +106,6 @@ describe('QuiverWebSocket', () => {
 		expect(closed).toHaveBeenCalledTimes(1);
 	});
 
-	// close() while still CONNECTING sets `closed` and fires onclose immediately
-	// (the synchronous WebSocket-shaped teardown). When ws_open's promise later
-	// rejects, the .catch handler must see `closed` already true and no-op —
-	// otherwise a socket the caller already tore down would fire onerror/onclose
-	// a second time.
 	it('does not double-report once closed before ws_open rejects', async () => {
 		const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 		let rejectOpen: (err: Error) => void = () => {};

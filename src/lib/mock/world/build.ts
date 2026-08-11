@@ -3,11 +3,6 @@ import { getScenario } from './scenarios';
 import type { Emitter, MockWorld, ScenarioName } from './types';
 import { versioned } from './types';
 
-/**
- * `ArrowCatalogRecord` is keyed `[connectionId, namespace]`, so a per-scenario
- * id means switching scenarios needs no cache clearing, and mock rows can never
- * appear under `local`.
- */
 export function mockConnectionId(scenario: ScenarioName): string {
 	return `mock:${scenario}`;
 }

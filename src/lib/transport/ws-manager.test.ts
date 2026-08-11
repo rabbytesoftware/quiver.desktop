@@ -22,9 +22,6 @@ class FakeSocket {
 		this.sent.push(d);
 	}
 	close() {
-		// Matches the real QuiverWebSocket.close(), which fires onclose
-		// synchronously (quiver-socket.ts) — including when it re-enters the
-		// manager's own onclose while readyState is already CLOSED.
 		this.readyState = FakeSocket.CLOSED;
 		this.onclose?.();
 	}
@@ -75,8 +72,6 @@ describe('wsManager', () => {
 		expect(cb).toHaveBeenCalledWith('not json');
 	});
 
-	// Frames missed during an outage cannot be recovered from a DTO merge, so
-	// subscribers need to be TOLD the stream broke in order to reseed.
 	it('announces a reconnect to subscribers', () => {
 		const m = createWSManager();
 		const cb = vi.fn();
@@ -100,8 +95,6 @@ describe('wsManager', () => {
 		expect(FakeSocket.instances).toHaveLength(3);
 	});
 
-	// Without this, a link that flaps once and then recovers keeps ratcheting
-	// toward the 30s cap forever instead of dropping back to the 1s base delay.
 	it('resets the backoff after a successful reconnect', () => {
 		const m = createWSManager();
 		m.subscribe('/v0/arrow', vi.fn());
@@ -121,11 +114,6 @@ describe('wsManager', () => {
 		const off = m.subscribe('/v0/arrow', vi.fn());
 		off();
 		FakeSocket.instances[0].onclose?.();
-		// The inner setTimeout re-check makes a wasted timer harmless (it's a
-		// no-op when it fires), but a genuinely torn-down channel shouldn't be
-		// scheduling one at all — onclose firing with nobody listening (whether
-		// via the synchronous close() above or this direct call) must bail
-		// before ever calling setTimeout.
 		expect(vi.getTimerCount()).toBe(0);
 		vi.advanceTimersByTime(5000);
 		expect(FakeSocket.instances).toHaveLength(1);
@@ -141,12 +129,6 @@ describe('wsManager', () => {
 		expect(FakeSocket.instances[0].sent).toEqual(['{"a":1}']);
 	});
 
-	// Distinct from "does not resurrect a socket nobody listens to": that test
-	// unsubscribes BEFORE onclose ever fires, so the reconnect timer is never
-	// even scheduled. Here the timer IS scheduled (a subscriber was still
-	// present when the socket closed) and only abandoned during the wait, so
-	// this exercises the setTimeout body's own re-check rather than onclose's
-	// upfront one.
 	it('cleans up a channel abandoned while waiting to reconnect', () => {
 		const m = createWSManager();
 		const off = m.subscribe('/v0/arrow', vi.fn());
@@ -156,9 +138,6 @@ describe('wsManager', () => {
 		expect(FakeSocket.instances).toHaveLength(1);
 	});
 
-	// A stale unsubscribe (e.g. a caller invoking a cleanup function twice)
-	// must only close its own already-dead socket, never the live channel a
-	// fresh subscribe has since stood up for the same endpoint.
 	it('closes a stale socket without tearing down a fresh resubscription', () => {
 		const m = createWSManager();
 		const off = m.subscribe('/v0/arrow', vi.fn());

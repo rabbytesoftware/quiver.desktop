@@ -12,11 +12,9 @@ import type { MockWorld, ScenarioName } from './world/types';
 export interface MockRuntime {
 	backend: Backend;
 	world: MockWorld;
-	/** Stops every fabricated timer and closes every socket. */
 	dispose: () => void;
 }
 
-/** Going straight to `ready` would skip the Connecting screen entirely. */
 const BOOT_MS = 400;
 
 export function createMockBackend(scenario: ScenarioName): MockRuntime {
@@ -36,8 +34,6 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 
 	const backend: Backend = {
 		fetch(path, init) {
-			// Never calls `apiBase()`: "no origin" is only an error for a backend
-			// that needs one.
 			return router.handle(path, init, world);
 		},
 
@@ -50,17 +46,12 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 		},
 
 		onCoreStatus(cb) {
-			// On a timer, not synchronously: `setupListeners` registers this and
-			// THEN probes with `coreIsReachable`, and a `ready` delivered before it
-			// returns would race that probe into starting streams twice.
 			world.clock.after(0, () => cb('starting' as ConnectionStatus));
 			world.clock.after(BOOT_MS, () => cb('ready' as ConnectionStatus));
 			return Promise.resolve(() => {});
 		},
 
 		onConnectionsChanged() {
-			// One connection, and no way to add, remove or rename one. The list
-			// arrives through `getConnections`.
 			return Promise.resolve(() => {});
 		},
 	};
@@ -77,11 +68,6 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 
 let installed: MockRuntime | null = null;
 
-/**
- * Returns null rather than throwing: this ships in release builds, where
- * whoever has the flag set may not know it exists and cannot reach the setting
- * that clears it if the app will not start.
- */
 export function installMock(scenario: ScenarioName): MockRuntime | null {
 	try {
 		installed?.dispose();
@@ -96,16 +82,10 @@ export function installMock(scenario: ScenarioName): MockRuntime | null {
 	}
 }
 
-/** The live mock, if one is installed. */
 export function currentMock(): MockRuntime | null {
 	return installed;
 }
 
-/**
- * Does NOT put the real backend back: open streams, a seeded cache and a
- * projection full of fabricated arrows all belong to the world being torn down.
- * Turning the mock off is a reload for that reason.
- */
 export function disposeMock(): void {
 	installed?.dispose();
 	installed = null;

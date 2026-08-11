@@ -24,7 +24,6 @@ export const searchRoutes: Route[] = [
 		fault: 'search',
 		handler: (req, world) => {
 			const q = req.query.get('q') ?? '';
-			// Empty query returns the whole shelf: the screen opens before you type.
 			const hits = [...world.arrows.values()].filter((a) => q === '' || matches(a, q));
 			return ok(hits.map(toSearchResultDTO));
 		},
@@ -38,7 +37,6 @@ export const searchRoutes: Route[] = [
 			const query = body.q ?? body.query ?? '';
 			const id = `job-${world.nextId()}`;
 
-			// Born running with no results, so the pass is observable.
 			world.jobs.set(id, { id, status: 'running', query, providers: [], results: [] });
 
 			world.clock.after(DISCOVER_MS, () => {
@@ -46,17 +44,12 @@ export const searchRoutes: Route[] = [
 				if (!job) return;
 				const providers = providersFor(world.scenario);
 				const hits = [...world.arrows.values()].filter((a) => query === '' || matches(a, query));
-				// Only hosts that answered contribute results.
 				const returnable = providers.filter((p) => p.ok).reduce((sum, p) => sum + p.returned, 0);
 				job.providers = providers;
 				job.results = hits.slice(0, returnable).map((a) => versioned(a));
 				job.status = 'done';
 			});
 
-			// 200, NOT 202, even though this starts async work — `apiFetch` reads a
-			// 202 as "success with no payload" and discards the body, and the
-			// caller needs the job id to poll for. The status code and the
-			// semantics disagree here; the client's contract wins.
 			return ok(toDiscoveryJobDTO(world.jobs.get(id)!));
 		},
 	},

@@ -1,5 +1,3 @@
-// The socket shim's contract with `wsManager`.
-
 import { describe, expect, it, vi } from 'vitest';
 
 import { SOCKET_OPEN } from '@/lib/transport/backend';
@@ -9,7 +7,6 @@ import { createSocketHub } from './socket';
 const flush = () => new Promise<void>((r) => queueMicrotask(r));
 
 describe('a mock socket', () => {
-	// The manager assigns onopen/onmessage/onclose on the line AFTER construction.
 	it('opens asynchronously, so the manager can attach handlers first', async () => {
 		const hub = createSocketHub();
 		const socket = hub.open('/v0/arrow');
@@ -23,8 +20,6 @@ describe('a mock socket', () => {
 		expect(onopen).toHaveBeenCalled();
 	});
 
-	// Per the WebSocket contract, a close before open is a clean teardown — not
-	// an open followed by a close.
 	it('yields no onopen when closed while still connecting', async () => {
 		const hub = createSocketHub();
 		const socket = hub.open('/v0/arrow');
@@ -93,8 +88,6 @@ describe('the hub', () => {
 		expect(() => hub.emit('/v0/nothing', { n: 1 })).not.toThrow();
 	});
 
-	// `wsManager`'s teardown closes the socket synchronously from inside its own
-	// handler, which mutates the very set being iterated.
 	it('survives a subscriber that closes itself while the frame is being delivered', async () => {
 		const hub = createSocketHub();
 		const first = hub.open('/v0/arrow');

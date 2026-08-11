@@ -1,7 +1,3 @@
-// 200 arrows, 12 collections, generated from a fixed seed. Two hundred literals
-// would be tens of kilobytes shipped to every user, and would drift out of
-// shape the first time a DTO changed.
-
 import type { ArrowState } from '@/domain/arrow';
 
 import { createRng, intBetween, pick } from '../rng';
@@ -43,7 +39,6 @@ const KINDS = ['server', 'daemon', 'relay', 'store', 'gateway', 'runner', 'index
 
 const TAG_POOL = ['game', 'server', 'database', 'network', 'media', 'observability', 'storage', 'security', 'service'];
 
-// Weighted: a uniform draw would put a fifth of the library in `draining`.
 const STATE_POOL: ArrowState[] = [
 	'ready',
 	'ready',
@@ -124,7 +119,6 @@ export function buildExtremeCollections(arrows: MockArrow[]): MockCollection[] {
 			const m = pick(rng, arrows);
 			return { namespace: `${m.namespace}@${m.ref}`, resolved: true };
 		});
-		// One member per collection fails to resolve.
 		members.push({
 			namespace: `github.com/quiver-demo/missing-${i}@v1.0.0`,
 			resolved: false,

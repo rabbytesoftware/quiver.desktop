@@ -1,5 +1,3 @@
-// The route surface, branch by branch — the refusals especially.
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMockBackend, type MockRuntime } from '../index';
@@ -66,8 +64,6 @@ describe('library membership', () => {
 		expect((await call('DELETE', `/v0/arrow/${enc('nope/nope@v1')}`)).status).toBe(404);
 	});
 
-	// Core 500s on this, and it is the reason no live `upserted` frame has ever
-	// been captured from a real daemon. Matched rather than smoothed over.
 	it('500s a POST for an arrow already in the library, the way core does', async () => {
 		const { status } = await call('POST', `/v0/arrow/${enc(MINECRAFT)}`);
 		expect(status).toBe(500);
@@ -102,7 +98,6 @@ describe('runtime refusals', () => {
 		expect(status).toBe(404);
 	});
 
-	// The five transitional states offer nothing because core has no cancel.
 	it('refuses any action on an arrow already mid-transition', async () => {
 		const { status, body } = await call('POST', `/v0/runtime/${enc(`${NS}/redis@v7.4.1`)}/install`);
 		expect(status).toBe(409);
@@ -132,8 +127,6 @@ describe('runtime verbs that do run', () => {
 		expect(arrow.state).toBe('ready');
 	});
 
-	// A method that is not `start` returns the arrow to where it was, rather
-	// than inventing a state the manifest never described.
 	it('a non-start method leaves the state where it found it', async () => {
 		const arrow = mock.world.arrows.get(MINECRAFT)!;
 		expect(arrow.state).toBe('running');
@@ -183,7 +176,6 @@ describe('search', () => {
 describe('the router itself', () => {
 	it('turns a throwing handler into a 500 that names the route', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
-		// Poison the world so the arrow handler throws on projection.
 		mock.world.arrows.set('boom@v1', null as never);
 
 		const { status, body } = await call('GET', '/v0/arrow');
@@ -196,7 +188,6 @@ describe('the router itself', () => {
 			method: 'POST',
 			body: 'not json at all',
 		});
-		// Parsed as a raw string, so `method` is absent — a 400, not a crash.
 		expect(res.status).toBe(400);
 	});
 
@@ -216,8 +207,6 @@ describe('chaos, at the edges', () => {
 		expect((await call('GET', '/v0/search')).status).toBe(500);
 	});
 
-	// Unreachable wins over everything: a daemon that is down is down for every
-	// request, and must not be expressible as a probability.
 	it('beats the error rate, and marks itself as the proxy', async () => {
 		useMockStore.getState().setErrorRate(100);
 		useMockStore.getState().setUnreachable(true);

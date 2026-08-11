@@ -8,23 +8,11 @@ export interface MockPreference {
 
 const OFF: MockPreference = { enabled: false, scenario: 'normal' };
 
-/**
- * Set by `make dev-mock`. FORCES rather than seeds — the Developer tab disables
- * the switch and says so, because a seeded flag would let the switch appear to
- * work, reload, and come straight back on.
- */
 export function mockForcedByEnv(): boolean {
 	const flag = import.meta.env.VITE_QUIVER_MOCK;
 	return flag === '1' || flag === 'true';
 }
 
-/**
- * Reads the raw localStorage key rather than the store: this runs before React
- * renders and before persist's rehydration is guaranteed to have settled.
- *
- * Every failure mode lands on OFF — a corrupt value must not keep someone from
- * reaching their real library.
- */
 export function readMockPreference(): MockPreference {
 	if (mockForcedByEnv()) {
 		const named = import.meta.env.VITE_QUIVER_SCENARIO;

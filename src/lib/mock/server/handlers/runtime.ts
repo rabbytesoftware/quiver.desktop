@@ -11,8 +11,6 @@ const RUNTIME_ENDPOINT = '/v0/runtime';
 
 const STEP_MS = 700;
 
-/** The five transitional states are absent: core has no cancel, so a second
- *  request could only corrupt the first. */
 const STARTABLE: ArrowState[] = ['absent', 'ready', 'running', 'outdated', 'detached', 'removed'];
 
 function pending(titles: string[]): StepProgress[] {
@@ -23,7 +21,6 @@ function push(world: MockWorld, arrow: MockArrow): void {
 	world.emitter.emit(RUNTIME_ENDPOINT, toRuntimeFrame(arrow));
 }
 
-/** Walks `titles`, one step per tick, then lands on `finalState`. */
 function runSteps(
 	world: MockWorld,
 	arrow: MockArrow,
@@ -45,8 +42,6 @@ function runSteps(
 	let index = 0;
 	const stop = world.clock.every(STEP_MS, () => {
 		const run = arrow.active_run;
-		// Cleared by a superseding request between ticks; advancing would
-		// resurrect it.
 		if (!run) {
 			stop();
 			world.cancels.delete(key);
@@ -101,8 +96,6 @@ export const runtimeRoutes: Route[] = [
 
 			switch (req.params.verb) {
 				case 'install': {
-					// Core refuses an install with no target for the host platform. The
-					// arrow page is supposed to say so before the button gets here.
 					if (!arrow.targets.some((t) => t.platform === MOCK_HOST_PLATFORM)) {
 						return fail(
 							`arrow ${req.params.ns} declares no target for ${MOCK_HOST_PLATFORM} ` +
@@ -144,7 +137,6 @@ export const runtimeRoutes: Route[] = [
 					if (!method) {
 						return fail(`arrow ${req.params.ns} has no method ${name} for ${MOCK_HOST_PLATFORM}`, 404);
 					}
-					// A method can be present and still unofferable.
 					if (!method.available_in.includes(arrow.state as 'ready' | 'running')) {
 						return fail(
 							`method ${name} is available in ${method.available_in.join('/')}, not ${arrow.state}`,

@@ -6,12 +6,6 @@ const CONNECTING = 0;
 const OPEN = 1;
 const CLOSED = 3;
 
-/**
- * Two behaviours copied from `QuiverWebSocket`, because `wsManager` was written
- * against them: it opens asynchronously (the manager assigns its handlers on
- * the line after construction), and `close()` fires `onclose` synchronously
- * with no `onopen` if it was still connecting.
- */
 export class MockWebSocket implements SocketLike {
 	readyState = CONNECTING;
 	onopen: (() => void) | null = null;
@@ -30,13 +24,11 @@ export class MockWebSocket implements SocketLike {
 		});
 	}
 
-	/** Frames arrive as raw text, mirroring the real bridge. */
 	deliver(text: string): void {
 		if (this.readyState !== OPEN) return;
 		this.onmessage?.({ data: text });
 	}
 
-	/** Both endpoints are transition-only: core pushes and reads nothing back. */
 	send(_data: string): void {}
 
 	close(): void {
@@ -76,13 +68,13 @@ export function createSocketHub(): SocketHub {
 			const set = byPath.get(endpoint);
 			if (!set || set.size === 0) return;
 			const text = JSON.stringify(frame);
-			// Copied before iterating: `wsManager`'s teardown closes the socket
-			// synchronously from inside its own handler, mutating this set.
 			[...set].forEach((socket) => socket.deliver(text));
 		},
 
 		closeAll() {
-			[...byPath.values()].flatMap((set) => [...set]).forEach((socket) => socket.close());
+			for (const set of byPath.values()) {
+				for (const socket of [...set]) socket.close();
+			}
 			byPath.clear();
 		},
 

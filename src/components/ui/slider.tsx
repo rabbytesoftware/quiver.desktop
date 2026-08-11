@@ -8,15 +8,9 @@ function Slider({
 	value,
 	min = 0,
 	max = 100,
-	// Forwarded to the THUMB, which is what carries role="slider" — on the root
-	// it labels an element no assistive tech reports as a slider.
 	'aria-label': ariaLabel,
 	...props
 }: SliderPrimitive.Root.Props & { 'aria-label'?: string }) {
-	// A SCALAR value means one thumb. As generated this fell through to
-	// `[min, max]` and rendered two, turning every single-value slider into a
-	// range — and Base UI then assigns no `role="slider"` at all, so the control
-	// is invisible to assistive tech and to any test that looks for it.
 	const _values = Array.isArray(value)
 		? value
 		: Array.isArray(defaultValue)

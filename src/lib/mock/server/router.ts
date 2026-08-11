@@ -7,7 +7,6 @@ export interface MockRequest {
 	method: string;
 	path: string;
 	query: URLSearchParams;
-	/** Already percent-decoded. */
 	params: Record<string, string>;
 	body: unknown;
 }
@@ -16,18 +15,12 @@ export type Handler = (req: MockRequest, world: MockWorld) => Response | Promise
 
 export interface Route {
 	method: 'GET' | 'POST' | 'DELETE';
-	/** `/v0/runtime/:ns/:verb`. */
 	pattern: string;
 
 	fault: FaultKey;
 	handler: Handler;
 }
 
-/**
- * Segment-wise rather than a path-spanning regex. Namespaces contain `/`, `@`
- * and `.`, but every caller encodes them, so a namespace is always exactly one
- * segment on the wire.
- */
 function matchPattern(pattern: string, path: string): Record<string, string> | null {
 	const patternParts = pattern.split('/');
 	const pathParts = path.split('/');
@@ -68,15 +61,11 @@ export function createRouter(routes: Route[], rng: Rng = Math.random): Router {
 				try {
 					return await route.handler({ method, path, query, params, body: parseBody(init) }, world);
 				} catch (err) {
-					// A broken fixture and a failing daemon look identical from the UI,
-					// so the log names the route.
 					console.error(`mock: handler for ${method} ${route.pattern} threw`, err);
 					return fail(`mock handler error on ${method} ${path}`, 500);
 				}
 			}
 
-			// Loud: an unrouted path answered with an empty 200 renders as "you have
-			// no arrows", a plausible screen that is a lie.
 			return fail(`mock: no route for ${method} ${path}`, 404);
 		},
 	};

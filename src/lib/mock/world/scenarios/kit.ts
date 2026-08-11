@@ -2,7 +2,6 @@ import type { StepProgress } from '@/domain/arrow';
 
 import { MOCK_HOST_PLATFORM, type MockArrow, type MockMethod, type MockTarget, type MockVariable } from '../types';
 
-/** Fixed, so nothing in a scenario reads the wall clock. */
 export const EPOCH = '2026-07-14T09:20:00Z';
 
 export const HOST_PLATFORM = MOCK_HOST_PLATFORM;
@@ -38,7 +37,6 @@ export function stepsAllDone(titles: string[]): StepProgress[] {
 	return titles.map((title, index) => ({ index, title, status: 'completed', type: 'exec' }));
 }
 
-/** Everything before `failedAt` completed; nothing after it ran. */
 export function stepsFailedAt(titles: string[], failedAt: number, error: string): StepProgress[] {
 	return titles.map((title, index) => ({
 		index,
@@ -60,8 +58,6 @@ export function variable(
 
 type ArrowSeed = Partial<MockArrow> & Pick<MockArrow, 'namespace' | 'name' | 'state'>;
 
-/** Defaults to the boring case, so a scenario entry reads as its differences
- *  from it. */
 export function arrow(seed: ArrowSeed): MockArrow {
 	return {
 		ref: 'v1.0.0',

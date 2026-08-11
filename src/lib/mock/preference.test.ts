@@ -27,7 +27,6 @@ describe('readMockPreference', () => {
 		expect(readMockPreference().enabled).toBe(false);
 	});
 
-	// Every failure mode lands on OFF.
 	it('is off when the stored value is not JSON', () => {
 		localStorage.setItem(MOCK_STORAGE_KEY, '{not json');
 		expect(readMockPreference().enabled).toBe(false);
@@ -50,8 +49,6 @@ describe('readMockPreference', () => {
 		expect(readMockPreference().enabled).toBe(false);
 	});
 
-	// A scenario that no longer exists must not brick the boot — falls back
-	// rather than throwing, same reasoning as `getScenario` one layer down.
 	it('falls back to normal for a scenario that no longer exists', () => {
 		write({ enabled: true, scenario: 'rabbyte-only-2024' });
 		expect(readMockPreference()).toEqual({ enabled: true, scenario: 'normal' });
@@ -64,8 +61,6 @@ describe('readMockPreference', () => {
 });
 
 describe('VITE_QUIVER_MOCK', () => {
-	// Set by `make dev-mock`, so the app comes up fabricated on a machine that
-	// has never touched the setting.
 	it('forces the mock on even with nothing persisted', () => {
 		vi.stubEnv('VITE_QUIVER_MOCK', '1');
 		expect(mockForcedByEnv()).toBe(true);

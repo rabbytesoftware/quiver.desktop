@@ -50,9 +50,6 @@ describe('the installed backend', () => {
 		expect(backend()).toBe(second);
 	});
 
-	// Every consumer resolves `backend()` per call rather than capturing it, so that a
-	// boot-time install is visible to modules imported before it ran — which is all of
-	// them, since `main.tsx` installs after its own imports.
 	it('is visible to a consumer that resolved it before the install', async () => {
 		const swapped = stubBackend();
 		const resolveLater = () => backend();
@@ -72,8 +69,6 @@ describe('realBackend.fetch', () => {
 		expect(fetchMock).toHaveBeenCalledWith('http://quiver.localhost/v0/arrow', { method: 'POST' });
 	});
 
-	// The contract `coreIsReachable` leans on: a backend with no origin is a broken SHELL,
-	// and must be distinguishable from a daemon that is merely down.
 	it('throws SYNCHRONOUSLY when there is no origin, rather than rejecting', () => {
 		delete shell.__QUIVER__;
 		expect(() => realBackend.fetch('/v0/health')).toThrow(/__QUIVER__/);
@@ -88,10 +83,6 @@ describe('apiBase', () => {
 });
 
 describe('the interface', () => {
-	// SOCKET_OPEN is restated here rather than read off `WebSocket`, so this pins it:
-	// `wsManager` compares `readyState` against it to decide whether a socket is writable,
-	// and every implementation — real, mock, test fake — has to agree on the number the
-	// standard fixed.
 	it('numbers OPEN the way the WebSocket standard does', () => {
 		expect(SOCKET_OPEN).toBe(1);
 		expect(WebSocket.OPEN).toBe(SOCKET_OPEN);

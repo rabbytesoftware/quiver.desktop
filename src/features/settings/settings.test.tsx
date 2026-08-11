@@ -5,12 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMockStore } from '@/lib/mock/store';
 
 import { Section, SettingRow } from './components/section';
-import { visibleTabs } from './components/settings-dialog';
 import { UNLOCK_CLICKS, VersionUnlock } from './components/version-unlock';
 import { rowMatchesQuery, useSettingsUI } from './store';
+import { visibleTabs } from './tabs';
 
 beforeEach(() => {
-	useSettingsUI.setState({ open: false, tab: 'connections', query: '' });
+	useSettingsUI.setState({ tab: 'connections', query: '' });
 	useMockStore.setState({ devUnlocked: false });
 });
 
@@ -46,8 +46,6 @@ describe('a section whose rows all filter out', () => {
 		expect(screen.queryByText('Error rate')).not.toBeInTheDocument();
 	});
 
-	// An orphaned heading with nothing under it reads as "there are results here
-	// that failed to render" rather than "there are none".
 	it('hides its heading once every row is gone', () => {
 		useSettingsUI.setState({ query: 'zzzzz' });
 		render(<Fixture />);
@@ -57,12 +55,18 @@ describe('a section whose rows all filter out', () => {
 
 describe('the developer tab', () => {
 	it('is present in dev without any gesture', () => {
-		// vitest runs with import.meta.env.DEV true, which is the dev case.
-		expect(visibleTabs(false).map((t) => t.id)).toEqual(['connections', 'developer']);
+		expect(visibleTabs(false).map((t) => t.id)).toEqual(['general', 'connections', 'developer']);
 	});
 
 	it('is listed once the unlock flag is set', () => {
 		expect(visibleTabs(true).map((t) => t.id)).toContain('developer');
+	});
+
+	it('is absent in a release build until the tap unlocks it', () => {
+		vi.stubEnv('DEV', false);
+		expect(visibleTabs(false).map((t) => t.id)).toEqual(['general', 'connections']);
+		expect(visibleTabs(true).map((t) => t.id)).toContain('developer');
+		vi.unstubAllEnvs();
 	});
 });
 
@@ -79,8 +83,6 @@ describe('the version unlock', () => {
 		expect(useMockStore.getState().devUnlocked).toBe(true);
 	});
 
-	// Silent early on: a countdown from the first click is how it would get
-	// found by accident, which is the one thing it exists to prevent.
 	it('says nothing about the countdown until you are most of the way there', async () => {
 		const user = userEvent.setup();
 		render(<VersionUnlock />);
@@ -95,15 +97,13 @@ describe('the version unlock', () => {
 	});
 });
 
-describe('the settings dialog store', () => {
-	it('clears the search when it closes, so it does not reopen filtered', () => {
-		useSettingsUI.getState().openSettings('developer');
+describe('the settings store', () => {
+	it('remembers the tab across a visit, and the query alongside it', () => {
+		useSettingsUI.getState().setTab('developer');
 		useSettingsUI.getState().setQuery('fault');
-		useSettingsUI.getState().closeSettings();
 
-		expect(useSettingsUI.getState().query).toBe('');
-		// The tab, unlike the query, is remembered.
 		expect(useSettingsUI.getState().tab).toBe('developer');
+		expect(useSettingsUI.getState().query).toBe('fault');
 	});
 });
 

@@ -8,8 +8,6 @@ interface RuntimeMethodInput {
 	variables?: Record<string, string>;
 }
 
-// POST /v0/runtime/:ns/:method — install/uninstall/stop/execute are all just
-// `:method` values (verified against stable-26.5.1).
 function runtimeMethod({ namespace, method, variables = {} }: RuntimeMethodInput): Promise<void> {
 	return apiFetch<void>(`/v0/runtime/${encodeURIComponent(namespace)}/${method}`, {
 		method: 'POST',

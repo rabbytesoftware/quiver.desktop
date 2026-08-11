@@ -1,23 +1,23 @@
 @import 'tailwindcss';
 
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+
 @custom-variant dark (&:is(.dark *));
 
-/*
- * shadcn's token NAMES with this design's values: every hue flattened to a
- * grey, and --radius pinned to 0. Components pulled with `shadcn add` are
- * written against these names, so they land already square and already
- * monochrome and need no editing.
- *
- * `destructive` is a grey like everything else, which means a Remove button
- * does not read as dangerous on its own. Weight and confirmation have to carry
- * that instead.
- */
 :root {
-	--radius: 0rem;
+	--radius: 10px;
 
-	--background: oklch(0.98 0 0);
-	--foreground: oklch(0.18 0 0);
-	/* Not shadcn's; the third text tier every caption line needs. */
+	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+	--rail: 246px;
+	--row: 34px;
+	--icon: 20px;
+	--inset: calc((var(--row) - var(--icon)) / 2);
+
+	--background: oklch(1 0 0);
+	--foreground: oklch(0.145 0 0);
 	--foreground-subtle: oklch(0.62 0 0);
 
 	--card: oklch(1 0 0);
@@ -30,13 +30,13 @@
 	--secondary: oklch(0.94 0 0);
 	--secondary-foreground: oklch(0.18 0 0);
 	--muted: oklch(0.94 0 0);
-	--muted-foreground: oklch(0.44 0 0);
+	--muted-foreground: oklch(0.633 0 0);
 	--accent: oklch(0.94 0 0);
 	--accent-foreground: oklch(0.18 0 0);
 	--destructive: oklch(0.45 0 0);
 	--destructive-foreground: oklch(0.98 0 0);
 
-	--border: oklch(0.88 0 0);
+	--border: oklch(0.919 0 0);
 	--input: oklch(0.94 0 0);
 	--ring: oklch(0.5 0 0);
 
@@ -46,21 +46,28 @@
 	--chart-4: oklch(0.66 0 0);
 	--chart-5: oklch(0.78 0 0);
 
-	--sidebar: oklch(0.96 0 0);
-	--sidebar-foreground: oklch(0.18 0 0);
-	--sidebar-primary: oklch(0.18 0 0);
-	--sidebar-primary-foreground: oklch(0.98 0 0);
-	--sidebar-accent: oklch(0.92 0 0);
-	--sidebar-accent-foreground: oklch(0.18 0 0);
-	--sidebar-border: oklch(0.88 0 0);
+	--sidebar: oklch(0.951 0 0);
+	--sidebar-foreground: oklch(0.218 0 0);
+	--sidebar-primary: oklch(0.145 0 0);
+	--sidebar-primary-foreground: oklch(1 0 0);
+	--sidebar-accent: oklch(0.97 0 0);
+	--sidebar-accent-foreground: oklch(0.218 0 0);
+	--sidebar-border: oklch(0.919 0 0);
 	--sidebar-ring: oklch(0.5 0 0);
+
+	--selected-edge: color-mix(in oklch, var(--background) 16%, transparent);
+
+	--sidebar-element-idle: color-mix(in oklch, var(--foreground) 6%, transparent);
+
+	--sidebar-element-hover: oklch(0 0 0 / 8%);
+
+	--sidebar-count-added: color-mix(in srgb, var(--color-green-300) 60%, black);
+	--sidebar-count-deleted: color-mix(in srgb, var(--color-red-300) 60%, black);
 }
 
-/* Dark is the reviewed one; light exists so components are written against
- * tokens rather than dark values, and its values are expected to move. */
 .dark {
-	--background: oklch(0.16 0 0);
-	--foreground: oklch(0.97 0 0);
+	--background: oklch(0.178 0 0);
+	--foreground: oklch(1 0 0);
 	--foreground-subtle: oklch(0.54 0 0);
 
 	--card: oklch(0.21 0 0);
@@ -73,13 +80,13 @@
 	--secondary: oklch(0.26 0 0);
 	--secondary-foreground: oklch(0.97 0 0);
 	--muted: oklch(0.26 0 0);
-	--muted-foreground: oklch(0.72 0 0);
+	--muted-foreground: oklch(0.784 0.004 121.6);
 	--accent: oklch(0.26 0 0);
 	--accent-foreground: oklch(0.97 0 0);
 	--destructive: oklch(0.65 0 0);
 	--destructive-foreground: oklch(0.16 0 0);
 
-	--border: oklch(0.3 0 0);
+	--border: oklch(0.301 0 0);
 	--input: oklch(0.13 0 0);
 	--ring: oklch(0.66 0 0);
 
@@ -89,24 +96,31 @@
 	--chart-4: oklch(0.54 0 0);
 	--chart-5: oklch(0.42 0 0);
 
-	--sidebar: oklch(0.18 0 0);
-	--sidebar-foreground: oklch(0.97 0 0);
-	--sidebar-primary: oklch(0.97 0 0);
-	--sidebar-primary-foreground: oklch(0.16 0 0);
-	--sidebar-accent: oklch(0.26 0 0);
-	--sidebar-accent-foreground: oklch(0.97 0 0);
-	--sidebar-border: oklch(0.3 0 0);
+	--sidebar: oklch(0.239 0 0);
+	--sidebar-foreground: oklch(0.985 0 0);
+	--sidebar-primary: oklch(1 0 0);
+	--sidebar-primary-foreground: oklch(0.178 0 0);
+	--sidebar-accent: oklch(0.178 0 0);
+	--sidebar-accent-foreground: oklch(0.985 0 0);
+	--sidebar-border: oklch(0.301 0 0);
 	--sidebar-ring: oklch(0.66 0 0);
+
+	--sidebar-element-hover: oklch(1 0 0 / 10%);
+
+	--sidebar-count-added: var(--color-green-300);
+	--sidebar-count-deleted: var(--color-red-300);
 }
 
 @theme inline {
-	/* Every step resolves to 0. Kept rather than deleted because pulled
-	 * components reference the whole scale, and a missing one is a class that
-	 * silently does nothing. */
-	--radius-sm: 0rem;
-	--radius-md: 0rem;
-	--radius-lg: 0rem;
-	--radius-xl: 0rem;
+	--spacing: 4px;
+
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+
+	--font-sans: var(--font-sans);
+	--font-mono: var(--font-mono);
 
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
@@ -141,6 +155,10 @@
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-ring: var(--sidebar-ring);
+	--color-sidebar-element-idle: var(--sidebar-element-idle);
+	--color-sidebar-element-hover: var(--sidebar-element-hover);
+	--color-sidebar-count-added: var(--sidebar-count-added);
+	--color-sidebar-count-deleted: var(--sidebar-count-deleted);
 
 	--animate-skeleton: skeleton 2s -1s infinite linear;
 
@@ -159,13 +177,18 @@
 	html,
 	body {
 		height: 100%;
-		/* Transparent, not --background: an opaque background here kills the macOS
-		   window vibrancy. The app's root element carries the colour. */
-		background: transparent;
+		background: var(--background);
 		color: var(--foreground);
-		/* The whole scale is built on this: 26px buttons, 30px rail rows. */
-		font-size: 13px;
+		font-family: var(--font-sans);
 		-webkit-font-smoothing: antialiased;
+	}
+
+	html {
+		font-size: 16px;
+	}
+
+	body {
+		font-size: 13px;
 	}
 
 	[data-tauri-drag-region]:active {

@@ -1,0 +1,7 @@
+{
+	"$schema": "https://react.doctor/schema/config.json",
+	"rules": {
+		"react-doctor/query-mutation-missing-invalidation": "off",
+		"deslop/unused-dependency": "off"
+	}
+}
