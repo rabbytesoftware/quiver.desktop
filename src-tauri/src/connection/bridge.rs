@@ -276,7 +276,8 @@ mod tests {
 		std::fs::read_dir("/dev/fd").map(|d| d.count()).unwrap_or(0)
 	}
 
-	/// The middle reading of a run of descriptor counts.
+	/// How much a run of descriptor counts rose for reasons other than its own
+	/// single biggest jump.
 	///
 	/// No single count is trustworthy, even with `crate::FD_TESTS` held: every
 	/// `#[tokio::test]` in this binary holds an IO driver (a kqueue and a wakeup
@@ -284,13 +285,49 @@ mod tests {
 	/// sit there blocked — holding theirs — for as long as the counting one runs.
 	/// Measured at `RUST_TEST_THREADS=24`: a single run reads 103 descriptors
 	/// throughout and dips to 99 once or twice as unrelated tests come and go.
-	/// The median discards both the dips and any spike, and taking one per half
-	/// of the run turns the question into "did the count GROW", which is what a
-	/// leak actually looks like — an absolute reading is not.
-	fn median(counts: &[usize]) -> usize {
-		let mut sorted = counts.to_vec();
-		sorted.sort_unstable();
-		sorted[sorted.len() / 2]
+	///
+	/// So the question has to be "did the count grow", never "how high is it".
+	/// The shape of the growth is what answers it. A leak is PER CYCLE: it rises
+	/// a little, again and again, for as long as the loop runs. Those blocked
+	/// suite-mates are an ARRIVAL: they take their descriptors once and then sit
+	/// there, so the count steps up and goes flat, however far it stepped.
+	///
+	/// Summing the rises and discarding the largest keeps the first and drops
+	/// the second. Comparing two halves of the run cannot: it only asks where
+	/// the level ended up, so one arrival that outlives the halfway point reads
+	/// exactly like a leak. That is not theoretical — see `DRIFT`.
+	fn growth_beyond_one_arrival(counts: &[usize]) -> usize {
+		let mut rises: Vec<usize> = counts
+			.windows(2)
+			.map(|w| w[1].saturating_sub(w[0]))
+			.collect();
+		rises.sort_unstable();
+		rises.pop();
+		rises.iter().sum()
+	}
+
+	/// The statistic itself, against the two shapes it has to tell apart. The
+	/// arrival is the run CI actually produced on Rust this branch never
+	/// touched; the leak is the rate the threshold was calibrated for.
+	#[test]
+	fn an_arrival_is_not_a_leak_but_a_slow_leak_is() {
+		let mut arrival = vec![21_usize; 93];
+		arrival.extend(std::iter::repeat_n(25, 6));
+		arrival.extend(std::iter::repeat_n(26, 101));
+		assert_eq!(arrival.len(), 200);
+		assert_eq!(
+			growth_beyond_one_arrival(&arrival),
+			1,
+			"five descriptors taken once and held is one jump, not a leak"
+		);
+
+		// One descriptor every 37 closes — the weakest leak this test claims to see.
+		let leak: Vec<usize> = (0..200).map(|i| 21 + i / 37).collect();
+		assert_eq!(
+			growth_beyond_one_arrival(&leak),
+			4,
+			"a leak spreads its rises, so discarding the largest barely dents it"
+		);
 	}
 
 	/// A transport pointed at a live loopback listener. TCP rather than a unix
@@ -412,24 +449,31 @@ mod tests {
 		/// cycles, and the whole suite goes from ~0.05s to ~0.10s.
 		const CYCLES: usize = 200;
 
-		/// How much the count may drift across the run without being called a
-		/// leak. Measured, by forcing this to 0 and running the full suite at
-		/// `RUST_TEST_THREADS=24`: the growth is 0 every time — the median of
-		/// 100 samples does not move for the transient dips this suite's own
-		/// concurrency produces, only for a sustained shift, and the one shift
-		/// there is (the other socket tests piling up on `crate::FD_TESTS`)
-		/// saturates within the first cycles, i.e. inside the first half. So 2
-		/// is margin for a slower or busier CI machine, not headroom this
-		/// machine needs.
+		/// How much the count may rise, on top of its single largest jump,
+		/// without being called a leak.
 		///
-		/// Together these catch a leak of one descriptor in every 37 closes
-		/// (20/20 runs; 1 in 38 escapes, 0/15) — measured by bisecting the leak
-		/// rate, not derived; see the task report for the table. Integer medians
-		/// make the boundary a step rather than the ratio arithmetic suggests,
-		/// which is why it is measured. The setting they replace (20 cycles, drift 6)
-		/// needed SEVEN leaks per TEN closes: a bridge leaking on half of the
-		/// 215 closes in this test's own header would have stranded 107
-		/// descriptors and passed.
+		/// This once compared the medians of the run's two halves, and the
+		/// margin was set on the reasoning that the only sustained shift — the
+		/// other socket tests piling up on `crate::FD_TESTS` — saturates within
+		/// the first cycles, i.e. inside the first half, where it cancels out.
+		///
+		/// That is an assumption about how fast the SUITE runs, and under
+		/// `cargo tarpaulin` it is false: ptrace slows everything enough that
+		/// the pile-up lands mid-run instead. CI caught it twice on Rust this
+		/// branch never touched — five descriptors appearing at cycle 66 in one
+		/// run and cycle 93 in the next, then FLAT for the remaining hundred
+		/// cycles. Both moved the late median by the whole five. Every plain
+		/// `cargo test` job on the same commit passed.
+		///
+		/// Discarding the largest jump costs nothing against a real leak, which
+		/// spreads its rises across the run: at one descriptor every 37 closes
+		/// there are five separate rises of one, and dropping a single one of
+		/// them still leaves four. So 2 stays what it was — margin for a slower
+		/// or busier machine — and the sensitivity it was measured against (one
+		/// in 37 closes, 20/20 runs; one in 38 escapes, 0/15) is unchanged.
+		/// The setting they replace (20 cycles, drift 6) needed SEVEN leaks per
+		/// TEN closes: a bridge leaking on half of the 215 closes in this test's
+		/// own header would have stranded 107 descriptors and passed.
 		const DRIFT: usize = 2;
 
 		let (listener, transport) = listening().await;
@@ -456,12 +500,11 @@ mod tests {
 			counts.push(open_fds());
 		}
 
-		let (early, late) = counts.split_at(CYCLES / 2);
-		let growth = median(late).saturating_sub(median(early));
+		let growth = growth_beyond_one_arrival(&counts);
 		assert!(
 			growth <= DRIFT,
-			"{CYCLES} daemon-initiated closes leaked file descriptors: the count grew by \
-			 {growth} across the run ({early:?} then {late:?}). Once the app's limit is \
+			"{CYCLES} daemon-initiated closes leaked file descriptors: the count rose by \
+			 {growth} beyond its largest single jump ({counts:?}). Once the app's limit is \
 			 reached quiver.core cannot be dialled at all — which the health watchdog reads \
 			 as a dead backend and kills a daemon that was never unhealthy."
 		);
