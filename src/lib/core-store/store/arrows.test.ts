@@ -106,6 +106,32 @@ describe('applyRuntimeUpdate', () => {
 		expect(useArrowStore.getState().arrows.get('a@1')?.last_return?.outcome).toBe('success');
 	});
 
+	it('starts out loading, so a cold rail never claims the library is empty', () => {
+		expect(useArrowStore.getState().catalog).toBe('loading');
+	});
+
+	it('marks the catalog ready once records land, even when there are none', () => {
+		useArrowStore.getState().setCatalog([]);
+		expect(useArrowStore.getState().catalog).toBe('ready');
+	});
+
+	it('marks the catalog errored when the seed fails', () => {
+		useArrowStore.getState().setCatalogError();
+		expect(useArrowStore.getState().catalog).toBe('error');
+	});
+
+	it('returns to loading on reset, so a restarting core does not read as empty', () => {
+		useArrowStore.getState().setCatalog([]);
+		useArrowStore.getState().reset();
+		expect(useArrowStore.getState().catalog).toBe('loading');
+	});
+
+	it('clears an earlier error once a later seed succeeds', () => {
+		useArrowStore.getState().setCatalogError();
+		useArrowStore.getState().setCatalog([]);
+		expect(useArrowStore.getState().catalog).toBe('ready');
+	});
+
 	it('ignores a runtime update for an unknown arrow', () => {
 		useArrowStore
 			.getState()

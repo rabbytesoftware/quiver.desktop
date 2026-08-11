@@ -10,6 +10,7 @@ export default defineConfig({
             './src/__mocks__/setup-local-storage.ts',
             './src/__mocks__/setup-pointer-capture.ts',
             './src/__mocks__/setup-resize-observer.ts',
+            './src/__mocks__/setup-element-animations.ts',
         ],
         coverage: {
             provider: 'v8',

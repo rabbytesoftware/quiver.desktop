@@ -5,9 +5,13 @@ import type { ArrowCatalogRecord } from '@/lib/persistence/schemas';
 
 const NEUTRAL_STATE: ArrowState = 'absent';
 
+export type CatalogStatus = 'loading' | 'ready' | 'error';
+
 interface ArrowStore {
 	arrows: Map<string, ArrowEntry>;
+	catalog: CatalogStatus;
 	setCatalog: (records: ArrowCatalogRecord[]) => void;
+	setCatalogError: () => void;
 	applyRuntimeUpdate: (update: RuntimeUpdate) => void;
 	seedInitialState: (update: RuntimeUpdate) => void;
 	reset: () => void;
@@ -52,6 +56,9 @@ export const useArrowStore = create<ArrowStore>((set, get) => {
 
 	return {
 		arrows: new Map(),
+		catalog: 'loading',
+
+		setCatalogError: () => set({ catalog: 'error' }),
 
 		setCatalog: (records) => {
 			const next = new Map<string, ArrowEntry>();
@@ -66,7 +73,7 @@ export const useArrowStore = create<ArrowStore>((set, get) => {
 					liveNamespaces.delete(namespace);
 				}
 			}
-			set({ arrows: next });
+			set({ arrows: next, catalog: 'ready' });
 		},
 
 		applyRuntimeUpdate: (update) => {
@@ -94,7 +101,7 @@ export const useArrowStore = create<ArrowStore>((set, get) => {
 		reset: () => {
 			runtime = new Map();
 			liveNamespaces = new Set();
-			set({ arrows: new Map() });
+			set({ arrows: new Map(), catalog: 'loading' });
 		},
 	};
 });

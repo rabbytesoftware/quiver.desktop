@@ -58,9 +58,14 @@ function renderList(path: string) {
 		path: '/arrow/$',
 		component: ArrowPage,
 	});
+	const settingsRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: '/settings',
+		component: () => <div data-testid="settings" />,
+	});
 
 	const router = createRouter({
-		routeTree: rootRoute.addChildren([indexRoute, arrowRoute]),
+		routeTree: rootRoute.addChildren([indexRoute, arrowRoute, settingsRoute]),
 		history: createMemoryHistory({ initialEntries: [path] }),
 	});
 
@@ -144,9 +149,43 @@ describe('ArrowList', () => {
 		expect(rows().map(nameOf)).toEqual(['apple', 'Émile', 'Zebra']);
 	});
 
-	it('renders nothing but the list when the catalog is empty', async () => {
+	it('shows skeleton rows while the catalog is still loading', async () => {
+		useArrowStore.setState({ arrows: new Map(), catalog: 'loading' });
 		renderList('/');
-		expect(await screen.findByRole('navigation', { name: 'Arrows' })).toBeEmptyDOMElement();
+
+		const busy = await screen.findByRole('status', { name: 'Loading arrows' });
+		expect(busy).toHaveAttribute('aria-busy', 'true');
+		expect(screen.queryByText('No arrows yet')).toBeNull();
+	});
+
+	it('says the library is empty once the catalog has actually arrived', async () => {
+		useArrowStore.setState({ arrows: new Map(), catalog: 'ready' });
+		renderList('/');
+
+		expect(await screen.findByText('No arrows yet')).toBeVisible();
+		expect(screen.queryByRole('status')).toBeNull();
+	});
+
+	// The distinction this guards is the whole point: a rail that renders the
+	// same blank space for "you have no arrows" and "the daemon is unreachable"
+	// tells the user their library is gone when it is only out of reach.
+	it('distinguishes an unreachable core from an empty library', async () => {
+		useArrowStore.setState({ arrows: new Map(), catalog: 'error' });
+		renderList('/');
+
+		expect(await screen.findByText('Can’t reach quiver.core')).toBeVisible();
+		expect(screen.queryByText('No arrows yet')).toBeNull();
+		expect(screen.getByRole('link', { name: 'Check connections' })).toHaveAttribute('href', '/settings');
+	});
+
+	it('prefers cached arrows over any placeholder, even mid-load', async () => {
+		seed(entry(MINECRAFT, 'Minecraft', null));
+		useArrowStore.setState({ catalog: 'loading' });
+		renderList('/');
+
+		await screen.findByRole('navigation', { name: 'Arrows' });
+		expect(rows().map(nameOf)).toEqual(['Minecraft']);
+		expect(screen.queryByRole('status')).toBeNull();
 	});
 });
 

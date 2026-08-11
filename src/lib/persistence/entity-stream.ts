@@ -24,10 +24,11 @@ export interface SubscribeArrowStreamOptions {
 	connectionId: string;
 	seed: () => Promise<ArrowCatalogRecord[]>;
 	onChange?: () => void;
+	onSeedError?: (error: unknown) => void;
 }
 
 export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => void {
-	const { connectionId, seed, onChange } = opts;
+	const { connectionId, seed, onChange, onSeedError } = opts;
 	let disposed = false;
 
 	let applyChain: Promise<void> = Promise.resolve();
@@ -81,6 +82,7 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => v
 			// later reseed retries.
 			.catch((err: unknown) => {
 				console.error(`entity-stream: seed failed for ${ARROW_ENDPOINT}`, err);
+				if (!disposed) onSeedError?.(err);
 			});
 	}
 

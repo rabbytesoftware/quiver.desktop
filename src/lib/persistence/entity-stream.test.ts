@@ -55,6 +55,36 @@ describe('entity-stream', () => {
 		expect(await getArrowsFor('local')).toEqual([rec('a@1')]);
 	});
 
+	it('reports a failed seed instead of only logging it', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		const onSeedError = vi.fn();
+		const boom = new Error('core unreachable');
+
+		subscribeArrowStream({
+			connectionId: 'local',
+			seed: () => Promise.reject(boom),
+			onChange: vi.fn(),
+			onSeedError,
+		});
+
+		await vi.waitFor(() => expect(onSeedError).toHaveBeenCalledWith(boom));
+	});
+
+	it('stays silent about a seed that failed after disposal', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		const onSeedError = vi.fn();
+
+		const dispose = subscribeArrowStream({
+			connectionId: 'local',
+			seed: () => Promise.reject(new Error('too late')),
+			onSeedError,
+		});
+		dispose();
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(onSeedError).not.toHaveBeenCalled();
+	});
+
 	it('prunes cached rows the seed no longer lists', async () => {
 		const first = vi.fn();
 		subscribeArrowStream({ connectionId: 'local', seed: async () => [rec('a@1'), rec('b@1')], onChange: first });

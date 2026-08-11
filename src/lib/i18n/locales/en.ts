@@ -16,6 +16,12 @@ export const en = {
 
 	'sidebar.resize': 'Resize sidebar',
 	'sidebar.arrows': 'Arrows',
+	'sidebar.arrows.loading': 'Loading arrows',
+	'sidebar.arrows.empty.title': 'No arrows yet',
+	'sidebar.arrows.empty.body': 'Arrows you install show up here.',
+	'sidebar.arrows.error.title': 'Can’t reach quiver.core',
+	'sidebar.arrows.error.body': 'Your arrows are still installed. This list fills in once the connection is back.',
+	'sidebar.arrows.error.action': 'Check connections',
 	'arrow.icon.fallback': '{name} icon',
 
 	'settings.title': 'Settings',

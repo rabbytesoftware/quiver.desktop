@@ -58,6 +58,10 @@ export async function setupListeners(): Promise<void> {
 					pendingInitialStates = [];
 				});
 			},
+			onSeedError: () => {
+				if (generation !== streamGeneration) return;
+				useArrowStore.getState().setCatalogError();
+			},
 		});
 
 		disposeRuntimeStream = wsManager.subscribe(RUNTIME_ENDPOINT, (data) => {
