@@ -21,7 +21,7 @@ export const en = {
 	'sidebar.arrows.empty.body': 'Arrows you install show up here.',
 	'sidebar.arrows.error.title': 'Can’t reach quiver.core',
 	'sidebar.arrows.error.body': 'Your arrows are still installed. This list fills in once the connection is back.',
-	'sidebar.arrows.error.action': 'Check connections',
+	'sidebar.arrows.error.action': 'Check Engine settings',
 	'arrow.icon.fallback': '{name} icon',
 
 	'settings.title': 'Settings',
@@ -43,7 +43,7 @@ export const en = {
 
 	'settings.general.language.title': 'Language',
 	'settings.general.language.label': 'Display language',
-	'settings.general.language.hint': "Language for Quiver's interface",
+	'settings.general.language.hint': 'Language for Quiver’s interface',
 	'settings.general.language.forced':
 		'Forced to {language} by VITE_QUIVER_LOCALE for this run. Restart without it to get the picker back.',
 	'settings.general.language.system': 'System ({language})',
@@ -83,15 +83,17 @@ export const en = {
 	'settings.developer.faults.health': 'Health probe',
 	'settings.developer.faults.config': 'Daemon config',
 
-	'settings.engine.restart': 'Saved. These take effect the next time quiver.core restarts.',
+	'settings.engine.loading': 'Loading engine settings',
+	'settings.engine.restart': 'These settings take effect the next time quiver.core restarts.',
 	'settings.engine.corrected': 'The daemon could not use these settings and fell back to their defaults: {settings}.',
 	'settings.engine.retry': 'Try again',
 	'settings.engine.ports.title': 'Ports',
 	'settings.engine.ports.label': 'Ports for servers',
 	'settings.engine.ports.description':
-		"Range Quiver may use for arrows that serve. Match your router's forwarding rules.",
+		'Range Quiver may use for arrows that serve. Match your router’s forwarding rules.',
 	'settings.engine.ports.lowest': 'Lowest port',
 	'settings.engine.ports.highest': 'Highest port',
+	'settings.engine.ports.fieldRejected': '{field}: {message}',
 	'settings.engine.logs.title': 'Logs',
 	'settings.engine.logs.disk': 'Write logs to disk',
 	'settings.engine.logs.diskDescription': 'Keeps a rotating file alongside the console output',

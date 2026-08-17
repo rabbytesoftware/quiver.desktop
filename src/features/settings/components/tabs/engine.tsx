@@ -3,20 +3,22 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 
+import { LEVELS, normaliseLevel } from '@/features/settings/engine/log-level';
 import { useEngineStore } from '@/features/settings/engine/store';
 import { useTranslation } from '@/lib/i18n';
 
 import { Notice, Section, SettingRow } from '../section';
 
-const LEVELS = ['debug', 'info', 'warn', 'error'] as const;
-
 export function EngineSettings() {
 	const { t } = useTranslation();
 	const view = useEngineStore((s) => s.view);
 	const rejected = useEngineStore((s) => s.rejected);
+	const loading = useEngineStore((s) => s.loading);
 	const error = useEngineStore((s) => s.error);
+	const patchError = useEngineStore((s) => s.patchError);
 	const load = useEngineStore((s) => s.load);
 	const patch = useEngineStore((s) => s.patch);
 
@@ -32,6 +34,10 @@ export function EngineSettings() {
 		void load();
 	}, [load]);
 
+	// A `load` failure means there is nothing to show at all — the whole
+	// panel becomes the retry screen. A `patch` failure (`patchError`, read
+	// below) is different: a view is already on screen, so it is rendered
+	// inline instead of tearing the panel down.
 	if (error) {
 		return (
 			<div className="px-1 py-2">
@@ -42,11 +48,38 @@ export function EngineSettings() {
 			</div>
 		);
 	}
-	if (!view) return null;
+	if (!view) {
+		return (
+			<div
+				aria-busy={loading}
+				aria-label={t('settings.engine.loading')}
+				role="status"
+				className="flex items-center justify-center gap-2 px-1 py-10 text-xs text-muted-foreground"
+			>
+				<Spinner className="size-4" />
+				{t('settings.engine.loading')}
+			</div>
+		);
+	}
 
 	const { configured, defaults, restart_required: pending, corrected } = view;
 	const why = (key: string) => rejected.find((r) => r.key === key)?.message;
-	const portProblem = why('netbridge.ephemeral_port_start') ?? why('netbridge.ephemeral_port_end');
+
+	// Each port field is patched on its own (see `port` below), so at most
+	// one of these is ever set at a time — but the row has one shared
+	// description for both fields, and without naming which one, a rejection
+	// on the high port would show under a row with two fields and no clue
+	// which was refused.
+	const startProblem = why('netbridge.ephemeral_port_start');
+	const endProblem = why('netbridge.ephemeral_port_end');
+	const portProblem = startProblem
+		? t('settings.engine.ports.fieldRejected', { field: t('settings.engine.ports.lowest'), message: startProblem })
+		: endProblem
+			? t('settings.engine.ports.fieldRejected', {
+					field: t('settings.engine.ports.highest'),
+					message: endProblem,
+				})
+			: null;
 
 	// A blank or non-integer entry is never sent — there is nothing valid to
 	// patch — and the field is reverted to what the daemon actually holds. A
@@ -66,10 +99,12 @@ export function EngineSettings() {
 
 	return (
 		<div>
+			{patchError && <Notice tone="error">{patchError}</Notice>}
+
 			{corrected.length > 0 && (
 				<Notice>
 					{t('settings.engine.corrected', {
-						settings: corrected.map((c) => c.key).join(', '),
+						settings: corrected.map((c) => `${c.key} (${c.message})`).join(', '),
 					})}
 				</Notice>
 			)}
@@ -143,7 +178,7 @@ export function EngineSettings() {
 					>
 						<Select
 							items={LEVELS.map((l) => ({ value: l, label: t(`settings.engine.logs.level.${l}`) }))}
-							value={configured.logger.level}
+							value={normaliseLevel(configured.logger.level)}
 							onValueChange={(next) => void patch({ logger: { level: next } })}
 						>
 							<SelectTrigger className="w-[112px]" aria-label={t('settings.engine.logs.level')}>

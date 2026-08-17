@@ -372,7 +372,7 @@ describe('the General panel', () => {
 describe('the Engine panel', () => {
 	beforeEach(() => {
 		installMock('normal');
-		useEngineStore.setState({ view: null, rejected: [], loading: false, error: null });
+		useEngineStore.setState({ view: null, rejected: [], loading: true, error: null, patchError: null });
 	});
 
 	it('shows the daemon values once loaded', async () => {
@@ -409,20 +409,33 @@ describe('the Engine panel', () => {
 		expect(await screen.findByDisplayValue('49152')).toBeInTheDocument();
 	});
 
-	it('reports settings the daemon had to replace with defaults', async () => {
+	it('reports settings the daemon had to replace with defaults, including why', async () => {
 		setMockCorrected(currentMock()!.world, ['vault.ttl']);
 		render(<EngineSettings />);
-		expect(await screen.findByText(/could not use these settings/i)).toBeInTheDocument();
+		expect(
+			await screen.findByText(/could not use these settings.*vault\.ttl \(unusable value, default applied\)/i)
+		).toBeInTheDocument();
 	});
 
-	it('marks the row the daemon refused', async () => {
+	it('marks the row the daemon refused, attributed to the lowest port', async () => {
 		const user = userEvent.setup();
 		render(<EngineSettings />);
 		const start = await screen.findByDisplayValue('49152');
 		await user.clear(start);
 		await user.type(start, '99999');
 		await user.tab();
-		expect(await screen.findByText(/port out of range/i)).toBeInTheDocument();
+		expect(await screen.findByText('Lowest port: port out of range')).toBeInTheDocument();
+	});
+
+	it('attributes a rejection on the highest port to that field, not the lowest', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		const end = await screen.findByDisplayValue('65535');
+		await user.clear(end);
+		await user.type(end, '99999');
+		await user.tab();
+		expect(await screen.findByText('Highest port: port out of range')).toBeInTheDocument();
+		expect(screen.queryByText(/^Lowest port:/)).not.toBeInTheDocument();
 	});
 
 	it('reverts a rejected port to the daemon value, while still showing why', async () => {
@@ -542,5 +555,66 @@ describe('the Engine panel', () => {
 
 		await user.click(screen.getByRole('button', { name: 'Reset Ports for servers' }));
 		expect(await screen.findByDisplayValue('65535')).toBeInTheDocument();
+	});
+
+	it('shows a loading state before the first view arrives, instead of an empty panel', async () => {
+		render(<EngineSettings />);
+		const status = screen.getByRole('status', { name: 'Loading engine settings' });
+		expect(status).toHaveAttribute('aria-busy', 'true');
+		expect(screen.queryByDisplayValue('49152')).not.toBeInTheDocument();
+
+		// Drains the in-flight load before the test ends, so nothing settles
+		// and updates state after this test's render has gone away.
+		await screen.findByDisplayValue('49152');
+	});
+
+	it('clears a stale rejection when the panel is left and revisited', async () => {
+		const user = userEvent.setup();
+		const { unmount } = render(<EngineSettings />);
+
+		const start = await screen.findByDisplayValue('49152');
+		await user.clear(start);
+		await user.type(start, '99999');
+		await user.tab();
+		expect(await screen.findByText('Lowest port: port out of range')).toBeInTheDocument();
+
+		// Simulates `Tabs.Panel` unmounting the Engine tab (leaving General)
+		// and remounting it (returning to Engine). The daemon still holds a
+		// valid value — the earlier rejection must not survive the trip.
+		unmount();
+		render(<EngineSettings />);
+
+		await screen.findByDisplayValue('49152');
+		expect(screen.queryByText(/port out of range/i)).not.toBeInTheDocument();
+	});
+
+	it('keeps the panel and its rows on screen when a patch fails, showing the error inline', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		await screen.findByDisplayValue('49152');
+
+		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 100 } });
+		await user.click(screen.getByRole('switch', { name: 'Write logs to disk' }));
+
+		expect(await screen.findByText(/mock fault: config/i)).toBeInTheDocument();
+		// The panel itself must still be there — a patch failure is not a
+		// load failure, and must not tear the whole thing down.
+		expect(screen.getByDisplayValue('49152')).toBeInTheDocument();
+		expect(screen.getByRole('switch', { name: 'Write logs to disk' })).toBeInTheDocument();
+	});
+
+	it('normalises an on-disk log level alias for display', async () => {
+		render(<EngineSettings />);
+		await screen.findByDisplayValue('49152');
+
+		// The mock accepts `warning` as a valid on-disk alias (core does too;
+		// the Select just never writes it). This is the only way to get one
+		// onto `configured.logger.level` without reaching into the store.
+		await act(async () => {
+			await useEngineStore.getState().patch({ logger: { level: 'warning' } });
+		});
+
+		expect(useEngineStore.getState().view?.configured.logger.level).toBe('warning');
+		expect(screen.getByRole('combobox', { name: 'Level' })).toHaveTextContent('Warn');
 	});
 });

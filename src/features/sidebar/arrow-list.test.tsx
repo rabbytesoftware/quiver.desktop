@@ -175,7 +175,10 @@ describe('ArrowList', () => {
 
 		expect(await screen.findByText('Can’t reach quiver.core')).toBeVisible();
 		expect(screen.queryByText('No arrows yet')).toBeNull();
-		expect(screen.getByRole('link', { name: 'Check connections' })).toHaveAttribute('href', '/settings');
+		expect(screen.getByRole('link', { name: 'Check Engine settings' })).toHaveAttribute(
+			'href',
+			'/settings?tab=engine'
+		);
 	});
 
 	it('prefers cached arrows over any placeholder, even mid-load', async () => {

@@ -6,12 +6,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Quiver</title>
     <script>
+      // Applies the persisted theme before first paint, so there is nothing
+      // for src/features/shell/theme.ts to correct once React mounts. Reads
+      // localStorage directly (zustand's `persist` shape) rather than
+      // waiting for the store, and falls back to the OS query whenever the
+      // preference is "system" or the stored value cannot be trusted —
+      // parsing must never throw here, since this runs before anything else
+      // on the page.
+      //
+      // Deliberately does NOT listen for `change` on the media query: that
+      // is `installThemeSync`'s job (src/features/shell/theme.ts) once it
+      // takes over. A second listener here would race it depending on which
+      // MediaQueryList happened to be created first — an accident, not a
+      // guarantee.
       (function () {
         var mq = window.matchMedia('(prefers-color-scheme: dark)');
-        document.documentElement.classList.toggle('dark', mq.matches);
-        mq.addEventListener('change', function (e) {
-          document.documentElement.classList.toggle('dark', e.matches);
-        });
+        var preference = 'system';
+        try {
+          var raw = localStorage.getItem('quiver.theme');
+          if (raw) {
+            var stored = JSON.parse(raw).state.preference;
+            if (stored === 'light' || stored === 'dark' || stored === 'system') preference = stored;
+          }
+        } catch (e) {
+          preference = 'system';
+        }
+        var dark = preference === 'dark' || (preference === 'system' && mq.matches);
+        document.documentElement.classList.toggle('dark', dark);
       })();
     </script>
   </head>

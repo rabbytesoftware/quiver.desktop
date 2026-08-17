@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from 'react';
+import { useRef, type MouseEvent, type ReactNode } from 'react';
 
 // Phosphor's `*Icon` suffix, matching GearIcon/HouseIcon in the sidebar.
 import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
@@ -17,9 +17,16 @@ export function Section({ title, children }: { title: string; children: ReactNod
 	);
 }
 
-export function Notice({ children }: { children: ReactNode }) {
+export function Notice({ tone = 'default', children }: { tone?: 'default' | 'error'; children: ReactNode }) {
 	return (
-		<p className="mx-1 mb-3 rounded-md border border-border bg-muted/45 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground">
+		<p
+			className={cn(
+				'mx-1 mb-3 rounded-md border px-2.5 py-2 text-xs leading-relaxed',
+				tone === 'error'
+					? 'border-destructive/40 bg-destructive/10 text-destructive'
+					: 'border-border bg-muted/45 text-muted-foreground'
+			)}
+		>
 			{children}
 		</p>
 	);
@@ -56,20 +63,32 @@ export function SettingRow({
 	canReset?: boolean;
 }) {
 	const { t } = useTranslation();
+	const rowRef = useRef<HTMLDivElement>(null);
+
+	// `canReset` flips false the instant a reset succeeds, and `disabled`
+	// (plus `invisible`, below) drops the button out of the focus chain —
+	// either alone would otherwise dump a keyboard user's focus onto
+	// `<body>`. Moving focus to the control the reset just restored keeps it
+	// somewhere meaningful instead.
+	function handleReset() {
+		onReset?.();
+		rowRef.current?.querySelector<HTMLElement>(`[data-slot=setting-control] ${PASSTHROUGH}`)?.focus();
+	}
 
 	return (
 		<div
+			ref={rowRef}
 			role="presentation"
 			onClick={activate}
-			className="flex select-none items-center justify-between gap-3 rounded-lg px-1 py-2 transition-colors hover:bg-muted/50 focus-within:bg-muted/50"
+			className="flex items-center justify-between gap-3 rounded-lg px-1 py-2 transition-colors hover:bg-muted/50 focus-within:bg-muted/50"
 		>
 			<div className="min-w-0 flex-1">
-				<div className="flex items-center gap-1.5">
+				<div className="flex select-none items-center gap-1.5">
 					<span className="text-[13px] leading-tight text-foreground">{label}</span>
 					{onReset && (
 						<button
 							type="button"
-							onClick={onReset}
+							onClick={handleReset}
 							disabled={!canReset}
 							aria-label={t('settings.row.reset', { setting: label })}
 							className={cn(
@@ -83,7 +102,9 @@ export function SettingRow({
 					)}
 				</div>
 				{description && (
-					<div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{description}</div>
+					<div className="mt-0.5 select-text text-xs leading-relaxed text-muted-foreground">
+						{description}
+					</div>
 				)}
 			</div>
 			{children && (

@@ -12,7 +12,7 @@ beforeEach(() => {
 	installMock('normal');
 	useMockStore.getState().resetFaults();
 	useMockStore.getState().resetChaos();
-	useEngineStore.setState({ view: null, rejected: [], loading: false, error: null });
+	useEngineStore.setState({ view: null, rejected: [], loading: false, error: null, patchError: null });
 });
 
 afterEach(() => {
@@ -89,11 +89,13 @@ describe('the engine config store', () => {
 		expect(useEngineStore.getState().rejected).toEqual([{ key: 'api.host', message: 'read-only' }]);
 	});
 
-	it('records an error when a patch cannot reach the daemon', async () => {
+	it('records a patch error separately from a load error, keeping the view intact', async () => {
 		await useEngineStore.getState().load();
 		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 100 } });
 		await useEngineStore.getState().patch({ logger: { level: 'warn' } });
-		expect(useEngineStore.getState().error).not.toBeNull();
+		expect(useEngineStore.getState().patchError).not.toBeNull();
+		expect(useEngineStore.getState().error).toBeNull();
+		expect(useEngineStore.getState().view).not.toBeNull();
 	});
 
 	it('stringifies a non-Error rejection from a load', async () => {
@@ -106,13 +108,22 @@ describe('the engine config store', () => {
 		await useEngineStore.getState().load();
 		vi.spyOn(engineApi, 'patchConfig').mockRejectedValueOnce('nope');
 		await useEngineStore.getState().patch({ logger: { level: 'warn' } });
-		expect(useEngineStore.getState().error).toBe('nope');
+		expect(useEngineStore.getState().patchError).toBe('nope');
 	});
 
 	it('falls back to the status line when a patch response is not JSON at all', async () => {
 		await useEngineStore.getState().load();
 		useMockStore.setState({ unreachable: true });
 		await useEngineStore.getState().patch({ logger: { level: 'warn' } });
-		expect(useEngineStore.getState().error).toContain('502');
+		expect(useEngineStore.getState().patchError).toContain('502');
+	});
+
+	it('clears a stale rejection when the panel is loaded again', async () => {
+		await useEngineStore.getState().load();
+		await useEngineStore.getState().patch({ netbridge: { ephemeral_port_start: 99999 } });
+		expect(useEngineStore.getState().rejected).not.toEqual([]);
+
+		await useEngineStore.getState().load();
+		expect(useEngineStore.getState().rejected).toEqual([]);
 	});
 });

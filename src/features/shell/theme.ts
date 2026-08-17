@@ -47,6 +47,11 @@ function apply(preference: ThemePreference): void {
  * listener stays attached whatever the preference is and simply re-derives —
  * `apply` already ignores the system while an explicit choice is in force, so
  * there is no subscribe/unsubscribe dance to get wrong.
+ *
+ * This is the sole owner of the OS `change` listener. `index.html`'s
+ * pre-paint script reads the persisted preference to avoid a flash of the
+ * wrong theme before this module ever runs, but it does not attach a
+ * `change` listener of its own — a second one there would race this one.
  */
 export function installThemeSync(): () => void {
 	apply(useThemeStore.getState().preference);

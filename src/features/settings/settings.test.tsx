@@ -44,6 +44,22 @@ describe('SettingRow reset', () => {
 		await user.click(screen.getByRole('button', { name: 'Reset Theme' }));
 		expect(onReset).toHaveBeenCalledOnce();
 	});
+
+	// `canReset` flips false the instant a reset succeeds, applying both
+	// `disabled` and `invisible` to the button — either alone drops it from
+	// the focus chain. Without moving focus somewhere on purpose, a keyboard
+	// user who activates the reset is dumped onto <body>.
+	it('moves focus to the row control instead of dropping it on activation', async () => {
+		const user = userEvent.setup();
+		render(
+			<SettingRow label="Theme" onReset={() => {}} canReset>
+				<input aria-label="Theme value" defaultValue="dark" />
+			</SettingRow>
+		);
+		await user.click(screen.getByRole('button', { name: 'Reset Theme' }));
+		expect(screen.getByRole('textbox', { name: 'Theme value' })).toHaveFocus();
+		expect(document.body).not.toHaveFocus();
+	});
 });
 
 describe('SettingRow click delegation', () => {
