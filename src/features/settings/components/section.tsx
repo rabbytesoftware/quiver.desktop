@@ -1,81 +1,85 @@
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useId, useRef, useState } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
+
+// Phosphor's `*Icon` suffix, matching GearIcon/HouseIcon in the sidebar.
+import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
 
 import { cn } from '@/lib/cn';
 
-import { rowMatchesQuery, useSettingsUI } from '../store';
-
-const RowVisibility = createContext<((rowId: string, visible: boolean | null) => void) | null>(null);
-
-export function Section({
-	title,
-	description,
-	children,
-}: {
-	title: string;
-	description?: string;
-	children: ReactNode;
-}) {
-	const searching = useSettingsUI((s) => s.query.trim().length > 0);
-	const visibility = useRef(new Map<string, boolean>());
-	const [visibleRows, setVisibleRows] = useState(0);
-
-	const report = useCallback((rowId: string, visible: boolean | null) => {
-		if (visible === null) visibility.current.delete(rowId);
-		else visibility.current.set(rowId, visible);
-		setVisibleRows([...visibility.current.values()].filter(Boolean).length);
-	}, []);
-
-	const hidden = searching && visibleRows === 0;
-
+export function Section({ title, children }: { title: string; children: ReactNode }) {
 	return (
-		<RowVisibility.Provider value={report}>
-			<section hidden={hidden} className="mb-6">
-				<h3 className="mb-1 text-sm font-medium text-foreground">{title}</h3>
-				{description && <p className="mb-2 text-xs leading-relaxed text-muted-foreground">{description}</p>}
-				<div>{children}</div>
-			</section>
-		</RowVisibility.Provider>
+		<section className="px-1 py-0.5 first:[&>[data-slot=section-header]]:hidden">
+			<div data-slot="section-header" className="mb-2 px-1 pt-4 pb-1.5">
+				<h3 className="text-[13px] font-medium text-foreground">{title}</h3>
+			</div>
+			<div className="flex flex-col gap-2">{children}</div>
+		</section>
 	);
 }
+
+const PASSTHROUGH = "button, input, select, textarea, a, label, [role='switch'], [role='button']";
 
 export function SettingRow({
 	label,
 	description,
 	children,
-	className,
+	onReset,
+	canReset = Boolean(onReset),
 }: {
 	label: string;
-	description?: ReactNode;
+	description?: string;
 	children?: ReactNode;
-	className?: string;
+	onReset?: () => void;
+	canReset?: boolean;
 }) {
-	const query = useSettingsUI((s) => s.query);
-	const report = useContext(RowVisibility);
-	const rowId = useId();
-	const matches = rowMatchesQuery(query, label, typeof description === 'string' ? description : undefined);
-
-	useEffect(() => {
-		if (!report) return;
-		report(rowId, matches);
-		return () => report(rowId, null);
-	}, [report, rowId, matches]);
-
-	if (!matches) return null;
+	// Mouse-only convenience: clicking the row's dead space activates its
+	// control. Clicks that already landed on something interactive are left
+	// alone — those handle themselves, and forwarding would double-fire.
+	// There is deliberately no keyboard counterpart and no tabIndex here: the
+	// control is natively tabbable, so a row-level stop would double every
+	// tab stop in Settings.
+	function activate(event: MouseEvent<HTMLDivElement>) {
+		if ((event.target as HTMLElement).closest(PASSTHROUGH)) return;
+		const control = event.currentTarget.querySelector<HTMLElement>(`[data-slot=setting-control] ${PASSTHROUGH}`);
+		if (!control) return;
+		control.focus();
+		if (control instanceof HTMLInputElement && control.type === 'number') control.select();
+		else if (!(control instanceof HTMLSelectElement)) control.click();
+	}
 
 	return (
 		<div
-			className={cn(
-				'flex min-h-[34px] items-center justify-between gap-4 px-1 py-1.5 transition-colors hover:bg-accent/50',
-				className
-			)}
+			role="presentation"
+			onClick={activate}
+			className="flex select-none items-center justify-between gap-3 rounded-lg px-1 py-2 transition-colors hover:bg-muted/50 focus-within:bg-muted/50"
 		>
 			<div className="min-w-0 flex-1">
-				<div className="text-sm leading-tight text-foreground">{label}</div>
+				<div className="flex items-center gap-1.5">
+					<span className="text-[13px] leading-tight text-foreground">{label}</span>
+					{onReset && (
+						<button
+							type="button"
+							onClick={onReset}
+							disabled={!canReset}
+							aria-label={`Reset ${label}`}
+							className={cn(
+								'grid size-5 place-items-center rounded-md text-muted-foreground',
+								'hover:bg-accent hover:text-foreground',
+								!canReset && 'pointer-events-none invisible'
+							)}
+						>
+							<ArrowCounterClockwiseIcon size={12} />
+						</button>
+					)}
+				</div>
 				{description && (
 					<div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{description}</div>
 				)}
 			</div>
-			{children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
+			{children && (
+				<div data-slot="setting-control" className="flex shrink-0 items-center gap-2">
+					{children}
+				</div>
+			)}
 		</div>
 	);
 }

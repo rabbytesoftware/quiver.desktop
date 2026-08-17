@@ -7,23 +7,17 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(() => Promise.resolve()) 
 
 vi.mock('@tanstack/react-router-devtools', () => ({ TanStackRouterDevtools: () => null }));
 
-import { invoke } from '@tauri-apps/api/core';
-
 import { MockIndicator } from '@/components/mock-indicator';
 
-import { useConnectionStore } from '@/lib/connection';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
 import { createMockBackend, currentMock, disposeMock, installMock } from '@/lib/mock';
 import { useMockStore } from '@/lib/mock/store';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 import { routeTree } from '@/routeTree.gen';
 
-import { ConnectionsSettings } from './components/tabs/connections';
 import { DeveloperSettings } from './components/tabs/developer';
 import { GeneralSettings } from './components/tabs/general';
 import { useSettingsUI } from './store';
-
-const invokeMock = invoke as ReturnType<typeof vi.fn>;
 
 let reload: ReturnType<typeof vi.fn>;
 
@@ -32,10 +26,9 @@ beforeEach(() => {
 	reload = vi.fn();
 	Object.defineProperty(window, 'location', { value: { ...window.location, reload }, writable: true });
 
-	useSettingsUI.setState({ tab: 'connections', query: '' });
+	useSettingsUI.setState({ tab: 'general' });
 	useMockStore.setState({ enabled: false, scenario: 'normal', latency: 0, errorRate: 0, unreachable: false });
 	useMockStore.getState().resetFaults();
-	useConnectionStore.setState({ connections: [], activeId: 'local' });
 	useLocaleStore.setState({ preference: 'system', detected: 'en' });
 	localStorage.removeItem(LOCALE_STORAGE_KEY);
 });
@@ -150,95 +143,6 @@ describe('the Developer panel', () => {
 		expect(screen.getByText(/Forced on by VITE_QUIVER_MOCK/)).toBeInTheDocument();
 		vi.unstubAllEnvs();
 	});
-
-	it('says the chaos knobs are inert while the mock is off', () => {
-		render(<DeveloperSettings />);
-		expect(screen.getByText(/Inert while the mock server is off/)).toBeInTheDocument();
-	});
-});
-
-describe('the Connections panel', () => {
-	it('marks the active host and offers no Switch for it', () => {
-		useConnectionStore.setState({
-			connections: [
-				{ id: 'local', name: 'Local', kind: 'local', api_version: 'v0' },
-				{ id: 'r1', name: 'Basement', kind: 'remote', url: 'https://box', api_version: 'v0' },
-			],
-			activeId: 'local',
-		});
-		render(<ConnectionsSettings />);
-
-		expect(screen.getByText('Active')).toBeInTheDocument();
-		expect(screen.getAllByRole('button', { name: 'Switch' })).toHaveLength(1);
-	});
-
-	it('offers no Remove for the local daemon', () => {
-		useConnectionStore.setState({
-			connections: [{ id: 'local', name: 'Local', kind: 'local', api_version: 'v0' }],
-			activeId: 'local',
-		});
-		render(<ConnectionsSettings />);
-		expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
-	});
-
-	it('switches and removes through the shell commands', async () => {
-		const user = userEvent.setup();
-		useConnectionStore.setState({
-			connections: [
-				{ id: 'local', name: 'Local', kind: 'local', api_version: 'v0' },
-				{ id: 'r1', name: 'Basement', kind: 'remote', url: 'https://box', api_version: 'v0' },
-			],
-			activeId: 'local',
-		});
-		render(<ConnectionsSettings />);
-
-		await user.click(screen.getByRole('button', { name: 'Switch' }));
-		expect(invokeMock).toHaveBeenCalledWith('switch_connection', { id: 'r1' });
-
-		await user.click(screen.getByRole('button', { name: 'Remove' }));
-		expect(invokeMock).toHaveBeenCalledWith('remove_connection', { id: 'r1' });
-	});
-
-	it('adds a host and clears the form', async () => {
-		const user = userEvent.setup();
-		render(<ConnectionsSettings />);
-
-		await user.type(screen.getByRole('textbox', { name: 'Host name' }), 'Basement');
-		await user.type(screen.getByRole('textbox', { name: 'Host URL' }), 'https://box');
-		await user.click(screen.getByRole('button', { name: 'Add host' }));
-
-		expect(invokeMock).toHaveBeenCalledWith('add_connection', {
-			name: 'Basement',
-			url: 'https://box',
-			token: '',
-		});
-		expect(screen.getByRole('textbox', { name: 'Host name' })).toHaveValue('');
-	});
-
-	it('surfaces a failed command instead of swallowing it', async () => {
-		const user = userEvent.setup();
-		invokeMock.mockRejectedValueOnce(new Error('keyring locked'));
-		render(<ConnectionsSettings />);
-
-		await user.type(screen.getByRole('textbox', { name: 'Host name' }), 'X');
-		await user.type(screen.getByRole('textbox', { name: 'Host URL' }), 'https://x');
-		await user.click(screen.getByRole('button', { name: 'Add host' }));
-
-		expect(await screen.findByText('keyring locked')).toBeInTheDocument();
-	});
-
-	it('disables every host mutation while the mock is on, and says why', () => {
-		useMockStore.setState({ enabled: true });
-		useConnectionStore.setState({
-			connections: [{ id: 'mock:normal', name: 'Mock · Normal', kind: 'local', api_version: 'v0' }],
-			activeId: 'mock:normal',
-		});
-		render(<ConnectionsSettings />);
-
-		expect(screen.getByText(/this list is fabricated/)).toBeInTheDocument();
-		expect(screen.getByText(/there is no daemon behind this/)).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Add host' })).toBeDisabled();
-	});
 });
 
 describe('the settings page', () => {
@@ -260,19 +164,8 @@ describe('the settings page', () => {
 		await waitFor(() => expect(router.state.location.searchStr).toBe('?tab=developer'));
 	});
 
-	it('filters rows across the panel as you search', async () => {
-		const user = userEvent.setup();
-		renderApp('/settings?tab=developer');
-
-		await user.type(await screen.findByRole('textbox', { name: 'Search settings' }), 'unreachable');
-
-		expect(screen.getByText('Daemon unreachable')).toBeInTheDocument();
-		expect(screen.queryByText('Error rate')).not.toBeInTheDocument();
-	});
-
 	it('falls back to the first tab when the remembered one is gone', async () => {
 		useSettingsUI.setState({ tab: 'developer' });
-		useMockStore.setState({ devUnlocked: false });
 		renderApp('/settings');
 
 		const tabs = await screen.findAllByRole('tab');
@@ -383,11 +276,5 @@ describe('the General panel', () => {
 		expect(screen.getByRole('combobox', { name: 'Display language' })).toBeDisabled();
 		expect(screen.getByText(/Forced to English by VITE_QUIVER_LOCALE/)).toBeInTheDocument();
 		vi.unstubAllEnvs();
-	});
-
-	it('previews a date and a number in the chosen language', () => {
-		render(<GeneralSettings />);
-		expect(screen.getByText(/2026/)).toBeInTheDocument();
-		expect(screen.getByText('1,234,567.89')).toBeInTheDocument();
 	});
 });

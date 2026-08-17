@@ -39,7 +39,7 @@ export function DeveloperSettings() {
 
 	return (
 		<div>
-			<Section title={t('settings.developer.mock.title')} description={t('settings.developer.mock.description')}>
+			<Section title={t('settings.developer.mock.title')}>
 				<SettingRow
 					label={t('settings.developer.mock.toggle')}
 					description={
@@ -84,10 +84,7 @@ export function DeveloperSettings() {
 				</SettingRow>
 			</Section>
 
-			<Section
-				title={t('settings.developer.chaos.title')}
-				description={enabled ? t('settings.developer.chaos.description') : t('settings.developer.chaos.inert')}
-			>
+			<Section title={t('settings.developer.chaos.title')}>
 				<SettingRow
 					label={t('settings.developer.chaos.latency')}
 					description={t('settings.developer.chaos.latencyDescription')}
@@ -129,7 +126,7 @@ export function DeveloperSettings() {
 					/>
 				</SettingRow>
 
-				<SettingRow label="" className="justify-end">
+				<SettingRow label="">
 					<Button
 						variant="outline"
 						size="sm"
@@ -141,10 +138,7 @@ export function DeveloperSettings() {
 				</SettingRow>
 			</Section>
 
-			<Section
-				title={t('settings.developer.faults.title')}
-				description={t('settings.developer.faults.description')}
-			>
+			<Section title={t('settings.developer.faults.title')}>
 				{FAULT_KEYS.map((key) => (
 					<SettingRow key={key} label={t(`settings.developer.faults.${key}`)}>
 						<Slider
@@ -161,7 +155,7 @@ export function DeveloperSettings() {
 						</span>
 					</SettingRow>
 				))}
-				<SettingRow label="" className="justify-end">
+				<SettingRow label="">
 					<Button variant="outline" size="sm" onClick={resetFaults} disabled={!anyFault}>
 						{t('settings.developer.faults.reset')}
 					</Button>

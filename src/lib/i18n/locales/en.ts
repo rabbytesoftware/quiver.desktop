@@ -25,55 +25,16 @@ export const en = {
 	'arrow.icon.fallback': '{name} icon',
 
 	'settings.title': 'Settings',
-	'settings.search.placeholder': 'Search settings',
-	'settings.search.label': 'Search settings',
 	'settings.tab.general': 'General',
-	'settings.tab.connections': 'Connections',
+	'settings.tab.engine': 'Engine',
 	'settings.tab.developer': 'Developer',
 
 	'settings.general.language.title': 'Language',
-	'settings.general.language.description':
-		'Applies to Quiver’s own interface. Anything a daemon sends — host names, arrow descriptions, errors — arrives in whatever language it was written in and is shown as-is.',
 	'settings.general.language.label': 'Display language',
 	'settings.general.language.hint': 'Follows the system language until you pick one here.',
 	'settings.general.language.forced':
 		'Forced to {language} by VITE_QUIVER_LOCALE for this run. Restart without it to get the picker back.',
 	'settings.general.language.system': 'System ({language})',
-	'settings.general.formats.title': 'Formats',
-	'settings.general.formats.description':
-		'Dates and numbers follow the display language, not a separate setting — a preview, so the effect of the row above is visible before anything else in the app uses it.',
-	'settings.general.formats.date': 'Date',
-	'settings.general.formats.number': 'Number',
-
-	'settings.connections.hosts.title': 'Hosts',
-	'settings.connections.hosts.description':
-		'Every quiver.core daemon this app can talk to. Switching keeps each host’s cached library separate.',
-	'settings.connections.hosts.mocked':
-		'The mock server is on, so this list is fabricated and cannot be changed. Turn it off in Developer to manage real hosts.',
-	'settings.connections.host.fabricated': 'Fabricated — there is no daemon behind this',
-	'settings.connections.host.bundled': 'Bundled daemon',
-	'settings.connections.host.active': 'Active',
-	'settings.connections.host.switch': 'Switch',
-	'settings.connections.host.remove': 'Remove',
-	'settings.connections.add.title': 'Add a host',
-	'settings.connections.add.description':
-		'A remote quiver.core daemon. The token is stored in the OS keychain, never in the app’s own storage.',
-	'settings.connections.add.name': 'Name',
-	'settings.connections.add.namePlaceholder': 'Basement box',
-	'settings.connections.add.nameLabel': 'Host name',
-	'settings.connections.add.url': 'URL',
-	'settings.connections.add.urlLabel': 'Host URL',
-	'settings.connections.add.token': 'Token',
-	'settings.connections.add.tokenLabel': 'Host token',
-	'settings.connections.add.submit': 'Add host',
-
-	'settings.version.label': 'Quiver version {version}',
-	'settings.version.text': 'Quiver {version}',
-	'settings.version.remaining': {
-		one: '{count} more tap…',
-		other: '{count} more taps…',
-	},
-	'settings.version.unlocked': 'Developer tab unlocked.',
 
 	'settings.developer.mock.title': 'Mock server',
 	'settings.developer.mock.description':
