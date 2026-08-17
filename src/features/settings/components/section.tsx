@@ -42,6 +42,13 @@ const PASSTHROUGH = "button, input, select, textarea, a, label, [role='switch'],
 // control is natively tabbable, so a row-level stop would double every
 // tab stop in Settings.
 function activate(event: MouseEvent<HTMLDivElement>) {
+	// React replays events through the COMPONENT tree, not the DOM tree, so a
+	// click inside a portalled popup — a Select's option list is rendered into
+	// `document.body` — still arrives here. Those clicks are not "the row's
+	// dead space"; forwarding them refocuses the trigger and re-clicks it,
+	// which is how selecting an option left the dropdown open. Anything not
+	// physically inside this row belongs to whatever portalled it.
+	if (!event.currentTarget.contains(event.target as Node)) return;
 	if ((event.target as HTMLElement).closest(PASSTHROUGH)) return;
 	// A drag-select that ends with `mouseup` inside the row (most usefully,
 	// inside the description) still fires `click`. Without this, releasing

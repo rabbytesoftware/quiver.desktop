@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createPortal } from 'react-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { create } from 'zustand';
 
@@ -163,6 +164,45 @@ describe('SettingRow click delegation', () => {
 		expect(onClick).not.toHaveBeenCalled();
 
 		selection.mockRestore();
+	});
+
+	// Base UI's `Select` renders its option list into `document.body` via a
+	// portal, but a portalled node is still a CHILD of `SettingRow` in the
+	// React tree, and React replays a click through the component tree, not
+	// the DOM tree. So a click on an option arrives at `activate()` looking
+	// exactly like a click on the row's own dead space.
+	//
+	// The option itself carries `role="option"`, which — like Base UI's real
+	// options — is not in `PASSTHROUGH`, so the passthrough check alone
+	// cannot save it. Only a DOM-containment check (is the click's target
+	// actually inside this row's own subtree?) can tell the two apart, since
+	// the portal node lives under `document.body`, not under the row.
+	it('ignores a click on a portalled descendant even though it is a child in the React tree', async () => {
+		const user = userEvent.setup();
+		const onClick = vi.fn();
+
+		function PortalledOption() {
+			return createPortal(
+				<div role="option" aria-selected={false} data-testid="portalled">
+					option
+				</div>,
+				document.body
+			);
+		}
+
+		render(
+			<SettingRow label="Mock server">
+				<button type="button" onClick={onClick}>
+					toggle
+				</button>
+				<PortalledOption />
+			</SettingRow>
+		);
+
+		await user.click(screen.getByTestId('portalled'));
+
+		expect(onClick).not.toHaveBeenCalled();
+		expect(screen.getByRole('button', { name: 'toggle' })).not.toHaveFocus();
 	});
 });
 
