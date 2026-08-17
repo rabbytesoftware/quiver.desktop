@@ -49,8 +49,6 @@ export const en = {
 	'settings.general.language.system': 'System ({language})',
 
 	'settings.developer.mock.title': 'Mock server',
-	'settings.developer.mock.description':
-		'Replaces the quiver.core daemon with an in-memory one. Nothing is contacted over the network, and your real library is untouched — mock data lives in its own cache partition.',
 	'settings.developer.mock.toggle': 'Use the mock server',
 	'settings.developer.mock.forced':
 		'Forced on by VITE_QUIVER_MOCK for this run — started by `make dev-mock` or `make dev-web`. Restart without it to get the switch back.',
@@ -61,10 +59,6 @@ export const en = {
 	'settings.developer.mock.apply': 'Apply',
 
 	'settings.developer.chaos.title': 'Chaos',
-	'settings.developer.chaos.description':
-		'Applies to the next request. Nothing here is persisted — it all resets when the app restarts.',
-	'settings.developer.chaos.inert':
-		'Inert while the mock server is off. quiver.core has no equivalent of these, so they cannot be applied to a real daemon.',
 	'settings.developer.chaos.latency': 'Latency',
 	'settings.developer.chaos.latencyDescription': 'Delay added to every mock response.',
 	'settings.developer.chaos.latencyLabel': 'Latency in milliseconds',
@@ -74,13 +68,9 @@ export const en = {
 	'settings.developer.chaos.unreachable': 'Daemon unreachable',
 	'settings.developer.chaos.unreachableDescription':
 		'Answers every request the way the Rust proxy answers a refused socket — a 502 carrying x-quiver-proxy. This is the only fault that exercises the retry ladder and reaches the Disconnected screen.',
-	'settings.developer.chaos.reset': 'Reset chaos',
 
 	'settings.developer.faults.title': 'Fault injection',
-	'settings.developer.faults.description':
-		"Force one route family to fail, so you can see a single panel's error state without breaking the rest of the app.",
 	'settings.developer.faults.rateLabel': '{family} fault rate',
-	'settings.developer.faults.reset': 'Reset all faults',
 	'settings.developer.faults.arrows': 'Arrow catalog',
 	'settings.developer.faults.arrow-detail': 'Arrow detail',
 	'settings.developer.faults.search': 'Search',

@@ -103,15 +103,21 @@ describe('the Developer panel', () => {
 		expect(useMockStore.getState().unreachable).toBe(true);
 	});
 
-	it('enables Reset chaos only once something is set', async () => {
+	it('offers a per-row reset for the error rate and the unreachable switch too', async () => {
 		const user = userEvent.setup();
 		render(<DeveloperSettings />);
 
-		expect(screen.getByRole('button', { name: 'Reset chaos' })).toBeDisabled();
-		await user.click(screen.getByRole('switch', { name: 'Daemon unreachable' }));
-		expect(screen.getByRole('button', { name: 'Reset chaos' })).toBeEnabled();
+		expect(screen.getByRole('button', { name: 'Reset Error rate' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Reset Daemon unreachable' })).toBeDisabled();
 
-		await user.click(screen.getByRole('button', { name: 'Reset chaos' }));
+		useMockStore.setState({ errorRate: 25 });
+		await user.click(await screen.findByRole('button', { name: 'Reset Error rate' }));
+		expect(useMockStore.getState().errorRate).toBe(0);
+
+		await user.click(screen.getByRole('switch', { name: 'Daemon unreachable' }));
+		const reset = await screen.findByRole('button', { name: 'Reset Daemon unreachable' });
+		expect(reset).toBeEnabled();
+		await user.click(reset);
 		expect(useMockStore.getState().unreachable).toBe(false);
 	});
 
@@ -126,16 +132,16 @@ describe('the Developer panel', () => {
 		expect(Number.isNaN(useMockStore.getState().faults.search)).toBe(false);
 	});
 
-	it('lists one slider per route family, and resets them together', async () => {
+	it('lists one slider per route family, each with its own reset', async () => {
 		const user = userEvent.setup();
 		render(<DeveloperSettings />);
 
 		expect(screen.getAllByRole('slider', { hidden: true })).toHaveLength(9);
-		expect(screen.getByRole('button', { name: 'Reset all faults' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Reset Search' })).toBeDisabled();
 
 		useMockStore.getState().setFault('search', 40);
 		render(<DeveloperSettings />);
-		const resets = screen.getAllByRole('button', { name: 'Reset all faults' });
+		const resets = screen.getAllByRole('button', { name: 'Reset Search' });
 		await user.click(resets[resets.length - 1]);
 		expect(useMockStore.getState().faults.search).toBe(0);
 	});
@@ -149,6 +155,25 @@ describe('the Developer panel', () => {
 		expect(sw).toBeChecked();
 		expect(screen.getByText(/Forced on by VITE_QUIVER_MOCK/)).toBeInTheDocument();
 		vi.unstubAllEnvs();
+	});
+});
+
+describe('the Developer panel resets', () => {
+	it('offers a per-row reset once a chaos value is off its default', async () => {
+		const user = userEvent.setup();
+		render(<DeveloperSettings />);
+		expect(screen.getByRole('button', { name: 'Reset Latency' })).toBeDisabled();
+		useMockStore.setState({ latency: 250 });
+		const reset = await screen.findByRole('button', { name: 'Reset Latency' });
+		expect(reset).toBeEnabled();
+		await user.click(reset);
+		expect(useMockStore.getState().latency).toBe(0);
+	});
+
+	it('no longer offers the old reset-everything buttons', () => {
+		render(<DeveloperSettings />);
+		expect(screen.queryByRole('button', { name: /reset chaos/i })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /reset all faults/i })).not.toBeInTheDocument();
 	});
 });
 

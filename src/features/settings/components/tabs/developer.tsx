@@ -27,15 +27,12 @@ export function DeveloperSettings() {
 	const setErrorRate = useMockStore((s) => s.setErrorRate);
 	const setUnreachable = useMockStore((s) => s.setUnreachable);
 	const setFault = useMockStore((s) => s.setFault);
-	const resetFaults = useMockStore((s) => s.resetFaults);
-	const resetChaos = useMockStore((s) => s.resetChaos);
 	const applyAndReload = useMockStore((s) => s.applyAndReload);
 
 	const forcedByEnv = mockForcedByEnv();
 
 	const [pending, setPending] = useState<ScenarioName>(scenario);
 	const scenarioChanged = pending !== scenario;
-	const anyFault = FAULT_KEYS.some((k) => faults[k] > 0);
 
 	return (
 		<div>
@@ -88,6 +85,8 @@ export function DeveloperSettings() {
 				<SettingRow
 					label={t('settings.developer.chaos.latency')}
 					description={t('settings.developer.chaos.latencyDescription')}
+					onReset={() => setLatency(0)}
+					canReset={latency !== 0}
 				>
 					<NumberField
 						value={latency}
@@ -103,6 +102,8 @@ export function DeveloperSettings() {
 				<SettingRow
 					label={t('settings.developer.chaos.errorRate')}
 					description={t('settings.developer.chaos.errorRateDescription')}
+					onReset={() => setErrorRate(0)}
+					canReset={errorRate !== 0}
 				>
 					<NumberField
 						value={errorRate}
@@ -118,6 +119,8 @@ export function DeveloperSettings() {
 				<SettingRow
 					label={t('settings.developer.chaos.unreachable')}
 					description={t('settings.developer.chaos.unreachableDescription')}
+					onReset={() => setUnreachable(false)}
+					canReset={unreachable}
 				>
 					<Switch
 						checked={unreachable}
@@ -125,22 +128,16 @@ export function DeveloperSettings() {
 						aria-label={t('settings.developer.chaos.unreachable')}
 					/>
 				</SettingRow>
-
-				<SettingRow label="">
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={resetChaos}
-						disabled={latency === 0 && errorRate === 0 && !unreachable}
-					>
-						{t('settings.developer.chaos.reset')}
-					</Button>
-				</SettingRow>
 			</Section>
 
 			<Section title={t('settings.developer.faults.title')}>
 				{FAULT_KEYS.map((key) => (
-					<SettingRow key={key} label={t(`settings.developer.faults.${key}`)}>
+					<SettingRow
+						key={key}
+						label={t(`settings.developer.faults.${key}`)}
+						onReset={() => setFault(key, 0)}
+						canReset={faults[key] > 0}
+					>
 						<Slider
 							value={faults[key]}
 							onValueChange={(v) => setFault(key, Array.isArray(v) ? (v[0] ?? 0) : v)}
@@ -155,11 +152,6 @@ export function DeveloperSettings() {
 						</span>
 					</SettingRow>
 				))}
-				<SettingRow label="">
-					<Button variant="outline" size="sm" onClick={resetFaults} disabled={!anyFault}>
-						{t('settings.developer.faults.reset')}
-					</Button>
-				</SettingRow>
 			</Section>
 		</div>
 	);
