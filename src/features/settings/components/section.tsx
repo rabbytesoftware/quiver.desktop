@@ -27,6 +27,21 @@ export function Notice({ children }: { children: ReactNode }) {
 
 const PASSTHROUGH = "button, input, select, textarea, a, label, [role='switch'], [role='button']";
 
+// Mouse-only convenience: clicking the row's dead space activates its
+// control. Clicks that already landed on something interactive are left
+// alone — those handle themselves, and forwarding would double-fire.
+// There is deliberately no keyboard counterpart and no tabIndex here: the
+// control is natively tabbable, so a row-level stop would double every
+// tab stop in Settings.
+function activate(event: MouseEvent<HTMLDivElement>) {
+	if ((event.target as HTMLElement).closest(PASSTHROUGH)) return;
+	const control = event.currentTarget.querySelector<HTMLElement>(`[data-slot=setting-control] ${PASSTHROUGH}`);
+	if (!control) return;
+	control.focus();
+	if (control instanceof HTMLInputElement && control.type === 'number') control.select();
+	else if (!(control instanceof HTMLSelectElement)) control.click();
+}
+
 export function SettingRow({
 	label,
 	description,
@@ -41,21 +56,6 @@ export function SettingRow({
 	canReset?: boolean;
 }) {
 	const { t } = useTranslation();
-
-	// Mouse-only convenience: clicking the row's dead space activates its
-	// control. Clicks that already landed on something interactive are left
-	// alone — those handle themselves, and forwarding would double-fire.
-	// There is deliberately no keyboard counterpart and no tabIndex here: the
-	// control is natively tabbable, so a row-level stop would double every
-	// tab stop in Settings.
-	function activate(event: MouseEvent<HTMLDivElement>) {
-		if ((event.target as HTMLElement).closest(PASSTHROUGH)) return;
-		const control = event.currentTarget.querySelector<HTMLElement>(`[data-slot=setting-control] ${PASSTHROUGH}`);
-		if (!control) return;
-		control.focus();
-		if (control instanceof HTMLInputElement && control.type === 'number') control.select();
-		else if (!(control instanceof HTMLSelectElement)) control.click();
-	}
 
 	return (
 		<div
