@@ -9,6 +9,8 @@ vi.mock('@tanstack/react-router-devtools', () => ({ TanStackRouterDevtools: () =
 
 import { MockIndicator } from '@/components/mock-indicator';
 
+import { useThemeStore } from '@/features/shell';
+import { useShellStore } from '@/features/shell/store';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
 import { createMockBackend, currentMock, disposeMock, installMock } from '@/lib/mock';
 import { useMockStore } from '@/lib/mock/store';
@@ -31,6 +33,8 @@ beforeEach(() => {
 	useMockStore.getState().resetFaults();
 	useLocaleStore.setState({ preference: 'system', detected: 'en' });
 	localStorage.removeItem(LOCALE_STORAGE_KEY);
+	useThemeStore.setState({ preference: 'system' });
+	useShellStore.setState({ sidebarSide: 'left' });
 });
 
 afterEach(() => {
@@ -276,5 +280,49 @@ describe('the General panel', () => {
 		expect(screen.getByRole('combobox', { name: 'Display language' })).toBeDisabled();
 		expect(screen.getByText(/Forced to English by VITE_QUIVER_LOCALE/)).toBeInTheDocument();
 		vi.unstubAllEnvs();
+	});
+
+	it('drives the theme preference', async () => {
+		const user = userEvent.setup();
+		render(<GeneralSettings />);
+		await user.click(screen.getByLabelText('Theme'));
+		await user.click(await screen.findByRole('option', { name: 'Dark' }));
+		expect(useThemeStore.getState().preference).toBe('dark');
+	});
+
+	it('drives the sidebar side', async () => {
+		const user = userEvent.setup();
+		render(<GeneralSettings />);
+		await user.click(screen.getByLabelText('Sidebar side'));
+		await user.click(await screen.findByRole('option', { name: 'Right' }));
+		expect(useShellStore.getState().sidebarSide).toBe('right');
+	});
+
+	it('resets the sidebar side back to left', async () => {
+		const user = userEvent.setup();
+		useShellStore.setState({ sidebarSide: 'right' });
+		render(<GeneralSettings />);
+		await user.click(screen.getByRole('button', { name: 'Reset Sidebar side' }));
+		expect(useShellStore.getState().sidebarSide).toBe('left');
+	});
+
+	it('resets the language preference back to system', async () => {
+		const user = userEvent.setup();
+		useLocaleStore.setState({ preference: 'en', detected: 'en' });
+		render(<GeneralSettings />);
+		await user.click(screen.getByRole('button', { name: 'Reset Display language' }));
+		expect(useLocaleStore.getState().preference).toBe('system');
+	});
+
+	it('offers a reset only once the value differs from the default', async () => {
+		const user = userEvent.setup();
+		render(<GeneralSettings />);
+		expect(screen.getByRole('button', { name: 'Reset Theme' })).toBeDisabled();
+		await user.click(screen.getByLabelText('Theme'));
+		await user.click(await screen.findByRole('option', { name: 'Dark' }));
+		const reset = screen.getByRole('button', { name: 'Reset Theme' });
+		expect(reset).toBeEnabled();
+		await user.click(reset);
+		expect(useThemeStore.getState().preference).toBe('system');
 	});
 });

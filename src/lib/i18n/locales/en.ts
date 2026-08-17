@@ -30,9 +30,20 @@ export const en = {
 	'settings.tab.developer': 'Developer',
 	'settings.row.reset': 'Reset {setting}',
 
+	'settings.general.appearance.title': 'Appearance',
+	'settings.general.theme.label': 'Theme',
+	'settings.general.theme.description': 'Use light, dark, or follow system preference',
+	'settings.general.theme.system': 'System',
+	'settings.general.theme.light': 'Light',
+	'settings.general.theme.dark': 'Dark',
+	'settings.general.sidebar.label': 'Sidebar side',
+	'settings.general.sidebar.description': 'Which side the sidebar appears on',
+	'settings.general.sidebar.left': 'Left',
+	'settings.general.sidebar.right': 'Right',
+
 	'settings.general.language.title': 'Language',
 	'settings.general.language.label': 'Display language',
-	'settings.general.language.hint': 'Follows the system language until you pick one here.',
+	'settings.general.language.hint': "Language for Quiver's interface",
 	'settings.general.language.forced':
 		'Forced to {language} by VITE_QUIVER_LOCALE for this run. Restart without it to get the picker back.',
 	'settings.general.language.system': 'System ({language})',
