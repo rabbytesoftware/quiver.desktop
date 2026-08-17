@@ -56,7 +56,11 @@ export function EngineSettings() {
 				role="status"
 				className="flex items-center justify-center gap-2 px-1 py-10 text-xs text-muted-foreground"
 			>
-				<Spinner className="size-4" />
+				{/* `Spinner` renders its own `role="status" aria-label="Loading"` —
+				    hidden here so this stays the only live region in the subtree,
+				    announced once under this wrapper's own label instead of twice
+				    under two different names. */}
+				<Spinner aria-hidden="true" className="size-4" />
 				{t('settings.engine.loading')}
 			</div>
 		);
@@ -120,9 +124,7 @@ export function EngineSettings() {
 					<SettingRow
 						label={t('settings.engine.ports.label')}
 						description={portProblem ?? t('settings.engine.ports.description')}
-						onReset={() =>
-							void patch({ netbridge: { ephemeral_port_start: null, ephemeral_port_end: null } })
-						}
+						onReset={() => patch({ netbridge: { ephemeral_port_start: null, ephemeral_port_end: null } })}
 						canReset={
 							configured.netbridge.ephemeral_port_start !== defaults.netbridge.ephemeral_port_start ||
 							configured.netbridge.ephemeral_port_end !== defaults.netbridge.ephemeral_port_end

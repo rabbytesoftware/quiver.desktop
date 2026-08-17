@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { installThemeSync, normalisePreference, THEME_STORAGE_KEY, useThemeStore } from './theme';
+import indexHtml from '../../../index.html?raw';
 
 function stubMatchMedia(initialMatches: boolean) {
 	const listeners = new Set<() => void>();
@@ -111,5 +112,17 @@ describe('theme', () => {
 		expect(document.documentElement.classList.contains('dark')).toBe(true);
 		dispose();
 		expect(document.documentElement.classList.contains('dark')).toBe(true);
+	});
+});
+
+describe("index.html's pre-paint script", () => {
+	// index.html can't import THEME_STORAGE_KEY — it runs before any module
+	// graph exists, so the key is a hardcoded literal there. Nothing ties the
+	// two together, so renaming the constant here would silently desync the
+	// pre-paint script (reverting it to preference-blind behaviour) without
+	// a single test noticing. Reading the file straight off disk is the only
+	// way to keep them honest.
+	it('reads the same localStorage key the theme store persists to', () => {
+		expect(indexHtml).toContain(`localStorage.getItem('${THEME_STORAGE_KEY}')`);
 	});
 });

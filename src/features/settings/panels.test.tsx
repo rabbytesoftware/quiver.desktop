@@ -578,14 +578,25 @@ describe('the Engine panel', () => {
 		await user.tab();
 		expect(await screen.findByText('Lowest port: port out of range')).toBeInTheDocument();
 
+		// Also leave a stale *patch* error behind — `rejected` and
+		// `patchError` are two independent fields on the store, and a fix
+		// that only clears one of them would still leave a red banner
+		// sitting over an otherwise healthy panel after the trip below.
+		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 100 } });
+		await user.click(screen.getByRole('switch', { name: 'Write logs to disk' }));
+		expect(await screen.findByText(/mock fault: config/i)).toBeInTheDocument();
+		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 0 } });
+
 		// Simulates `Tabs.Panel` unmounting the Engine tab (leaving General)
 		// and remounting it (returning to Engine). The daemon still holds a
-		// valid value — the earlier rejection must not survive the trip.
+		// valid value — neither the earlier rejection nor the patch error
+		// must survive the trip.
 		unmount();
 		render(<EngineSettings />);
 
 		await screen.findByDisplayValue('49152');
 		expect(screen.queryByText(/port out of range/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/mock fault: config/i)).not.toBeInTheDocument();
 	});
 
 	it('keeps the panel and its rows on screen when a patch fails, showing the error inline', async () => {

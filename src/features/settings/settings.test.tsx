@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { create } from 'zustand';
 
 import { useMockStore } from '@/lib/mock/store';
 
@@ -60,6 +61,53 @@ describe('SettingRow reset', () => {
 		expect(screen.getByRole('textbox', { name: 'Theme value' })).toHaveFocus();
 		expect(document.body).not.toHaveFocus();
 	});
+
+	// Mirrors the Engine Ports row: `onReset` is async (a patch to the
+	// daemon) and the control it targets is keyed on a value owned by a
+	// store, so it remounts under a new key once the reset resolves. A fix
+	// that re-focuses the control captured *before* the await would be
+	// focusing a node React has since thrown away — this only proves
+	// anything if the query genuinely happens after the await settles.
+	//
+	// Uses a real zustand store (not `useState`) for the keyed value: like
+	// `useEngineStore`, its subscription goes through
+	// `useSyncExternalStore`, whose commit is scheduled ahead of a plain
+	// `Promise`/`setTimeout` continuation — a `useState` update racing the
+	// same `setTimeout` would land *after* the focus call and pass for the
+	// wrong reason.
+	it('re-queries after an async reset, so focus still lands on a control remounted under a new key', async () => {
+		const user = userEvent.setup();
+		const useKeyStore = create<{ key: number; bump: () => void }>((set) => ({
+			key: 0,
+			bump: () => set((s) => ({ key: s.key + 1 })),
+		}));
+
+		function AsyncResetRow() {
+			const key = useKeyStore((s) => s.key);
+			return (
+				<SettingRow
+					label="Theme"
+					canReset
+					onReset={() =>
+						new Promise<void>((resolve) => {
+							setTimeout(() => {
+								useKeyStore.getState().bump();
+								resolve();
+							}, 0);
+						})
+					}
+				>
+					<input key={key} aria-label="Theme value" defaultValue="dark" />
+				</SettingRow>
+			);
+		}
+
+		render(<AsyncResetRow />);
+		await user.click(screen.getByRole('button', { name: 'Reset Theme' }));
+
+		await waitFor(() => expect(screen.getByRole('textbox', { name: 'Theme value' })).toHaveFocus());
+		expect(document.body).not.toHaveFocus();
+	});
 });
 
 describe('SettingRow click delegation', () => {
@@ -89,6 +137,32 @@ describe('SettingRow click delegation', () => {
 		);
 		await user.click(screen.getByRole('button', { name: 'toggle' }));
 		expect(onClick).toHaveBeenCalledOnce();
+	});
+
+	// A drag-select ends with `mouseup` inside whatever element the pointer
+	// is over — most usefully the description — which still bubbles a
+	// `click` up to the row. Without a check for an active selection, that
+	// `click` would activate the control (`.select()`-ing a number input or
+	// `.click()`-ing a switch), destroying the very selection the user just
+	// made.
+	it('leaves an active text selection alone instead of activating the control', async () => {
+		const user = userEvent.setup();
+		const onClick = vi.fn();
+		const selection = vi.spyOn(window, 'getSelection').mockReturnValue({
+			toString: () => 'selected text',
+		} as Selection);
+
+		render(
+			<SettingRow label="Mock server" description="a description">
+				<button type="button" onClick={onClick}>
+					toggle
+				</button>
+			</SettingRow>
+		);
+		await user.click(screen.getByText('a description'));
+		expect(onClick).not.toHaveBeenCalled();
+
+		selection.mockRestore();
 	});
 });
 

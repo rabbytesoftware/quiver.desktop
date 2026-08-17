@@ -31,12 +31,13 @@ export const useEngineStore = create<EngineState>((set) => ({
 	patchError: null,
 
 	load: async () => {
-		// Also clears `rejected`: `Tabs.Panel` unmounts inactive panels, so
-		// leaving Engine and coming back re-runs `load()` while a rejection
-		// from the previous visit is still sitting in the store. Without this
-		// a row can go on reporting a value as refused long after the field
-		// holding it was reverted to something valid.
-		set({ loading: true, error: null, rejected: [] });
+		// Also clears `rejected` and `patchError`: `Tabs.Panel` unmounts
+		// inactive panels, so leaving Engine and coming back re-runs `load()`
+		// while a rejection (or a stale patch failure) from the previous visit
+		// is still sitting in the store. Without this a row can go on
+		// reporting a value as refused, or a dismissed patch error can go on
+		// showing its banner, long after the state that caused it is gone.
+		set({ loading: true, error: null, rejected: [], patchError: null });
 		try {
 			set({ view: await getConfig(), loading: false });
 		} catch (err) {

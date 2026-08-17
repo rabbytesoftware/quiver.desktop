@@ -20,6 +20,7 @@ export function Section({ title, children }: { title: string; children: ReactNod
 export function Notice({ tone = 'default', children }: { tone?: 'default' | 'error'; children: ReactNode }) {
 	return (
 		<p
+			role={tone === 'error' ? 'alert' : undefined}
 			className={cn(
 				'mx-1 mb-3 rounded-md border px-2.5 py-2 text-xs leading-relaxed',
 				tone === 'error'
@@ -42,6 +43,11 @@ const PASSTHROUGH = "button, input, select, textarea, a, label, [role='switch'],
 // tab stop in Settings.
 function activate(event: MouseEvent<HTMLDivElement>) {
 	if ((event.target as HTMLElement).closest(PASSTHROUGH)) return;
+	// A drag-select that ends with `mouseup` inside the row (most usefully,
+	// inside the description) still fires `click`. Without this, releasing
+	// the mouse after selecting text would immediately clobber that
+	// selection by focusing/activating the control instead.
+	if (window.getSelection()?.toString()) return;
 	const control = event.currentTarget.querySelector<HTMLElement>(`[data-slot=setting-control] ${PASSTHROUGH}`);
 	if (!control) return;
 	control.focus();
@@ -59,7 +65,7 @@ export function SettingRow({
 	label: string;
 	description?: string;
 	children?: ReactNode;
-	onReset?: () => void;
+	onReset?: () => void | Promise<void>;
 	canReset?: boolean;
 }) {
 	const { t } = useTranslation();
@@ -70,8 +76,15 @@ export function SettingRow({
 	// either alone would otherwise dump a keyboard user's focus onto
 	// `<body>`. Moving focus to the control the reset just restored keeps it
 	// somewhere meaningful instead.
-	function handleReset() {
-		onReset?.();
+	//
+	// `onReset` may be async (e.g. a patch to the daemon), and its control
+	// may be keyed on the value the reset changes — so the node present
+	// before `await` can be unmounted and replaced by the time it resolves.
+	// The query is therefore repeated *after* the await, not reused from
+	// before it, so focus always lands on the control that is actually on
+	// screen once the reset has taken effect.
+	async function handleReset() {
+		await onReset?.();
 		rowRef.current?.querySelector<HTMLElement>(`[data-slot=setting-control] ${PASSTHROUGH}`)?.focus();
 	}
 
