@@ -5,6 +5,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import ReactDOM from 'react-dom/client';
 
+import { installThemeSync } from '@/features/shell';
 import { setupConnectionListeners } from '@/lib/connection';
 import { setupListeners } from '@/lib/core-store';
 import { installLocaleSync } from '@/lib/i18n';
@@ -17,6 +18,7 @@ const mock = readMockPreference();
 if (mock.enabled) installMock(mock.scenario);
 
 installLocaleSync();
+installThemeSync();
 
 setupListeners();
 setupConnectionListeners();
