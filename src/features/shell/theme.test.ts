@@ -1,21 +1,57 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { installThemeSync, THEME_STORAGE_KEY, useThemeStore } from './theme';
+import { installThemeSync, normalisePreference, THEME_STORAGE_KEY, useThemeStore } from './theme';
 
-function stubMatchMedia(matches: boolean) {
+function stubMatchMedia(initialMatches: boolean) {
 	const listeners = new Set<() => void>();
+	let matches = initialMatches;
 	vi.stubGlobal('matchMedia', () => ({
-		matches,
+		get matches() {
+			return matches;
+		},
 		addEventListener: (_: string, cb: () => void) => listeners.add(cb),
 		removeEventListener: (_: string, cb: () => void) => listeners.delete(cb),
 	}));
-	return { fire: () => listeners.forEach((cb) => cb()) };
+	return {
+		fire: () => listeners.forEach((cb) => cb()),
+		setMatches: (value: boolean) => {
+			matches = value;
+		},
+	};
 }
 
 beforeEach(() => {
 	localStorage.removeItem(THEME_STORAGE_KEY);
 	document.documentElement.classList.remove('dark');
 	useThemeStore.setState({ preference: 'system' });
+});
+
+describe('normalisePreference', () => {
+	it('keeps the two things that are real', () => {
+		expect(normalisePreference('light')).toBe('light');
+		expect(normalisePreference('dark')).toBe('dark');
+		expect(normalisePreference('system')).toBe('system');
+	});
+
+	it.each([['de'], [null], [undefined], [42], [{ preference: 'dark' }]])('rejects %o', (value) => {
+		expect(normalisePreference(value)).toBe('system');
+	});
+});
+
+describe('theme rehydration', () => {
+	it('reads a stored choice back on rehydration', async () => {
+		localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ state: { preference: 'dark' }, version: 0 }));
+		await useThemeStore.persist.rehydrate();
+
+		expect(useThemeStore.getState().preference).toBe('dark');
+	});
+
+	it('degrades a stored preference that is no longer valid back to "system"', async () => {
+		localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ state: { preference: 'invalid' }, version: 0 }));
+		await useThemeStore.persist.rehydrate();
+
+		expect(useThemeStore.getState().preference).toBe('system');
+	});
 });
 
 describe('theme', () => {
@@ -40,8 +76,11 @@ describe('theme', () => {
 	});
 
 	it('follows the system while the preference is system', () => {
-		stubMatchMedia(true);
+		const media = stubMatchMedia(false);
 		const dispose = installThemeSync();
+		expect(document.documentElement.classList.contains('dark')).toBe(false);
+		media.setMatches(true);
+		media.fire();
 		expect(document.documentElement.classList.contains('dark')).toBe(true);
 		dispose();
 	});
@@ -50,17 +89,18 @@ describe('theme', () => {
 		const media = stubMatchMedia(true);
 		const dispose = installThemeSync();
 		useThemeStore.getState().setPreference('light');
+		media.setMatches(false);
 		media.fire();
 		expect(document.documentElement.classList.contains('dark')).toBe(false);
 		dispose();
 	});
 
 	it('stops reacting after disposal', () => {
-		stubMatchMedia(false);
+		const media = stubMatchMedia(false);
 		const dispose = installThemeSync();
 		dispose();
-		useThemeStore.getState().setPreference('dark');
+		media.setMatches(true);
+		media.fire();
 		expect(document.documentElement.classList.contains('dark')).toBe(false);
-		dispose();
 	});
 });
