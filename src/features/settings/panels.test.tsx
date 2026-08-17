@@ -154,7 +154,21 @@ describe('the Developer panel', () => {
 		expect(sw).toHaveAttribute('aria-disabled', 'true');
 		expect(sw).toBeChecked();
 		expect(screen.getByText(/Forced on by VITE_QUIVER_MOCK/)).toBeInTheDocument();
+		expect(screen.queryByText(/do nothing while the mock server is off/i)).not.toBeInTheDocument();
 		vi.unstubAllEnvs();
+	});
+});
+
+describe('the Developer panel’s inert-controls notice', () => {
+	it('warns that chaos and faults are inert while the mock server is off', () => {
+		render(<DeveloperSettings />);
+		expect(screen.getByText(/do nothing while the mock server is off/i)).toBeInTheDocument();
+	});
+
+	it('goes away once the mock server is switched on', () => {
+		useMockStore.setState({ enabled: true });
+		render(<DeveloperSettings />);
+		expect(screen.queryByText(/do nothing while the mock server is off/i)).not.toBeInTheDocument();
 	});
 });
 

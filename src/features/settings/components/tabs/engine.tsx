@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,17 +8,9 @@ import { Switch } from '@/components/ui/switch';
 import { useEngineStore } from '@/features/settings/engine/store';
 import { useTranslation } from '@/lib/i18n';
 
-import { Section, SettingRow } from '../section';
+import { Notice, Section, SettingRow } from '../section';
 
 const LEVELS = ['debug', 'info', 'warn', 'error'] as const;
-
-function Notice({ children }: { children: ReactNode }) {
-	return (
-		<p className="mx-1 mb-3 rounded-md border border-border bg-muted/45 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground">
-			{children}
-		</p>
-	);
-}
 
 export function EngineSettings() {
 	const { t } = useTranslation();

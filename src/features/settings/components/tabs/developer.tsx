@@ -12,7 +12,7 @@ import { FAULT_KEYS, useMockStore } from '@/lib/mock/store';
 import { SCENARIOS } from '@/lib/mock/world/scenarios';
 import type { ScenarioName } from '@/lib/mock/world/types';
 
-import { Section, SettingRow } from '../section';
+import { Notice, Section, SettingRow } from '../section';
 
 export function DeveloperSettings() {
 	const { t, formatPercent } = useTranslation();
@@ -80,6 +80,8 @@ export function DeveloperSettings() {
 					</Button>
 				</SettingRow>
 			</Section>
+
+			{!(enabled || forcedByEnv) && <Notice>{t('settings.developer.mock.inertControls')}</Notice>}
 
 			<Section title={t('settings.developer.chaos.title')}>
 				<SettingRow

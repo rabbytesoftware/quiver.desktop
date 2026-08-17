@@ -17,6 +17,14 @@ export function Section({ title, children }: { title: string; children: ReactNod
 	);
 }
 
+export function Notice({ children }: { children: ReactNode }) {
+	return (
+		<p className="mx-1 mb-3 rounded-md border border-border bg-muted/45 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground">
+			{children}
+		</p>
+	);
+}
+
 const PASSTHROUGH = "button, input, select, textarea, a, label, [role='switch'], [role='button']";
 
 export function SettingRow({

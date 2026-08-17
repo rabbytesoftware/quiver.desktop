@@ -57,6 +57,8 @@ export const en = {
 	'settings.developer.mock.scenario': 'Scenario',
 	'settings.developer.mock.scenarioLabel': 'Mock scenario',
 	'settings.developer.mock.apply': 'Apply',
+	'settings.developer.mock.inertControls':
+		'Chaos and fault injection do nothing while the mock server is off — turn it on above to try them.',
 
 	'settings.developer.chaos.title': 'Chaos',
 	'settings.developer.chaos.latency': 'Latency',
