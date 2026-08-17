@@ -4,6 +4,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
 
 import { cn } from '@/lib/cn';
+import { useTranslation } from '@/lib/i18n';
 
 export function Section({ title, children }: { title: string; children: ReactNode }) {
 	return (
@@ -31,6 +32,8 @@ export function SettingRow({
 	onReset?: () => void;
 	canReset?: boolean;
 }) {
+	const { t } = useTranslation();
+
 	// Mouse-only convenience: clicking the row's dead space activates its
 	// control. Clicks that already landed on something interactive are left
 	// alone — those handle themselves, and forwarding would double-fire.
@@ -60,7 +63,7 @@ export function SettingRow({
 							type="button"
 							onClick={onReset}
 							disabled={!canReset}
-							aria-label={`Reset ${label}`}
+							aria-label={t('settings.row.reset', { setting: label })}
 							className={cn(
 								'grid size-5 place-items-center rounded-md text-muted-foreground',
 								'hover:bg-accent hover:text-foreground',

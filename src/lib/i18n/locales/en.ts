@@ -28,6 +28,7 @@ export const en = {
 	'settings.tab.general': 'General',
 	'settings.tab.engine': 'Engine',
 	'settings.tab.developer': 'Developer',
+	'settings.row.reset': 'Reset {setting}',
 
 	'settings.general.language.title': 'Language',
 	'settings.general.language.label': 'Display language',
