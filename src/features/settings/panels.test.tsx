@@ -1,5 +1,5 @@
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,12 +13,15 @@ import { useThemeStore } from '@/features/shell';
 import { useShellStore } from '@/features/shell/store';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
 import { createMockBackend, currentMock, disposeMock, installMock } from '@/lib/mock';
+import { setMockCorrected } from '@/lib/mock/server/handlers/config';
 import { useMockStore } from '@/lib/mock/store';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 import { routeTree } from '@/routeTree.gen';
 
 import { DeveloperSettings } from './components/tabs/developer';
+import { EngineSettings } from './components/tabs/engine';
 import { GeneralSettings } from './components/tabs/general';
+import { useEngineStore } from './engine/store';
 import { useSettingsUI } from './store';
 
 let reload: ReturnType<typeof vi.fn>;
@@ -324,5 +327,136 @@ describe('the General panel', () => {
 		expect(reset).toBeEnabled();
 		await user.click(reset);
 		expect(useThemeStore.getState().preference).toBe('system');
+	});
+});
+
+describe('the Engine panel', () => {
+	beforeEach(() => {
+		installMock('normal');
+		useEngineStore.setState({ view: null, rejected: [], loading: false, error: null });
+	});
+
+	it('shows the daemon values once loaded', async () => {
+		render(<EngineSettings />);
+		expect(await screen.findByDisplayValue('49152')).toBeInTheDocument();
+		expect(screen.getByDisplayValue('65535')).toBeInTheDocument();
+	});
+
+	it('says nothing about restarting until something is pending', async () => {
+		render(<EngineSettings />);
+		await screen.findByDisplayValue('49152');
+		expect(screen.queryByText(/restart/i)).not.toBeInTheDocument();
+	});
+
+	it('announces the restart once a change is pending', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		const start = await screen.findByDisplayValue('49152');
+		await user.clear(start);
+		await user.type(start, '27015');
+		await user.tab();
+		expect(await screen.findByText(/restart/i)).toBeInTheDocument();
+	});
+
+	it('shows the daemon default again after a reset', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		const start = await screen.findByDisplayValue('49152');
+		await user.clear(start);
+		await user.type(start, '27015');
+		await user.tab();
+		await screen.findByDisplayValue('27015');
+		await user.click(screen.getByRole('button', { name: 'Reset Ports for servers' }));
+		expect(await screen.findByDisplayValue('49152')).toBeInTheDocument();
+	});
+
+	it('reports settings the daemon had to replace with defaults', async () => {
+		setMockCorrected(currentMock()!.world, ['vault.ttl']);
+		render(<EngineSettings />);
+		expect(await screen.findByText(/could not use these settings/i)).toBeInTheDocument();
+	});
+
+	it('marks the row the daemon refused', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		const start = await screen.findByDisplayValue('49152');
+		await user.clear(start);
+		await user.type(start, '99999');
+		await user.tab();
+		expect(await screen.findByText(/port out of range/i)).toBeInTheDocument();
+	});
+
+	it('shows an error instead of the panel when the daemon cannot be reached', async () => {
+		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 100 } });
+		render(<EngineSettings />);
+		expect(await screen.findByText(/mock fault: config/i)).toBeInTheDocument();
+		expect(screen.queryByDisplayValue('49152')).not.toBeInTheDocument();
+	});
+
+	it('drives the write-to-disk switch and resets it', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		await screen.findByDisplayValue('49152');
+
+		const reset = screen.getByRole('button', { name: 'Reset Write logs to disk' });
+		expect(reset).toBeDisabled();
+
+		await user.click(screen.getByRole('switch', { name: 'Write logs to disk' }));
+		await waitFor(() => expect(screen.getByRole('switch', { name: 'Write logs to disk' })).not.toBeChecked());
+		expect(screen.getByRole('button', { name: 'Reset Write logs to disk' })).toBeEnabled();
+
+		await user.click(screen.getByRole('button', { name: 'Reset Write logs to disk' }));
+		await waitFor(() => expect(screen.getByRole('switch', { name: 'Write logs to disk' })).toBeChecked());
+	});
+
+	it('drives the log level select and resets it', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		await screen.findByDisplayValue('49152');
+
+		await user.click(screen.getByLabelText('Level'));
+		await user.click(await screen.findByRole('option', { name: 'Debug' }));
+		expect(await screen.findByRole('button', { name: 'Reset Level' })).toBeEnabled();
+
+		await user.click(screen.getByRole('button', { name: 'Reset Level' }));
+		await waitFor(() => expect(useEngineStore.getState().view?.configured.logger.level).toBe('info'));
+	});
+
+	it('marks the log level row the daemon refused', async () => {
+		render(<EngineSettings />);
+		await screen.findByDisplayValue('49152');
+
+		// The Select only ever offers values the mock accepts, so a rejected
+		// `logger.level` can only be reached by patching the store directly —
+		// there is no user interaction that produces one.
+		await act(async () => {
+			await useEngineStore.getState().patch({ logger: { level: 'nonsense' } });
+		});
+		expect(await screen.findByText(/unusable log level/i)).toBeInTheDocument();
+	});
+
+	it('leaves a non-integer port untouched, without contacting the daemon', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		const start = await screen.findByDisplayValue('49152');
+		await user.clear(start);
+		await user.type(start, '1.5');
+		await user.tab();
+
+		expect(screen.queryByText(/restart/i)).not.toBeInTheDocument();
+		expect(useEngineStore.getState().view?.configured.netbridge.ephemeral_port_start).toBe(49152);
+	});
+
+	it('resets the high end of the port range on its own', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		const end = await screen.findByDisplayValue('65535');
+		await user.clear(end);
+		await user.type(end, '60000');
+		await user.tab();
+		await screen.findByDisplayValue('60000');
+
+		await user.click(screen.getByRole('button', { name: 'Reset Ports for servers' }));
+		expect(await screen.findByDisplayValue('65535')).toBeInTheDocument();
 	});
 });
