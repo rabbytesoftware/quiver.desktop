@@ -2,6 +2,7 @@ import { bareHealth } from '../envelope';
 import type { Route } from '../router';
 import { arrowRoutes } from './arrow';
 import { collectionRoutes } from './collection';
+import { configRoutes } from './config';
 import { runtimeRoutes } from './runtime';
 import { searchRoutes } from './search';
 
@@ -20,4 +21,5 @@ export const ALL_ROUTES: Route[] = [
 	...runtimeRoutes,
 	...collectionRoutes,
 	...searchRoutes,
+	...configRoutes,
 ];

@@ -12,22 +12,20 @@ beforeEach(() => {
 });
 
 describe('useTranslation', () => {
-	it('renders a message, its interpolation and its plural form', () => {
+	it('renders a message and its interpolation', () => {
 		function Fixture() {
 			const { t } = useTranslation();
 			return (
 				<>
 					<span>{t('settings.title')}</span>
-					<span>{t('settings.version.text', { version: '0.1.0' })}</span>
-					<span>{t('settings.version.remaining', { count: 2 })}</span>
+					<span>{t('arrow.icon.fallback', { name: 'Sample' })}</span>
 				</>
 			);
 		}
 
 		render(<Fixture />);
 		expect(screen.getByText('Settings')).toBeInTheDocument();
-		expect(screen.getByText('Quiver 0.1.0')).toBeInTheDocument();
-		expect(screen.getByText('2 more taps…')).toBeInTheDocument();
+		expect(screen.getByText('Sample icon')).toBeInTheDocument();
 	});
 
 	it('binds the Intl formatters to the same locale', () => {

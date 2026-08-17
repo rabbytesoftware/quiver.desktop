@@ -7,11 +7,11 @@ export interface TabItem {
 	labelKey: Extract<MessageKey, `settings.tab.${string}`>;
 }
 
-export function visibleTabs(devUnlocked: boolean): TabItem[] {
+export function visibleTabs(): TabItem[] {
 	const tabs: TabItem[] = [
 		{ id: 'general', labelKey: 'settings.tab.general' },
-		{ id: 'connections', labelKey: 'settings.tab.connections' },
+		{ id: 'engine', labelKey: 'settings.tab.engine' },
 	];
-	if (import.meta.env.DEV || devUnlocked) tabs.push({ id: 'developer', labelKey: 'settings.tab.developer' });
+	if (import.meta.env.DEV) tabs.push({ id: 'developer', labelKey: 'settings.tab.developer' });
 	return tabs;
 }

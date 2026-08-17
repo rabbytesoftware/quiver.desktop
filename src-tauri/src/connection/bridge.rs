@@ -296,11 +296,36 @@ mod tests {
 	/// the second. Comparing two halves of the run cannot: it only asks where
 	/// the level ended up, so one arrival that outlives the halfway point reads
 	/// exactly like a leak. That is not theoretical — see `DRIFT`.
+	/// Rises are measured against the running MAXIMUM, not against the previous
+	/// sample. A leak only ever shows up as the count reaching levels it has
+	/// not reached before, so that is the thing worth measuring — and it is the
+	/// only reading that survives a transient DIP.
+	///
+	/// Consecutive-sample deltas do not. CI produced
+	/// `[.. 25, 25, 21, 24, 24, 25, 25 ..]` on this branch, which touches no
+	/// Rust: descriptors momentarily released and immediately reclaimed. Net
+	/// change zero, peak never above the 26 seen earlier — yet the recovery
+	/// alone counted +3 and +1, because falls were never credited against the
+	/// rises they precede. Two runs failed that way, on identical code, while
+	/// macOS, Windows and tarpaulin passed.
+	///
+	/// Against the running maximum the same dip contributes nothing, and both
+	/// shapes the threshold was calibrated on are unchanged — see
+	/// `an_arrival_is_not_a_leak_but_a_slow_leak_is`, whose expected values
+	/// still hold exactly: an arrival is one jump to a new plateau, and a leak
+	/// keeps setting new maxima all run long.
 	fn growth_beyond_one_arrival(counts: &[usize]) -> usize {
-		let mut rises: Vec<usize> = counts
-			.windows(2)
-			.map(|w| w[1].saturating_sub(w[0]))
-			.collect();
+		let mut peak = match counts.first() {
+			Some(&first) => first,
+			None => return 0,
+		};
+		let mut rises: Vec<usize> = Vec::new();
+		for &count in &counts[1..] {
+			if count > peak {
+				rises.push(count - peak);
+				peak = count;
+			}
+		}
 		rises.sort_unstable();
 		rises.pop();
 		rises.iter().sum()
@@ -319,6 +344,22 @@ mod tests {
 			growth_beyond_one_arrival(&arrival),
 			1,
 			"five descriptors taken once and held is one jump, not a leak"
+		);
+
+		// The shape CI actually produced, twice, on a branch that touches no Rust:
+		// a transient dip and its recovery, peaking no higher than it already had.
+		// Measured against consecutive samples this scored 3 and failed the run.
+		let mut dip = vec![25_usize; 36];
+		dip.extend(std::iter::repeat_n(26, 38));
+		dip.extend(std::iter::repeat_n(25, 9));
+		dip.push(21);
+		dip.extend([24, 24]);
+		dip.extend(std::iter::repeat_n(25, 114));
+		assert_eq!(dip.len(), 200);
+		assert_eq!(
+			growth_beyond_one_arrival(&dip),
+			0,
+			"reclaiming descriptors it had already released is not growth"
 		);
 
 		// One descriptor every 37 closes — the weakest leak this test claims to see.

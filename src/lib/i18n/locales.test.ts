@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { CATALOGUES, LOCALES, SOURCE_LOCALE } from './catalogue';
 import { en } from './locales/en';
-import type { Catalogue, Message } from './types';
+import type { Catalogue, Message, PluralMessage } from './types';
 
 interface Divergence {
 	missing: string[];
@@ -59,6 +59,14 @@ function sameHoles(source: Message, target: Message): boolean {
 
 const NO_DIVERGENCE: Divergence = { missing: [], extra: [], shape: [], placeholders: [] };
 
+// `en` no longer ships a plural message of its own, so the shape/placeholder
+// guard tests below build a synthetic one rather than exercising the guard on
+// a key that might get deleted out from under them.
+const PLURAL_FIXTURE: PluralMessage = {
+	one: '{count} more tap…',
+	other: '{count} more taps…',
+};
+
 describe('every shipped catalogue', () => {
 	it.each([...LOCALES])('%s answers for every key in the source locale', (locale) => {
 		expect(compare(en, CATALOGUES[locale])).toEqual(NO_DIVERGENCE);
@@ -80,26 +88,28 @@ describe('the guard itself', () => {
 	});
 
 	it('reports a plural message flattened to a single string', () => {
-		const flattened = { ...en, 'settings.version.remaining': '{count} more taps…' };
-		expect(compare(en, flattened).shape).toEqual(['settings.version.remaining']);
+		const base = { ...en, 'test.remaining': PLURAL_FIXTURE };
+		const flattened = { ...base, 'test.remaining': '{count} more taps…' };
+		expect(compare(base, flattened).shape).toEqual(['test.remaining']);
 	});
 
 	it('reports a placeholder dropped in translation', () => {
-		const dropped = { ...en, 'settings.version.text': 'Quiver' };
-		expect(compare(en, dropped).placeholders).toEqual(['settings.version.text']);
+		const dropped = { ...en, 'arrow.icon.fallback': 'icon' };
+		expect(compare(en, dropped).placeholders).toEqual(['arrow.icon.fallback']);
 	});
 
 	it('reports a placeholder misspelled in translation', () => {
-		const typo = { ...en, 'settings.version.text': 'Quiver {versoin}' };
-		expect(compare(en, typo).placeholders).toEqual(['settings.version.text']);
+		const typo = { ...en, 'arrow.icon.fallback': '{nam} icon' };
+		expect(compare(en, typo).placeholders).toEqual(['arrow.icon.fallback']);
 	});
 
 	it('looks inside every plural form, not only `other`', () => {
+		const base = { ...en, 'test.remaining': PLURAL_FIXTURE };
 		const lopsided = {
-			...en,
-			'settings.version.remaining': { one: 'one more tap…', other: '{count} more taps…' },
+			...base,
+			'test.remaining': { one: 'one more tap…', other: '{count} more taps…' },
 		};
-		expect(compare(en, lopsided).placeholders).toEqual(['settings.version.remaining']);
+		expect(compare(base, lopsided).placeholders).toEqual(['test.remaining']);
 	});
 });
 
