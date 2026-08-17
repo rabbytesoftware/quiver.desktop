@@ -113,6 +113,32 @@ export interface Emitter {
 	emit(endpoint: string, frame: unknown): void;
 }
 
+// The daemon config document, keyed by section then setting name. Same shape
+// on the wire regardless of scenario, so — unlike arrows/collections — it is
+// not part of a ScenarioDataset.
+export interface MockConfigDoc {
+	[section: string]: Record<string, unknown>;
+}
+
+export const CONFIG_DEFAULTS: MockConfigDoc = {
+	netbridge: { enabled: true, ephemeral_port_start: 49152, ephemeral_port_end: 65535 },
+	api: { host: 'unix://' },
+	logger: { enabled: true, level: 'info' },
+	manifold: { fetch_timeout: '30s' },
+	vault: { sweep_interval: '5m', ttl: '24h', index_ttl: '24h' },
+	arrows: { auto_retry: { enabled: true, retries: 3 } },
+	search: { per_provider_limit: 25, fetch_concurrency: 4, provider_timeout: '10s' },
+};
+
+export interface MockConfigState {
+	// What the daemon booted with; only a restart moves this.
+	running: MockConfigDoc;
+	// What the daemon's next start will use; PATCH /v0/config writes here.
+	configured: MockConfigDoc;
+	// Damage already in the on-disk file, which only the daemon can see.
+	corrected: { key: string; message: string }[];
+}
+
 export interface MockWorld {
 	scenario: ScenarioName;
 	connectionId: string;
@@ -122,6 +148,7 @@ export interface MockWorld {
 	cancels: Map<string, () => void>;
 	clock: Clock;
 	emitter: Emitter;
+	config: MockConfigState;
 
 	nextId: () => number;
 }

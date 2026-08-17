@@ -1,4 +1,5 @@
-import { apiFetch } from '@/lib/transport/api';
+import { apiFetch, ApiError } from '@/lib/transport/api';
+import { backend } from '@/lib/transport/backend';
 
 export interface Rejection {
 	key: string;
@@ -31,10 +32,24 @@ export function getConfig(): Promise<ConfigView> {
 	return apiFetch<ConfigView>('/v0/config');
 }
 
-export function patchConfig(patch: unknown): Promise<PatchResult> {
-	return apiFetch<PatchResult>('/v0/config', {
+// Core answers a fully-rejected patch with a *success-shaped* envelope —
+// `{ success: true, error: null, data: { applied: [], rejected: [...] } }` —
+// on a 422 status, because the per-key rejection reasons are real data, not
+// an error. `apiFetch` throws on any non-2xx status and keeps only
+// `body.error` (null here), which would discard every rejection reason. So
+// this endpoint reads the envelope itself instead of going through `apiFetch`.
+export async function patchConfig(patch: unknown): Promise<PatchResult> {
+	const res = await backend().fetch('/v0/config', {
 		method: 'PATCH',
-		headers: { 'content-type': 'application/json' },
+		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(patch),
 	});
+	const body = (await res.json().catch(() => null)) as {
+		success: boolean;
+		error: string | null;
+		data?: PatchResult;
+	} | null;
+
+	if (body?.success) return body.data as PatchResult;
+	throw new ApiError(body?.error ?? `${res.status} ${res.statusText}`, res.status);
 }

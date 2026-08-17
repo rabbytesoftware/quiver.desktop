@@ -11,6 +11,10 @@ interface EngineState {
 	patch: (patch: unknown) => Promise<void>;
 }
 
+function errorMessage(err: unknown): string {
+	return err instanceof Error ? err.message : String(err);
+}
+
 export const useEngineStore = create<EngineState>((set) => ({
 	view: null,
 	rejected: [],
@@ -22,7 +26,7 @@ export const useEngineStore = create<EngineState>((set) => ({
 		try {
 			set({ view: await getConfig(), loading: false });
 		} catch (err) {
-			set({ error: err instanceof Error ? err.message : String(err), loading: false });
+			set({ error: errorMessage(err), loading: false });
 		}
 	},
 
@@ -35,7 +39,7 @@ export const useEngineStore = create<EngineState>((set) => ({
 			const result = await patchConfig(patch);
 			set({ rejected: result.rejected, view: await getConfig(), loading: false });
 		} catch (err) {
-			set({ error: err instanceof Error ? err.message : String(err), loading: false });
+			set({ error: errorMessage(err), loading: false });
 		}
 	},
 }));

@@ -1,7 +1,7 @@
 import { createClock } from './clock';
 import { getScenario } from './scenarios';
 import type { Emitter, MockWorld, ScenarioName } from './types';
-import { versioned } from './types';
+import { CONFIG_DEFAULTS, versioned } from './types';
 
 export function mockConnectionId(scenario: ScenarioName): string {
 	return `mock:${scenario}`;
@@ -22,6 +22,11 @@ export function buildWorld(scenario: ScenarioName, emitter: Emitter): MockWorld 
 		cancels: new Map(),
 		clock: createClock(),
 		emitter,
+		config: {
+			running: structuredClone(CONFIG_DEFAULTS),
+			configured: structuredClone(CONFIG_DEFAULTS),
+			corrected: [],
+		},
 		nextId: () => ++counter,
 	};
 

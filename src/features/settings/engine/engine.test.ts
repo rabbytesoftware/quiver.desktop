@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { disposeMock, installMock } from '@/lib/mock';
-import { resetMockConfig, setMockCorrected } from '@/lib/mock/server/handlers/config';
+import { currentMock, disposeMock, installMock } from '@/lib/mock';
+import { setMockCorrected } from '@/lib/mock/server/handlers/config';
 import { useMockStore } from '@/lib/mock/store';
 import { resetBackend } from '@/lib/transport/backend';
 
@@ -10,8 +10,8 @@ import { useEngineStore } from './store';
 
 beforeEach(() => {
 	installMock('normal');
-	resetMockConfig();
 	useMockStore.getState().resetFaults();
+	useMockStore.getState().resetChaos();
 	useEngineStore.setState({ view: null, rejected: [], loading: false, error: null });
 });
 
@@ -69,11 +69,24 @@ describe('the engine config store', () => {
 	});
 
 	it('surfaces settings the daemon already corrected on disk', async () => {
-		setMockCorrected(['logger.level']);
+		setMockCorrected(currentMock()!.world, ['logger.level']);
 		await useEngineStore.getState().load();
 		expect(useEngineStore.getState().view?.corrected).toEqual([
 			{ key: 'logger.level', message: 'unusable value, default applied' },
 		]);
+	});
+
+	it('populates rejection reasons without setting an error when nothing at all applied', async () => {
+		await useEngineStore.getState().load();
+		await useEngineStore.getState().patch({ logger: { level: 'nonsense' } });
+		expect(useEngineStore.getState().rejected).toEqual([{ key: 'logger.level', message: 'unusable log level' }]);
+		expect(useEngineStore.getState().error).toBeNull();
+	});
+
+	it('treats api.host as read-only whether given a value or a null', async () => {
+		await useEngineStore.getState().load();
+		await useEngineStore.getState().patch({ api: { host: null } });
+		expect(useEngineStore.getState().rejected).toEqual([{ key: 'api.host', message: 'read-only' }]);
 	});
 
 	it('records an error when a patch cannot reach the daemon', async () => {
@@ -94,5 +107,12 @@ describe('the engine config store', () => {
 		vi.spyOn(engineApi, 'patchConfig').mockRejectedValueOnce('nope');
 		await useEngineStore.getState().patch({ logger: { level: 'warn' } });
 		expect(useEngineStore.getState().error).toBe('nope');
+	});
+
+	it('falls back to the status line when a patch response is not JSON at all', async () => {
+		await useEngineStore.getState().load();
+		useMockStore.setState({ unreachable: true });
+		await useEngineStore.getState().patch({ logger: { level: 'warn' } });
+		expect(useEngineStore.getState().error).toContain('502');
 	});
 });
