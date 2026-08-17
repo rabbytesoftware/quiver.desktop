@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 
 describe('normalisePreference', () => {
-	it('keeps the two things that are real', () => {
+	it('keeps the three valid preferences', () => {
 		expect(normalisePreference('light')).toBe('light');
 		expect(normalisePreference('dark')).toBe('dark');
 		expect(normalisePreference('system')).toBe('system');
@@ -89,7 +89,6 @@ describe('theme', () => {
 		const media = stubMatchMedia(true);
 		const dispose = installThemeSync();
 		useThemeStore.getState().setPreference('light');
-		media.setMatches(false);
 		media.fire();
 		expect(document.documentElement.classList.contains('dark')).toBe(false);
 		dispose();
@@ -102,5 +101,15 @@ describe('theme', () => {
 		media.setMatches(true);
 		media.fire();
 		expect(document.documentElement.classList.contains('dark')).toBe(false);
+	});
+
+	it('survives when matchMedia is not available', () => {
+		vi.stubGlobal('matchMedia', undefined);
+		const dispose = installThemeSync();
+		expect(document.documentElement.classList.contains('dark')).toBe(false);
+		useThemeStore.getState().setPreference('dark');
+		expect(document.documentElement.classList.contains('dark')).toBe(true);
+		dispose();
+		expect(document.documentElement.classList.contains('dark')).toBe(true);
 	});
 });
