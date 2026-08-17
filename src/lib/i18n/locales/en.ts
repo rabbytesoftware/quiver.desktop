@@ -93,6 +93,7 @@ export const en = {
 
 	'settings.engine.restart': 'Saved. These take effect the next time quiver.core restarts.',
 	'settings.engine.corrected': 'The daemon could not use these settings and fell back to their defaults: {settings}.',
+	'settings.engine.retry': 'Try again',
 	'settings.engine.ports.title': 'Ports',
 	'settings.engine.ports.label': 'Ports for servers',
 	'settings.engine.ports.description':

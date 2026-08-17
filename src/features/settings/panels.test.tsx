@@ -386,11 +386,38 @@ describe('the Engine panel', () => {
 		expect(await screen.findByText(/port out of range/i)).toBeInTheDocument();
 	});
 
+	it('reverts a rejected port to the daemon value, while still showing why', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		const start = await screen.findByDisplayValue('49152');
+		await user.clear(start);
+		await user.type(start, '99999');
+		await user.tab();
+
+		// The rejection message and the reverted field must both be true at
+		// once — a refused value should never look accepted just because the
+		// input still shows it.
+		expect(await screen.findByDisplayValue('49152')).toBeInTheDocument();
+		expect(screen.getByText(/port out of range/i)).toBeInTheDocument();
+	});
+
 	it('shows an error instead of the panel when the daemon cannot be reached', async () => {
 		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 100 } });
 		render(<EngineSettings />);
 		expect(await screen.findByText(/mock fault: config/i)).toBeInTheDocument();
 		expect(screen.queryByDisplayValue('49152')).not.toBeInTheDocument();
+	});
+
+	it('offers a retry once the daemon cannot be reached, and recovers once it can', async () => {
+		const user = userEvent.setup();
+		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 100 } });
+		render(<EngineSettings />);
+		const retry = await screen.findByRole('button', { name: 'Try again' });
+
+		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 0 } });
+		await user.click(retry);
+
+		expect(await screen.findByDisplayValue('49152')).toBeInTheDocument();
 	});
 
 	it('drives the write-to-disk switch and resets it', async () => {
@@ -447,6 +474,20 @@ describe('the Engine panel', () => {
 		expect(useEngineStore.getState().view?.configured.netbridge.ephemeral_port_start).toBe(49152);
 	});
 
+	it('sends nothing when a port field is left empty, and it snaps back to the daemon value', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		const start = await screen.findByDisplayValue('49152');
+		await user.clear(start);
+		await user.tab();
+
+		// `Number('')` is `0`, which passes `Number.isInteger` — this must
+		// fail if the empty-string case is not guarded against on its own.
+		expect(await screen.findByDisplayValue('49152')).toBeInTheDocument();
+		expect(screen.queryByText(/port out of range/i)).not.toBeInTheDocument();
+		expect(currentMock()!.world.config.configured.netbridge.ephemeral_port_start).toBe(49152);
+	});
+
 	it('resets the high end of the port range on its own', async () => {
 		const user = userEvent.setup();
 		render(<EngineSettings />);
@@ -455,6 +496,10 @@ describe('the Engine panel', () => {
 		await user.type(end, '60000');
 		await user.tab();
 		await screen.findByDisplayValue('60000');
+		// The daemon must have actually accepted it, not just the on-screen
+		// text — Reset would restore the default either way, so that alone
+		// would not prove the high end was ever really patched.
+		await waitFor(() => expect(currentMock()!.world.config.configured.netbridge.ephemeral_port_end).toBe(60000));
 
 		await user.click(screen.getByRole('button', { name: 'Reset Ports for servers' }));
 		expect(await screen.findByDisplayValue('65535')).toBeInTheDocument();

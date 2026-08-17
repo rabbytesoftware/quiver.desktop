@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -11,6 +12,14 @@ import { Section, SettingRow } from '../section';
 
 const LEVELS = ['debug', 'info', 'warn', 'error'] as const;
 
+function Notice({ children }: { children: ReactNode }) {
+	return (
+		<p className="mx-1 mb-3 rounded-md border border-border bg-muted/45 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground">
+			{children}
+		</p>
+	);
+}
+
 export function EngineSettings() {
 	const { t } = useTranslation();
 	const view = useEngineStore((s) => s.view);
@@ -19,38 +28,61 @@ export function EngineSettings() {
 	const load = useEngineStore((s) => s.load);
 	const patch = useEngineStore((s) => s.patch);
 
+	// Bumped to force the uncontrolled port inputs below to remount — and so
+	// re-read `defaultValue` from `configured` — whenever a typed value must
+	// be thrown away instead of kept on screen: either it was never sent (not
+	// a valid integer) or the daemon rejected it. Without this the field would
+	// keep showing a value the daemon never actually holds.
+	const [startNonce, setStartNonce] = useState(0);
+	const [endNonce, setEndNonce] = useState(0);
+
 	useEffect(() => {
 		void load();
 	}, [load]);
 
-	if (error) return <p className="px-1 text-xs text-muted-foreground">{error}</p>;
+	if (error) {
+		return (
+			<div className="px-1 py-2">
+				<p className="text-xs text-muted-foreground">{error}</p>
+				<Button variant="outline" size="sm" className="mt-2" onClick={() => void load()}>
+					{t('settings.engine.retry')}
+				</Button>
+			</div>
+		);
+	}
 	if (!view) return null;
 
 	const { configured, defaults, restart_required: pending, corrected } = view;
 	const why = (key: string) => rejected.find((r) => r.key === key)?.message;
 	const portProblem = why('netbridge.ephemeral_port_start') ?? why('netbridge.ephemeral_port_end');
 
-	function port(key: 'ephemeral_port_start' | 'ephemeral_port_end', value: string) {
-		const n = Number(value);
-		if (!Number.isInteger(n)) return;
-		void patch({ netbridge: { [key]: n } });
+	// A blank or non-integer entry is never sent — there is nothing valid to
+	// patch — and the field is reverted to what the daemon actually holds. A
+	// valid entry is sent, but if the daemon rejects that key the field is
+	// reverted the same way, so a refused value can never linger on screen
+	// looking accepted.
+	async function port(key: 'ephemeral_port_start' | 'ephemeral_port_end', raw: string, revert: () => void) {
+		const trimmed = raw.trim();
+		const n = Number(trimmed);
+		if (trimmed === '' || !Number.isInteger(n)) {
+			revert();
+			return;
+		}
+		await patch({ netbridge: { [key]: n } });
+		if (useEngineStore.getState().rejected.some((r) => r.key === `netbridge.${key}`)) revert();
 	}
 
 	return (
 		<div>
 			{corrected.length > 0 && (
-				<p className="mx-1 mb-3 rounded-md border border-border bg-muted/45 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground">
+				<Notice>
 					{t('settings.engine.corrected', {
 						settings: corrected.map((c) => c.key).join(', '),
 					})}
-				</p>
+				</Notice>
 			)}
 
-			{pending.length > 0 && (
-				<p className="mx-1 mb-3 rounded-md border border-border bg-muted/45 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground">
-					{t('settings.engine.restart')}
-				</p>
-			)}
+			{pending.length > 0 && <Notice>{t('settings.engine.restart')}</Notice>}
 
 			{/* Wrapped so the notices above never disturb the `:first-child` CSS
 			    `Section` relies on to hide a panel's leading heading — without
@@ -70,22 +102,27 @@ export function EngineSettings() {
 						}
 					>
 						{/* Uncontrolled so typing is not fought by a round trip, but keyed
-						    on the daemon's value: without the key a reset would persist
-						    and the stale number would stay on screen. */}
+						    on the daemon's value plus a nonce: without the key a reset (or
+						    a revert) would not force the field to re-read `defaultValue`,
+						    and a stale number would stay on screen. */}
 						<Input
-							key={`start-${configured.netbridge.ephemeral_port_start}`}
+							key={`start-${configured.netbridge.ephemeral_port_start}-${startNonce}`}
 							type="number"
 							defaultValue={configured.netbridge.ephemeral_port_start}
-							onBlur={(e) => port('ephemeral_port_start', e.target.value)}
+							onBlur={(e) =>
+								void port('ephemeral_port_start', e.target.value, () => setStartNonce((n) => n + 1))
+							}
 							aria-label={t('settings.engine.ports.lowest')}
 							className="h-7 w-[86px]"
 						/>
 						<span className="text-muted-foreground">–</span>
 						<Input
-							key={`end-${configured.netbridge.ephemeral_port_end}`}
+							key={`end-${configured.netbridge.ephemeral_port_end}-${endNonce}`}
 							type="number"
 							defaultValue={configured.netbridge.ephemeral_port_end}
-							onBlur={(e) => port('ephemeral_port_end', e.target.value)}
+							onBlur={(e) =>
+								void port('ephemeral_port_end', e.target.value, () => setEndNonce((n) => n + 1))
+							}
 							aria-label={t('settings.engine.ports.highest')}
 							className="h-7 w-[86px]"
 						/>
