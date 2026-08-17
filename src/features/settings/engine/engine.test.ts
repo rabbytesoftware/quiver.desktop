@@ -76,17 +76,33 @@ describe('the engine config store', () => {
 		]);
 	});
 
+	// Regression test for the real-daemon contract bug: a fully-rejected patch
+	// comes back as HTTP 422 with `success: false` and `error: null`, yet
+	// `data` still carries the per-key reasons. If `patchConfig` goes back to
+	// trusting `body.success` alone, this response is thrown away as an
+	// `ApiError` instead — `rejected` stays empty and `patchError` gets set
+	// instead of staying null. Both assertions below catch that regression.
 	it('populates rejection reasons without setting an error when nothing at all applied', async () => {
 		await useEngineStore.getState().load();
 		await useEngineStore.getState().patch({ logger: { level: 'nonsense' } });
 		expect(useEngineStore.getState().rejected).toEqual([{ key: 'logger.level', message: 'unusable log level' }]);
 		expect(useEngineStore.getState().error).toBeNull();
+		expect(useEngineStore.getState().patchError).toBeNull();
 	});
 
-	it('treats api.host as read-only whether given a value or a null', async () => {
+	it('accepts api.host, matching the real daemon instead of treating it as read-only', async () => {
 		await useEngineStore.getState().load();
-		await useEngineStore.getState().patch({ api: { host: null } });
-		expect(useEngineStore.getState().rejected).toEqual([{ key: 'api.host', message: 'read-only' }]);
+		await useEngineStore.getState().patch({ api: { host: 'tcp://0.0.0.0:9999' } });
+		expect(useEngineStore.getState().rejected).toEqual([]);
+		expect(useEngineStore.getState().view?.configured.api).toEqual({ host: 'tcp://0.0.0.0:9999' });
+	});
+
+	it('rejects unknown settings per-key, matching the real daemon', async () => {
+		await useEngineStore.getState().load();
+		await useEngineStore.getState().patch({ bogus: { nope: 1 } });
+		expect(useEngineStore.getState().rejected).toEqual([
+			{ key: 'bogus.nope', message: 'unknown setting "bogus.nope"' },
+		]);
 	});
 
 	it('records a patch error separately from a load error, keeping the view intact', async () => {

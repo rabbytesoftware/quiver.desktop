@@ -11,9 +11,13 @@ export function setMockCorrected(world: MockWorld, keys: string[]): void {
 	world.config.corrected = keys.map((key) => ({ key, message: 'unusable value, default applied' }));
 }
 
-function reject(key: string, value: unknown): string | null {
-	// Read-only in both directions: a null (restore-default) is rejected too.
-	if (key === 'api.host') return 'read-only';
+function reject(section: string, name: string, value: unknown): string | null {
+	const key = `${section}.${name}`;
+	// Real daemon rejects keys it doesn't recognize, per-key, rather than
+	// silently ignoring or accepting them. `api.host` is NOT one of these —
+	// it round-trips fine against a real daemon, unlike the read-only
+	// treatment this mock used to give it.
+	if (!(name in (CONFIG_DEFAULTS[section] ?? {}))) return `unknown setting "${key}"`;
 	if (value === null) return null;
 	if (key === 'logger.level' && !LEVELS.includes(String(value))) return 'unusable log level';
 	if (key.startsWith('netbridge.ephemeral_port')) {
@@ -58,7 +62,7 @@ export const configRoutes: Route[] = [
 			for (const [section, settings] of Object.entries(body)) {
 				for (const [name, value] of Object.entries(settings ?? {})) {
 					const key = `${section}.${name}`;
-					const why = reject(key, value);
+					const why = reject(section, name, value);
 					if (why) {
 						rejected.push({ key, message: why });
 						continue;
@@ -72,11 +76,22 @@ export const configRoutes: Route[] = [
 				}
 			}
 
-			// Mirrors core: a patch where nothing at all applied still comes
-			// back success-shaped (the rejection reasons are real data, not an
-			// error), just on a 422 status.
-			const status = applied.length === 0 && rejected.length > 0 ? 422 : 200;
-			return ok({ applied, rejected }, status);
+			if (applied.length === 0 && rejected.length > 0) {
+				// Mirrors core exactly (confirmed against a real daemon,
+				// origin/develop@56065f3): a patch where nothing at all
+				// applied comes back on a 422 status with `success: false`
+				// and `error: null`, yet `data` still carries the per-key
+				// rejection reasons — they're real data, not an error.
+				// Neither `ok()` (always forces `success: true`) nor `fail()`
+				// (always forces `data: null`) can produce that shape, so the
+				// Response is built directly here instead.
+				return new Response(JSON.stringify({ success: false, error: null, data: { applied, rejected } }), {
+					status: 422,
+					headers: { 'content-type': 'application/json' },
+				});
+			}
+
+			return ok({ applied, rejected });
 		},
 	},
 ];
