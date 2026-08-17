@@ -14,6 +14,7 @@ export const FAULT_KEYS = [
 	'collection-detail',
 	'runtime',
 	'health',
+	'config',
 ] as const;
 
 export type FaultKey = (typeof FAULT_KEYS)[number];

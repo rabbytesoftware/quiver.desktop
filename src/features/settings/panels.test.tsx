@@ -127,7 +127,7 @@ describe('the Developer panel', () => {
 		const user = userEvent.setup();
 		render(<DeveloperSettings />);
 
-		expect(screen.getAllByRole('slider', { hidden: true })).toHaveLength(8);
+		expect(screen.getAllByRole('slider', { hidden: true })).toHaveLength(9);
 		expect(screen.getByRole('button', { name: 'Reset all faults' })).toBeDisabled();
 
 		useMockStore.getState().setFault('search', 40);
