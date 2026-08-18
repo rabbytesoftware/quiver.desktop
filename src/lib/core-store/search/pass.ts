@@ -30,7 +30,7 @@ export function createSearchController(): SearchController {
 
 	let query = '';
 	let idleTimer: ReturnType<typeof setTimeout> | null = null;
-	let pollTimer: ReturnType<typeof setInterval> | null = null;
+	let pollTimer: ReturnType<typeof setTimeout> | null = null;
 	let socket: SocketLike | null = null;
 	let generation = 0;
 	let disposed = false;
@@ -42,7 +42,7 @@ export function createSearchController(): SearchController {
 
 	/** Closing the socket is the cancel -- there is no cancel endpoint (spec 1.3). */
 	function stopPass(): void {
-		if (pollTimer !== null) clearInterval(pollTimer);
+		if (pollTimer !== null) clearTimeout(pollTimer);
 		pollTimer = null;
 		socket?.close();
 		socket = null;
@@ -103,31 +103,41 @@ export function createSearchController(): SearchController {
 
 		const deadline = Date.now() + PASS_DEADLINE_MS;
 
-		pollTimer = setInterval(() => {
-			if (disposed || generation !== myGeneration) return;
+		// Recursive, not setInterval: the next poll is scheduled only once this one
+		// settles, so a round trip slower than POLL_INTERVAL_MS can never leave two
+		// polls in flight to both observe `completed` and both consume the summary.
+		function poll(): void {
+			pollTimer = setTimeout(() => {
+				if (disposed || generation !== myGeneration) return;
 
-			if (Date.now() >= deadline) {
-				stopPass();
-				store.getState().settleFailed();
-				return;
-			}
-
-			void apiFetch<DiscoveryJobDTO>(path)
-				.then((job) => {
-					if (disposed || generation !== myGeneration) return;
-					if (job.status !== 'completed') return;
-
-					// This response IS the summary: one call, not two.
-					stopPass();
-					store.getState().endPass(toDiscoverySummary(job));
-					void requery(myGeneration);
-				})
-				.catch(() => {
-					if (disposed || generation !== myGeneration) return;
+				if (Date.now() >= deadline) {
 					stopPass();
 					store.getState().settleFailed();
-				});
-		}, POLL_INTERVAL_MS);
+					return;
+				}
+
+				void apiFetch<DiscoveryJobDTO>(path)
+					.then((job) => {
+						if (disposed || generation !== myGeneration) return;
+						if (job.status !== 'completed') {
+							poll();
+							return;
+						}
+
+						// This response IS the summary: one call, not two.
+						stopPass();
+						store.getState().endPass(toDiscoverySummary(job));
+						void requery(myGeneration);
+					})
+					.catch(() => {
+						if (disposed || generation !== myGeneration) return;
+						stopPass();
+						store.getState().settleFailed();
+					});
+			}, POLL_INTERVAL_MS);
+		}
+
+		poll();
 	}
 
 	function arm(): void {

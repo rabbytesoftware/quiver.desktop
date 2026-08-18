@@ -20,6 +20,7 @@ interface SearchStore {
 	/** Held in memory: the job 404s 30s after the pass ends. */
 	summary: DiscoverySummary | null;
 	localError: boolean;
+	passFailed: boolean;
 
 	setQuery: (query: string) => void;
 	setLocal: (entries: SearchEntry[]) => void;
@@ -39,6 +40,7 @@ const EMPTY = {
 	job: null,
 	summary: null,
 	localError: false,
+	passFailed: false,
 };
 
 export const useSearchStore = create<SearchStore>((set, get) => ({
@@ -51,7 +53,7 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
 
 	setLocalError: () => set({ localError: true, phase: 'local' }),
 
-	beginPass: (job) => set({ job, phase: 'discovering' }),
+	beginPass: (job) => set({ job, phase: 'discovering', passFailed: false }),
 
 	// Dedup on the bare namespace against both bands; a namespace already in
 	// `local` is dropped, never moved -- it's on screen already, ranked.
@@ -71,7 +73,7 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
 
 	// Holds the phase and keeps both bands: clearing them would delete
 	// results the user can see, to recover from a failed re-query.
-	settleFailed: () => set({ phase: 'settling' }),
+	settleFailed: () => set({ phase: 'settling', passFailed: true }),
 
 	reset: () => set({ query: '', ...EMPTY }),
 }));

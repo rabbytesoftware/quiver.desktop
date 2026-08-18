@@ -124,6 +124,25 @@ describe('settle', () => {
 	});
 });
 
+describe('passFailed', () => {
+	it('is set by settleFailed, since the pass ended without a summary', () => {
+		const s = () => useSearchStore.getState();
+		s().setLocal([]);
+		s().beginPass(JOB);
+		s().settleFailed();
+		expect(s().passFailed).toBe(true);
+	});
+
+	it('is cleared by beginPass, so a retry starts clean', () => {
+		const s = () => useSearchStore.getState();
+		s().setLocal([]);
+		s().beginPass(JOB);
+		s().settleFailed();
+		s().beginPass(JOB);
+		expect(s().passFailed).toBe(false);
+	});
+});
+
 describe('summary', () => {
 	it('outlives the job, because the job 404s after its grace', () => {
 		const s = () => useSearchStore.getState();

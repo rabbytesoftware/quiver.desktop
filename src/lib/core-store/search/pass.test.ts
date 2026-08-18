@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMockBackend, type MockRuntime } from '@/lib/mock';
+import { useMockStore } from '@/lib/mock/store';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 
-import { createSearchController, IDLE_BEFORE_PASS_MS } from './pass';
+import { createSearchController, IDLE_BEFORE_PASS_MS, PASS_DEADLINE_MS, POLL_INTERVAL_MS } from './pass';
 import { useSearchStore } from '../store/search';
 
 let mock: MockRuntime;
@@ -21,6 +22,7 @@ afterEach(() => {
 	controller.dispose();
 	mock.dispose();
 	resetBackend();
+	useMockStore.getState().setLatency(0);
 	vi.useRealTimers();
 });
 
@@ -131,5 +133,54 @@ describe('the pass', () => {
 		const before = useSearchStore.getState().streamed.length;
 		await vi.advanceTimersByTimeAsync(5000);
 		expect(useSearchStore.getState().streamed.length).toBe(before);
+	});
+
+	it('never lets two overlapping polls both consume the summary', async () => {
+		useMockStore.getState().setLatency(1500);
+		const endPassSpy = vi.spyOn(useSearchStore.getState(), 'endPass');
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 15_000);
+
+		expect(endPassSpy).toHaveBeenCalledTimes(1);
+		expect(phase()).toBe('settled');
+	});
+
+	it('force-settles a pass whose job never reports completion (spec 1.4.1)', async () => {
+		const original = mock.backend.fetch.bind(mock.backend);
+		const stillRunning = new Response(
+			JSON.stringify({
+				success: true,
+				error: null,
+				data: {
+					job_id: 'stuck',
+					status: 'running',
+					query: 'server',
+					found: 0,
+					verified: 0,
+					skipped: 0,
+					providers: [],
+				},
+			}),
+			{ status: 200, headers: { 'content-type': 'application/json' } }
+		);
+		const fetchSpy = vi.spyOn(mock.backend, 'fetch').mockImplementation((path, init) => {
+			if (path.startsWith('/v0/search/discover/')) return Promise.resolve(stillRunning.clone());
+			return original(path, init);
+		});
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + PASS_DEADLINE_MS + POLL_INTERVAL_MS);
+
+		expect(phase()).toBe('settling');
+		expect(useSearchStore.getState().passFailed).toBe(true);
+
+		const jobPath = `/v0/search/discover/${useSearchStore.getState().job?.id}`;
+		const hub = mock.world.emitter as unknown as { countFor: (path: string) => number };
+		expect(hub.countFor(jobPath)).toBe(0);
+
+		const callsSoFar = fetchSpy.mock.calls.filter(([p]) => p === jobPath).length;
+		await vi.advanceTimersByTimeAsync(5000);
+		expect(fetchSpy.mock.calls.filter(([p]) => p === jobPath).length).toBe(callsSoFar);
 	});
 });
