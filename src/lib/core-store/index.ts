@@ -1,4 +1,5 @@
 export { useArrowStore } from './store/arrows';
+export { useSearchStore } from './store/search';
 export { useStatusStore } from './store/status';
 export { setupListeners } from './listeners';
 export { useInstall, useUninstall, useExecute, useStop } from './mutations/runtime';
