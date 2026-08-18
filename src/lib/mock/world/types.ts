@@ -70,6 +70,10 @@ export interface MockArrow {
 	targets: MockTarget[];
 	active_run: ActiveRun | null;
 	last_return: MockLastReturn | null;
+	/** Reported by both lanes; core takes it from the vault index. */
+	stars?: number;
+	/** The host that served the manifest, e.g. github.com. */
+	source?: string;
 }
 
 export interface MockCollectionMember {
@@ -87,6 +91,16 @@ export interface MockCollection {
 	arrows: MockCollectionMember[];
 }
 
+/**
+ * One arrow a host advertised. Verification is a separate step: a host can list
+ * an arrow whose manifest will not fetch or parse, and those count toward
+ * `found` but never toward `verified`.
+ */
+export interface MockCandidate {
+	arrow: MockArrow;
+	verifiable: boolean;
+}
+
 export interface MockProvider {
 	host: string;
 	ok: boolean;
@@ -95,12 +109,21 @@ export interface MockProvider {
 	retry_after?: number;
 }
 
+/**
+ * One discovery pass. Counts and providers stay empty until the pass ends --
+ * core assigns its outcome only after the pipeline returns, so a job read
+ * mid-pass reports zeroes and no providers. Results are never on the job: they
+ * leave over the socket and nowhere else.
+ */
 export interface MockDiscoveryJob {
 	id: string;
-	status: 'running' | 'done';
+	status: 'running' | 'completed';
 	query: string;
+	expires_at: string;
+	found: number;
+	verified: number;
+	skipped: number;
 	providers: MockProvider[];
-	results: string[];
 }
 
 export interface Clock {
@@ -116,7 +139,20 @@ export interface Emitter {
 export interface MockWorld {
 	scenario: ScenarioName;
 	connectionId: string;
+	/** The catalog: what this machine has. Keyed by `namespace@ref`. */
 	arrows: Map<string, MockArrow>;
+	/**
+	 * Arrows that exist on a host but not in the catalog -- what a pass can
+	 * find. Keeping them out of `arrows` is the point: a discovery result whose
+	 * arrow is already installed can never exercise the merge.
+	 */
+	discoverable: MockCandidate[];
+	/**
+	 * Bare namespaces whose manifest the vault index has cached. Discovery
+	 * writes here before emitting, so a rediscovered arrow comes back known but
+	 * not installed -- browsing an arrow is not having it.
+	 */
+	vault: Set<string>;
 	collections: Map<string, MockCollection>;
 	jobs: Map<string, MockDiscoveryJob>;
 	cancels: Map<string, () => void>;

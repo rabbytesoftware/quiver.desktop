@@ -152,9 +152,8 @@ describe('runtime verbs that do run', () => {
 });
 
 describe('search', () => {
-	it('returns the whole shelf for an empty query, not nothing', async () => {
-		const { body } = await call('GET', '/v0/search');
-		expect((body!.data as unknown[]).length).toBe(mock.world.arrows.size);
+	it('rejects an empty query rather than answering with the whole shelf', async () => {
+		expect((await call('GET', '/v0/search')).status).toBe(400);
 	});
 
 	it('matches on tag as well as name and description', async () => {

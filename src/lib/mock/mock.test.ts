@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ArrowListResponseItemDTO } from '@/lib/core-store/dtos/v0/arrow';
+import type { DiscoveryJobDTO, DiscoveryJobStartedDTO, SearchResultDTO } from '@/lib/core-store/dtos/v0/search';
 import { apiFetch } from '@/lib/transport/api';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 
@@ -15,6 +16,10 @@ const VALHEIM = `${NS}/valheim@v0.218.15`;
 const POSTGRES = `${NS}/postgres@v17.2`;
 
 let mock: MockRuntime;
+
+function world() {
+	return mock.world;
+}
 
 function get<T>(path: string): Promise<T> {
 	return apiFetch<T>(path);
@@ -239,32 +244,165 @@ describe('library membership', () => {
 
 		await apiFetch(`/v0/arrow/${encodeURIComponent(key)}`, { method: 'DELETE' });
 		expect(mock.world.arrows.get(key)?.user_installed).toBe(false);
-		const hits = await get<Array<{ namespace: string }>>('/v0/search?q=mariadb');
-		expect(hits.map((h) => h.namespace)).toContain(key);
+		// Search reports the bare namespace; the refs travel in versions.
+		const hits = await get<SearchResultDTO[]>('/v0/search?q=mariadb');
+		const hit = hits.find((h) => h.namespace === key.split('@')[0]);
+		expect(hit?.versions).toContain(key.split('@')[1]);
+	});
+});
+
+describe('search', () => {
+	it('rejects an empty q the way core does, rather than answering with everything', async () => {
+		const res = await mock.backend.fetch('/v0/search?q=%20%20');
+		expect(res.status).toBe(400);
+		await expect(res.json()).resolves.toMatchObject({ success: false });
+	});
+
+	it('returns one row per namespace, carrying every local ref', async () => {
+		const hits = await get<SearchResultDTO[]>('/v0/search?q=minecraft');
+		const hit = hits.find((h) => h.namespace === `${NS}/minecraft`);
+		expect(hit).toBeDefined();
+		expect(hit!.namespace).not.toContain('@');
+		expect(hit!.versions).toContain('v1.21.4');
+	});
+
+	it('reports every catalog hit as installed and known', async () => {
+		const hits = await get<SearchResultDTO[]>('/v0/search?q=minecraft');
+		expect(hits.every((h) => h.installed && h.known)).toBe(true);
+	});
+
+	it('caps limit at 100 and defaults it to 25', async () => {
+		// 'normal' holds 17 arrows, so every bound would pass vacuously there.
+		const big = createMockBackend('extreme');
+		installBackend(big.backend);
+		try {
+			expect((await get<SearchResultDTO[]>('/v0/search?q=quiver-demo')).length).toBe(25);
+			expect((await get<SearchResultDTO[]>('/v0/search?q=quiver-demo&limit=500')).length).toBe(100);
+			expect((await get<SearchResultDTO[]>('/v0/search?q=quiver-demo&limit=7')).length).toBe(7);
+		} finally {
+			big.dispose();
+			installBackend(mock.backend);
+		}
 	});
 });
 
 describe('discovery', () => {
 	beforeEach(() => vi.useFakeTimers());
 
-	it('reports a rate-limited provider with a retry-after rather than as no results', async () => {
-		const started = await apiFetch<{ id: string; status: string }>('/v0/search/discover', {
+	function start(q: string): Promise<DiscoveryJobStartedDTO> {
+		return apiFetch<DiscoveryJobStartedDTO>('/v0/search/discover', {
 			method: 'POST',
-			body: JSON.stringify({ q: 'server' }),
+			body: JSON.stringify({ q }),
 		});
-		expect(started.status).toBe('running');
+	}
 
-		await vi.advanceTimersByTimeAsync(1500);
+	it('answers with a ticket before any provider has been asked', async () => {
+		const started = await start('server');
+		expect(started.job_id).toBeTruthy();
+		expect(started.query).toBe('server');
+		expect(Date.parse(started.expires_at)).not.toBeNaN();
+		expect(started).not.toHaveProperty('providers');
+		expect(started).not.toHaveProperty('results');
+	});
 
-		const done = await get<{
-			status: string;
-			providers: Array<{ host: string; ok: boolean; reason?: string; retry_after?: number }>;
-		}>(`/v0/search/discover/${started.id}`);
+	it('reports zeroes and no providers while the pass is still running', async () => {
+		const started = await start('server');
+		const mid = await get<DiscoveryJobDTO>(`/v0/search/discover/${started.job_id}`);
+		expect(mid.status).toBe('running');
+		expect(mid).toMatchObject({ found: 0, verified: 0, skipped: 0, providers: [] });
+	});
 
-		expect(done.status).toBe('done');
+	it('streams each result over the job socket rather than in the summary', async () => {
+		const started = await start('server');
+		const socket = mock.backend.openSocket(`/v0/search/discover/${started.job_id}`);
+		const frames: SearchResultDTO[] = [];
+		socket.onmessage = (e) => frames.push(JSON.parse(e.data));
+
+		await vi.advanceTimersByTimeAsync(5000);
+
+		expect(frames.length).toBeGreaterThan(0);
+		const summary = await get<DiscoveryJobDTO>(`/v0/search/discover/${started.job_id}`);
+		expect(summary).not.toHaveProperty('results');
+		expect(summary.verified).toBe(frames.length);
+	});
+
+	it('arrives over time rather than all at once', async () => {
+		const started = await start('server');
+		const socket = mock.backend.openSocket(`/v0/search/discover/${started.job_id}`);
+		let count = 0;
+		socket.onmessage = () => count++;
+
+		await vi.advanceTimersByTimeAsync(300);
+		const early = count;
+		await vi.advanceTimersByTimeAsync(5000);
+
+		expect(early).toBeGreaterThan(0);
+		expect(count).toBeGreaterThan(early);
+	});
+
+	it('streams arrows the catalog does not hold, as not installed', async () => {
+		const started = await start('server');
+		const socket = mock.backend.openSocket(`/v0/search/discover/${started.job_id}`);
+		const frames: SearchResultDTO[] = [];
+		socket.onmessage = (e) => frames.push(JSON.parse(e.data));
+
+		await vi.advanceTimersByTimeAsync(5000);
+
+		const fresh = frames.filter((f) => !f.installed);
+		expect(fresh.length).toBeGreaterThan(0);
+		expect(fresh.every((f) => f.provenance === 'seen')).toBe(true);
+		expect(fresh.every((f) => !world().arrows.has(`${f.namespace}@${f.versions[0]}`))).toBe(true);
+	});
+
+	it('reports a rediscovered arrow as known but still not installed', async () => {
+		const first = await start('server');
+		mock.backend.openSocket(`/v0/search/discover/${first.job_id}`);
+		await vi.advanceTimersByTimeAsync(5000);
+
+		const second = await start('server');
+		const socket = mock.backend.openSocket(`/v0/search/discover/${second.job_id}`);
+		const frames: SearchResultDTO[] = [];
+		socket.onmessage = (e) => frames.push(JSON.parse(e.data));
+		await vi.advanceTimersByTimeAsync(5000);
+
+		const seen = frames.filter((f) => !f.installed);
+		expect(seen.length).toBeGreaterThan(0);
+		expect(seen.every((f) => f.known)).toBe(true);
+	});
+
+	it('reports a rate-limited provider with a retry-after rather than as no results', async () => {
+		const started = await start('server');
+		mock.backend.openSocket(`/v0/search/discover/${started.job_id}`);
+		await vi.advanceTimersByTimeAsync(5000);
+
+		const done = await get<DiscoveryJobDTO>(`/v0/search/discover/${started.job_id}`);
+
+		expect(done.status).toBe('completed');
 		const refused = done.providers.find((p) => !p.ok);
 		expect(refused).toMatchObject({ host: 'gitlab.com', reason: 'rate limited', retry_after: 40 });
-		expect(done.providers.some((p) => p.ok)).toBe(true);
+		expect(refused!.returned).toBe(0);
+
+		// A refusal is not an empty result: the host that did answer still
+		// reports what it returned, and found/verified/skipped add up.
+		const answered = done.providers.find((p) => p.ok)!;
+		expect(answered.returned).toBeGreaterThan(0);
+		expect(done.found).toBe(answered.returned);
+		expect(done.verified + done.skipped).toBe(done.found);
+		expect(done.skipped).toBeGreaterThan(0);
+	});
+});
+
+describe('config', () => {
+	it('serves the search settings the inspector reads', async () => {
+		const cfg = await get<{ running: { search: Record<string, unknown> }; restart_required: string[] }>(
+			'/v0/config'
+		);
+		expect(cfg.running.search).toMatchObject({
+			per_provider_limit: expect.any(Number),
+			fetch_concurrency: expect.any(Number),
+			provider_timeout: expect.any(String),
+		});
+		expect(Array.isArray(cfg.restart_required)).toBe(true);
 	});
 });
 

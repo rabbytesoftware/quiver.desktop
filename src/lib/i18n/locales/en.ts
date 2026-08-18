@@ -116,6 +116,7 @@ export const en = {
 	'settings.developer.faults.collection-detail': 'Collection detail',
 	'settings.developer.faults.runtime': 'Runtime actions',
 	'settings.developer.faults.health': 'Health probe',
+	'settings.developer.faults.config': 'Configuration',
 
 	'mock.badge': 'Mock',
 	'mock.status': '{scenario} · no daemon is being contacted',

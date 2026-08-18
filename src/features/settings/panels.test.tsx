@@ -14,7 +14,7 @@ import { MockIndicator } from '@/components/mock-indicator';
 import { useConnectionStore } from '@/lib/connection';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
 import { createMockBackend, currentMock, disposeMock, installMock } from '@/lib/mock';
-import { useMockStore } from '@/lib/mock/store';
+import { FAULT_KEYS, useMockStore } from '@/lib/mock/store';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 import { routeTree } from '@/routeTree.gen';
 
@@ -130,7 +130,7 @@ describe('the Developer panel', () => {
 		const user = userEvent.setup();
 		render(<DeveloperSettings />);
 
-		expect(screen.getAllByRole('slider', { hidden: true })).toHaveLength(8);
+		expect(screen.getAllByRole('slider', { hidden: true })).toHaveLength(FAULT_KEYS.length);
 		expect(screen.getByRole('button', { name: 'Reset all faults' })).toBeDisabled();
 
 		useMockStore.getState().setFault('search', 40);
