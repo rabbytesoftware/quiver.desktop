@@ -1,4 +1,4 @@
-import type { SearchProvenance } from '@/lib/core-store/dtos/v0/search';
+import type { SearchProvenance } from '@/domain/search';
 
 import { providersFor } from '../../world/build';
 import type { MockArrow, MockCandidate, MockWorld } from '../../world/types';

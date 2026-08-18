@@ -1,11 +1,7 @@
+import type { SearchProvenance } from '@/domain/search';
 import type { ArrowListResponseItemDTO } from '@/lib/core-store/dtos/v0/arrow';
 import type { RuntimeUpdateDTO } from '@/lib/core-store/dtos/v0/runtime';
-import type {
-	DiscoveryJobDTO,
-	DiscoveryJobStartedDTO,
-	SearchProvenance,
-	SearchResultDTO,
-} from '@/lib/core-store/dtos/v0/search';
+import type { DiscoveryJobDTO, DiscoveryJobStartedDTO, SearchResultDTO } from '@/lib/core-store/dtos/v0/search';
 
 import type { MockArrow, MockCollection, MockDiscoveryJob } from '../world/types';
 import { versioned } from '../world/types';

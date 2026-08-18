@@ -6,12 +6,7 @@
  * shapes the client would have to render differently.
  */
 
-/**
- * How this machine came to hold an arrow. Absent when the server cannot say --
- * a streamed result the catalog already holds is known to be yours, but
- * discovery does not know which provenance the catalog recorded for it.
- */
-export type SearchProvenance = 'installed' | 'dependency' | 'collection' | 'seen';
+import type { DiscoveryProvider, DiscoverySummary, SearchEntry, SearchProvenance } from '@/domain/search';
 
 export interface SearchResultDTO {
 	/** Bare, without a ref. `versions` carries the refs. */
@@ -30,6 +25,7 @@ export interface SearchResultDTO {
 	 * re-resolution is authoritative.
 	 */
 	compatible_os: string[];
+	/** Absent when the server cannot say which provenance the catalog recorded. */
 	provenance?: SearchProvenance;
 	/**
 	 * The catalog holds this arrow -- the only thing separating what you have
@@ -93,4 +89,41 @@ export interface DiscoveryJobDTO {
 	verified: number;
 	skipped: number;
 	providers: DiscoveryProviderDTO[];
+}
+
+export function toSearchEntry(dto: SearchResultDTO): SearchEntry {
+	return {
+		namespace: dto.namespace,
+		name: dto.name,
+		description: dto.description,
+		tags: dto.tags ?? [],
+		icon: dto.media?.icon ?? null,
+		banner: dto.media?.banner ?? null,
+		versions: dto.versions ?? [],
+		compatible_os: dto.compatible_os ?? [],
+		provenance: dto.provenance ?? null,
+		installed: dto.installed,
+		known: dto.known,
+		stars: dto.stars ?? 0,
+		source: dto.source ?? null,
+	};
+}
+
+export function toDiscoverySummary(dto: DiscoveryJobDTO): DiscoverySummary {
+	const providers: DiscoveryProvider[] = (dto.providers ?? []).map((p) => ({
+		host: p.host,
+		ok: p.ok,
+		returned: p.returned,
+		reason: p.reason ?? null,
+		retry_after: p.retry_after ?? null,
+	}));
+
+	return {
+		job_id: dto.job_id,
+		query: dto.query,
+		found: dto.found,
+		verified: dto.verified,
+		skipped: dto.skipped,
+		providers,
+	};
 }
