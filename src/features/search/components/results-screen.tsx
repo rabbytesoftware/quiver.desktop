@@ -27,9 +27,9 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 	const localError = useSearchStore((s) => s.localError);
 	const passFailed = useSearchStore((s) => s.passFailed);
 
-	// Task 10 mounts SearchInspector against this state; exposed as a data
-	// attribute for now so it isn't left dead.
-	const [inspecting, setInspecting] = useState(false);
+	// Task 10 mounts SearchInspector against this state and starts reading
+	// the open flag; until then it's write-only.
+	const [, setInspecting] = useState(false);
 
 	const gridRef = useRef<HTMLDivElement>(null);
 	const positions = useRef(new Map<string, DOMRect>());
@@ -61,7 +61,7 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 	}, [local, streamed]);
 
 	return (
-		<div {...(inspecting ? { 'data-inspecting': '' } : {})} data-testid="search-page">
+		<div data-testid="search-page">
 			<ResultsHeader
 				count={local.length + streamed.length}
 				onInspect={() => setInspecting(true)}
