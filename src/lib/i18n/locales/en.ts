@@ -23,6 +23,8 @@ export const en = {
 	'search.results.refused': '{host} refused',
 	'search.results.retry': 'Retry in {seconds}s',
 	'search.results.inspect': 'Inspect',
+	'search.results.unreachable': 'Quiver is not running',
+	'search.results.emptyEverywhere': 'Nothing matched, and every host answered.',
 
 	'sidebar.resize': 'Resize sidebar',
 	'sidebar.arrows': 'Arrows',
