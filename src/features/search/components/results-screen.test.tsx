@@ -8,7 +8,7 @@ import {
 	createRouter,
 	RouterProvider,
 } from '@tanstack/react-router';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IDLE_BEFORE_PASS_MS } from '@/lib/core-store/search/pass';
@@ -81,6 +81,91 @@ describe('ResultsScreen', () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it('carries exactly one aria-live region on the whole screen, on the header meta line', async () => {
+		renderScreen('minecraft');
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
+		expect(document.querySelectorAll('[aria-live]')).toHaveLength(1);
+	});
+});
+
+// Mirrors spec 9.7/8.9: the FLIP settle re-measures cards after `local`/
+// `streamed` change and animates the delta -- unless the OS asked for reduced
+// motion, in which case the animation must never run at all.
+describe('ResultsScreen card motion', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+		delete (Element.prototype as unknown as { animate?: unknown }).animate;
+	});
+
+	function stubMotion(reduced: boolean): void {
+		vi.stubGlobal(
+			'matchMedia',
+			vi.fn().mockImplementation((query: string) => ({
+				matches: reduced,
+				media: query,
+				addEventListener: vi.fn(),
+				removeEventListener: vi.fn(),
+				addListener: vi.fn(),
+				removeListener: vi.fn(),
+				dispatchEvent: vi.fn(),
+			}))
+		);
+	}
+
+	// jsdom has no layout, so real cards never move; forcing distinct rects on
+	// each measurement is the only way to produce a non-zero FLIP delta here.
+	function stubMovingRects(): void {
+		let call = 0;
+		vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+			call += 10;
+			return {
+				left: call,
+				top: 0,
+				right: call,
+				bottom: 0,
+				width: 0,
+				height: 0,
+				x: call,
+				y: 0,
+				toJSON: () => ({}),
+			} as DOMRect;
+		});
+	}
+
+	it('animates the settle when a card moves and motion is not reduced', async () => {
+		stubMovingRects();
+		stubMotion(false);
+		const animateSpy = vi.fn();
+		Element.prototype.animate = animateSpy as unknown as Element['animate'];
+
+		renderScreen('server');
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
+
+		act(() => {
+			useSearchStore.getState().setLocal([...useSearchStore.getState().local].reverse());
+		});
+
+		await waitFor(() => expect(animateSpy).toHaveBeenCalled());
+	});
+
+	it('never animates the settle when the OS asks for reduced motion, even though a card moved', async () => {
+		stubMovingRects();
+		stubMotion(true);
+		const animateSpy = vi.fn();
+		Element.prototype.animate = animateSpy as unknown as Element['animate'];
+
+		renderScreen('server');
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
+
+		act(() => {
+			useSearchStore.getState().setLocal([...useSearchStore.getState().local].reverse());
+		});
+
+		await Promise.resolve();
+		expect(animateSpy).not.toHaveBeenCalled();
 	});
 });
 

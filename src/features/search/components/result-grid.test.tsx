@@ -86,4 +86,11 @@ describe('ResultGrid', () => {
 		expect(links[1]).toContain('net/second');
 		expect(links[2]).toContain('local/one');
 	});
+
+	it('exposes every card as a link, none of them as anything else', async () => {
+		const local = [entry('local/one'), entry('local/two')];
+		const streamed = [entry('net/first')];
+		await renderGrid({ local, phase: 'discovering', streamed });
+		expect(screen.getAllByRole('link')).toHaveLength(local.length + streamed.length);
+	});
 });

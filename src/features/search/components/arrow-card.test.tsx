@@ -81,4 +81,11 @@ describe('ArrowCard', () => {
 		const { link } = await renderCard({ ...ENTRY, provenance: null });
 		expect(link).not.toHaveAttribute('data-provenance');
 	});
+
+	it('reveals the name and namespace on keyboard focus, not only on mouse hover', async () => {
+		const { container } = await renderCard(ENTRY);
+		const info = container.querySelector('[data-slot="card-info"]');
+		expect(info?.className).toMatch(/group-hover:opacity-100/);
+		expect(info?.className).toMatch(/group-focus-visible:opacity-100/);
+	});
 });

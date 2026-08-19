@@ -1,4 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { useState } from 'react';
+
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DiscoverySummary } from '@/domain/search';
@@ -113,5 +116,48 @@ describe('SearchInspector', () => {
 		} finally {
 			mock.dispose();
 		}
+	});
+});
+
+// Wired exactly as ResultsScreen wires it: a trigger button owns `open` and
+// hands SearchInspector `onOpenChange`. Base UI's Dialog is expected to trap
+// and restore focus on its own -- these confirm that rather than implement it.
+function InspectorWithTrigger() {
+	const [open, setOpen] = useState(false);
+	return (
+		<>
+			<button onClick={() => setOpen(true)} type="button">
+				Inspect
+			</button>
+			<SearchInspector job={JOB} onOpenChange={setOpen} open={open} query="server" summary={SUMMARY} />
+		</>
+	);
+}
+
+describe('SearchInspector focus handling', () => {
+	it('moves focus inside the dialog and restores it to the Inspect trigger on close', async () => {
+		const user = userEvent.setup();
+		render(<InspectorWithTrigger />);
+
+		const trigger = screen.getByRole('button', { name: 'Inspect' });
+		await user.click(trigger);
+
+		const dialog = await screen.findByRole('dialog');
+		await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+
+		await user.keyboard('{Escape}');
+
+		await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+		expect(document.activeElement).toBe(trigger);
+	});
+
+	it('renders the focus-trap guards Base UI uses to keep Tab inside the dialog while open', async () => {
+		const user = userEvent.setup();
+		render(<InspectorWithTrigger />);
+
+		await user.click(screen.getByRole('button', { name: 'Inspect' }));
+		await screen.findByRole('dialog');
+
+		expect(document.querySelectorAll('[data-base-ui-focus-guard]').length).toBeGreaterThanOrEqual(2);
 	});
 });
