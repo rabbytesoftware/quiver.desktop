@@ -8,6 +8,7 @@ import { installBackend, resetBackend } from '@/lib/transport/backend';
 import { createMockBackend, type MockRuntime } from './index';
 import { useMockStore } from './store';
 import { buildWorld } from './world/build';
+import { SCENARIOS } from './world/scenarios';
 import { MOCK_HOST_PLATFORM, versioned } from './world/types';
 
 const NS = 'github.com/rabbyte';
@@ -133,6 +134,23 @@ describe('the normal scenario', () => {
 			`/v0/arrow/${encodeURIComponent(`${NS}/pixelmon-assets@v9.2.1`)}`
 		);
 		expect(Object.keys(detail.targets[0].methods)).toHaveLength(0);
+	});
+});
+
+describe('media fixtures', () => {
+	// media.icon and media.banner will both be required by the manifest system,
+	// so every fixture must be production-shaped -- no client-side fallback is
+	// designed or wanted for a missing banner (a card is a banner and nothing
+	// else at rest).
+	it('gives every arrow the mock can serve both an icon and a banner', () => {
+		for (const scenario of SCENARIOS) {
+			const data = scenario.build();
+			const arrows = [...data.arrows, ...data.discoverable.map((c) => c.arrow)];
+			for (const arrow of arrows) {
+				expect(arrow.icon, `${scenario.name}: ${arrow.namespace} icon`).not.toBeNull();
+				expect(arrow.banner, `${scenario.name}: ${arrow.namespace} banner`).not.toBeNull();
+			}
+		}
 	});
 });
 

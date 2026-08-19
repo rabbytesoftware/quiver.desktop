@@ -88,6 +88,24 @@ describe('ResultsScreen', () => {
 		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
 		expect(document.querySelectorAll('[aria-live]')).toHaveLength(1);
 	});
+
+	// Real-window repro: 'server' both matches local results and hits
+	// gitlab.com's fixture refusal, so a settled pass has results and a
+	// refusal at once -- the empty state must stay out of the way of both.
+	it('does not print the refusal a second time once results have settled onto the screen', async () => {
+		vi.useFakeTimers();
+		try {
+			renderScreen('server');
+			await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10_000);
+
+			expect(useSearchStore.getState().phase).toBe('settled');
+			expect(screen.getAllByRole('link').length).toBeGreaterThan(0);
+			expect(screen.getAllByText(/refused/)).toHaveLength(1);
+			expect(screen.queryByText(/every host answered/)).not.toBeInTheDocument();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });
 
 // Mirrors spec 9.7/8.9: the FLIP settle re-measures cards after `local`/

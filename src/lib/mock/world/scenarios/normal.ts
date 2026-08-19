@@ -11,7 +11,6 @@ import {
 	target,
 	variable,
 } from './kit';
-import { DEMO_BANNER, DEMO_ICON } from './media';
 
 const NS = 'github.com/rabbyte';
 
@@ -24,8 +23,6 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		version: '1.21.4',
 		state: 'running',
 		tags: ['game', 'server', 'java'],
-		icon: DEMO_ICON,
-		banner: DEMO_BANNER,
 		requirement: { cpu_cores: 4, memory_gb: 8, disk_gb: 40 },
 		netbridge: [
 			{ name: 'game', protocol: 'tcp', default: 25565, required: true },
@@ -70,7 +67,6 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		version: '0.218.15',
 		state: 'absent',
 		tags: ['game', 'server'],
-		icon: DEMO_ICON,
 		requirement: { cpu_cores: 4, memory_gb: 8, disk_gb: 20 },
 		netbridge: [{ name: 'game', protocol: 'udp', default: 2456, required: true }],
 		variables: [
@@ -229,8 +225,6 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		state: 'absent',
 		user_installed: false,
 		tags: ['game', 'server'],
-		icon: DEMO_ICON,
-		banner: DEMO_BANNER,
 		requirement: { cpu_cores: 8, memory_gb: 16, disk_gb: 60 },
 	}),
 	arrow({
@@ -321,8 +315,6 @@ function found(seed: {
 			user_installed: false,
 			ref: 'v1.0.0',
 			version: '1.0.0',
-			icon: DEMO_ICON,
-			banner: DEMO_BANNER,
 			stars,
 			source,
 		}),

@@ -8,13 +8,15 @@ interface EmptyStateProps {
 	phase: SearchPhase;
 	summary: DiscoverySummary | null;
 	localError: boolean;
+	hasResults: boolean;
 }
 
 const WRAP = 'flex flex-col items-center gap-1 pt-24 text-center text-sm text-muted-foreground';
 
-export function EmptyState({ phase, summary, localError }: EmptyStateProps): JSX.Element | null {
+export function EmptyState({ phase, summary, localError, hasResults }: EmptyStateProps): JSX.Element | null {
 	const { t } = useTranslation();
 
+	if (hasResults) return null;
 	if (localError) return <p className={WRAP}>{t('search.results.unreachable')}</p>;
 	// The local window: Lane A has answered but no host has been asked yet --
 	// "every host answered" would claim a network pass that hasn't started.
@@ -22,22 +24,9 @@ export function EmptyState({ phase, summary, localError }: EmptyStateProps): JSX
 
 	const refused = summary?.providers.filter((provider) => !provider.ok) ?? [];
 
-	// A refusal means the search never happened at that host -- never fall
-	// through to "nothing matched" for it.
-	if (refused.length > 0) {
-		return (
-			<div className={WRAP}>
-				{refused.map((provider) => (
-					<p key={provider.host}>
-						{t('search.results.refused', { host: provider.host })}
-						{provider.reason !== null && `: ${provider.reason}`}
-						{provider.retry_after !== null &&
-							` · ${t('search.results.retry', { seconds: provider.retry_after })}`}
-					</p>
-				))}
-			</div>
-		);
-	}
+	// The meta line already states the refusal and its retry_after (spec 10.2);
+	// this component's only job left is to not claim "every host answered".
+	if (refused.length > 0) return null;
 
 	return <p className={WRAP}>{t('search.results.emptyEverywhere')}</p>;
 }

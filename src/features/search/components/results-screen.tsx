@@ -73,7 +73,12 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 			<div ref={gridRef}>
 				<ResultGrid local={local} phase={phase} streamed={streamed} />
 			</div>
-			<EmptyState localError={localError} phase={phase} summary={summary} />
+			<EmptyState
+				hasResults={local.length + streamed.length > 0}
+				localError={localError}
+				phase={phase}
+				summary={summary}
+			/>
 			<SearchInspector job={job} onOpenChange={setInspecting} open={inspecting} query={query} summary={summary} />
 		</div>
 	);
