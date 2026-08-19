@@ -14,6 +14,16 @@ export const en = {
 	'search.placeholder': 'Search Arrows or Collections',
 	'search.label': 'Search',
 
+	'search.results.count': {
+		one: '{count} result',
+		other: '{count} results',
+	},
+	'search.results.searching': 'Searching the network…',
+	'search.results.passFailed': 'The network search did not finish.',
+	'search.results.refused': '{host} refused',
+	'search.results.retry': 'Retry in {seconds}s',
+	'search.results.inspect': 'Inspect',
+
 	'sidebar.resize': 'Resize sidebar',
 	'sidebar.arrows': 'Arrows',
 	'sidebar.arrows.loading': 'Loading arrows',
