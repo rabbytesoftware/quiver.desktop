@@ -46,4 +46,9 @@ describe('EmptyState', () => {
 		const { container } = render(<EmptyState localError={false} phase="discovering" summary={null} />);
 		expect(container).toBeEmptyDOMElement();
 	});
+
+	it('renders nothing during the local window, because no host has been asked yet', () => {
+		const { container } = render(<EmptyState localError={false} phase="local" summary={null} />);
+		expect(container).toBeEmptyDOMElement();
+	});
 });

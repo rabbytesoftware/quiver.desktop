@@ -16,7 +16,9 @@ export function EmptyState({ phase, summary, localError }: EmptyStateProps): JSX
 	const { t } = useTranslation();
 
 	if (localError) return <p className={WRAP}>{t('search.results.unreachable')}</p>;
-	if (phase === 'idle' || phase === 'discovering') return null;
+	// The local window: Lane A has answered but no host has been asked yet --
+	// "every host answered" would claim a network pass that hasn't started.
+	if (phase === 'idle' || phase === 'local' || phase === 'discovering') return null;
 
 	const refused = summary?.providers.filter((provider) => !provider.ok) ?? [];
 
