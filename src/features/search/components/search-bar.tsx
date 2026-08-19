@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
 
 import { cn } from '@/lib/cn';
+import { useSearchStore } from '@/lib/core-store/store/search';
 import { useTranslation } from '@/lib/i18n';
 
 const RESULTS = '/search' as const;
@@ -67,6 +68,10 @@ export function SearchBar(): JSX.Element {
 
 	function submit(): void {
 		clearPending();
+		// Spec 2.2: Enter fires the pass now, not after 600ms of stillness. The
+		// mounted controller lives behind the /search route, a sibling of this
+		// field, so the request travels through the store.
+		if (draft.trim() !== '') useSearchStore.getState().requestSubmit(draft);
 		commit(draft);
 	}
 

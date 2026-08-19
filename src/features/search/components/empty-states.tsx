@@ -9,11 +9,18 @@ interface EmptyStateProps {
 	summary: DiscoverySummary | null;
 	localError: boolean;
 	hasResults: boolean;
+	passFailed: boolean;
 }
 
 const WRAP = 'flex flex-col items-center gap-1 pt-24 text-center text-sm text-muted-foreground';
 
-export function EmptyState({ phase, summary, localError, hasResults }: EmptyStateProps): JSX.Element | null {
+export function EmptyState({
+	phase,
+	summary,
+	localError,
+	hasResults,
+	passFailed,
+}: EmptyStateProps): JSX.Element | null {
 	const { t } = useTranslation();
 
 	if (hasResults) return null;
@@ -21,6 +28,11 @@ export function EmptyState({ phase, summary, localError, hasResults }: EmptyStat
 	// The local window: Lane A has answered but no host has been asked yet --
 	// "every host answered" would claim a network pass that hasn't started.
 	if (phase === 'idle' || phase === 'local' || phase === 'discovering') return null;
+
+	// A timeout is a claim the network never got to make (spec 10.2); the
+	// header already states the failure, so this follows the refusal
+	// branch's rule below and says nothing.
+	if (passFailed) return null;
 
 	const refused = summary?.providers.filter((provider) => !provider.ok) ?? [];
 

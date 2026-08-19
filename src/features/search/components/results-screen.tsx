@@ -64,6 +64,7 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 		<div data-testid="search-page">
 			<ResultsHeader
 				count={local.length + streamed.length}
+				job={job}
 				onInspect={() => setInspecting(true)}
 				passFailed={passFailed}
 				phase={phase}
@@ -76,6 +77,7 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 			<EmptyState
 				hasResults={local.length + streamed.length > 0}
 				localError={localError}
+				passFailed={passFailed}
 				phase={phase}
 				summary={summary}
 			/>

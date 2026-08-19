@@ -52,8 +52,24 @@ function provenanceOf(world: MockWorld, namespace: string): SearchProvenance {
 	return anyUserInstalled ? 'installed' : 'dependency';
 }
 
-/** Groups the catalog by bare namespace, the way core reports one row per arrow. */
-function catalogRows(world: MockWorld, q: string): Array<{ arrow: MockArrow; refs: string[] }> {
+interface CatalogRow {
+	arrow: MockArrow;
+	refs: string[];
+	installed: boolean;
+	known: boolean;
+	provenance: SearchProvenance;
+}
+
+/**
+ * Groups the catalog by bare namespace, the way core reports one row per
+ * arrow, then unions in vault-only namespaces (spec 1.1: Lane A reads the
+ * catalog *and* the vault index). A vault row is `installed: false, known:
+ * true` with provenance `'seen'` -- it is on the machine because a pass
+ * cached its manifest, which installs nothing. Without this union the §3.5
+ * settle re-query sees the same rows it started with and every streamed
+ * result vanishes.
+ */
+function catalogRows(world: MockWorld, q: string): CatalogRow[] {
 	const byNamespace = new Map<string, MockArrow[]>();
 	for (const arrow of world.arrows.values()) {
 		if (!matches(arrow, q)) continue;
@@ -61,10 +77,29 @@ function catalogRows(world: MockWorld, q: string): Array<{ arrow: MockArrow; ref
 		group.push(arrow);
 		byNamespace.set(arrow.namespace, group);
 	}
-	return [...byNamespace.values()].map((group) => ({
+	const catalog: CatalogRow[] = [...byNamespace.values()].map((group) => ({
 		arrow: group[0],
 		refs: group.map((a) => a.ref),
+		installed: true,
+		known: true,
+		provenance: provenanceOf(world, group[0].namespace),
 	}));
+
+	const vaultRows: CatalogRow[] = [];
+	for (const namespace of world.vault) {
+		if (byNamespace.has(namespace)) continue;
+		const candidate = world.discoverable.find((c) => c.arrow.namespace === namespace);
+		if (!candidate || !matches(candidate.arrow, q)) continue;
+		vaultRows.push({
+			arrow: candidate.arrow,
+			refs: [candidate.arrow.ref],
+			installed: false,
+			known: true,
+			provenance: 'seen',
+		});
+	}
+
+	return [...catalog, ...vaultRows];
 }
 
 function hasInCatalog(world: MockWorld, namespace: string): boolean {
@@ -139,16 +174,9 @@ export const searchRoutes: Route[] = [
 
 			const rows = catalogRows(world, q).slice(0, parseLimit(req.query.get('limit')));
 
-			// Lane A only ever answers about arrows this machine has, so every row
-			// is installed and known by construction.
 			return ok(
-				rows.map(({ arrow, refs }) =>
-					toSearchResultDTO(arrow, {
-						refs,
-						installed: true,
-						known: true,
-						provenance: provenanceOf(world, arrow.namespace),
-					})
+				rows.map(({ arrow, refs, installed, known, provenance }) =>
+					toSearchResultDTO(arrow, { refs, installed, known, provenance })
 				)
 			);
 		},

@@ -100,6 +100,44 @@ describe('SearchInspector', () => {
 		}
 	});
 
+	it('clears the previous settings on close, so reopening never shows stale config', async () => {
+		const mock = createMockBackend('normal');
+		installBackend(mock.backend);
+		const original = mock.backend.fetch.bind(mock.backend);
+		let configCalls = 0;
+		const release: { current: (() => void) | null } = { current: null };
+
+		// The first /v0/config call resolves normally; the second (the reopen)
+		// is held open on purpose, so the assertion below observes exactly the
+		// window between close and the new fetch landing.
+		vi.spyOn(mock.backend, 'fetch').mockImplementation((path: string, init?: RequestInit) => {
+			if (path !== '/v0/config') return original(path, init);
+			configCalls++;
+			if (configCalls === 1) return original(path, init);
+			return new Promise<Response>((resolve) => {
+				release.current = () => resolve(original(path, init));
+			});
+		});
+
+		try {
+			const { rerender } = render(
+				<SearchInspector job={JOB} onOpenChange={NOOP} open query="server" summary={SUMMARY} />
+			);
+			expect(await screen.findByText('per_provider_limit')).toBeInTheDocument();
+
+			rerender(<SearchInspector job={JOB} onOpenChange={NOOP} open={false} query="server" summary={SUMMARY} />);
+			rerender(<SearchInspector job={JOB} onOpenChange={NOOP} open query="server" summary={SUMMARY} />);
+
+			await waitFor(() => expect(configCalls).toBe(2));
+			expect(screen.queryByText('per_provider_limit')).not.toBeInTheDocument();
+
+			release.current?.();
+			expect(await screen.findByText('per_provider_limit')).toBeInTheDocument();
+		} finally {
+			mock.dispose();
+		}
+	});
+
 	it('fetches config once for an open session, not again on every re-render', async () => {
 		const mock = createMockBackend('normal');
 		const fetchSpy = vi.spyOn(mock.backend, 'fetch');

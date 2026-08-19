@@ -50,7 +50,12 @@ export function SearchInspector({ open, onOpenChange, query, job, summary }: Sea
 	// Fetched once per open, not on every render -- there is nowhere else in
 	// the pass that reads config, and the dialog is the only consumer.
 	useEffect(() => {
-		if (!open) return;
+		if (!open) {
+			// Otherwise the next open renders this fetch's config until its own
+			// resolves.
+			setSettings(null);
+			return;
+		}
 		let cancelled = false;
 
 		apiFetch<ConfigResponse>('/v0/config')

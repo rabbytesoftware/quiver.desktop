@@ -1,13 +1,14 @@
 import type { JSX } from 'react';
 
 import type { DiscoverySummary } from '@/domain/search';
-import type { SearchPhase } from '@/lib/core-store/store/search';
+import type { SearchJob, SearchPhase } from '@/lib/core-store/store/search';
 import { useTranslation } from '@/lib/i18n';
 
 interface ResultsHeaderProps {
 	query: string;
 	count: number;
 	phase: SearchPhase;
+	job: SearchJob | null;
 	summary: DiscoverySummary | null;
 	passFailed: boolean;
 	onInspect: () => void;
@@ -22,6 +23,7 @@ export function ResultsHeader({
 	query,
 	count,
 	phase,
+	job,
 	summary,
 	passFailed,
 	onInspect,
@@ -50,7 +52,7 @@ export function ResultsHeader({
 						)}
 					</span>
 				))}
-				{summary && (
+				{job && (
 					<button className="text-foreground underline underline-offset-2" onClick={onInspect} type="button">
 						{t('search.results.inspect')}
 					</button>

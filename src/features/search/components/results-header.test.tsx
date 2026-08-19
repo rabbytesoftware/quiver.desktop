@@ -10,21 +10,45 @@ const NOOP = () => {};
 describe('ResultsHeader', () => {
 	it('renders nothing at all when there is no query', () => {
 		const { container } = render(
-			<ResultsHeader count={0} onInspect={NOOP} passFailed={false} phase="idle" query="" summary={null} />
+			<ResultsHeader
+				count={0}
+				job={null}
+				onInspect={NOOP}
+				passFailed={false}
+				phase="idle"
+				query=""
+				summary={null}
+			/>
 		);
 		expect(container).toBeEmptyDOMElement();
 	});
 
 	it('makes the query the heading, so the results column says what was searched', () => {
 		render(
-			<ResultsHeader count={3} onInspect={NOOP} passFailed={false} phase="local" query="server" summary={null} />
+			<ResultsHeader
+				count={3}
+				job={null}
+				onInspect={NOOP}
+				passFailed={false}
+				phase="local"
+				query="server"
+				summary={null}
+			/>
 		);
 		expect(screen.getByRole('heading', { name: 'server' })).toBeInTheDocument();
 	});
 
 	it('announces the count politely, once, rather than per result', () => {
 		render(
-			<ResultsHeader count={3} onInspect={NOOP} passFailed={false} phase="local" query="server" summary={null} />
+			<ResultsHeader
+				count={3}
+				job={null}
+				onInspect={NOOP}
+				passFailed={false}
+				phase="local"
+				query="server"
+				summary={null}
+			/>
 		);
 		const live = screen.getByText(/3 results/);
 		expect(live.closest('[aria-live]')).toHaveAttribute('aria-live', 'polite');
@@ -42,6 +66,7 @@ describe('ResultsHeader', () => {
 		render(
 			<ResultsHeader
 				count={0}
+				job={null}
 				onInspect={NOOP}
 				passFailed={false}
 				phase="settled"
@@ -53,14 +78,19 @@ describe('ResultsHeader', () => {
 		expect(screen.getByText(/Retry in 40s/)).toBeInTheDocument();
 	});
 
-	it('offers Inspect only once a job exists', async () => {
+	// Varies job alone -- phase and summary stay fixed -- so the assertion
+	// isolates what actually gates the button (spec 9.3: "when a job exists").
+	// A test that also flips phase/summary here could pass for the wrong
+	// reason, which is exactly what let this button stay unreachable mid-pass.
+	it('offers Inspect once a job exists, before the summary ever arrives', () => {
 		const onInspect = vi.fn();
 		const { rerender } = render(
 			<ResultsHeader
 				count={0}
+				job={null}
 				onInspect={onInspect}
 				passFailed={false}
-				phase="local"
+				phase="discovering"
 				query="server"
 				summary={null}
 			/>
@@ -70,18 +100,29 @@ describe('ResultsHeader', () => {
 		rerender(
 			<ResultsHeader
 				count={0}
+				job={{ id: 'job-1', expires_at: '2026-08-18T00:00:30.000Z' }}
 				onInspect={onInspect}
 				passFailed={false}
-				phase="settled"
+				phase="discovering"
 				query="server"
-				summary={{ job_id: 'j', query: 'server', found: 0, verified: 0, skipped: 0, providers: [] }}
+				summary={null}
 			/>
 		);
 		expect(screen.getByRole('button', { name: 'Inspect' })).toBeInTheDocument();
 	});
 
 	it('states plainly that the network search did not finish', () => {
-		render(<ResultsHeader count={0} onInspect={NOOP} passFailed phase="settling" query="server" summary={null} />);
+		render(
+			<ResultsHeader
+				count={0}
+				job={null}
+				onInspect={NOOP}
+				passFailed
+				phase="settling"
+				query="server"
+				summary={null}
+			/>
+		);
 		expect(screen.getByText(/did not finish/)).toBeInTheDocument();
 	});
 });

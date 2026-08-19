@@ -6,9 +6,11 @@ import {
 	createRootRoute,
 	createRoute,
 	createRouter,
+	Outlet,
 	RouterProvider,
 } from '@tanstack/react-router';
 import { act, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IDLE_BEFORE_PASS_MS } from '@/lib/core-store/search/pass';
@@ -17,6 +19,7 @@ import { createMockBackend, type MockRuntime } from '@/lib/mock';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 
 import { ResultsScreen } from './results-screen';
+import { SearchBar } from './search-bar';
 
 let mock: MockRuntime;
 
@@ -222,5 +225,70 @@ describe('ResultsScreen mounted at the real app root', () => {
 	it('still starts a search under StrictMode, not just in a plain render', async () => {
 		renderAtAppRoot('minecraft');
 		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
+	});
+});
+
+// SearchBar (the rail field) and ResultsScreen (the route body) are siblings
+// under the root route, not parent/child -- this mirrors that shape so Enter's
+// wiring is exercised the way the real app renders it, not through a stub.
+function renderAppWithField(initialEntries = ['/']) {
+	const rootRoute = createRootRoute({
+		component: () => (
+			<>
+				<SearchBar />
+				<Outlet />
+			</>
+		),
+	});
+	const indexRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: '/',
+		component: () => <div data-testid="home" />,
+	});
+	const searchRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: '/search',
+		validateSearch: (search: Record<string, unknown>) => ({ q: typeof search.q === 'string' ? search.q : '' }),
+		component: () => <ResultsScreen query={searchRoute.useSearch().q} />,
+	});
+
+	const router = createRouter({
+		routeTree: rootRoute.addChildren([indexRoute, searchRoute]),
+		history: createMemoryHistory({ initialEntries }),
+	});
+
+	return render(<RouterProvider router={router} />);
+}
+
+describe('Enter fires the pass immediately (spec 2.2)', () => {
+	afterEach(() => vi.useRealTimers());
+
+	it('starts a pass without waiting out the idle timer', async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const user = userEvent.setup();
+
+		renderAppWithField();
+		const input = await screen.findByRole('textbox', { name: 'Search' });
+
+		await user.type(input, 'server{Enter}');
+		await vi.advanceTimersByTimeAsync(10);
+
+		expect(useSearchStore.getState().phase).toBe('discovering');
+	});
+
+	it('fires again on Enter even when the committed query is unchanged, rather than doing nothing', async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const user = userEvent.setup();
+
+		renderAppWithField(['/search?q=server']);
+		const input = await screen.findByRole('textbox', { name: 'Search' });
+		await vi.advanceTimersByTimeAsync(0);
+		expect(useSearchStore.getState().phase).toBe('local');
+
+		await user.click(input);
+		await user.keyboard('{Enter}');
+		await vi.advanceTimersByTimeAsync(10);
+
+		expect(useSearchStore.getState().phase).toBe('discovering');
 	});
 });

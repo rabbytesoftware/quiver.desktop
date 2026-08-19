@@ -138,16 +138,15 @@ describe('the normal scenario', () => {
 });
 
 describe('media fixtures', () => {
-	// media.icon and media.banner will both be required by the manifest system,
-	// so every fixture must be production-shaped -- no client-side fallback is
-	// designed or wanted for a missing banner (a card is a banner and nothing
-	// else at rest).
-	it('gives every arrow the mock can serve both an icon and a banner', () => {
+	// media.banner will be required by the manifest system, and there is no
+	// client-side fallback designed or wanted for a missing one -- a card is a
+	// banner and nothing else at rest. icon has no such requirement: it is
+	// null by default, and the sidebar's monogram-chip fallback is the point.
+	it('gives every arrow the mock can serve a banner', () => {
 		for (const scenario of SCENARIOS) {
 			const data = scenario.build();
 			const arrows = [...data.arrows, ...data.discoverable.map((c) => c.arrow)];
 			for (const arrow of arrows) {
-				expect(arrow.icon, `${scenario.name}: ${arrow.namespace} icon`).not.toBeNull();
 				expect(arrow.banner, `${scenario.name}: ${arrow.namespace} banner`).not.toBeNull();
 			}
 		}

@@ -94,6 +94,23 @@ describe('the pass', () => {
 		expect(useSearchStore.getState().streamed).toEqual([]);
 	});
 
+	it('carries every discovered arrow into the re-queried local band, not just the seam (spec 3.5)', async () => {
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 400);
+		const discovered = useSearchStore.getState().streamed.map((e) => e.namespace);
+		expect(discovered.length).toBeGreaterThan(0);
+
+		await vi.advanceTimersByTimeAsync(10_000);
+		expect(phase()).toBe('settled');
+
+		const local = useSearchStore.getState().local;
+		for (const namespace of discovered) {
+			const entry = local.find((e) => e.namespace === namespace);
+			expect(entry).toBeDefined();
+			expect(entry).toMatchObject({ installed: false, known: true });
+		}
+	});
+
 	it('keeps the summary after settling, because the job expires', async () => {
 		controller.setQuery('server');
 		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10_000);

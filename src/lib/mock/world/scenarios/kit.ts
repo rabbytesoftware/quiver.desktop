@@ -1,7 +1,7 @@
 import type { StepProgress } from '@/domain/arrow';
 
 import { MOCK_HOST_PLATFORM, type MockArrow, type MockMethod, type MockTarget, type MockVariable } from '../types';
-import { DEMO_BANNER, DEMO_ICON } from './media';
+import { DEMO_BANNER } from './media';
 
 export const EPOCH = '2026-07-14T09:20:00Z';
 
@@ -66,7 +66,7 @@ export function arrow(seed: ArrowSeed): MockArrow {
 		description: '',
 		license: 'MIT',
 		tags: [],
-		icon: DEMO_ICON,
+		icon: null,
 		banner: DEMO_BANNER,
 		maintainers: ['rabbyte'],
 		url: `https://${seed.namespace}`,
