@@ -6,11 +6,11 @@ import {
 	Outlet,
 	RouterProvider,
 } from '@tanstack/react-router';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { SearchBar } from './index';
+import { LOCAL_DEBOUNCE_MS, SearchBar } from './index';
 
 async function renderField(initialEntries = ['/']) {
 	const rootRoute = createRootRoute({
@@ -68,7 +68,7 @@ describe('SearchBar', () => {
 
 		expect(await screen.findByTestId('search-page')).toBeInTheDocument();
 		expect(router.state.location.pathname).toBe('/search');
-		expect(router.state.location.search).toEqual({ q: 'minecraft' });
+		await waitFor(() => expect(router.state.location.search).toEqual({ q: 'minecraft' }));
 	});
 
 	it('reflects the URL back into the field, so the back button cannot desync it', async () => {
@@ -90,7 +90,7 @@ describe('SearchBar', () => {
 		expect(router.history.length).toBe(2);
 
 		await user.type(input, 'inecraft');
-		expect(router.state.location.search).toEqual({ q: 'minecraft' });
+		await waitFor(() => expect(router.state.location.search).toEqual({ q: 'minecraft' }));
 		expect(router.history.length).toBe(2);
 	});
 
@@ -160,5 +160,38 @@ describe('SearchBar', () => {
 
 		expect(input.parentElement).not.toHaveAttribute('data-tauri-drag-region');
 		expect(input).not.toHaveAttribute('data-tauri-drag-region');
+	});
+
+	it('waits out the debounce before putting a keystroke in the URL', async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const { input, router, user } = await renderField(['/search?q=']);
+
+		await user.type(input, 'serv');
+		expect(router.state.location.search).toEqual({ q: '' });
+
+		await vi.advanceTimersByTimeAsync(LOCAL_DEBOUNCE_MS + 10);
+		expect(router.state.location.search).toEqual({ q: 'serv' });
+
+		vi.useRealTimers();
+	});
+
+	it('shows what was typed immediately, even before it reaches the URL', async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const { input, user } = await renderField(['/search?q=']);
+
+		await user.type(input, 'serv');
+		expect((input as HTMLInputElement).value).toBe('serv');
+
+		vi.useRealTimers();
+	});
+
+	it('commits immediately on Enter rather than waiting out the debounce', async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const { input, router, user } = await renderField(['/search?q=']);
+
+		await user.type(input, 'serv{Enter}');
+		expect(router.state.location.search).toEqual({ q: 'serv' });
+
+		vi.useRealTimers();
 	});
 });

@@ -1,4 +1,5 @@
 import type { JSX } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
 
@@ -6,6 +7,9 @@ import { cn } from '@/lib/cn';
 import { useTranslation } from '@/lib/i18n';
 
 const RESULTS = '/search' as const;
+
+/** Spec 2.5: the URL stays the source of truth; the debounce sits in front of it. */
+export const LOCAL_DEBOUNCE_MS = 150;
 
 const FIELD = [
 	'group flex h-9 w-full cursor-text items-center gap-2 rounded-lg px-2',
@@ -26,6 +30,19 @@ export function SearchBar(): JSX.Element {
 	const showingResults = location.pathname === RESULTS;
 	const query = readQuery(location.searchStr);
 
+	const [draft, setDraft] = useState(query);
+	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	// The URL is authoritative: a back button or a deep link overwrites the draft.
+	useEffect(() => setDraft(query), [query]);
+
+	useEffect(
+		() => () => {
+			if (timer.current !== null) clearTimeout(timer.current);
+		},
+		[]
+	);
+
 	function commit(next: string): void {
 		if (next === '') {
 			router.history.back();
@@ -33,6 +50,17 @@ export function SearchBar(): JSX.Element {
 		}
 
 		void navigate({ to: RESULTS, search: { q: next }, replace: showingResults });
+	}
+
+	function change(next: string): void {
+		setDraft(next);
+		if (timer.current !== null) clearTimeout(timer.current);
+		timer.current = setTimeout(() => commit(next), LOCAL_DEBOUNCE_MS);
+	}
+
+	function submit(): void {
+		if (timer.current !== null) clearTimeout(timer.current);
+		commit(draft);
 	}
 
 	function open(): void {
@@ -50,9 +78,12 @@ export function SearchBar(): JSX.Element {
 			</span>
 			<input
 				type="text"
-				value={query}
+				value={draft}
 				onFocus={open}
-				onChange={(event) => commit(event.target.value)}
+				onChange={(event) => change(event.target.value)}
+				onKeyDown={(event) => {
+					if (event.key === 'Enter') submit();
+				}}
 				aria-label={t('search.label')}
 				placeholder={t('search.placeholder')}
 				className={cn(
