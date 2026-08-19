@@ -134,6 +134,26 @@ describe('the pass', () => {
 		expect(useSearchStore.getState().streamed.every((e) => e.namespace.length > 0)).toBe(true);
 	});
 
+	// The generation that guards the socket/poll is bumped by submit, not just
+	// by setQuery -- this is what stopPass relies on to keep a cancelled pass's
+	// late frames out of the store once submit no longer cancels the local fetch.
+	it('cancels an in-flight pass on submit too, not only on a query change', async () => {
+		controller.setQuery('server');
+		controller.submit();
+		await vi.advanceTimersByTimeAsync(400);
+		const firstJob = useSearchStore.getState().job?.id;
+		expect(firstJob).toBeDefined();
+
+		controller.setQuery('server room');
+		controller.submit();
+		await vi.advanceTimersByTimeAsync(400);
+		const secondJob = useSearchStore.getState().job?.id;
+
+		expect(secondJob).toBeDefined();
+		expect(secondJob).not.toBe(firstJob);
+		expect(useSearchStore.getState().streamed.every((e) => e.namespace.length > 0)).toBe(true);
+	});
+
 	it('stops everything when the query is cleared', async () => {
 		controller.setQuery('server');
 		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 400);

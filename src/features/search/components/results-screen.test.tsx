@@ -276,6 +276,23 @@ describe('Enter fires the pass immediately (spec 2.2)', () => {
 		expect(useSearchStore.getState().phase).toBe('discovering');
 	});
 
+	// Regression: setQuery and submit used to share one generation counter, so
+	// submit's cancel discarded the local fetch setQuery had just started --
+	// the grid rendered no local band for the whole pass (spec 2.2.1).
+	it('keeps the local band populated through the pass, not just the phase', async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const user = userEvent.setup();
+
+		renderAppWithField();
+		const input = await screen.findByRole('textbox', { name: 'Search' });
+
+		await user.type(input, 'server{Enter}');
+		await vi.advanceTimersByTimeAsync(10);
+
+		expect(useSearchStore.getState().phase).toBe('discovering');
+		expect(useSearchStore.getState().local.length).toBeGreaterThan(0);
+	});
+
 	it('fires again on Enter even when the committed query is unchanged, rather than doing nothing', async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		const user = userEvent.setup();

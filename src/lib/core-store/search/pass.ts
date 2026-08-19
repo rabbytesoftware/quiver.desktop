@@ -32,7 +32,11 @@ export function createSearchController(): SearchController {
 	let idleTimer: ReturnType<typeof setTimeout> | null = null;
 	let pollTimer: ReturnType<typeof setTimeout> | null = null;
 	let socket: SocketLike | null = null;
-	let generation = 0;
+	// Two lifetimes, two counters: a query change invalidates the local fetch
+	// AND the pass, but submit invalidates only the pass -- collapsing these
+	// into one counter is what let submit discard a local fetch still wanted.
+	let queryGeneration = 0;
+	let passGeneration = 0;
 	let disposed = false;
 
 	function clearIdle(): void {
@@ -48,20 +52,25 @@ export function createSearchController(): SearchController {
 		socket = null;
 	}
 
-	function cancelAll(): void {
-		generation++;
+	function cancelPass(): void {
+		passGeneration++;
 		clearIdle();
 		stopPass();
+	}
+
+	function cancelAll(): void {
+		queryGeneration++;
+		cancelPass();
 	}
 
 	async function runLocal(myGeneration: number): Promise<void> {
 		if (isBlank(query)) return;
 		try {
 			const dtos = await apiFetch<SearchResultDTO[]>(`/v0/search?q=${encodeURIComponent(query)}`);
-			if (disposed || generation !== myGeneration) return;
+			if (disposed || queryGeneration !== myGeneration) return;
 			store.getState().setLocal(dtos.map(toSearchEntry));
 		} catch {
-			if (disposed || generation !== myGeneration) return;
+			if (disposed || queryGeneration !== myGeneration) return;
 			store.getState().setLocalError();
 		}
 	}
@@ -70,10 +79,10 @@ export function createSearchController(): SearchController {
 	async function requery(myGeneration: number): Promise<void> {
 		try {
 			const dtos = await apiFetch<SearchResultDTO[]>(`/v0/search?q=${encodeURIComponent(query)}`);
-			if (disposed || generation !== myGeneration) return;
+			if (disposed || passGeneration !== myGeneration) return;
 			store.getState().settle(dtos.map(toSearchEntry));
 		} catch {
-			if (disposed || generation !== myGeneration) return;
+			if (disposed || passGeneration !== myGeneration) return;
 			store.getState().settleFailed();
 		}
 	}
@@ -86,14 +95,14 @@ export function createSearchController(): SearchController {
 			body: JSON.stringify({ q: query }),
 		}).catch(() => null);
 
-		if (!started || disposed || generation !== myGeneration) return;
+		if (!started || disposed || passGeneration !== myGeneration) return;
 
 		store.getState().beginPass({ id: started.job_id, expires_at: started.expires_at });
 
 		const path = `/v0/search/discover/${started.job_id}`;
 		socket = backend().openSocket(path);
 		socket.onmessage = (event) => {
-			if (disposed || generation !== myGeneration) return;
+			if (disposed || passGeneration !== myGeneration) return;
 			try {
 				store.getState().receive(toSearchEntry(JSON.parse(event.data) as SearchResultDTO));
 			} catch {
@@ -108,7 +117,7 @@ export function createSearchController(): SearchController {
 		// polls in flight to both observe `completed` and both consume the summary.
 		function poll(): void {
 			pollTimer = setTimeout(() => {
-				if (disposed || generation !== myGeneration) return;
+				if (disposed || passGeneration !== myGeneration) return;
 
 				if (Date.now() >= deadline) {
 					stopPass();
@@ -118,7 +127,7 @@ export function createSearchController(): SearchController {
 
 				void apiFetch<DiscoveryJobDTO>(path)
 					.then((job) => {
-						if (disposed || generation !== myGeneration) return;
+						if (disposed || passGeneration !== myGeneration) return;
 						if (job.status !== 'completed') {
 							poll();
 							return;
@@ -130,7 +139,7 @@ export function createSearchController(): SearchController {
 						void requery(myGeneration);
 					})
 					.catch(() => {
-						if (disposed || generation !== myGeneration) return;
+						if (disposed || passGeneration !== myGeneration) return;
 						stopPass();
 						store.getState().settleFailed();
 					});
@@ -143,9 +152,9 @@ export function createSearchController(): SearchController {
 	function arm(): void {
 		clearIdle();
 		if (isBlank(query)) return;
-		const myGeneration = generation;
+		const myGeneration = passGeneration;
 		idleTimer = setTimeout(() => {
-			if (disposed || generation !== myGeneration) return;
+			if (disposed || passGeneration !== myGeneration) return;
 			void startPass(myGeneration);
 		}, IDLE_BEFORE_PASS_MS);
 	}
@@ -157,14 +166,14 @@ export function createSearchController(): SearchController {
 			cancelAll();
 			store.getState().setQuery(next);
 			if (isBlank(next)) return;
-			void runLocal(generation);
+			void runLocal(queryGeneration);
 			arm();
 		},
 
 		submit: () => {
 			if (disposed || isBlank(query)) return;
-			cancelAll();
-			void startPass(generation);
+			cancelPass();
+			void startPass(passGeneration);
 		},
 
 		dispose: () => {
