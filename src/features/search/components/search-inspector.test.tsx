@@ -34,6 +34,15 @@ describe('SearchInspector', () => {
 		expect(screen.getByText('7 / 5 / 2')).toBeInTheDocument();
 	});
 
+	it('labels each pass field so its meaning does not depend on position', () => {
+		render(<SearchInspector job={JOB} onOpenChange={NOOP} open query="server" summary={SUMMARY} />);
+
+		expect(screen.getByText('Query').closest('div')).toHaveTextContent('server');
+		expect(screen.getByText('Job ID').closest('div')).toHaveTextContent('job-1');
+		expect(screen.getByText('Found / verified / skipped').closest('div')).toHaveTextContent('7 / 5 / 2');
+		expect(screen.getByText('Expires at').closest('div')).toHaveTextContent(/2026/);
+	});
+
 	it('renders one row per provider and no more', () => {
 		render(<SearchInspector job={JOB} onOpenChange={NOOP} open query="server" summary={SUMMARY} />);
 		expect(document.querySelectorAll('[data-slot="inspector-host"]')).toHaveLength(2);

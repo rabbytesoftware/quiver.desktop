@@ -1,4 +1,4 @@
-import { type JSX, useEffect, useState } from 'react';
+import { type JSX, type ReactNode, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -32,6 +32,16 @@ interface ConfigResponse {
 
 const CAPTION = 'text-xs font-medium text-muted-foreground uppercase tracking-wide';
 const SOURCE = cn(CAPTION, 'normal-case');
+
+/** Label left, value right -- mono for an identifier or a number, so it doesn't read as prose. */
+function InspectorField({ label, value, mono = false }: { label: string; value: ReactNode; mono?: boolean }) {
+	return (
+		<div className="flex items-center justify-between gap-3">
+			<span className="text-muted-foreground">{label}</span>
+			<span className={cn('truncate text-right', mono && 'font-mono tabular-nums')}>{value}</span>
+		</div>
+	);
+}
 
 export function SearchInspector({ open, onOpenChange, query, job, summary }: SearchInspectorProps): JSX.Element {
 	const { t, formatDateTime } = useTranslation();
@@ -71,10 +81,21 @@ export function SearchInspector({ open, onOpenChange, query, job, summary }: Sea
 				<DialogPanel className="flex flex-col gap-5 text-sm">
 					<section className="flex flex-col gap-1.5">
 						<h3 className={CAPTION}>{t('search.inspector.pass')}</h3>
-						<p className="truncate font-medium">{query}</p>
-						{job && <p className="text-muted-foreground">{job.id}</p>}
-						<p className="tabular-nums">{`${found} / ${verified} / ${skipped}`}</p>
-						{job && <p className="text-muted-foreground">{formatDateTime(job.expires_at)}</p>}
+						<div className="flex flex-col gap-1">
+							<InspectorField label={t('search.inspector.query')} value={query} />
+							{job && <InspectorField label={t('search.inspector.job')} mono value={job.id} />}
+							<InspectorField
+								label={t('search.inspector.counts')}
+								mono
+								value={`${found} / ${verified} / ${skipped}`}
+							/>
+							{job && (
+								<InspectorField
+									label={t('search.inspector.expires')}
+									value={formatDateTime(job.expires_at)}
+								/>
+							)}
+						</div>
 					</section>
 
 					<section className="flex flex-col gap-1.5">
