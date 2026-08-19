@@ -1,5 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import { ResultsScreen } from '@/features/search';
+
 export interface SearchParams {
 	q: string;
 }
@@ -16,5 +18,5 @@ export const Route = createFileRoute('/search')({
 function SearchPage() {
 	const { q } = Route.useSearch();
 
-	return <div data-testid="search-page">{q}</div>;
+	return <ResultsScreen query={q} />;
 }
