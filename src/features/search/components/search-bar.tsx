@@ -33,15 +33,19 @@ export function SearchBar(): JSX.Element {
 	const [draft, setDraft] = useState(query);
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	// The URL is authoritative: a back button or a deep link overwrites the draft.
-	useEffect(() => setDraft(query), [query]);
+	function clearPending(): void {
+		if (timer.current !== null) clearTimeout(timer.current);
+		timer.current = null;
+	}
 
-	useEffect(
-		() => () => {
-			if (timer.current !== null) clearTimeout(timer.current);
-		},
-		[]
-	);
+	// The URL is authoritative: a back button or a deep link overwrites the draft and
+	// discards whatever commit was in flight, so a stale timer can't undo the navigation.
+	useEffect(() => {
+		clearPending();
+		setDraft(query);
+	}, [query]);
+
+	useEffect(() => () => clearPending(), []);
 
 	function commit(next: string): void {
 		if (next === '') {
@@ -54,12 +58,15 @@ export function SearchBar(): JSX.Element {
 
 	function change(next: string): void {
 		setDraft(next);
-		if (timer.current !== null) clearTimeout(timer.current);
-		timer.current = setTimeout(() => commit(next), LOCAL_DEBOUNCE_MS);
+		clearPending();
+		timer.current = setTimeout(() => {
+			timer.current = null;
+			commit(next);
+		}, LOCAL_DEBOUNCE_MS);
 	}
 
 	function submit(): void {
-		if (timer.current !== null) clearTimeout(timer.current);
+		clearPending();
 		commit(draft);
 	}
 

@@ -6,7 +6,7 @@ import {
 	Outlet,
 	RouterProvider,
 } from '@tanstack/react-router';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -191,6 +191,26 @@ describe('SearchBar', () => {
 
 		await user.type(input, 'serv{Enter}');
 		expect(router.state.location.search).toEqual({ q: 'serv' });
+
+		vi.useRealTimers();
+	});
+
+	it('does not let a stale debounce undo a back-navigation that lands before it fires', async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const { input, router, user } = await renderField(['/', '/search?q=x']);
+		expect(router.history.length).toBe(2);
+
+		await user.type(input, 'y');
+		expect((input as HTMLInputElement).value).toBe('xy');
+
+		await act(async () => {
+			router.history.back();
+		});
+		expect(router.state.location.pathname).toBe('/');
+
+		await vi.advanceTimersByTimeAsync(LOCAL_DEBOUNCE_MS + 10);
+		expect(router.state.location.pathname).toBe('/');
+		expect(router.history.length).toBe(2);
 
 		vi.useRealTimers();
 	});
