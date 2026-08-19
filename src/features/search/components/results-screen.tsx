@@ -6,6 +6,7 @@ import { useSearch } from '../use-search';
 import { EmptyState } from './empty-states';
 import { ResultGrid } from './result-grid';
 import { ResultsHeader } from './results-header';
+import { SearchInspector } from './search-inspector';
 
 interface ResultsScreenProps {
 	query: string;
@@ -23,13 +24,12 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 	const phase = useSearchStore((s) => s.phase);
 	const local = useSearchStore((s) => s.local);
 	const streamed = useSearchStore((s) => s.streamed);
+	const job = useSearchStore((s) => s.job);
 	const summary = useSearchStore((s) => s.summary);
 	const localError = useSearchStore((s) => s.localError);
 	const passFailed = useSearchStore((s) => s.passFailed);
 
-	// Task 10 mounts SearchInspector against this state and starts reading
-	// the open flag; until then it's write-only.
-	const [, setInspecting] = useState(false);
+	const [inspecting, setInspecting] = useState(false);
 
 	const gridRef = useRef<HTMLDivElement>(null);
 	const positions = useRef(new Map<string, DOMRect>());
@@ -74,6 +74,7 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 				<ResultGrid local={local} phase={phase} streamed={streamed} />
 			</div>
 			<EmptyState localError={localError} phase={phase} summary={summary} />
+			<SearchInspector job={job} onOpenChange={setInspecting} open={inspecting} query={query} summary={summary} />
 		</div>
 	);
 }

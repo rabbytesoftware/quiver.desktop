@@ -26,6 +26,15 @@ export const en = {
 	'search.results.unreachable': 'Quiver is not running',
 	'search.results.emptyEverywhere': 'Nothing matched, and every host answered.',
 
+	'search.inspector.title': 'This search',
+	'search.inspector.description': 'What the pass did, and what it was allowed to do.',
+	'search.inspector.pass': 'The pass',
+	'search.inspector.hosts': 'Hosts',
+	'search.inspector.settings': 'Settings',
+	'search.inspector.asked': '{count} asked',
+	'search.inspector.running': 'The job carries no providers until the pass ends.',
+	'search.inspector.close': 'Close',
+
 	'sidebar.resize': 'Resize sidebar',
 	'sidebar.arrows': 'Arrows',
 	'sidebar.arrows.loading': 'Loading arrows',
