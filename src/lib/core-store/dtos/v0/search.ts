@@ -14,6 +14,11 @@ export interface SearchResultDTO {
 	name: string;
 	description: string;
 	tags: string[];
+	/**
+	 * Both halves are optional in practice whatever the manifest schema asks
+	 * for: core serialises an unset image as `""`. Banners are the common
+	 * casualty -- a repo that ships an icon usually ships nothing else.
+	 */
 	media?: {
 		icon?: string | null;
 		banner?: string | null;
@@ -91,14 +96,24 @@ export interface DiscoveryJobDTO {
 	providers: DiscoveryProviderDTO[];
 }
 
+/**
+ * Core writes an absent image as `""`, not as null or an omitted key, so `??`
+ * alone lets an empty string through as if it were a URL. Every consumer would
+ * then have to know that a falsy string means "no art"; normalising here is
+ * what keeps `SearchEntry.icon === null` the single way to ask.
+ */
+function mediaUrl(value: string | null | undefined): string | null {
+	return value ? value : null;
+}
+
 export function toSearchEntry(dto: SearchResultDTO): SearchEntry {
 	return {
 		namespace: dto.namespace,
 		name: dto.name,
 		description: dto.description,
 		tags: dto.tags ?? [],
-		icon: dto.media?.icon ?? null,
-		banner: dto.media?.banner ?? null,
+		icon: mediaUrl(dto.media?.icon),
+		banner: mediaUrl(dto.media?.banner),
 		versions: dto.versions ?? [],
 		compatible_os: dto.compatible_os ?? [],
 		provenance: dto.provenance ?? null,

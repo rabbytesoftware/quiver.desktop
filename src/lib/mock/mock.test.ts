@@ -138,18 +138,23 @@ describe('the normal scenario', () => {
 });
 
 describe('media fixtures', () => {
-	// media.banner will be required by the manifest system, and there is no
-	// client-side fallback designed or wanted for a missing one -- a card is a
-	// banner and nothing else at rest. icon has no such requirement: it is
-	// null by default, and the sidebar's monogram-chip fallback is the point.
-	it('gives every arrow the mock can serve a banner', () => {
+	// Inverted against the real daemon: nightly-96821f4 serves a published
+	// arrow with an icon and an empty banner, so the icon is what every card
+	// can count on. Requiring banners here is what kept the fallback the app
+	// actually renders out of every test.
+	it('gives every arrow the mock can serve an icon', () => {
 		for (const scenario of SCENARIOS) {
 			const data = scenario.build();
 			const arrows = [...data.arrows, ...data.discoverable.map((c) => c.arrow)];
 			for (const arrow of arrows) {
-				expect(arrow.banner, `${scenario.name}: ${arrow.namespace} banner`).not.toBeNull();
+				expect(arrow.icon, `${scenario.name}: ${arrow.namespace} icon`).not.toBeNull();
 			}
 		}
+	});
+
+	it('keeps at least one banner in play, so that path stays covered', () => {
+		const arrows = SCENARIOS.flatMap((s) => s.build().arrows);
+		expect(arrows.some((a) => a.banner !== null)).toBe(true);
 	});
 });
 

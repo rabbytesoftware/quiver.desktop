@@ -11,7 +11,7 @@ import {
 	target,
 	variable,
 } from './kit';
-import { DEMO_ICON } from './media';
+import { bannerFor } from './media';
 
 const NS = 'github.com/rabbyte';
 
@@ -24,9 +24,9 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		version: '1.21.4',
 		state: 'running',
 		tags: ['game', 'server', 'java'],
-		// The one fixture the media-nesting tests read a real icon from -- every
-		// other arrow uses the null default (spec: banner-only cards).
-		icon: DEMO_ICON,
+		// One of the few fixtures with a banner, so the card's banner path stays
+		// covered while the rest exercise the icon fallback that ships.
+		banner: bannerFor(`${NS}/minecraft`),
 		requirement: { cpu_cores: 4, memory_gb: 8, disk_gb: 40 },
 		netbridge: [
 			{ name: 'game', protocol: 'tcp', default: 25565, required: true },

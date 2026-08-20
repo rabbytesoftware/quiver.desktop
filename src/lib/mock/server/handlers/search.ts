@@ -186,9 +186,12 @@ export const searchRoutes: Route[] = [
 		pattern: '/v0/search/discover',
 		fault: 'discover',
 		handler: (req, world) => {
-			const body = (req.body ?? {}) as { q?: string; query?: string };
-			const query = (body.q ?? body.query ?? '').trim();
-			if (query === '') return fail('query parameter q is required', 400);
+			// `q`, and only `q`. Core reads the field by that name and 400s on a
+			// body without it, so accepting `query` here would let a client bug
+			// pass every mock test and fail against the daemon.
+			const body = (req.body ?? {}) as { q?: string };
+			const query = (body.q ?? '').trim();
+			if (query === '') return fail('field q is required', 400);
 
 			const id = `job-${world.nextId()}`;
 			world.jobs.set(id, {

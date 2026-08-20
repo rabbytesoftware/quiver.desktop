@@ -11,7 +11,7 @@ export const en = {
 	'nav.back': 'Go back',
 	'nav.forward': 'Go forward',
 
-	'search.placeholder': 'Search Arrows or Collections',
+	'search.placeholder': 'Search Arrows',
 	'search.label': 'Search',
 
 	'search.results.count': {

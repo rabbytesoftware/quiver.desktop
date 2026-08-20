@@ -48,7 +48,7 @@ async function renderField(initialEntries = ['/']) {
 describe('SearchBar', () => {
 	it('names what is searched, not the act of searching', async () => {
 		const { input } = await renderField();
-		expect(input).toHaveAttribute('placeholder', 'Search Arrows or Collections');
+		expect(input).toHaveAttribute('placeholder', 'Search Arrows');
 	});
 
 	it('names the field for screen readers, which have no visible label to read', async () => {

@@ -1,4 +1,4 @@
-import type { JSX } from 'react';
+import type { CSSProperties, JSX } from 'react';
 
 import { Link } from '@tanstack/react-router';
 
@@ -31,6 +31,33 @@ const INFO = [
 	'group-focus-visible:opacity-100 group-focus-visible:duration-[40ms]',
 ].join(' ');
 
+/**
+ * Manifests come from arbitrary repositories, so a media URL is untrusted text
+ * being spliced into a CSS declaration. Quoting it as a CSS string is what stops
+ * a crafted `banner` from closing `url(` and appending declarations of its own.
+ */
+function cssUrl(url: string): string {
+	return `url(${JSON.stringify(url)})`;
+}
+
+/**
+ * A banner is the exception, not the rule: most published arrows ship an icon
+ * and nothing else, and core sends the missing half as an empty string. Falling
+ * back to the icon keeps those cards identifiable at rest instead of leaving a
+ * grid of blank tiles that only resolve on hover.
+ */
+function bannerStyle(entry: SearchEntry): CSSProperties | undefined {
+	if (entry.banner) return { backgroundImage: cssUrl(entry.banner) };
+	if (entry.icon) {
+		return {
+			backgroundImage: cssUrl(entry.icon),
+			backgroundSize: '2.25rem',
+			backgroundRepeat: 'no-repeat',
+		};
+	}
+	return undefined;
+}
+
 export function ArrowCard({ entry }: { entry: SearchEntry }): JSX.Element {
 	return (
 		<Link
@@ -42,15 +69,15 @@ export function ArrowCard({ entry }: { entry: SearchEntry }): JSX.Element {
 		>
 			<span
 				aria-hidden="true"
-				className="absolute inset-0 rounded-lg bg-cover bg-center will-change-transform"
+				className="absolute inset-0 rounded-lg bg-muted bg-cover bg-center will-change-transform"
 				data-slot="card-banner"
-				style={entry.banner ? { backgroundImage: `url(${entry.banner})` } : undefined}
+				style={bannerStyle(entry)}
 			/>
 			<span className={INFO} data-slot="card-info">
 				<span
 					aria-hidden="true"
 					className="size-5 flex-none overflow-hidden rounded-[5px] bg-cover bg-center"
-					style={entry.icon ? { backgroundImage: `url(${entry.icon})` } : undefined}
+					style={entry.icon ? { backgroundImage: cssUrl(entry.icon) } : undefined}
 				/>
 				<span className="flex min-w-0 flex-col justify-center">
 					<span className="truncate text-[12.5px]/[15px] font-medium tracking-[-0.1px]">{entry.name}</span>

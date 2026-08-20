@@ -1,7 +1,7 @@
 import type { StepProgress } from '@/domain/arrow';
 
 import { MOCK_HOST_PLATFORM, type MockArrow, type MockMethod, type MockTarget, type MockVariable } from '../types';
-import { DEMO_BANNER } from './media';
+import { iconFor } from './media';
 
 export const EPOCH = '2026-07-14T09:20:00Z';
 
@@ -66,8 +66,10 @@ export function arrow(seed: ArrowSeed): MockArrow {
 		description: '',
 		license: 'MIT',
 		tags: [],
-		icon: null,
-		banner: DEMO_BANNER,
+		// What a published arrow actually carries: its own icon, and no banner.
+		// A fixture that wants one passes `banner: bannerFor(ns)` explicitly.
+		icon: iconFor(seed.namespace),
+		banner: null,
 		maintainers: ['rabbyte'],
 		url: `https://${seed.namespace}`,
 		user_installed: true,
