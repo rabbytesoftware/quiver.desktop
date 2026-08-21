@@ -24,6 +24,7 @@ export const en = {
 	'search.results.retry': 'Retry in {seconds}s',
 	'search.results.inspect': 'Inspect',
 	'search.results.unreachable': 'Quiver is not running',
+	'search.results.idle': 'Type to search.',
 	'search.results.emptyEverywhere': 'Nothing matched, and every host answered.',
 
 	'search.inspector.title': 'This search',

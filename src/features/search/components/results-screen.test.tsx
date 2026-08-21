@@ -61,10 +61,26 @@ describe('ResultsScreen', () => {
 		expect(screen.getByRole('heading', { name: 'minecraft' })).toBeInTheDocument();
 	});
 
-	it('renders nothing but the empty frame for an empty query', () => {
+	it('renders no heading and no results for an empty query', () => {
 		renderScreen('');
 		expect(screen.queryByRole('heading')).not.toBeInTheDocument();
 		expect(screen.queryAllByRole('link')).toHaveLength(0);
+	});
+
+	// The resting screen has no heading and no grid, so without this line it is
+	// a blank canvas -- the design carried one centred sentence here.
+	it('invites the first keystroke when nothing has been asked for', async () => {
+		renderScreen('');
+		expect(await screen.findByText('Type to search.')).toBeInTheDocument();
+	});
+
+	// `setQuery` empties the store before Lane A answers, so a real query sits
+	// in `idle` for a moment. Inviting a search there would talk over one that
+	// is already happening.
+	it('does not invite a search while one is already on its way', async () => {
+		renderScreen('minecraft');
+		await screen.findByTestId('search-page');
+		expect(screen.queryByText('Type to search.')).not.toBeInTheDocument();
 	});
 
 	// An empty field over a full grid is the state this screen must never reach.

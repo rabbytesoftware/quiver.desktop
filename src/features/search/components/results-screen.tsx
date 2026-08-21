@@ -79,6 +79,7 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 				localError={localError}
 				passFailed={passFailed}
 				phase={phase}
+				query={query}
 				summary={summary}
 			/>
 			<SearchInspector job={job} onOpenChange={setInspecting} open={inspecting} query={query} summary={summary} />
