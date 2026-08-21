@@ -145,6 +145,52 @@ describe('SearchBar', () => {
 		expect(window.history.length).toBe(before);
 	});
 
+	// Leaving the results route used to blank the field, which threw the query
+	// away and left focusing it again as the only way back -- onto a blank
+	// search. The field is in the sidebar and outlives the route; the query it
+	// is holding should outlive it too.
+	it('keeps the query after leaving /search, rather than throwing it away', async () => {
+		const { input, router } = await renderField(['/search?q=minecraft']);
+		expect(input).toHaveValue('minecraft');
+
+		await act(async () => {
+			await router.navigate({ to: '/' });
+		});
+
+		expect(await screen.findByTestId('home')).toBeInTheDocument();
+		expect(input).toHaveValue('minecraft');
+	});
+
+	it('reopens the search it is still holding when the field is focused again', async () => {
+		const { input, router } = await renderField(['/search?q=minecraft']);
+		await act(async () => {
+			await router.navigate({ to: '/' });
+		});
+		await screen.findByTestId('home');
+
+		input.focus();
+		await screen.findByTestId('search-page');
+
+		expect(router.state.location.pathname).toBe('/search');
+		expect(router.state.location.search).toEqual({ q: 'minecraft' });
+		expect(input).toHaveValue('minecraft');
+	});
+
+	// A deep link is still authoritative: it names a query, and that one wins
+	// over whatever the field happened to be holding.
+	it('takes the query from a link into /search over the one it was holding', async () => {
+		const { input, router } = await renderField(['/search?q=minecraft']);
+		await act(async () => {
+			await router.navigate({ to: '/' });
+		});
+
+		await act(async () => {
+			await router.navigate({ to: '/search', search: { q: 'redis' } });
+		});
+
+		expect(input).toHaveValue('redis');
+	});
+
 	it('marks itself active on the results route', async () => {
 		const field = (await renderField(['/search?q=x'])).input.parentElement;
 		expect(field).toHaveAttribute('data-active');

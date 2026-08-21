@@ -39,12 +39,18 @@ export function SearchBar(): JSX.Element {
 		timer.current = null;
 	}
 
-	// The URL is authoritative: a back button or a deep link overwrites the draft and
-	// discards whatever commit was in flight, so a stale timer can't undo the navigation.
+	// The URL is authoritative while it is naming a query: a back button or a deep
+	// link overwrites the draft and discards whatever commit was in flight, so a
+	// stale timer can't undo the navigation.
+	//
+	// Off the results route it names nothing, and syncing there would blank the
+	// field on the way out -- throwing the query away and leaving `open` below
+	// nothing to reopen but an empty search. This field lives in the sidebar and
+	// outlives the route, so the query it is holding outlives it too.
 	useEffect(() => {
 		clearPending();
-		setDraft(query);
-	}, [query]);
+		if (showingResults) setDraft(query);
+	}, [query, showingResults]);
 
 	useEffect(() => () => clearPending(), []);
 
@@ -75,9 +81,12 @@ export function SearchBar(): JSX.Element {
 		commit(draft);
 	}
 
+	// Focusing reopens whatever the field is still holding, so the field and the
+	// results always name the same query. Clearing the field is what asks for an
+	// empty search, and the only thing that does.
 	function open(): void {
 		if (showingResults) return;
-		void navigate({ to: RESULTS, search: { q: '' } });
+		void navigate({ to: RESULTS, search: { q: draft } });
 	}
 
 	return (
