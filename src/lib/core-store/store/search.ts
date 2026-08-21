@@ -29,6 +29,14 @@ interface SearchStore {
 	 * an in-flight navigation.
 	 */
 	submitQuery: string | null;
+	/**
+	 * The query the field reopened rather than asked for. Reopening restores a
+	 * screen; it is not a new request, so Lane B stays put and Lane A rebuilds
+	 * from the vault the last pass already filled. Carries the value, not a
+	 * flag, so a query typed between the request and the mount is still treated
+	 * as the new ask it is.
+	 */
+	restoreQuery: string | null;
 
 	setQuery: (query: string) => void;
 	setLocal: (entries: SearchEntry[]) => void;
@@ -40,6 +48,8 @@ interface SearchStore {
 	settleFailed: () => void;
 	requestSubmit: (query: string) => void;
 	clearSubmit: () => void;
+	requestRestore: (query: string) => void;
+	clearRestore: () => void;
 	clear: () => void;
 	reset: () => void;
 }
@@ -57,6 +67,7 @@ const EMPTY = {
 export const useSearchStore = create<SearchStore>((set, get) => ({
 	query: '',
 	submitQuery: null,
+	restoreQuery: null,
 	...EMPTY,
 
 	setQuery: (query) => set({ query, ...EMPTY }),
@@ -91,11 +102,15 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
 
 	clearSubmit: () => set({ submitQuery: null }),
 
+	requestRestore: (restoreQuery) => set({ restoreQuery }),
+
+	clearRestore: () => set({ restoreQuery: null }),
+
 	// The screen went away, so its results go with it: a query and the results
 	// attached to it belong to one mount, not to the app. Deliberately not
 	// `reset` -- `submitQuery` is a message from the always-mounted field, and
 	// dropping it here would swallow an Enter that navigated to a fresh screen.
 	clear: () => set({ query: '', ...EMPTY }),
 
-	reset: () => set({ query: '', submitQuery: null, ...EMPTY }),
+	reset: () => set({ query: '', submitQuery: null, restoreQuery: null, ...EMPTY }),
 }));

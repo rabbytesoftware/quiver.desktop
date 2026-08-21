@@ -28,8 +28,18 @@ export function useSearch(query: string): void {
 		};
 	}, []);
 
+	// A restore request names the query it belongs to, so a query typed between
+	// the request and this mount is still treated as the new ask it is.
+	//
+	// It is dropped when it stops matching rather than when it is first read.
+	// StrictMode runs setup, cleanup, setup: consuming on the first setup left
+	// the second one holding an ordinary query and arming the very pass the
+	// request existed to avoid -- which a plain render never shows.
 	useEffect(() => {
-		controller.current?.setQuery(query);
+		const { restoreQuery, clearRestore } = useSearchStore.getState();
+		const restoring = restoreQuery === query;
+		if (!restoring && restoreQuery !== null) clearRestore();
+		controller.current?.setQuery(query, { discover: !restoring });
 	}, [query]);
 
 	// `SearchBar` lives outside this route, so Enter (spec 2.2) reaches the

@@ -12,9 +12,18 @@ export const POLL_INTERVAL_MS = 1000;
 /** provider_timeout (10s), doubled, plus slack. Spec 1.4.1. */
 export const PASS_DEADLINE_MS = 25_000;
 
+export interface SearchQueryOptions {
+	/**
+	 * Whether this query is worth a provider pass. False when the screen is
+	 * being restored rather than asked for -- Lane A still runs, because the
+	 * vault holds what the last pass found.
+	 */
+	discover?: boolean;
+}
+
 export interface SearchController {
 	/** Called with a committed (URL) query -- already debounced by the field. */
-	setQuery: (query: string) => void;
+	setQuery: (query: string, options?: SearchQueryOptions) => void;
 	/** Enter: fire the pass now. */
 	submit: () => void;
 	dispose: () => void;
@@ -160,14 +169,14 @@ export function createSearchController(): SearchController {
 	}
 
 	return {
-		setQuery: (next) => {
+		setQuery: (next, options) => {
 			if (disposed || next === query) return;
 			query = next;
 			cancelAll();
 			store.getState().setQuery(next);
 			if (isBlank(next)) return;
 			void runLocal(queryGeneration);
-			arm();
+			if (options?.discover !== false) arm();
 		},
 
 		submit: () => {

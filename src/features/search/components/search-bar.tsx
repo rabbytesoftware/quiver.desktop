@@ -1,7 +1,7 @@
 import type { JSX } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 
 import { cn } from '@/lib/cn';
 import { useSearchStore } from '@/lib/core-store/store/search';
@@ -24,7 +24,6 @@ const FIELD = [
 
 export function SearchBar(): JSX.Element {
 	const navigate = useNavigate();
-	const router = useRouter();
 	const { t } = useTranslation();
 
 	const location = useRouterState({ select: (state) => state.location });
@@ -55,8 +54,13 @@ export function SearchBar(): JSX.Element {
 	useEffect(() => () => clearPending(), []);
 
 	function commit(next: string): void {
+		// Emptying the field asks for an empty search, not for a different page.
+		// This popped history instead, which landed wherever the stack happened
+		// to point: home, an older search -- refilling the field with the query
+		// just deleted -- or the arrow page you had come back from. Replacing
+		// keeps the cursor where it is, on a results route with nothing in it.
 		if (next === '') {
-			router.history.back();
+			if (showingResults) void navigate({ to: RESULTS, search: { q: '' }, replace: true });
 			return;
 		}
 
@@ -86,6 +90,10 @@ export function SearchBar(): JSX.Element {
 	// empty search, and the only thing that does.
 	function open(): void {
 		if (showingResults) return;
+		// Reopening restores a screen rather than asking for a search: Lane A
+		// rebuilds it from the vault the last pass filled, and the git hosts are
+		// left alone until the query actually changes or Enter asks for them.
+		useSearchStore.getState().requestRestore(draft);
 		void navigate({ to: RESULTS, search: { q: draft } });
 	}
 

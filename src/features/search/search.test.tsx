@@ -10,6 +10,8 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { useSearchStore } from '@/lib/core-store/store/search';
+
 import { LOCAL_DEBOUNCE_MS, SearchBar } from './index';
 
 async function renderField(initialEntries = ['/']) {
@@ -94,18 +96,65 @@ describe('SearchBar', () => {
 		expect(router.history.length).toBe(2);
 	});
 
-	it('leaves /search when the query is emptied, by popping the entry it pushed', async () => {
+	// Emptying the field asks for an empty search. It used to pop history, which
+	// landed wherever the stack happened to point -- home, an older search, or
+	// the arrow page you had just come back from -- and popping onto another
+	// /search entry refilled the field with the query you had just deleted.
+	//
+	// Each of these sleeps past the debounce rather than using `waitFor`: the
+	// assertion is that the route does NOT change, and `waitFor` would satisfy
+	// itself on the state before the commit had a chance to move it.
+	const settle = () => new Promise((resolve) => setTimeout(resolve, LOCAL_DEBOUNCE_MS + 150));
+
+	it('stays on an empty results screen when the query is emptied, rather than popping history', async () => {
 		const { input, router, user } = await renderField();
 
 		await user.type(input, 'minecraft');
-		expect(router.state.location.pathname).toBe('/search');
+		await waitFor(() => expect(router.state.location.search).toEqual({ q: 'minecraft' }));
 		expect(router.history.length).toBe(2);
 
 		await user.clear(input);
+		await settle();
 
-		expect(await screen.findByTestId('home')).toBeInTheDocument();
-		expect(router.state.location.pathname).toBe('/');
+		expect(router.state.location.pathname).toBe('/search');
+		expect(router.state.location.search).toEqual({ q: '' });
+		expect(input).toHaveValue('');
 		expect(router.history.length).toBe(2);
+	});
+
+	// The stack that used to bite: popping from here landed on the older search
+	// and refilled the field with the query that had just been deleted.
+	it('lands on the empty search even when the entry behind it is another search', async () => {
+		const { input, router, user } = await renderField(['/', '/search?q=redis', '/search?q=minecraft']);
+		expect(input).toHaveValue('minecraft');
+
+		await user.clear(input);
+		await settle();
+
+		expect(router.state.location.pathname).toBe('/search');
+		expect(router.state.location.search).toEqual({ q: '' });
+		expect(input).toHaveValue('');
+	});
+
+	// Clearing from another page cannot happen without focusing the field first,
+	// and focusing reopens the search it is holding. So the two steps read as
+	// one: reopen minecraft, then empty it -- landing on the empty search rather
+	// than on whatever history had underneath.
+	it('empties into an empty search when reopened from another page and then cleared', async () => {
+		const { input, router, user } = await renderField(['/search?q=minecraft']);
+
+		await act(async () => {
+			await router.navigate({ to: '/' });
+		});
+		await screen.findByTestId('home');
+		expect(input).toHaveValue('minecraft');
+
+		await user.clear(input);
+		await settle();
+
+		expect(router.state.location.pathname).toBe('/search');
+		expect(router.state.location.search).toEqual({ q: '' });
+		expect(input).toHaveValue('');
 	});
 
 	it('opens with the lens, ahead of the input', async () => {
@@ -189,6 +238,19 @@ describe('SearchBar', () => {
 		});
 
 		expect(input).toHaveValue('redis');
+	});
+
+	it('asks for a restore, not a fresh pass, when it reopens the search it holds', async () => {
+		const { input, router } = await renderField(['/search?q=minecraft']);
+		await act(async () => {
+			await router.navigate({ to: '/' });
+		});
+		useSearchStore.getState().clearRestore();
+
+		input.focus();
+		await screen.findByTestId('search-page');
+
+		expect(useSearchStore.getState().restoreQuery).toBe('minecraft');
 	});
 
 	it('marks itself active on the results route', async () => {

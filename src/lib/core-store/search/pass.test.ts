@@ -222,6 +222,42 @@ describe('the pass', () => {
 	});
 });
 
+// Reopening a search is not asking for it again. The arrows a pass found are in
+// the vault, so Lane A alone can rebuild the screen -- going back to the git
+// hosts every time the field is focused is a 10s round trip for the same rows.
+describe('restoring a query', () => {
+	it('rebuilds the screen from Lane A without going back to the network', async () => {
+		const spy = vi.spyOn(mock.backend, 'fetch');
+
+		controller.setQuery('minecraft', { discover: false });
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 400);
+
+		expect(useSearchStore.getState().local.length).toBeGreaterThan(0);
+		expect(spy.mock.calls.filter(([p]) => p.startsWith('/v0/search/discover'))).toHaveLength(0);
+		expect(phase()).toBe('local');
+	});
+
+	it('still fires a pass for the next query the user actually types', async () => {
+		controller.setQuery('minecraft', { discover: false });
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 400);
+		expect(phase()).toBe('local');
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 400);
+		expect(phase()).toBe('discovering');
+	});
+
+	it('still fires a pass on Enter, which is an explicit ask', async () => {
+		controller.setQuery('minecraft', { discover: false });
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 400);
+		expect(phase()).toBe('local');
+
+		controller.submit();
+		await vi.advanceTimersByTimeAsync(50);
+		expect(phase()).toBe('discovering');
+	});
+});
+
 // The store is a module singleton; a controller lives and dies with one mount
 // of the screen. Nothing may survive that gap -- a query with results attached
 // to it is the screen's state, not the app's. `useSearch` disposes in the same

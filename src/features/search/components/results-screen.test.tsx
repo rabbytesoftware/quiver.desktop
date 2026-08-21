@@ -86,6 +86,21 @@ describe('ResultsScreen', () => {
 		expect(screen.queryByRole('heading')).not.toBeInTheDocument();
 	});
 
+	it('does not go back to the network when it opens on a restored query', async () => {
+		vi.useFakeTimers();
+		try {
+			useSearchStore.getState().requestRestore('server');
+			renderScreen('server');
+			await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 400);
+
+			expect(useSearchStore.getState().local.length).toBeGreaterThan(0);
+			expect(useSearchStore.getState().phase).toBe('local');
+			expect(useSearchStore.getState().job).toBeNull();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	// Mirrors pass.test.ts's "does not outlive dispose" at the screen level:
 	// unmounting is the cancel, so a pass in flight must not keep mutating the
 	// store once its screen is gone.
@@ -244,6 +259,24 @@ describe('ResultsScreen mounted at the real app root', () => {
 	it('still starts a search under StrictMode, not just in a plain render', async () => {
 		renderAtAppRoot('minecraft');
 		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
+	});
+
+	// StrictMode runs setup, cleanup, setup. A restore request consumed on the
+	// first setup leaves the second one looking at an ordinary query, which arms
+	// the pass the restore existed to avoid -- invisible in a plain render, and
+	// the whole point of the request in the app.
+	it('honours a restore on the second setup too, not just the first', async () => {
+		vi.useFakeTimers();
+		try {
+			useSearchStore.getState().requestRestore('server');
+			renderAtAppRoot('server');
+			await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 400);
+
+			expect(useSearchStore.getState().phase).toBe('local');
+			expect(useSearchStore.getState().job).toBeNull();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 
