@@ -221,3 +221,28 @@ describe('the pass', () => {
 		expect(fetchSpy.mock.calls.filter(([p]) => p === jobPath).length).toBe(callsSoFar);
 	});
 });
+
+// The store is a module singleton; a controller lives and dies with one mount
+// of the screen. Nothing may survive that gap -- a query with results attached
+// to it is the screen's state, not the app's. `useSearch` disposes in the same
+// effect cleanup that precedes the next setup, so the handover is always
+// dispose-then-create and this is the only seam to hold.
+describe('the gap between two screens', () => {
+	it('leaves no results behind for the next screen to inherit', async () => {
+		controller.setQuery('minecraft');
+		await vi.advanceTimersByTimeAsync(0);
+		expect(useSearchStore.getState().local.length).toBeGreaterThan(0);
+
+		controller.dispose();
+
+		expect(useSearchStore.getState().local).toEqual([]);
+		expect(useSearchStore.getState().streamed).toEqual([]);
+		expect(phase()).toBe('idle');
+	});
+
+	it('keeps an Enter that is already in flight, which belongs to the field, not the screen', async () => {
+		useSearchStore.getState().requestSubmit('minecraft');
+		controller.dispose();
+		expect(useSearchStore.getState().submitQuery).toBe('minecraft');
+	});
+});

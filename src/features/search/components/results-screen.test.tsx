@@ -67,6 +67,25 @@ describe('ResultsScreen', () => {
 		expect(screen.queryAllByRole('link')).toHaveLength(0);
 	});
 
+	// An empty field over a full grid is the state this screen must never reach.
+	// It is only reachable across a remount, because the store outlives the
+	// screen and a fresh controller starts out holding the same blank query it
+	// is about to be handed.
+	it('does not inherit the last screen results when it reopens on a blank query', async () => {
+		const first = renderScreen('minecraft');
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
+		first.unmount();
+
+		renderScreen('');
+		// The router resolves the route a tick after render, so asserting on the
+		// DOM straight away would pass against an empty tree and prove nothing.
+		await screen.findByTestId('search-page');
+
+		expect(useSearchStore.getState().local).toEqual([]);
+		expect(screen.queryAllByRole('link')).toHaveLength(0);
+		expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+	});
+
 	// Mirrors pass.test.ts's "does not outlive dispose" at the screen level:
 	// unmounting is the cancel, so a pass in flight must not keep mutating the
 	// store once its screen is gone.

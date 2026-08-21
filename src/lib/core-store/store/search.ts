@@ -40,6 +40,7 @@ interface SearchStore {
 	settleFailed: () => void;
 	requestSubmit: (query: string) => void;
 	clearSubmit: () => void;
+	clear: () => void;
 	reset: () => void;
 }
 
@@ -89,6 +90,12 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
 	requestSubmit: (query) => set({ submitQuery: query }),
 
 	clearSubmit: () => set({ submitQuery: null }),
+
+	// The screen went away, so its results go with it: a query and the results
+	// attached to it belong to one mount, not to the app. Deliberately not
+	// `reset` -- `submitQuery` is a message from the always-mounted field, and
+	// dropping it here would swallow an Enter that navigated to a fresh screen.
+	clear: () => set({ query: '', ...EMPTY }),
 
 	reset: () => set({ query: '', submitQuery: null, ...EMPTY }),
 }));

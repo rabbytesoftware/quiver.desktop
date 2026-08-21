@@ -179,6 +179,7 @@ export function createSearchController(): SearchController {
 		dispose: () => {
 			cancelAll();
 			disposed = true;
+			store.getState().clear();
 		},
 	};
 }
