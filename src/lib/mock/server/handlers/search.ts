@@ -85,10 +85,18 @@ function catalogRows(world: MockWorld, q: string): CatalogRow[] {
 		provenance: provenanceOf(world, group[0].namespace),
 	}));
 
+	// Indexed once rather than scanned per vault entry: `world.vault` and
+	// `world.discoverable` both grow with the fixture, so the pair was quadratic.
+	// First write wins, which is what `.find` did.
+	const discoverableBy = new Map<string, MockCandidate>();
+	for (const candidate of world.discoverable) {
+		if (!discoverableBy.has(candidate.arrow.namespace)) discoverableBy.set(candidate.arrow.namespace, candidate);
+	}
+
 	const vaultRows: CatalogRow[] = [];
 	for (const namespace of world.vault) {
 		if (byNamespace.has(namespace)) continue;
-		const candidate = world.discoverable.find((c) => c.arrow.namespace === namespace);
+		const candidate = discoverableBy.get(namespace);
 		if (!candidate || !matches(candidate.arrow, q)) continue;
 		vaultRows.push({
 			arrow: candidate.arrow,
