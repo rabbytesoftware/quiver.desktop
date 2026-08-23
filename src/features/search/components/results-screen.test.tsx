@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, useState } from 'react';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -9,7 +9,7 @@ import {
 	Outlet,
 	RouterProvider,
 } from '@tanstack/react-router';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -52,6 +52,31 @@ function renderScreen(query: string) {
 	});
 
 	return render(<RouterProvider router={router} />);
+}
+
+/** Same harness, but the query can move -- which is the thing under test. */
+function renderMovableScreen(initial: string) {
+	let commit!: (next: string) => void;
+
+	function Harness(): React.ReactElement {
+		const [query, setQuery] = useState(initial);
+		commit = setQuery;
+		return <ResultsScreen query={query} />;
+	}
+
+	const rootRoute = createRootRoute({ component: () => <Harness /> });
+	const arrowRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: '/arrow/$',
+		component: () => <div data-testid="arrow-page" />,
+	});
+	const router = createRouter({
+		routeTree: rootRoute.addChildren([arrowRoute]),
+		history: createMemoryHistory({ initialEntries: ['/'] }),
+	});
+
+	render(<RouterProvider router={router} />);
+	return { commit: (next: string) => act(() => commit(next)) };
 }
 
 describe('ResultsScreen', () => {
@@ -376,5 +401,51 @@ describe('Enter fires the pass immediately (spec 2.2)', () => {
 		await vi.advanceTimersByTimeAsync(10);
 
 		expect(useSearchStore.getState().phase).toBe('discovering');
+	});
+});
+
+/**
+ * Facets are counted off the answer, so they belong to the query that produced
+ * it. Carrying a selection across a new query hides results the user never
+ * excluded -- and the control that would undo it is gone, because the facet it
+ * named may not exist in the new answer.
+ */
+describe('a new query', () => {
+	it('drops a narrowing left over from the answer before it', async () => {
+		const user = userEvent.setup();
+		const { commit } = renderMovableScreen('server');
+
+		const group = await screen.findByRole('group', { name: 'Narrow results' });
+		await user.click(within(group).getAllByRole('button')[0]);
+		expect(screen.getByRole('button', { name: 'Clear' })).toBeInTheDocument();
+
+		commit('serve');
+
+		await waitFor(() => expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument());
+		// Non-vacuous: the row is still there, it just has nothing selected.
+		const after = await screen.findByRole('group', { name: 'Narrow results' });
+		expect(
+			within(after)
+				.getAllByRole('button')
+				.every((b) => b.getAttribute('aria-pressed') === 'false')
+		).toBe(true);
+	});
+
+	it('drops a sort left over from the answer before it', async () => {
+		const user = userEvent.setup();
+		const { commit } = renderMovableScreen('server');
+
+		const trigger = await screen.findByRole('combobox', { name: 'Sort results' });
+		await user.click(trigger);
+		await user.click(await screen.findByRole('option', { name: 'Stars' }));
+		await waitFor(() => expect(screen.getByRole('combobox', { name: 'Sort results' })).toHaveTextContent('Stars'));
+
+		commit('serve');
+
+		// Relevance is relative to the query, so a ranking chosen for the old one
+		// is not a preference to carry -- it is a stale answer's order.
+		await waitFor(() =>
+			expect(screen.getByRole('combobox', { name: 'Sort results' })).toHaveTextContent('Relevance')
+		);
 	});
 });

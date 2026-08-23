@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMockBackend, type MockRuntime } from '@/lib/mock';
 import { useMockStore } from '@/lib/mock/store';
-import { installBackend, resetBackend } from '@/lib/transport/backend';
+import { installBackend, resetBackend, type SocketLike } from '@/lib/transport/backend';
 
 import { createSearchController, IDLE_BEFORE_PASS_MS, PASS_DEADLINE_MS, POLL_INTERVAL_MS } from './pass';
 import { useSearchStore } from '../store/search';
@@ -23,8 +23,34 @@ afterEach(() => {
 	mock.dispose();
 	resetBackend();
 	useMockStore.getState().setLatency(0);
+	useMockStore.getState().resetFaults();
 	vi.useRealTimers();
 });
+
+/**
+ * A promise the test decides when to settle. Latency plus fake timers can put a
+ * response on either side of a `dispose()`; this puts it exactly where the test
+ * needs it.
+ */
+function gate<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (reason: unknown) => void } {
+	let resolve!: (value: T) => void;
+	let reject!: (reason: unknown) => void;
+	const promise = new Promise<T>((res, rej) => {
+		resolve = res;
+		reject = rej;
+	});
+	// An unhandled rejection here is the controller's job to swallow, not the
+	// runner's to report.
+	promise.catch(() => {});
+	return { promise, resolve, reject };
+}
+
+function envelope(data: unknown): Response {
+	return new Response(JSON.stringify({ success: true, error: null, data }), {
+		status: 200,
+		headers: { 'content-type': 'application/json' },
+	});
+}
 
 const phase = () => useSearchStore.getState().phase;
 
@@ -280,5 +306,303 @@ describe('the gap between two screens', () => {
 		useSearchStore.getState().requestSubmit('minecraft');
 		controller.dispose();
 		expect(useSearchStore.getState().submitQuery).toBe('minecraft');
+	});
+});
+
+/**
+ * Every `await` in the controller is a window in which the user can type again,
+ * hit Enter, or leave the screen. Both lanes are generation-guarded on the far
+ * side of that window; without it the screen shows the answer to a question
+ * nobody asked any more. Each of these holds a response open across the event
+ * that invalidates it, then lets it land.
+ */
+describe('answers that arrive too late', () => {
+	function holdLaneA(): ReturnType<typeof gate<Response>> {
+		const held = gate<Response>();
+		const original = mock.backend.fetch.bind(mock.backend);
+		vi.spyOn(mock.backend, 'fetch').mockImplementation((path, init) =>
+			path.startsWith('/v0/search?') ? held.promise : original(path, init)
+		);
+		return held;
+	}
+
+	it('drops a Lane A answer that lands after dispose', async () => {
+		const held = holdLaneA();
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(0);
+
+		controller.dispose();
+		held.resolve(envelope([]));
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(useSearchStore.getState().local).toEqual([]);
+		expect(phase()).toBe('idle');
+	});
+
+	it('drops a Lane A failure that lands after dispose', async () => {
+		const held = holdLaneA();
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(0);
+
+		controller.dispose();
+		held.reject(new Error('too late'));
+		await vi.advanceTimersByTimeAsync(0);
+
+		// setLocalError would have moved the screen to a failure it can no longer
+		// act on -- the controller is gone.
+		expect(phase()).toBe('idle');
+		expect(useSearchStore.getState().localError).toBe(false);
+	});
+
+	it('drops a Lane A failure for a query the user has already replaced', async () => {
+		const held = holdLaneA();
+		controller.setQuery('serv');
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Second query goes to the real mock and answers normally.
+		vi.mocked(mock.backend.fetch).mockRestore();
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(0);
+		expect(phase()).toBe('local');
+
+		held.reject(new Error('stale'));
+		await vi.advanceTimersByTimeAsync(0);
+
+		// The stale failure must not overwrite the answer that is on screen.
+		expect(phase()).toBe('local');
+		expect(useSearchStore.getState().local.length).toBeGreaterThan(0);
+	});
+
+	it('drops a settle re-query that lands after dispose', async () => {
+		const held = gate<Response>();
+		const original = mock.backend.fetch.bind(mock.backend);
+		let passStarted = false;
+		vi.spyOn(mock.backend, 'fetch').mockImplementation((path, init) => {
+			// Only intercept the re-query, which is the Lane A path called again
+			// after the job reports completed.
+			if (passStarted && path.startsWith('/v0/search?')) return held.promise;
+			if (path.startsWith('/v0/search/discover')) passStarted = true;
+			return original(path, init);
+		});
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10_000);
+		expect(phase()).toBe('settling');
+
+		// `dispose` clears the store, so the assertion is that it STAYS cleared --
+		// `settle` would put the phase at 'settled' and refill the local band.
+		controller.dispose();
+		held.resolve(envelope([]));
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(phase()).toBe('idle');
+		expect(useSearchStore.getState().local).toEqual([]);
+	});
+
+	it('drops a failed settle re-query that lands after dispose', async () => {
+		const held = gate<Response>();
+		const original = mock.backend.fetch.bind(mock.backend);
+		let passStarted = false;
+		vi.spyOn(mock.backend, 'fetch').mockImplementation((path, init) => {
+			if (passStarted && path.startsWith('/v0/search?')) return held.promise;
+			if (path.startsWith('/v0/search/discover')) passStarted = true;
+			return original(path, init);
+		});
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10_000);
+
+		controller.dispose();
+		held.reject(new Error('too late'));
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(useSearchStore.getState().passFailed).toBe(false);
+		expect(phase()).toBe('idle');
+	});
+
+	it('drops a settle re-query for a pass that has already been replaced', async () => {
+		const held = gate<Response>();
+		const original = mock.backend.fetch.bind(mock.backend);
+		let passStarted = false;
+		vi.spyOn(mock.backend, 'fetch').mockImplementation((path, init) => {
+			if (passStarted && path.startsWith('/v0/search?')) return held.promise;
+			if (path.startsWith('/v0/search/discover')) passStarted = true;
+			return original(path, init);
+		});
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10_000);
+		expect(phase()).toBe('settling');
+
+		// Enter starts a new pass, which bumps the generation the held re-query
+		// was issued under.
+		controller.submit();
+		held.reject(new Error('stale'));
+		await vi.advanceTimersByTimeAsync(0);
+
+		// The new pass owns the screen now; the old re-query's failure must not
+		// stamp `passFailed` onto it.
+		expect(useSearchStore.getState().passFailed).toBe(false);
+		expect(phase()).toBe('discovering');
+	});
+
+	it('does not begin a pass whose POST never came back with a ticket', async () => {
+		const original = mock.backend.fetch.bind(mock.backend);
+		vi.spyOn(mock.backend, 'fetch').mockImplementation((path, init) =>
+			path === '/v0/search/discover' ? Promise.reject(new Error('refused')) : original(path, init)
+		);
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 2000);
+
+		// No job, and no socket opened for a job id that does not exist.
+		expect(useSearchStore.getState().job).toBeNull();
+		expect(phase()).toBe('local');
+	});
+
+	it('does not begin a pass whose ticket lands after dispose', async () => {
+		const held = gate<Response>();
+		const original = mock.backend.fetch.bind(mock.backend);
+		vi.spyOn(mock.backend, 'fetch').mockImplementation((path, init) =>
+			path === '/v0/search/discover' ? held.promise : original(path, init)
+		);
+		const openSocket = vi.spyOn(mock.backend, 'openSocket');
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10);
+
+		controller.dispose();
+		held.resolve(envelope({ job_id: 'late', query: 'server', expires_at: new Date().toISOString() }));
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(useSearchStore.getState().job).toBeNull();
+		expect(openSocket).not.toHaveBeenCalled();
+	});
+
+	it('drops a streamed frame delivered after the pass was replaced', async () => {
+		let opened: SocketLike | null = null;
+		const openSocket = mock.backend.openSocket.bind(mock.backend);
+		vi.spyOn(mock.backend, 'openSocket').mockImplementation((path) => {
+			opened = openSocket(path);
+			return opened;
+		});
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10);
+		expect(opened).not.toBeNull();
+
+		// Enter replaces the pass; the old socket's handler is still reachable.
+		controller.submit();
+		const before = useSearchStore.getState().streamed.length;
+
+		opened!.onmessage?.({
+			data: JSON.stringify({ namespace: 'github.com/late/frame', name: 'frame', refs: [] }),
+		} as MessageEvent);
+
+		expect(useSearchStore.getState().streamed.length).toBe(before);
+	});
+
+	it('stops polling a job once the controller is disposed', async () => {
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10);
+
+		const path = `/v0/search/discover/${useSearchStore.getState().job?.id}`;
+		const spy = vi.spyOn(mock.backend, 'fetch');
+		controller.dispose();
+
+		await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 4);
+
+		expect(spy.mock.calls.filter(([p]) => p === path)).toHaveLength(0);
+	});
+
+	it('drops a poll answer that lands after dispose', async () => {
+		const held = gate<Response>();
+		const original = mock.backend.fetch.bind(mock.backend);
+		vi.spyOn(mock.backend, 'fetch').mockImplementation((path, init) =>
+			path.startsWith('/v0/search/discover/') ? held.promise : original(path, init)
+		);
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + POLL_INTERVAL_MS + 10);
+
+		controller.dispose();
+		held.resolve(
+			envelope({
+				job_id: 'x',
+				status: 'completed',
+				query: 'server',
+				found: 0,
+				verified: 0,
+				skipped: 0,
+				providers: [],
+			})
+		);
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(phase()).not.toBe('settled');
+	});
+
+	it('drops a failed poll that lands after dispose', async () => {
+		const held = gate<Response>();
+		const original = mock.backend.fetch.bind(mock.backend);
+		vi.spyOn(mock.backend, 'fetch').mockImplementation((path, init) =>
+			path.startsWith('/v0/search/discover/') ? held.promise : original(path, init)
+		);
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + POLL_INTERVAL_MS + 10);
+
+		controller.dispose();
+		held.reject(new Error('gone'));
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(useSearchStore.getState().passFailed).toBe(false);
+		expect(phase()).toBe('idle');
+	});
+
+	it('never arms a pass that would fire after dispose', async () => {
+		const openSocket = vi.spyOn(mock.backend, 'openSocket');
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS - 100);
+
+		controller.dispose();
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 1000);
+
+		expect(openSocket).not.toHaveBeenCalled();
+	});
+
+	it('ignores a query set after dispose', async () => {
+		controller.dispose();
+		const spy = vi.spyOn(mock.backend, 'fetch');
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 1000);
+
+		expect(spy).not.toHaveBeenCalled();
+		expect(phase()).toBe('idle');
+	});
+
+	it('ignores a query that has not actually changed', async () => {
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(0);
+		const spy = vi.spyOn(mock.backend, 'fetch');
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Re-committing the same query would cancel the pass it just armed.
+		expect(spy).not.toHaveBeenCalled();
+	});
+
+	it('ignores submit after dispose', async () => {
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(0);
+		controller.dispose();
+		const spy = vi.spyOn(mock.backend, 'fetch');
+
+		controller.submit();
+		await vi.advanceTimersByTimeAsync(1000);
+
+		expect(spy).not.toHaveBeenCalled();
 	});
 });

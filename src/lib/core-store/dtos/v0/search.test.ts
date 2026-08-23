@@ -82,3 +82,43 @@ describe('toDiscoverySummary', () => {
 		expect(summary.providers[1]).toMatchObject({ reason: 'rate limited', retry_after: 40 });
 	});
 });
+
+/**
+ * The DTO types declare these fields required, and the projection still guards
+ * them. That is not belt-and-braces: the type describes what core documents,
+ * while the payload comes from whatever a discovery host actually serialised.
+ * A missing list must read as empty, not blow up rendering a card.
+ */
+describe('a payload with fields omitted entirely', () => {
+	it('reads absent lists as empty and absent stars as zero', () => {
+		const sparse = {
+			namespace: 'github.com/a/b',
+			name: 'B',
+			description: '',
+			installed: false,
+			known: false,
+		} as unknown as SearchResultDTO;
+
+		const entry = toSearchEntry(sparse);
+
+		expect(entry.tags).toEqual([]);
+		expect(entry.versions).toEqual([]);
+		expect(entry.compatible_os).toEqual([]);
+		expect(entry.stars).toBe(0);
+		expect(entry.provenance).toBeNull();
+		expect(entry.source).toBeNull();
+	});
+
+	it('reads a job with no providers as one that asked nobody', () => {
+		const job = {
+			job_id: 'job-1',
+			status: 'completed',
+			query: 'server',
+			found: 0,
+			verified: 0,
+			skipped: 0,
+		} as unknown as DiscoveryJobDTO;
+
+		expect(toDiscoverySummary(job).providers).toEqual([]);
+	});
+});

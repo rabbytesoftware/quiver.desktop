@@ -199,3 +199,39 @@ describe('SearchInspector focus handling', () => {
 		expect(document.querySelectorAll('[data-base-ui-focus-guard]').length).toBeGreaterThanOrEqual(2);
 	});
 });
+
+/**
+ * `reason` and `retry_after` are both nullable on the wire: a provider can fail
+ * without saying why, and a refusal is not always rate limiting. The row still
+ * has to render, and it must not print "null" or a dangling separator.
+ */
+describe('a host that refused without saying why', () => {
+	const SILENT: DiscoverySummary = {
+		...SUMMARY,
+		providers: [
+			{ host: 'github.com', ok: true, returned: 7, reason: null, retry_after: null },
+			{ host: 'codeberg.org', ok: false, returned: 0, reason: null, retry_after: null },
+		],
+	};
+
+	it('still lists the host, with nothing where the reason would be', () => {
+		render(<SearchInspector job={JOB} onOpenChange={NOOP} open query="server" summary={SILENT} />);
+
+		const row = screen.getByText('codeberg.org').closest('li');
+		expect(row).toBeInTheDocument();
+		expect(row).not.toHaveTextContent('null');
+		expect(row).not.toHaveTextContent('·');
+	});
+
+	it('omits the retry hint when the host gave no retry_after', () => {
+		const rateLimited: DiscoverySummary = {
+			...SUMMARY,
+			providers: [{ host: 'codeberg.org', ok: false, returned: 0, reason: 'refused', retry_after: null }],
+		};
+		render(<SearchInspector job={JOB} onOpenChange={NOOP} open query="server" summary={rateLimited} />);
+
+		const row = screen.getByText('codeberg.org').closest('li');
+		expect(row).toHaveTextContent('refused');
+		expect(row).not.toHaveTextContent('Retry in');
+	});
+});

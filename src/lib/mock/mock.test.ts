@@ -526,3 +526,60 @@ describe('versioned()', () => {
 		expect(versioned({ namespace: 'github.com/a/b', ref: 'v1' })).toBe('github.com/a/b@v1');
 	});
 });
+
+/**
+ * The mock is only useful if it refuses what core refuses. A client bug that
+ * these let through would pass every test here and fail against the daemon.
+ */
+describe('what discover refuses', () => {
+	beforeEach(() => vi.useFakeTimers());
+
+	it('rejects a POST with no body at all, not just one with an empty q', async () => {
+		const res = await mock.backend.fetch('/v0/search/discover', { method: 'POST' });
+		expect(res.status).toBe(400);
+		await expect(res.json()).resolves.toMatchObject({ success: false });
+	});
+
+	it('rejects `query` in place of `q`, which core reads by name', async () => {
+		const res = await mock.backend.fetch('/v0/search/discover', {
+			method: 'POST',
+			body: JSON.stringify({ query: 'server' }),
+		});
+		expect(res.status).toBe(400);
+	});
+
+	it('rejects a q that is only whitespace', async () => {
+		const res = await mock.backend.fetch('/v0/search/discover', {
+			method: 'POST',
+			body: JSON.stringify({ q: '   ' }),
+		});
+		expect(res.status).toBe(400);
+	});
+
+	it('survives a job deleted while its results are still landing', async () => {
+		const started = await apiFetch<DiscoveryJobStartedDTO>('/v0/search/discover', {
+			method: 'POST',
+			body: JSON.stringify({ q: 'server' }),
+		});
+
+		// The daemon's grace window can drop a job mid-pass; the staggered
+		// emitters and the close callback both have to find it gone.
+		world().jobs.delete(started.job_id);
+		await vi.advanceTimersByTimeAsync(30_000);
+
+		const res = await mock.backend.fetch(`/v0/search/discover/${started.job_id}`);
+		expect(res.status).toBe(404);
+	});
+});
+
+describe('the vault half of Lane A', () => {
+	it('ignores a vault namespace nothing discoverable can account for', async () => {
+		// The vault index can name a namespace whose manifest is no longer
+		// reachable. It is not a result -- there is nothing to describe.
+		world().vault.add('github.com/ghost/gone');
+
+		const hits = await get<SearchResultDTO[]>('/v0/search?q=ghost');
+
+		expect(hits.every((h) => h.namespace !== 'github.com/ghost/gone')).toBe(true);
+	});
+});
