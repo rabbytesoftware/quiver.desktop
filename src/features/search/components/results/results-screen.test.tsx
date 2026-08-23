@@ -422,8 +422,9 @@ describe('a new query', () => {
 		commit('serve');
 
 		await waitFor(() => expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument());
-		// Non-vacuous: the row is still there, it just has nothing selected.
-		const after = await screen.findByRole('group', { name: 'Narrow results' });
+		// Non-vacuous: the row is still there, it just has nothing selected. Same
+		// real-fetch wait as the sort case below.
+		const after = await screen.findByRole('group', { name: 'Narrow results' }, { timeout: 5000 });
 		expect(
 			within(after)
 				.getAllByRole('button')
@@ -442,10 +443,17 @@ describe('a new query', () => {
 
 		commit('serve');
 
+		// A new query empties the store, so `count` drops to 0 and the header takes
+		// the sort control down until Lane A answers. Wait for it to come back --
+		// that wait is a real fetch, not a render tick, and racing it against
+		// waitFor's 1s default is what made this flake in CI and not here.
+		const restored = await screen.findByRole('combobox', { name: 'Sort results' }, { timeout: 5000 });
+
+		// No waitFor around the assertion itself: the reset happens during the same
+		// render that remounts the control, so if it is on screen it is already
+		// correct. A retry here would only hide a reset that never ran.
 		// Relevance is relative to the query, so a ranking chosen for the old one
 		// is not a preference to carry -- it is a stale answer's order.
-		await waitFor(() =>
-			expect(screen.getByRole('combobox', { name: 'Sort results' })).toHaveTextContent('Relevance')
-		);
+		expect(restored).toHaveTextContent('Relevance');
 	});
 });
