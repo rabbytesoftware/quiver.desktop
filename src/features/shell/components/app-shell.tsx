@@ -42,7 +42,13 @@ export function AppShell({ children, footer }: AppShellProps): JSX.Element {
 				)}
 
 				<main className={cn('row-start-2 flex min-h-0 flex-col bg-background', contentColumn)}>
-					<div className="min-h-0 flex-1 overflow-auto">{children}</div>
+					{/* `scrollbar-gutter: stable` reserves the track whether or not this
+					    scrolls. Without it, anything that shortens the page -- narrowing a
+					    search from 70 results to 16 -- drops the scrollbar and hands its
+					    17px back to the content, moving every tile sideways. The results
+					    grid already pins its column *count* against that (spec 9.3.1); this
+					    pins the width the count is measured against. */}
+					<div className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]">{children}</div>
 					{footer}
 				</main>
 			</div>
