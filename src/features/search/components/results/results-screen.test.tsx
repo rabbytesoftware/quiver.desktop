@@ -13,13 +13,13 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { SearchBar } from '@/features/search/components/search-bar';
 import { IDLE_BEFORE_PASS_MS } from '@/lib/core-store/search/pass';
 import { useSearchStore } from '@/lib/core-store/store/search';
 import { createMockBackend, type MockRuntime } from '@/lib/mock';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 
 import { ResultsScreen } from './results-screen';
-import { SearchBar } from './search-bar';
 
 let mock: MockRuntime;
 

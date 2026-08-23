@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { SearchEntry } from '@/domain/search';
+import { NO_SELECTION, type Selection } from '@/features/search/lib/narrow';
 
-import { NO_SELECTION, type Selection } from '../narrow';
 import { SearchFacets } from './search-facets';
 
 function entry(namespace: string, tags: string[]): SearchEntry {

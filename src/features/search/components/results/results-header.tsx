@@ -3,11 +3,10 @@ import type { JSX, ReactNode } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import type { DiscoverySummary } from '@/domain/search';
+import type { SortKey } from '@/features/search/lib/sort';
+import { SORT_KEYS } from '@/features/search/lib/sort';
 import type { SearchJob, SearchPhase } from '@/lib/core-store/store/search';
 import { useTranslation } from '@/lib/i18n';
-
-import type { SortKey } from '../sort';
-import { SORT_KEYS } from '../sort';
 
 interface ResultsHeaderProps {
 	query: string;

@@ -1,18 +1,18 @@
 import { type JSX, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import { SearchInspector } from '@/features/search/components/search-inspector';
+import { useSearch } from '@/features/search/hooks/use-search';
+import type { FacetKind } from '@/features/search/lib/narrow';
+import { NO_SELECTION, applySelection, isNarrowed, toggle } from '@/features/search/lib/narrow';
+import type { SortKey } from '@/features/search/lib/sort';
+import { DEFAULT_SORT, sortEntries } from '@/features/search/lib/sort';
 import { useSearchStore } from '@/lib/core-store/store/search';
 import { useTranslation } from '@/lib/i18n';
 
-import type { FacetKind } from '../narrow';
-import { NO_SELECTION, applySelection, isNarrowed, toggle } from '../narrow';
-import type { SortKey } from '../sort';
-import { DEFAULT_SORT, sortEntries } from '../sort';
-import { useSearch } from '../use-search';
 import { EmptyState } from './empty-states';
 import { ResultGrid } from './result-grid';
 import { ResultsHeader } from './results-header';
 import { SearchFacets } from './search-facets';
-import { SearchInspector } from './search-inspector';
 
 interface ResultsScreenProps {
 	query: string;

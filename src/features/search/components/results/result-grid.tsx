@@ -2,12 +2,11 @@ import type { JSX, ReactNode } from 'react';
 
 import type { SearchEntry } from '@/domain/search';
 import { isHeld } from '@/domain/search';
+import { ArrowCard } from '@/features/search/components/card/arrow-card';
+import { CardSkeleton } from '@/features/search/components/card/card-skeleton';
+import { columnRule } from '@/features/search/lib/columns';
 import type { SearchPhase } from '@/lib/core-store/store/search';
 import { useTranslation } from '@/lib/i18n';
-
-import { columnRule } from '../columns';
-import { ArrowCard } from './arrow-card';
-import { CardSkeleton } from './card-skeleton';
 
 interface ResultGridProps {
 	local: SearchEntry[];

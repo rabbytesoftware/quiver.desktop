@@ -10,9 +10,8 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { LOCAL_DEBOUNCE_MS, SearchBar } from '@/features/search';
 import { useSearchStore } from '@/lib/core-store/store/search';
-
-import { LOCAL_DEBOUNCE_MS, SearchBar } from './index';
 
 async function renderField(initialEntries = ['/']) {
 	const rootRoute = createRootRoute({

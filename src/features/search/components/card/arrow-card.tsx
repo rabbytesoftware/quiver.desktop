@@ -7,7 +7,7 @@ import { isHeld } from '@/domain/search';
 import { cn } from '@/lib/cn';
 import { useTranslation } from '@/lib/i18n';
 
-import './card.css';
+import '@/features/search/styles/card.css';
 
 /**
  * The cell is the link, so the caption is part of the same hit target and the

@@ -3,11 +3,10 @@ import type { JSX } from 'react';
 import { Badge } from '@/components/ui/badge';
 
 import type { SearchEntry } from '@/domain/search';
+import type { FacetKind, Selection } from '@/features/search/lib/narrow';
+import { facetsFor, isNarrowed } from '@/features/search/lib/narrow';
 import { cn } from '@/lib/cn';
 import { useTranslation } from '@/lib/i18n';
-
-import type { FacetKind, Selection } from '../narrow';
-import { facetsFor, isNarrowed } from '../narrow';
 
 interface SearchFacetsProps {
 	/**
