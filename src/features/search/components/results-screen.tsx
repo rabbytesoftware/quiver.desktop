@@ -1,11 +1,17 @@
-import { type JSX, useLayoutEffect, useRef, useState } from 'react';
+import { type JSX, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useSearchStore } from '@/lib/core-store/store/search';
+import { useTranslation } from '@/lib/i18n';
 
+import type { FacetKind } from '../narrow';
+import { NO_SELECTION, applySelection, isNarrowed, toggle } from '../narrow';
+import type { SortKey } from '../sort';
+import { DEFAULT_SORT, sortEntries } from '../sort';
 import { useSearch } from '../use-search';
 import { EmptyState } from './empty-states';
 import { ResultGrid } from './result-grid';
 import { ResultsHeader } from './results-header';
+import { SearchFacets } from './search-facets';
 import { SearchInspector } from './search-inspector';
 
 interface ResultsScreenProps {
@@ -21,6 +27,8 @@ interface ResultsScreenProps {
 export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 	useSearch(query);
 
+	const { t, locale } = useTranslation();
+
 	const phase = useSearchStore((s) => s.phase);
 	const local = useSearchStore((s) => s.local);
 	const streamed = useSearchStore((s) => s.streamed);
@@ -30,6 +38,30 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 	const passFailed = useSearchStore((s) => s.passFailed);
 
 	const [inspecting, setInspecting] = useState(false);
+	const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
+	const [selection, setSelection] = useState(NO_SELECTION);
+
+	// View state, so it belongs to the mount rather than the store -- and a new
+	// query is a new answer, whose facets are not the old one's. Adjusted during
+	// render rather than in an effect, so the stale selection is never painted.
+	const [sortedQuery, setSortedQuery] = useState(query);
+	if (sortedQuery !== query) {
+		setSortedQuery(query);
+		if (isNarrowed(selection)) setSelection(NO_SELECTION);
+		if (sort !== DEFAULT_SORT) setSort(DEFAULT_SORT);
+	}
+
+	const answer = useMemo(() => [...local, ...streamed], [local, streamed]);
+	const shown = useMemo(
+		() => sortEntries(applySelection(answer, selection), sort, locale),
+		[answer, selection, sort, locale]
+	);
+
+	// Sorting and narrowing are view-level, so both bands are rebuilt from the
+	// result rather than re-partitioned: `ResultGrid` decides the shelves.
+	const fromLocal = useMemo(() => new Set(local), [local]);
+	const shownLocal = useMemo(() => shown.filter((e) => fromLocal.has(e)), [shown, fromLocal]);
+	const shownStreamed = useMemo(() => shown.filter((e) => !fromLocal.has(e)), [shown, fromLocal]);
 
 	const gridRef = useRef<HTMLDivElement>(null);
 	const positions = useRef(new Map<string, DOMRect>());
@@ -58,30 +90,48 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 		}
 
 		positions.current = new Map([...cards].map((c) => [c.getAttribute('href') ?? '', c.getBoundingClientRect()]));
-	}, [local, streamed]);
+	}, [shownLocal, shownStreamed]);
+
+	const narrowedToNothing = shown.length === 0 && answer.length > 0;
 
 	return (
 		<div data-testid="search-page">
 			<ResultsHeader
-				count={local.length + streamed.length}
+				count={shown.length}
+				facets={
+					query === '' ? null : (
+						<SearchFacets
+							entries={answer}
+							onClear={() => setSelection(NO_SELECTION)}
+							onToggle={(kind: FacetKind, value: string) => setSelection((s) => toggle(s, kind, value))}
+							selection={selection}
+						/>
+					)
+				}
 				job={job}
 				onInspect={() => setInspecting(true)}
+				onSortChange={setSort}
 				passFailed={passFailed}
 				phase={phase}
 				query={query}
+				sort={sort}
 				summary={summary}
 			/>
 			<div ref={gridRef}>
-				<ResultGrid local={local} phase={phase} streamed={streamed} />
+				<ResultGrid local={shownLocal} phase={phase} streamed={shownStreamed} total={answer.length} />
 			</div>
+			{narrowedToNothing && (
+				<p className="px-[18px] text-[12.5px] text-muted-foreground">{t('search.narrow.empty')}</p>
+			)}
 			<EmptyState
-				hasResults={local.length + streamed.length > 0}
+				hasResults={answer.length > 0}
 				localError={localError}
 				passFailed={passFailed}
 				phase={phase}
 				query={query}
 				summary={summary}
 			/>
+
 			<SearchInspector job={job} onOpenChange={setInspecting} open={inspecting} query={query} summary={summary} />
 		</div>
 	);

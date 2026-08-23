@@ -14,28 +14,34 @@ describe('ResultsHeader', () => {
 				count={0}
 				job={null}
 				onInspect={NOOP}
+				onSortChange={NOOP}
 				passFailed={false}
 				phase="idle"
 				query=""
+				sort="relevance"
 				summary={null}
 			/>
 		);
 		expect(container).toBeEmptyDOMElement();
 	});
 
-	it('makes the query the heading, so the results column says what was searched', () => {
+	it('does not repeat the query, which the sidebar field is already holding', () => {
 		render(
 			<ResultsHeader
 				count={3}
 				job={null}
 				onInspect={NOOP}
+				onSortChange={NOOP}
 				passFailed={false}
 				phase="local"
 				query="server"
+				sort="relevance"
 				summary={null}
 			/>
 		);
-		expect(screen.getByRole('heading', { name: 'server' })).toBeInTheDocument();
+		// Spec 9.2: it used to be an h2 eighteen pixels from the inverted field.
+		expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+		expect(screen.queryByText('server')).not.toBeInTheDocument();
 	});
 
 	it('announces the count politely, once, rather than per result', () => {
@@ -44,9 +50,11 @@ describe('ResultsHeader', () => {
 				count={3}
 				job={null}
 				onInspect={NOOP}
+				onSortChange={NOOP}
 				passFailed={false}
 				phase="local"
 				query="server"
+				sort="relevance"
 				summary={null}
 			/>
 		);
@@ -54,7 +62,7 @@ describe('ResultsHeader', () => {
 		expect(live.closest('[aria-live]')).toHaveAttribute('aria-live', 'polite');
 	});
 
-	it('states a refusal with its retry rather than reporting no results', () => {
+	it('keeps a refusal legible at rest instead of in a line cards paint over', () => {
 		const summary: DiscoverySummary = {
 			job_id: 'job-1',
 			query: 'server',
@@ -68,14 +76,18 @@ describe('ResultsHeader', () => {
 				count={0}
 				job={null}
 				onInspect={NOOP}
+				onSortChange={NOOP}
 				passFailed={false}
 				phase="settled"
 				query="server"
+				sort="relevance"
 				summary={summary}
 			/>
 		);
-		expect(screen.getByText(/gitlab\.com refused/)).toBeInTheDocument();
-		expect(screen.getByText(/Retry in 40s/)).toBeInTheDocument();
+		// The count stands still in the header; the host, the reason and the
+		// retry are one click away in the sheet (spec 11.3).
+		expect(screen.getByRole('button', { name: /1 host/ })).toBeInTheDocument();
+		expect(screen.getByText(/1 refused/)).toBeInTheDocument();
 	});
 
 	// Varies job alone -- phase and summary stay fixed -- so the assertion
@@ -89,9 +101,11 @@ describe('ResultsHeader', () => {
 				count={0}
 				job={null}
 				onInspect={onInspect}
+				onSortChange={NOOP}
 				passFailed={false}
 				phase="discovering"
 				query="server"
+				sort="relevance"
 				summary={null}
 			/>
 		);
@@ -102,13 +116,40 @@ describe('ResultsHeader', () => {
 				count={0}
 				job={{ id: 'job-1', expires_at: '2026-08-18T00:00:30.000Z' }}
 				onInspect={onInspect}
+				onSortChange={NOOP}
 				passFailed={false}
 				phase="discovering"
 				query="server"
+				sort="relevance"
 				summary={null}
 			/>
 		);
 		expect(screen.getByRole('button', { name: 'Inspect' })).toBeInTheDocument();
+	});
+
+	it('hangs the narrow row between the count and the right-hand controls', () => {
+		// Spec 9.8: the row replaced a 240px rail, so where it lands in the header
+		// is the point of the change, not a detail of it.
+		render(
+			<ResultsHeader
+				count={8}
+				facets={<span data-testid="facets" />}
+				job={null}
+				onInspect={NOOP}
+				onSortChange={NOOP}
+				passFailed={false}
+				phase="settled"
+				query="server"
+				sort="relevance"
+				summary={null}
+			/>
+		);
+
+		const facets = screen.getByTestId('facets');
+		const count = screen.getByText(/8 results/);
+
+		expect(facets).toBeInTheDocument();
+		expect(count.compareDocumentPosition(facets) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 	});
 
 	it('states plainly that the network search did not finish', () => {
@@ -117,9 +158,11 @@ describe('ResultsHeader', () => {
 				count={0}
 				job={null}
 				onInspect={NOOP}
+				onSortChange={NOOP}
 				passFailed
 				phase="settling"
 				query="server"
+				sort="relevance"
 				summary={null}
 			/>
 		);

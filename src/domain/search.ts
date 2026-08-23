@@ -37,3 +37,21 @@ export interface DiscoverySummary {
 	skipped: number;
 	providers: DiscoveryProvider[];
 }
+
+/**
+ * Whether the arrow is already yours, which is what separates the two result
+ * shelves (spec 9.3).
+ *
+ * `installed` carries this: core sets it from the catalog alone, and the DTO
+ * calls it "the only thing that separates what you have from what you could
+ * have". `known` cannot -- every `GET /v0/search` result is known by
+ * construction, because discovery indexes each arrow it proves and the settle
+ * re-query reads that index back.
+ *
+ * Following a collection is the exception the boolean misses: it caches the
+ * collection's arrows into the vault without writing catalog rows, so a curated
+ * arrow reports `installed: false` while plainly being yours.
+ */
+export function isHeld(entry: SearchEntry): boolean {
+	return entry.installed || entry.provenance === 'collection';
+}

@@ -50,9 +50,10 @@ export function EmptyState({
 
 	const refused = summary?.providers.filter((provider) => !provider.ok) ?? [];
 
-	// The meta line already states the refusal and its retry_after (spec 10.2);
-	// this component's only job left is to not claim "every host answered".
-	if (refused.length > 0) return null;
+	// The refusal itself is in the header trigger and the sheet (spec 9.3), but
+	// that used to be a clause in this line and the screen went blank without it.
+	// Says what happened without claiming every host answered.
+	if (refused.length > 0) return <p className={WRAP}>{t('search.results.emptyWithRefusal')}</p>;
 
 	return <p className={WRAP}>{t('search.results.emptyEverywhere')}</p>;
 }

@@ -11,6 +11,8 @@ export const IDLE_BEFORE_PASS_MS = 600;
 export const POLL_INTERVAL_MS = 1000;
 /** provider_timeout (10s), doubled, plus slack. Spec 1.4.1. */
 export const PASS_DEADLINE_MS = 25_000;
+/** Core's cap (`maxLimit`), not its default of 25. Spec 1.1. */
+export const SEARCH_LIMIT = 100;
 
 export interface SearchQueryOptions {
 	/**
@@ -72,10 +74,20 @@ export function createSearchController(): SearchController {
 		cancelPass();
 	}
 
+	/**
+	 * Sorting and narrowing (spec 9.6) act on the answer the client is holding,
+	 * so the answer has to be the whole answer. Core defaults `limit` to 25 and
+	 * caps it at 100; asking for the cap makes the set complete for any query
+	 * that does not match more arrows than exist on the machine plus one pass.
+	 */
+	function localPath(): string {
+		return `/v0/search?q=${encodeURIComponent(query)}&limit=${SEARCH_LIMIT}`;
+	}
+
 	async function runLocal(myGeneration: number): Promise<void> {
 		if (isBlank(query)) return;
 		try {
-			const dtos = await apiFetch<SearchResultDTO[]>(`/v0/search?q=${encodeURIComponent(query)}`);
+			const dtos = await apiFetch<SearchResultDTO[]>(localPath());
 			if (disposed || queryGeneration !== myGeneration) return;
 			store.getState().setLocal(dtos.map(toSearchEntry));
 		} catch {
@@ -87,7 +99,7 @@ export function createSearchController(): SearchController {
 	/** Streamed results are unranked (spec 3); Lane A now sees the vault the pass just filled. */
 	async function requery(myGeneration: number): Promise<void> {
 		try {
-			const dtos = await apiFetch<SearchResultDTO[]>(`/v0/search?q=${encodeURIComponent(query)}`);
+			const dtos = await apiFetch<SearchResultDTO[]>(localPath());
 			if (disposed || passGeneration !== myGeneration) return;
 			store.getState().settle(dtos.map(toSearchEntry));
 		} catch {

@@ -58,7 +58,8 @@ describe('ResultsScreen', () => {
 	it('shows local results without waiting for the network lane', async () => {
 		renderScreen('minecraft');
 		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
-		expect(screen.getByRole('heading', { name: 'minecraft' })).toBeInTheDocument();
+		// The count, not the query: the sidebar field is already holding that.
+		expect(screen.getByText(/result/)).toBeInTheDocument();
 	});
 
 	it('renders no heading and no results for an empty query', () => {

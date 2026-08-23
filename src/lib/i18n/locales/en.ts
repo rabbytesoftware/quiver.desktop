@@ -26,6 +26,42 @@ export const en = {
 	'search.results.unreachable': 'Quiver is not running',
 	'search.results.idle': 'Type to search.',
 	'search.results.emptyEverywhere': 'Nothing matched, and every host answered.',
+	'search.results.emptyWithRefusal': 'Nothing matched on the hosts that answered.',
+
+	'search.card.stars': {
+		one: '{count} star',
+		other: '{count} stars',
+	},
+	'search.provenance.installed': 'installed',
+	'search.provenance.dependency': 'dependency',
+	'search.provenance.collection': 'collection',
+	'search.provenance.seen': 'seen',
+
+	'search.shelf.vault': 'In your vault',
+	'search.shelf.network': 'From the network',
+	'search.shelf.soFar': '{count} so far',
+
+	'search.results.hosts': {
+		one: '{count} host',
+		other: '{count} hosts',
+	},
+	'search.results.refusedCount': {
+		one: '{count} refused',
+		other: '{count} refused',
+	},
+
+	'search.sort.label': 'Sort results',
+	'search.sort.relevance': 'Relevance',
+	'search.sort.name': 'Name',
+	'search.sort.stars': 'Stars',
+
+	'search.narrow.label': 'Narrow results',
+	'search.narrow.facet': {
+		one: '{value}, {count} result',
+		other: '{value}, {count} results',
+	},
+	'search.narrow.clear': 'Clear',
+	'search.narrow.empty': 'Nothing matches that combination.',
 
 	'search.inspector.title': 'This search',
 	'search.inspector.description': 'What the pass did, and what it was allowed to do.',

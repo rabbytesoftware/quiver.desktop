@@ -70,6 +70,27 @@ describe('EmptyState', () => {
 		expect(screen.queryByText(/every host answered/)).not.toBeInTheDocument();
 	});
 
+	it('explains an empty answer that a refusal is part of, rather than going blank', () => {
+		// The refusal used to be a clause in the header's meta line, so saying
+		// nothing here left an empty screen with nothing on it at all. The count
+		// and the refusal now live in the header trigger (spec 9.3), which is not
+		// an explanation.
+		const refused = summary({
+			providers: [{ host: 'gitlab.com', ok: false, returned: 0, reason: 'rate limited', retry_after: 40 }],
+		});
+		render(
+			<EmptyState
+				query="server"
+				hasResults={false}
+				localError={false}
+				passFailed={false}
+				phase="settled"
+				summary={refused}
+			/>
+		);
+		expect(screen.getByText('Nothing matched on the hosts that answered.')).toBeInTheDocument();
+	});
+
 	it('says nothing at all about a refusal -- the meta line already owns it', () => {
 		const refused = summary({
 			providers: [{ host: 'gitlab.com', ok: false, returned: 0, reason: 'rate limited', retry_after: 40 }],

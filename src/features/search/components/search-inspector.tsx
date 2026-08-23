@@ -2,15 +2,15 @@ import { type JSX, type ReactNode, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
-	Dialog,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogPanel,
-	DialogTitle,
-} from '@/components/ui/dialog';
+	Sheet,
+	SheetClose,
+	SheetContent,
+	SheetDescription,
+	SheetFooter,
+	SheetHeader,
+	SheetPanel,
+	SheetTitle,
+} from '@/components/ui/sheet';
 
 import type { DiscoverySummary } from '@/domain/search';
 import { cn } from '@/lib/cn';
@@ -43,6 +43,12 @@ function InspectorField({ label, value, mono = false }: { label: string; value: 
 	);
 }
 
+/**
+ * A right-edge sheet rather than a centred dialog (spec 11.1). The header's
+ * trigger collapses the whole pass to one line, and this is where the line
+ * expands to -- one surface, not a panel in the rail duplicating a dialog. The
+ * title was already "This search".
+ */
 export function SearchInspector({ open, onOpenChange, query, job, summary }: SearchInspectorProps): JSX.Element {
 	const { t, formatDateTime } = useTranslation();
 	const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
@@ -76,14 +82,14 @@ export function SearchInspector({ open, onOpenChange, query, job, summary }: Sea
 	const skipped = summary?.skipped ?? 0;
 
 	return (
-		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>{t('search.inspector.title')}</DialogTitle>
-					<DialogDescription>{t('search.inspector.description')}</DialogDescription>
-				</DialogHeader>
+		<Sheet onOpenChange={onOpenChange} open={open}>
+			<SheetContent side="right">
+				<SheetHeader>
+					<SheetTitle>{t('search.inspector.title')}</SheetTitle>
+					<SheetDescription>{t('search.inspector.description')}</SheetDescription>
+				</SheetHeader>
 
-				<DialogPanel className="flex flex-col gap-5 text-sm">
+				<SheetPanel className="flex flex-col gap-5 text-sm">
 					<section className="flex flex-col gap-1.5">
 						<h3 className={CAPTION}>{t('search.inspector.pass')}</h3>
 						<div className="flex flex-col gap-1">
@@ -163,12 +169,12 @@ export function SearchInspector({ open, onOpenChange, query, job, summary }: Sea
 							</ul>
 						)}
 					</section>
-				</DialogPanel>
+				</SheetPanel>
 
-				<DialogFooter>
-					<DialogClose render={<Button variant="outline" />}>{t('search.inspector.close')}</DialogClose>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+				<SheetFooter>
+					<SheetClose render={<Button variant="outline" />}>{t('search.inspector.close')}</SheetClose>
+				</SheetFooter>
+			</SheetContent>
+		</Sheet>
 	);
 }

@@ -61,9 +61,45 @@ describe('ArrowCard', () => {
 		expect(link).toHaveAttribute('href', '/arrow/github.com/rabbyte/minecraft');
 	});
 
-	it('shows the namespace under the name in the reveal strip', async () => {
+	it('names the arrow and says what it is at rest, with no pointer involved', async () => {
+		// Spec 8.7. Reading a screenful used to cost one hover per result.
 		await renderCard(ENTRY);
-		expect(screen.getByText('github.com/rabbyte/minecraft')).toBeInTheDocument();
+		expect(screen.getByText('Minecraft Server')).toBeInTheDocument();
+		expect(screen.getByText('Vanilla dedicated server.')).toBeInTheDocument();
+	});
+
+	it('falls back to the owner when the manifest carries no description', async () => {
+		await renderCard({ ...ENTRY, description: '   ' });
+		expect(screen.getByText('rabbyte')).toBeInTheDocument();
+	});
+
+	it('spends the reveal on what a glance cannot answer, not on the name again', async () => {
+		const { container } = await renderCard(ENTRY);
+		const info = container.querySelector('[data-slot="card-info"]');
+		expect(info?.textContent).toContain('installed');
+		expect(info?.textContent).toContain('v1.21.4');
+		expect(info?.textContent).not.toContain('github.com/rabbyte/minecraft');
+	});
+
+	it('draws a banner when the manifest ships none, rather than an icon on flat grey', async () => {
+		// Spec 8.1.1: every arrow reachable through discovery ships an icon and
+		// none ships a banner, so this is the rule, not the exception.
+		const { container } = await renderCard({ ...ENTRY, banner: null });
+		const drawn = container.querySelector('[data-slot="card-drawn"]');
+		expect(drawn).toBeInTheDocument();
+		expect(drawn?.textContent).toContain('Minecraft Server');
+		expect(drawn?.textContent).toContain('rabbyte');
+	});
+
+	it('leaves a real banner alone', async () => {
+		const { container } = await renderCard(ENTRY);
+		expect(container.querySelector('[data-slot="card-drawn"]')).not.toBeInTheDocument();
+	});
+
+	it('draws the banner without a mark when there is no icon either', async () => {
+		const { container } = await renderCard({ ...ENTRY, banner: null, icon: null });
+		expect(container.querySelector('[data-slot="card-drawn"]')).toBeInTheDocument();
+		expect(container.querySelector('[data-slot="drawn-mark"]')).not.toBeInTheDocument();
 	});
 
 	it('renders the banner as a background rather than an img, so it can be lifted', async () => {
@@ -82,7 +118,7 @@ describe('ArrowCard', () => {
 		expect(link).not.toHaveAttribute('data-provenance');
 	});
 
-	it('reveals the name and namespace on keyboard focus, not only on mouse hover', async () => {
+	it('reveals the strip on keyboard focus, not only on mouse hover', async () => {
 		const { container } = await renderCard(ENTRY);
 		const info = container.querySelector('[data-slot="card-info"]');
 		expect(info?.className).toMatch(/group-hover:opacity-100/);
