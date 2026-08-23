@@ -1,8 +1,7 @@
 import type { JSX } from 'react';
 
+import { ROW_BASE, ROW_GLYPH_BOX } from '@/features/sidebar/lib/row-base';
 import { cn } from '@/lib/cn';
-
-import { ROW_BASE, ROW_GLYPH_BOX } from '../row-base';
 
 const ROW = cn(ROW_BASE, 'border-transparent animate-pulse cursor-default');
 

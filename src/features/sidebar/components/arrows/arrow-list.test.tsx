@@ -12,11 +12,11 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ArrowEntry } from '@/domain/arrow';
+import { ROW_BASE } from '@/features/sidebar/lib/row-base';
 import { useArrowStore } from '@/lib/core-store';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
 
-import { ArrowList } from './components/arrow-list';
-import { ROW_BASE } from './row-base';
+import { ArrowList } from './arrow-list';
 
 const MINECRAFT = 'github.com/rabbyte/minecraft@v1.21.4';
 

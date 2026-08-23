@@ -6,9 +6,8 @@ import { Link } from '@tanstack/react-router';
 import { TabsTab } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
+import { blockReselect } from '@/features/sidebar/lib/reselect';
 import { cn } from '@/lib/cn';
-
-import { blockReselect } from '../reselect';
 
 export type NavDestination = '/' | '/remote' | '/settings';
 

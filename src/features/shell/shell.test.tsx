@@ -20,8 +20,8 @@ import { Route as appRoot } from '@/routes/__root';
 
 import { AppShell } from './components/app-shell';
 import { WindowControls } from './components/window-controls';
-import { ROW_H, windowControls, type SidebarSide } from './geometry';
-import { SIDEBAR_DEFAULT, useShellStore } from './store';
+import { ROW_H, windowControls, type SidebarSide } from './lib/geometry';
+import { SIDEBAR_DEFAULT, useShellStore } from './stores/shell-store';
 import baseConfig from '../../../src-tauri/tauri.conf.json';
 import macosConfig from '../../../src-tauri/tauri.macos.conf.json';
 

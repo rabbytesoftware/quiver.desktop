@@ -1,10 +1,9 @@
 import type { JSX } from 'react';
 
 import { WindowControls } from '@/features/shell/components/window-controls';
-import { railOwnsControls } from '@/features/shell/geometry';
-import { useShellStore } from '@/features/shell/store';
-
-import { HistoryNav } from './history-nav';
+import { railOwnsControls } from '@/features/shell/lib/geometry';
+import { useShellStore } from '@/features/shell/stores/shell-store';
+import { HistoryNav } from '@/features/sidebar/components/nav/history-nav';
 
 const CONTROLS = <WindowControls />;
 const HISTORY = <HistoryNav />;

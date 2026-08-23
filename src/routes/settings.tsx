@@ -5,8 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DeveloperSettings } from '@/features/settings/components/tabs/developer';
 import { EngineSettings } from '@/features/settings/components/tabs/engine';
 import { GeneralSettings } from '@/features/settings/components/tabs/general';
-import { type SettingsTab, useSettingsUI } from '@/features/settings/store';
-import { visibleTabs } from '@/features/settings/tabs';
+import { visibleTabs } from '@/features/settings/lib/tabs';
+import { type SettingsTab, useSettingsUI } from '@/features/settings/stores/settings-store';
 import { useTranslation } from '@/lib/i18n';
 
 const TABS: readonly string[] = ['general', 'engine', 'developer'];

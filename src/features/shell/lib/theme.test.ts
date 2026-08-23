@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { installThemeSync, normalisePreference, THEME_STORAGE_KEY, useThemeStore } from './theme';
-import indexHtml from '../../../index.html?raw';
+// Relative, not `@/`: the alias only reaches into `src`, and the boot script
+// under test lives in the repo-root `index.html`.
+import indexHtml from '../../../../index.html?raw';
 
 function stubMatchMedia(initialMatches: boolean) {
 	const listeners = new Set<() => void>();

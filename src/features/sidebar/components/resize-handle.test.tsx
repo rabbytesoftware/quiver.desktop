@@ -3,10 +3,10 @@ import type { CSSProperties } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SidebarSide } from '@/features/shell/geometry';
-import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, useShellStore } from '@/features/shell/store';
+import type { SidebarSide } from '@/features/shell/lib/geometry';
+import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, useShellStore } from '@/features/shell/stores/shell-store';
 
-import { ResizeHandle } from './components/resize-handle';
+import { ResizeHandle } from './resize-handle';
 
 const setSidebarWidth = useShellStore.getState().setSidebarWidth;
 

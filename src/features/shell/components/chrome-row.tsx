@@ -1,7 +1,8 @@
 import type { JSX } from 'react';
 
-import { railOwnsControls, windowControls } from '../geometry';
-import { useShellStore } from '../store';
+import { railOwnsControls, windowControls } from '@/features/shell/lib/geometry';
+import { useShellStore } from '@/features/shell/stores/shell-store';
+
 import { WindowControls } from './window-controls';
 
 export function useContentHoldsControls(): boolean {

@@ -1,6 +1,5 @@
+import { type SettingsTab } from '@/features/settings/stores/settings-store';
 import { type MessageKey } from '@/lib/i18n';
-
-import { type SettingsTab } from './store';
 
 export interface TabItem {
 	id: SettingsTab;

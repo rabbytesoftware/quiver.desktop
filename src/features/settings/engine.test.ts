@@ -5,8 +5,8 @@ import { setMockCorrected } from '@/lib/mock/server/handlers/config';
 import { useMockStore } from '@/lib/mock/store';
 import { resetBackend } from '@/lib/transport/backend';
 
-import * as engineApi from './api';
-import { useEngineStore } from './store';
+import * as engineApi from './api/engine-api';
+import { useEngineStore } from './stores/engine-store';
 
 beforeEach(() => {
 	installMock('normal');

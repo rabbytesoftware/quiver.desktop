@@ -2,10 +2,10 @@ import type { CSSProperties, JSX, ReactNode } from 'react';
 
 import { TooltipProvider } from '@/components/ui/tooltip';
 
+import { useShellStore } from '@/features/shell/stores/shell-store';
 import { Sidebar } from '@/features/sidebar';
 import { cn } from '@/lib/cn';
 
-import { useShellStore } from '../store';
 import { ChromeRow, useContentHoldsControls } from './chrome-row';
 
 export interface AppShellProps {

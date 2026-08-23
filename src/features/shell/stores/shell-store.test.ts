@@ -8,7 +8,7 @@ import {
 	SIDEBAR_MAX,
 	SIDEBAR_MIN,
 	useShellStore,
-} from './store';
+} from './shell-store';
 
 function saved(state: Record<string, unknown>): void {
 	localStorage.setItem(SHELL_STORAGE_KEY, JSON.stringify({ state, version: 0 }));

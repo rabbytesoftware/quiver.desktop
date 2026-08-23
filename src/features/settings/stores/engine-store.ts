@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import { getConfig, patchConfig, type ConfigView, type Rejection } from './api';
+import { getConfig, patchConfig, type ConfigView, type Rejection } from '@/features/settings/api/engine-api';
 
 interface EngineState {
 	view: ConfigView | null;

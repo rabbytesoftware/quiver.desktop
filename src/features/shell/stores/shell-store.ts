@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-import type { SidebarSide } from './geometry';
+import type { SidebarSide } from '@/features/shell/lib/geometry';
 
 export const SIDEBAR_MIN = 160;
 

@@ -18,7 +18,7 @@ import { SIDEBAR_DEFAULT, useShellStore, type SidebarSide } from '@/features/she
 import { useArrowStore } from '@/lib/core-store';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
 
-import { Sidebar } from './components/sidebar';
+import { Sidebar } from './sidebar';
 
 const MINECRAFT = 'github.com/rabbyte/minecraft@v1.21.4';
 const TERRARIA = 'github.com/rabbyte/terraria@v1.4.4';

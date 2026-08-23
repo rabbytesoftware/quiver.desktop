@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 
 import { TooltipProvider } from '@/components/ui/tooltip';
 
-import { PrimaryNav } from './components/primary-nav';
+import { PrimaryNav } from './primary-nav';
 
 async function renderNav(at: string) {
 	const rootRoute = createRootRoute({

@@ -2,10 +2,9 @@ import type { JSX } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
+import { ROW_GLYPH_BOX } from '@/features/sidebar/lib/row-base';
 import { cn } from '@/lib/cn';
 import { useTranslation } from '@/lib/i18n';
-
-import { ROW_GLYPH_BOX } from '../row-base';
 
 function chipHue(namespace: string): number {
 	let hash = 0x811c9dc5;
