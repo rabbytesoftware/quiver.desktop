@@ -28,7 +28,6 @@ interface MockState {
 	enabled: boolean;
 	scenario: ScenarioName;
 	faults: Record<FaultKey, number>;
-	devUnlocked: boolean;
 
 	latency: number;
 	errorRate: number;
@@ -41,7 +40,6 @@ interface MockState {
 	setUnreachable: (on: boolean) => void;
 	resetFaults: () => void;
 	resetChaos: () => void;
-	unlockDeveloper: () => void;
 
 	applyAndReload: (next: { enabled?: boolean; scenario?: ScenarioName }) => void;
 }
@@ -52,7 +50,6 @@ export const useMockStore = create<MockState>()(
 			enabled: false,
 			scenario: 'normal',
 			faults: { ...NO_FAULTS },
-			devUnlocked: false,
 
 			latency: 0,
 			errorRate: 0,
@@ -65,7 +62,6 @@ export const useMockStore = create<MockState>()(
 			setUnreachable: (unreachable) => set({ unreachable }),
 			resetFaults: () => set({ faults: { ...NO_FAULTS } }),
 			resetChaos: () => set({ latency: 0, errorRate: 0, unreachable: false }),
-			unlockDeveloper: () => set({ devUnlocked: true }),
 
 			applyAndReload: (next) => {
 				set(next);
@@ -78,7 +74,6 @@ export const useMockStore = create<MockState>()(
 				enabled: s.enabled,
 				scenario: s.scenario,
 				faults: s.faults,
-				devUnlocked: s.devUnlocked,
 			}),
 		}
 	)

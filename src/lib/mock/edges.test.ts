@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { useSettingsUI } from '@/features/settings/store';
-
 import { shouldFault } from './server/chaos';
 import { useMockStore } from './store';
 import { buildWorld, providersFor } from './world/build';
@@ -142,13 +140,5 @@ describe('shouldFault', () => {
 		expect(shouldFault('runtime', () => 0.5)).toBe(true);
 		useMockStore.getState().resetFaults();
 		expect(shouldFault('runtime', () => 0.5)).toBe(false);
-	});
-});
-
-describe('the settings ui store', () => {
-	it('switches tabs without touching the query', () => {
-		useSettingsUI.setState({ tab: 'developer', query: 'fault' });
-		useSettingsUI.getState().setTab('connections');
-		expect(useSettingsUI.getState()).toMatchObject({ tab: 'connections', query: 'fault' });
 	});
 });

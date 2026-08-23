@@ -14,7 +14,7 @@ export interface MockRequest {
 export type Handler = (req: MockRequest, world: MockWorld) => Response | Promise<Response>;
 
 export interface Route {
-	method: 'GET' | 'POST' | 'DELETE';
+	method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
 	pattern: string;
 
 	fault: FaultKey;

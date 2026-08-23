@@ -87,7 +87,7 @@ describe('re-detection', () => {
 describe('translating outside React', () => {
 	it('resolves against the locale in force at call time', () => {
 		expect(t('settings.title')).toBe('Settings');
-		expect(t('settings.version.remaining', { count: 1 })).toBe('1 more tap…');
+		expect(t('arrow.icon.fallback', { name: 'Sample' })).toBe('Sample icon');
 	});
 });
 

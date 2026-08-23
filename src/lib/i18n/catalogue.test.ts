@@ -32,7 +32,7 @@ describe('key resolution', () => {
 
 describe('interpolation', () => {
 	it('fills a named hole', () => {
-		expect(translateIn('en', 'settings.version.text', { version: '0.1.0' })).toBe('Quiver 0.1.0');
+		expect(translateIn('en', 'arrow.icon.fallback', { name: 'Sample' })).toBe('Sample icon');
 	});
 
 	it('leaves a template with no parameters alone', () => {
@@ -57,11 +57,18 @@ describe('interpolation', () => {
 	});
 });
 
+const EN_TAPS: PluralMessage = {
+	one: '{count} more tap…',
+	other: '{count} more taps…',
+};
+
 describe('pluralisation', () => {
 	it('picks the English form on a two-category language', () => {
-		expect(translateIn('en', 'settings.version.remaining', { count: 1 })).toBe('1 more tap…');
-		expect(translateIn('en', 'settings.version.remaining', { count: 3 })).toBe('3 more taps…');
-		expect(translateIn('en', 'settings.version.remaining', { count: 0 })).toBe('0 more taps…');
+		const en = (count: number) => renderMessage(EN_TAPS, 'en', { count });
+
+		expect(en(1)).toBe('1 more tap…');
+		expect(en(3)).toBe('3 more taps…');
+		expect(en(0)).toBe('0 more taps…');
 	});
 
 	it('picks all four Russian forms, including the ones English has no analogue for', () => {

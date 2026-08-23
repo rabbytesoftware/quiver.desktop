@@ -26,7 +26,11 @@ export function ArrowList(): JSX.Element {
 					sorted.map((arrow) => <ArrowRow arrow={arrow} key={arrow.namespace} />)
 				) : catalog === 'error' ? (
 					<ArrowListNotice
-						action={{ label: t('sidebar.arrows.error.action'), to: '/settings' }}
+						action={{
+							label: t('sidebar.arrows.error.action'),
+							to: '/settings',
+							search: { tab: 'engine' },
+						}}
 						body={t('sidebar.arrows.error.body')}
 						title={t('sidebar.arrows.error.title')}
 					/>

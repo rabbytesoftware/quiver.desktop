@@ -83,63 +83,34 @@ export const en = {
 	'sidebar.arrows.empty.body': 'Arrows you install show up here.',
 	'sidebar.arrows.error.title': 'Can’t reach quiver.core',
 	'sidebar.arrows.error.body': 'Your arrows are still installed. This list fills in once the connection is back.',
-	'sidebar.arrows.error.action': 'Check connections',
+	'sidebar.arrows.error.action': 'Check Engine settings',
 	'arrow.icon.fallback': '{name} icon',
 
 	'settings.title': 'Settings',
-	'settings.search.placeholder': 'Search settings',
-	'settings.search.label': 'Search settings',
 	'settings.tab.general': 'General',
-	'settings.tab.connections': 'Connections',
+	'settings.tab.engine': 'Engine',
 	'settings.tab.developer': 'Developer',
+	'settings.row.reset': 'Reset {setting}',
+
+	'settings.general.appearance.title': 'Appearance',
+	'settings.general.theme.label': 'Theme',
+	'settings.general.theme.description': 'Use light, dark, or follow system preference',
+	'settings.general.theme.system': 'System',
+	'settings.general.theme.light': 'Light',
+	'settings.general.theme.dark': 'Dark',
+	'settings.general.sidebar.label': 'Sidebar side',
+	'settings.general.sidebar.description': 'Which side the sidebar appears on',
+	'settings.general.sidebar.left': 'Left',
+	'settings.general.sidebar.right': 'Right',
 
 	'settings.general.language.title': 'Language',
-	'settings.general.language.description':
-		'Applies to Quiver’s own interface. Anything a daemon sends — host names, arrow descriptions, errors — arrives in whatever language it was written in and is shown as-is.',
 	'settings.general.language.label': 'Display language',
-	'settings.general.language.hint': 'Follows the system language until you pick one here.',
+	'settings.general.language.hint': 'Language for Quiver’s interface',
 	'settings.general.language.forced':
 		'Forced to {language} by VITE_QUIVER_LOCALE for this run. Restart without it to get the picker back.',
 	'settings.general.language.system': 'System ({language})',
-	'settings.general.formats.title': 'Formats',
-	'settings.general.formats.description':
-		'Dates and numbers follow the display language, not a separate setting — a preview, so the effect of the row above is visible before anything else in the app uses it.',
-	'settings.general.formats.date': 'Date',
-	'settings.general.formats.number': 'Number',
-
-	'settings.connections.hosts.title': 'Hosts',
-	'settings.connections.hosts.description':
-		'Every quiver.core daemon this app can talk to. Switching keeps each host’s cached library separate.',
-	'settings.connections.hosts.mocked':
-		'The mock server is on, so this list is fabricated and cannot be changed. Turn it off in Developer to manage real hosts.',
-	'settings.connections.host.fabricated': 'Fabricated — there is no daemon behind this',
-	'settings.connections.host.bundled': 'Bundled daemon',
-	'settings.connections.host.active': 'Active',
-	'settings.connections.host.switch': 'Switch',
-	'settings.connections.host.remove': 'Remove',
-	'settings.connections.add.title': 'Add a host',
-	'settings.connections.add.description':
-		'A remote quiver.core daemon. The token is stored in the OS keychain, never in the app’s own storage.',
-	'settings.connections.add.name': 'Name',
-	'settings.connections.add.namePlaceholder': 'Basement box',
-	'settings.connections.add.nameLabel': 'Host name',
-	'settings.connections.add.url': 'URL',
-	'settings.connections.add.urlLabel': 'Host URL',
-	'settings.connections.add.token': 'Token',
-	'settings.connections.add.tokenLabel': 'Host token',
-	'settings.connections.add.submit': 'Add host',
-
-	'settings.version.label': 'Quiver version {version}',
-	'settings.version.text': 'Quiver {version}',
-	'settings.version.remaining': {
-		one: '{count} more tap…',
-		other: '{count} more taps…',
-	},
-	'settings.version.unlocked': 'Developer tab unlocked.',
 
 	'settings.developer.mock.title': 'Mock server',
-	'settings.developer.mock.description':
-		'Replaces the quiver.core daemon with an in-memory one. Nothing is contacted over the network, and your real library is untouched — mock data lives in its own cache partition.',
 	'settings.developer.mock.toggle': 'Use the mock server',
 	'settings.developer.mock.forced':
 		'Forced on by VITE_QUIVER_MOCK for this run — started by `make dev-mock` or `make dev-web`. Restart without it to get the switch back.',
@@ -148,12 +119,10 @@ export const en = {
 	'settings.developer.mock.scenario': 'Scenario',
 	'settings.developer.mock.scenarioLabel': 'Mock scenario',
 	'settings.developer.mock.apply': 'Apply',
+	'settings.developer.mock.inertControls':
+		'Chaos and fault injection do nothing while the mock server is off — turn it on above to try them.',
 
 	'settings.developer.chaos.title': 'Chaos',
-	'settings.developer.chaos.description':
-		'Applies to the next request. Nothing here is persisted — it all resets when the app restarts.',
-	'settings.developer.chaos.inert':
-		'Inert while the mock server is off. quiver.core has no equivalent of these, so they cannot be applied to a real daemon.',
 	'settings.developer.chaos.latency': 'Latency',
 	'settings.developer.chaos.latencyDescription': 'Delay added to every mock response.',
 	'settings.developer.chaos.latencyLabel': 'Latency in milliseconds',
@@ -163,13 +132,9 @@ export const en = {
 	'settings.developer.chaos.unreachable': 'Daemon unreachable',
 	'settings.developer.chaos.unreachableDescription':
 		'Answers every request the way the Rust proxy answers a refused socket — a 502 carrying x-quiver-proxy. This is the only fault that exercises the retry ladder and reaches the Disconnected screen.',
-	'settings.developer.chaos.reset': 'Reset chaos',
 
 	'settings.developer.faults.title': 'Fault injection',
-	'settings.developer.faults.description':
-		"Force one route family to fail, so you can see a single panel's error state without breaking the rest of the app.",
 	'settings.developer.faults.rateLabel': '{family} fault rate',
-	'settings.developer.faults.reset': 'Reset all faults',
 	'settings.developer.faults.arrows': 'Arrow catalog',
 	'settings.developer.faults.arrow-detail': 'Arrow detail',
 	'settings.developer.faults.search': 'Search',
@@ -178,7 +143,28 @@ export const en = {
 	'settings.developer.faults.collection-detail': 'Collection detail',
 	'settings.developer.faults.runtime': 'Runtime actions',
 	'settings.developer.faults.health': 'Health probe',
-	'settings.developer.faults.config': 'Configuration',
+	'settings.developer.faults.config': 'Daemon config',
+
+	'settings.engine.loading': 'Loading engine settings',
+	'settings.engine.restart': 'These settings take effect the next time quiver.core restarts.',
+	'settings.engine.corrected': 'The daemon could not use these settings and fell back to their defaults: {settings}.',
+	'settings.engine.retry': 'Try again',
+	'settings.engine.ports.title': 'Ports',
+	'settings.engine.ports.label': 'Ports for servers',
+	'settings.engine.ports.description':
+		'Range Quiver may use for arrows that serve. Match your router’s forwarding rules.',
+	'settings.engine.ports.lowest': 'Lowest port',
+	'settings.engine.ports.highest': 'Highest port',
+	'settings.engine.ports.fieldRejected': '{field}: {message}',
+	'settings.engine.logs.title': 'Logs',
+	'settings.engine.logs.disk': 'Write logs to disk',
+	'settings.engine.logs.diskDescription': 'Keeps a rotating file alongside the console output',
+	'settings.engine.logs.level': 'Level',
+	'settings.engine.logs.levelDescription': 'How much detail the daemon writes',
+	'settings.engine.logs.level.debug': 'Debug',
+	'settings.engine.logs.level.info': 'Info',
+	'settings.engine.logs.level.warn': 'Warn',
+	'settings.engine.logs.level.error': 'Error',
 
 	'mock.badge': 'Mock',
 	'mock.status': '{scenario} · no daemon is being contacted',
