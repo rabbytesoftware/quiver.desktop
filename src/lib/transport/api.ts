@@ -71,7 +71,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit, retry: Retry
 
 		const body = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
 
-		if (res.ok && (res.status === 204 || res.status === 202 || body === null)) {
+		if (res.ok && (res.status === 204 || body === null)) {
+			return undefined as T;
+		}
+
+		// A 202 may carry an envelope -- POST /v0/search/discover answers with the
+		// job ticket before any provider has been asked, and the caller needs it.
+		// A 202 carrying anything else is a bare acknowledgement, as before.
+		if (res.status === 202 && !body?.success) {
 			return undefined as T;
 		}
 

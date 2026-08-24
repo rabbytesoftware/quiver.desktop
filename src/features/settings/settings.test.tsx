@@ -7,8 +7,8 @@ import { create } from 'zustand';
 import { useMockStore } from '@/lib/mock/store';
 
 import { Section, SettingRow } from './components/section';
-import { useSettingsUI } from './store';
-import { visibleTabs } from './tabs';
+import { visibleTabs } from './lib/tabs';
+import { useSettingsUI } from './stores/settings-store';
 
 beforeEach(() => {
 	useSettingsUI.setState({ tab: 'general' });

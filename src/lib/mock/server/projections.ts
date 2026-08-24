@@ -1,5 +1,7 @@
+import type { SearchProvenance } from '@/domain/search';
 import type { ArrowListResponseItemDTO } from '@/lib/core-store/dtos/v0/arrow';
 import type { RuntimeUpdateDTO } from '@/lib/core-store/dtos/v0/runtime';
+import type { DiscoveryJobDTO, DiscoveryJobStartedDTO, SearchResultDTO } from '@/lib/core-store/dtos/v0/search';
 
 import type { MockArrow, MockCollection, MockDiscoveryJob } from '../world/types';
 import { versioned } from '../world/types';
@@ -75,15 +77,30 @@ export function toArrowDetailDTO(arrow: MockArrow): unknown {
 	};
 }
 
-export function toSearchResultDTO(arrow: MockArrow): unknown {
+/**
+ * One search result, in the single shape both lanes share.
+ *
+ * `refs` is passed in rather than read off the arrow because a namespace can
+ * have several installed refs, and core reports them together on one row --
+ * `arrow` is only the row's representative.
+ */
+export function toSearchResultDTO(
+	arrow: MockArrow,
+	facts: { refs: string[]; installed: boolean; known: boolean; provenance?: SearchProvenance }
+): SearchResultDTO {
 	return {
-		namespace: versioned(arrow),
+		namespace: arrow.namespace,
 		name: arrow.name,
 		description: arrow.description,
 		tags: arrow.tags,
 		media: { icon: arrow.icon, banner: arrow.banner },
-		maintainers: arrow.maintainers,
-		version: arrow.version,
+		versions: facts.refs,
+		compatible_os: [...new Set(arrow.targets.map((t) => t.platform))].sort(),
+		...(facts.provenance ? { provenance: facts.provenance } : {}),
+		installed: facts.installed,
+		known: facts.known,
+		stars: arrow.stars ?? 0,
+		...(arrow.source ? { source: arrow.source } : {}),
 	};
 }
 
@@ -105,12 +122,20 @@ export function toCollectionDetailDTO(collection: MockCollection): unknown {
 	};
 }
 
-export function toDiscoveryJobDTO(job: MockDiscoveryJob): unknown {
+/** The ticket, returned before any host has been asked. Carries no counts. */
+export function toDiscoveryStartedDTO(job: MockDiscoveryJob): DiscoveryJobStartedDTO {
+	return { job_id: job.id, query: job.query, expires_at: job.expires_at };
+}
+
+/** The summary. Results are not here: they left over the socket. */
+export function toDiscoveryJobDTO(job: MockDiscoveryJob): DiscoveryJobDTO {
 	return {
-		id: job.id,
+		job_id: job.id,
 		status: job.status,
 		query: job.query,
+		found: job.found,
+		verified: job.verified,
+		skipped: job.skipped,
 		providers: job.providers,
-		results: job.results,
 	};
 }

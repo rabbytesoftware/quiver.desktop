@@ -34,8 +34,8 @@
     "zustand": "^5.0.13"
   },
   "quiver": {
-    "_comment": "Must be an immutable quiver.core tag. Never `nightly`: that tag is deleted and recreated on every push to quiver.core's develop, so a build pinned to it is not reproducible — and CI's check only asks whether the tag exists, which `nightly` always does.",
-    "coreVersion": "nightly"
+    "_comment": "Must be an immutable quiver.core tag for a release build. Never `nightly-latest`: that rolling tag is remade on every push to quiver.core's develop, so a build pinned to it is not reproducible — and CI's check only asks whether the tag exists, which the rolling tag always does.",
+    "coreVersion": "nightly-latest"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

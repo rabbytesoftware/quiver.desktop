@@ -11,8 +11,70 @@ export const en = {
 	'nav.back': 'Go back',
 	'nav.forward': 'Go forward',
 
-	'search.placeholder': 'Search Arrows or Collections',
+	'search.placeholder': 'Search Arrows',
 	'search.label': 'Search',
+
+	'search.results.count': {
+		one: '{count} result',
+		other: '{count} results',
+	},
+	'search.results.searching': 'Searching the network…',
+	'search.results.passFailed': 'The network search did not finish.',
+	'search.results.refused': '{host} refused',
+	'search.results.retry': 'Retry in {seconds}s',
+	'search.results.inspect': 'Inspect',
+	'search.results.unreachable': 'Quiver is not running',
+	'search.results.idle': 'Type to search.',
+	'search.results.emptyEverywhere': 'Nothing matched, and every host answered.',
+	'search.results.emptyWithRefusal': 'Nothing matched on the hosts that answered.',
+
+	'search.card.stars': {
+		one: '{count} star',
+		other: '{count} stars',
+	},
+	'search.provenance.installed': 'installed',
+	'search.provenance.dependency': 'dependency',
+	'search.provenance.collection': 'collection',
+	'search.provenance.seen': 'seen',
+
+	'search.shelf.vault': 'In your vault',
+	'search.shelf.network': 'From the network',
+	'search.shelf.soFar': '{count} so far',
+
+	'search.results.hosts': {
+		one: '{count} host',
+		other: '{count} hosts',
+	},
+	'search.results.refusedCount': {
+		one: '{count} refused',
+		other: '{count} refused',
+	},
+
+	'search.sort.label': 'Sort results',
+	'search.sort.relevance': 'Relevance',
+	'search.sort.name': 'Name',
+	'search.sort.stars': 'Stars',
+
+	'search.narrow.label': 'Narrow results',
+	'search.narrow.facet': {
+		one: '{value}, {count} result',
+		other: '{value}, {count} results',
+	},
+	'search.narrow.clear': 'Clear',
+	'search.narrow.empty': 'Nothing matches that combination.',
+
+	'search.inspector.title': 'This search',
+	'search.inspector.description': 'What the pass did, and what it was allowed to do.',
+	'search.inspector.pass': 'The pass',
+	'search.inspector.query': 'Query',
+	'search.inspector.job': 'Job ID',
+	'search.inspector.counts': 'Found / verified / skipped',
+	'search.inspector.expires': 'Expires at',
+	'search.inspector.hosts': 'Hosts',
+	'search.inspector.settings': 'Settings',
+	'search.inspector.asked': '{count} asked',
+	'search.inspector.running': 'The job carries no providers until the pass ends.',
+	'search.inspector.close': 'Close',
 
 	'sidebar.resize': 'Resize sidebar',
 	'sidebar.arrows': 'Arrows',

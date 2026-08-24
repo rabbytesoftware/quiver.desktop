@@ -1,6 +1,6 @@
 import type { JSX } from 'react';
 
-import { windowControls } from '../geometry';
+import { windowControls } from '@/features/shell/lib/geometry';
 
 export function WindowControls(): JSX.Element | null {
 	const controls = windowControls();

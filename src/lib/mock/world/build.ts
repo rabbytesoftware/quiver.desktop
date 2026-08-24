@@ -17,6 +17,8 @@ export function buildWorld(scenario: ScenarioName, emitter: Emitter): MockWorld 
 		scenario: descriptor.name,
 		connectionId: mockConnectionId(descriptor.name),
 		arrows: new Map(data.arrows.map((a) => [versioned(a), a])),
+		discoverable: data.discoverable,
+		vault: new Set(),
 		collections: new Map(data.collections.map((c) => [c.namespace, c])),
 		jobs: new Map(),
 		cancels: new Map(),

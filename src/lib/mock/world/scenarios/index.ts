@@ -1,11 +1,12 @@
-import type { MockArrow, MockCollection, MockProvider, ScenarioName } from '../types';
+import type { MockArrow, MockCandidate, MockCollection, MockProvider, ScenarioName } from '../types';
 import { buildExtremeArrows, buildExtremeCollections } from './extreme';
-import { NORMAL_ARROWS, NORMAL_COLLECTIONS, NORMAL_PROVIDERS } from './normal';
+import { NORMAL_ARROWS, NORMAL_COLLECTIONS, NORMAL_DISCOVERABLE, NORMAL_PROVIDERS } from './normal';
 
 export interface ScenarioDataset {
 	arrows: MockArrow[];
 	collections: MockCollection[];
 	providers: MockProvider[];
+	discoverable: MockCandidate[];
 }
 
 export interface ScenarioDescriptor {
@@ -24,6 +25,7 @@ export const SCENARIOS: ScenarioDescriptor[] = [
 			arrows: NORMAL_ARROWS.map(clone),
 			collections: NORMAL_COLLECTIONS.map(clone),
 			providers: NORMAL_PROVIDERS.map(clone),
+			discoverable: NORMAL_DISCOVERABLE.map(clone),
 		}),
 	},
 	{
@@ -36,6 +38,7 @@ export const SCENARIOS: ScenarioDescriptor[] = [
 				arrows,
 				collections: buildExtremeCollections(arrows),
 				providers: NORMAL_PROVIDERS.map(clone),
+				discoverable: NORMAL_DISCOVERABLE.map(clone),
 			};
 		},
 	},
@@ -43,7 +46,7 @@ export const SCENARIOS: ScenarioDescriptor[] = [
 		name: 'empty',
 		label: 'Empty',
 		summary: 'A first run — nothing installed, nothing followed, nothing to search',
-		build: () => ({ arrows: [], collections: [], providers: [] }),
+		build: () => ({ arrows: [], collections: [], providers: [], discoverable: [] }),
 	},
 ];
 

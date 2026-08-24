@@ -2,7 +2,7 @@
 
 import { useRef, useState, type JSX, type KeyboardEvent, type PointerEvent } from 'react';
 
-import { normaliseWidth, SIDEBAR_MAX, SIDEBAR_MIN, useShellStore } from '@/features/shell/store';
+import { normaliseWidth, SIDEBAR_MAX, SIDEBAR_MIN, useShellStore } from '@/features/shell/stores/shell-store';
 import { cn } from '@/lib/cn';
 import { useTranslation } from '@/lib/i18n';
 

@@ -1,11 +1,16 @@
 import type { JSX } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 
 import { cn } from '@/lib/cn';
+import { useSearchStore } from '@/lib/core-store/store/search';
 import { useTranslation } from '@/lib/i18n';
 
 const RESULTS = '/search' as const;
+
+/** Spec 2.5: the URL stays the source of truth; the debounce sits in front of it. */
+export const LOCAL_DEBOUNCE_MS = 150;
 
 const FIELD = [
 	'group flex h-9 w-full cursor-text items-center gap-2 rounded-lg px-2',
@@ -19,25 +24,77 @@ const FIELD = [
 
 export function SearchBar(): JSX.Element {
 	const navigate = useNavigate();
-	const router = useRouter();
 	const { t } = useTranslation();
 
 	const location = useRouterState({ select: (state) => state.location });
 	const showingResults = location.pathname === RESULTS;
 	const query = readQuery(location.searchStr);
 
+	const [draft, setDraft] = useState(query);
+	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	function clearPending(): void {
+		if (timer.current !== null) clearTimeout(timer.current);
+		timer.current = null;
+	}
+
+	// The URL is authoritative while it is naming a query: a back button or a deep
+	// link overwrites the draft and discards whatever commit was in flight, so a
+	// stale timer can't undo the navigation.
+	//
+	// Off the results route it names nothing, and syncing there would blank the
+	// field on the way out -- throwing the query away and leaving `open` below
+	// nothing to reopen but an empty search. This field lives in the sidebar and
+	// outlives the route, so the query it is holding outlives it too.
+	useEffect(() => {
+		clearPending();
+		if (showingResults) setDraft(query);
+	}, [query, showingResults]);
+
+	useEffect(() => () => clearPending(), []);
+
 	function commit(next: string): void {
+		// Emptying the field asks for an empty search, not for a different page.
+		// This popped history instead, which landed wherever the stack happened
+		// to point: home, an older search -- refilling the field with the query
+		// just deleted -- or the arrow page you had come back from. Replacing
+		// keeps the cursor where it is, on a results route with nothing in it.
 		if (next === '') {
-			router.history.back();
+			if (showingResults) void navigate({ to: RESULTS, search: { q: '' }, replace: true });
 			return;
 		}
 
 		void navigate({ to: RESULTS, search: { q: next }, replace: showingResults });
 	}
 
+	function change(next: string): void {
+		setDraft(next);
+		clearPending();
+		timer.current = setTimeout(() => {
+			timer.current = null;
+			commit(next);
+		}, LOCAL_DEBOUNCE_MS);
+	}
+
+	function submit(): void {
+		clearPending();
+		// Spec 2.2: Enter fires the pass now, not after 600ms of stillness. The
+		// mounted controller lives behind the /search route, a sibling of this
+		// field, so the request travels through the store.
+		if (draft.trim() !== '') useSearchStore.getState().requestSubmit(draft);
+		commit(draft);
+	}
+
+	// Focusing reopens whatever the field is still holding, so the field and the
+	// results always name the same query. Clearing the field is what asks for an
+	// empty search, and the only thing that does.
 	function open(): void {
 		if (showingResults) return;
-		void navigate({ to: RESULTS, search: { q: '' } });
+		// Reopening restores a screen rather than asking for a search: Lane A
+		// rebuilds it from the vault the last pass filled, and the git hosts are
+		// left alone until the query actually changes or Enter asks for them.
+		useSearchStore.getState().requestRestore(draft);
+		void navigate({ to: RESULTS, search: { q: draft } });
 	}
 
 	return (
@@ -50,9 +107,12 @@ export function SearchBar(): JSX.Element {
 			</span>
 			<input
 				type="text"
-				value={query}
+				value={draft}
 				onFocus={open}
-				onChange={(event) => commit(event.target.value)}
+				onChange={(event) => change(event.target.value)}
+				onKeyDown={(event) => {
+					if (event.key === 'Enter') submit();
+				}}
 				aria-label={t('search.label')}
 				placeholder={t('search.placeholder')}
 				className={cn(

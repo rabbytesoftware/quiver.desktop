@@ -1,0 +1,141 @@
+import { type JSX, useLayoutEffect, useMemo, useRef, useState } from 'react';
+
+import { SearchInspector } from '@/features/search/components/search-inspector';
+import { useSearch } from '@/features/search/hooks/use-search';
+import type { FacetKind } from '@/features/search/lib/narrow';
+import { NO_SELECTION, applySelection, toggle } from '@/features/search/lib/narrow';
+import type { SortKey } from '@/features/search/lib/sort';
+import { DEFAULT_SORT, sortEntries } from '@/features/search/lib/sort';
+import { useSearchStore } from '@/lib/core-store/store/search';
+import { useTranslation } from '@/lib/i18n';
+
+import { EmptyState } from './empty-states';
+import { ResultGrid } from './result-grid';
+import { ResultsHeader } from './results-header';
+import { SearchFacets } from './search-facets';
+
+interface ResultsScreenProps {
+	query: string;
+}
+
+/**
+ * Ordinary flow content, not a scroll container: `AppShell` already scrolls its
+ * content column (app-shell.tsx:45), so a second `overflow-y-auto` here would
+ * nest scrollers and strand the header inside the inner one instead of letting
+ * it scroll away with the results.
+ */
+export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
+	useSearch(query);
+
+	const { t, locale } = useTranslation();
+
+	const phase = useSearchStore((s) => s.phase);
+	const local = useSearchStore((s) => s.local);
+	const streamed = useSearchStore((s) => s.streamed);
+	const job = useSearchStore((s) => s.job);
+	const summary = useSearchStore((s) => s.summary);
+	const localError = useSearchStore((s) => s.localError);
+	const passFailed = useSearchStore((s) => s.passFailed);
+
+	const [inspecting, setInspecting] = useState(false);
+	const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
+	const [selection, setSelection] = useState(NO_SELECTION);
+
+	// View state, so it belongs to the mount rather than the store -- and a new
+	// query is a new answer, whose facets are not the old one's. Adjusted during
+	// render rather than in an effect, so the stale selection is never painted.
+	const [sortedQuery, setSortedQuery] = useState(query);
+	if (sortedQuery !== query) {
+		setSortedQuery(query);
+		// Unguarded: both are the constants this state initialises to, so React
+		// bails on the set when nothing was narrowed or re-sorted. Guarding them
+		// bought nothing and split one rule across three conditions.
+		setSelection(NO_SELECTION);
+		setSort(DEFAULT_SORT);
+	}
+
+	const answer = useMemo(() => [...local, ...streamed], [local, streamed]);
+	const shown = useMemo(
+		() => sortEntries(applySelection(answer, selection), sort, locale),
+		[answer, selection, sort, locale]
+	);
+
+	// Sorting and narrowing are view-level, so both bands are rebuilt from the
+	// result rather than re-partitioned: `ResultGrid` decides the shelves.
+	const fromLocal = useMemo(() => new Set(local), [local]);
+	const shownLocal = useMemo(() => shown.filter((e) => fromLocal.has(e)), [shown, fromLocal]);
+	const shownStreamed = useMemo(() => shown.filter((e) => !fromLocal.has(e)), [shown, fromLocal]);
+
+	const gridRef = useRef<HTMLDivElement>(null);
+	const positions = useRef(new Map<string, DOMRect>());
+
+	// Measure before the store's `local`/`streamed` change moves cards, then
+	// animate from the delta (spec 9.7). jsdom implements neither matchMedia
+	// nor Element.animate, so both are feature-detected rather than assumed.
+	useLayoutEffect(() => {
+		const cards = gridRef.current?.querySelectorAll<HTMLElement>('[data-slot="arrow-card"]') ?? [];
+		const reduced =
+			typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		if (!reduced) {
+			for (const card of cards) {
+				const before = positions.current.get(card.getAttribute('href') ?? '');
+				const after = card.getBoundingClientRect();
+				if (!before) continue;
+				const dx = before.left - after.left;
+				const dy = before.top - after.top;
+				if (dx === 0 && dy === 0) continue;
+				card.animate?.([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], {
+					duration: 420,
+					easing: 'cubic-bezier(.4,0,.2,1)',
+				});
+			}
+		}
+
+		positions.current = new Map([...cards].map((c) => [c.getAttribute('href') ?? '', c.getBoundingClientRect()]));
+	}, [shownLocal, shownStreamed]);
+
+	const narrowedToNothing = shown.length === 0 && answer.length > 0;
+
+	return (
+		<div data-testid="search-page">
+			<ResultsHeader
+				count={shown.length}
+				facets={
+					query === '' ? null : (
+						<SearchFacets
+							entries={answer}
+							onClear={() => setSelection(NO_SELECTION)}
+							onToggle={(kind: FacetKind, value: string) => setSelection((s) => toggle(s, kind, value))}
+							selection={selection}
+						/>
+					)
+				}
+				job={job}
+				onInspect={() => setInspecting(true)}
+				onSortChange={setSort}
+				passFailed={passFailed}
+				phase={phase}
+				query={query}
+				sort={sort}
+				summary={summary}
+			/>
+			<div ref={gridRef}>
+				<ResultGrid local={shownLocal} phase={phase} streamed={shownStreamed} total={answer.length} />
+			</div>
+			{narrowedToNothing && (
+				<p className="px-[18px] text-[12.5px] text-muted-foreground">{t('search.narrow.empty')}</p>
+			)}
+			<EmptyState
+				hasResults={answer.length > 0}
+				localError={localError}
+				passFailed={passFailed}
+				phase={phase}
+				query={query}
+				summary={summary}
+			/>
+
+			<SearchInspector job={job} onOpenChange={setInspecting} open={inspecting} query={query} summary={summary} />
+		</div>
+	);
+}

@@ -10,19 +10,19 @@ vi.mock('@tanstack/react-router-devtools', () => ({ TanStackRouterDevtools: () =
 import { MockIndicator } from '@/components/mock-indicator';
 
 import { useThemeStore } from '@/features/shell';
-import { useShellStore } from '@/features/shell/store';
+import { useShellStore } from '@/features/shell/stores/shell-store';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
 import { createMockBackend, currentMock, disposeMock, installMock } from '@/lib/mock';
 import { setMockCorrected } from '@/lib/mock/server/handlers/config';
-import { useMockStore } from '@/lib/mock/store';
+import { FAULT_KEYS, useMockStore } from '@/lib/mock/store';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 import { routeTree } from '@/routeTree.gen';
 
 import { DeveloperSettings } from './components/tabs/developer';
 import { EngineSettings } from './components/tabs/engine';
 import { GeneralSettings } from './components/tabs/general';
-import { useEngineStore } from './engine/store';
-import { useSettingsUI } from './store';
+import { useEngineStore } from './stores/engine-store';
+import { useSettingsUI } from './stores/settings-store';
 
 let reload: ReturnType<typeof vi.fn>;
 
@@ -136,7 +136,7 @@ describe('the Developer panel', () => {
 		const user = userEvent.setup();
 		render(<DeveloperSettings />);
 
-		expect(screen.getAllByRole('slider', { hidden: true })).toHaveLength(9);
+		expect(screen.getAllByRole('slider', { hidden: true })).toHaveLength(FAULT_KEYS.length);
 		expect(screen.getByRole('button', { name: 'Reset Search' })).toBeDisabled();
 
 		useMockStore.getState().setFault('search', 40);

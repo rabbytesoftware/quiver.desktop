@@ -1,8 +1,8 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { useThemeStore, type ThemePreference } from '@/features/shell';
-import type { SidebarSide } from '@/features/shell/geometry';
-import { useShellStore } from '@/features/shell/store';
+import type { SidebarSide } from '@/features/shell/lib/geometry';
+import { useShellStore } from '@/features/shell/stores/shell-store';
 import {
 	LOCALES,
 	localeForcedByEnv,

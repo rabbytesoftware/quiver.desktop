@@ -1,4 +1,4 @@
-import type { MockArrow, MockCollection, MockProvider } from '../types';
+import type { MockArrow, MockCandidate, MockCollection, MockProvider } from '../types';
 import {
 	arrow,
 	HOST_PLATFORM,
@@ -11,7 +11,7 @@ import {
 	target,
 	variable,
 } from './kit';
-import { DEMO_BANNER, DEMO_ICON } from './media';
+import { bannerFor } from './media';
 
 const NS = 'github.com/rabbyte';
 
@@ -24,8 +24,9 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		version: '1.21.4',
 		state: 'running',
 		tags: ['game', 'server', 'java'],
-		icon: DEMO_ICON,
-		banner: DEMO_BANNER,
+		// One of the few fixtures with a banner, so the card's banner path stays
+		// covered while the rest exercise the icon fallback that ships.
+		banner: bannerFor(`${NS}/minecraft`),
 		requirement: { cpu_cores: 4, memory_gb: 8, disk_gb: 40 },
 		netbridge: [
 			{ name: 'game', protocol: 'tcp', default: 25565, required: true },
@@ -70,7 +71,6 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		version: '0.218.15',
 		state: 'absent',
 		tags: ['game', 'server'],
-		icon: DEMO_ICON,
 		requirement: { cpu_cores: 4, memory_gb: 8, disk_gb: 20 },
 		netbridge: [{ name: 'game', protocol: 'udp', default: 2456, required: true }],
 		variables: [
@@ -229,8 +229,6 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		state: 'absent',
 		user_installed: false,
 		tags: ['game', 'server'],
-		icon: DEMO_ICON,
-		banner: DEMO_BANNER,
 		requirement: { cpu_cores: 8, memory_gb: 16, disk_gb: 60 },
 	}),
 	arrow({
@@ -287,7 +285,103 @@ export const NORMAL_COLLECTIONS: MockCollection[] = [
 	},
 ];
 
+/**
+ * Only the refusals are authored. `returned` is recomputed per pass from the
+ * candidates that actually matched, so a fixture count can never drift away
+ * from the results the pass really produced.
+ */
 export const NORMAL_PROVIDERS: MockProvider[] = [
-	{ host: 'github.com', ok: true, returned: 4 },
+	{ host: 'github.com', ok: true, returned: 0 },
 	{ host: 'gitlab.com', ok: false, returned: 0, reason: 'rate limited', retry_after: 40 },
+];
+
+/**
+ * Arrows a pass can find. Deliberately outside NORMAL_ARROWS: an arrow that is
+ * already installed cannot exercise the merge, which is the whole reason the
+ * network lane exists. Two are unverifiable, so found and verified differ and
+ * the summary has something to report.
+ */
+function found(seed: {
+	namespace: string;
+	name: string;
+	description: string;
+	tags: string[];
+	stars: number;
+	source: string;
+	verifiable?: boolean;
+}): MockCandidate {
+	const { stars, source, verifiable = true, ...rest } = seed;
+	return {
+		verifiable,
+		arrow: arrow({
+			...rest,
+			state: 'absent',
+			user_installed: false,
+			ref: 'v1.0.0',
+			version: '1.0.0',
+			stars,
+			source,
+		}),
+	};
+}
+
+export const NORMAL_DISCOVERABLE: MockCandidate[] = [
+	found({
+		namespace: 'github.com/aetherforge/terraria-server',
+		name: 'Terraria Server',
+		description: 'Dedicated Terraria server with world autosave and a TShock plugin loader.',
+		tags: ['game', 'server'],
+		stars: 1840,
+		source: 'github.com',
+	}),
+	found({
+		namespace: 'github.com/northwind/rust-server',
+		name: 'Rust Server',
+		description: 'Rust dedicated server with wipe scheduling and Oxide mod support.',
+		tags: ['game', 'server'],
+		stars: 962,
+		source: 'github.com',
+	}),
+	found({
+		namespace: 'github.com/loomlabs/factorio-server',
+		name: 'Factorio Headless',
+		description: 'Headless Factorio server with automatic save rotation.',
+		tags: ['game', 'server', 'headless'],
+		stars: 2310,
+		source: 'github.com',
+	}),
+	found({
+		namespace: 'github.com/quietharbor/valheim-plus-server',
+		name: 'Valheim Plus Server',
+		description: 'Valheim dedicated server bundled with the ValheimPlus configuration mod.',
+		tags: ['game', 'server'],
+		stars: 415,
+		source: 'github.com',
+	}),
+	found({
+		namespace: 'github.com/pearline/satisfactory-server',
+		name: 'Satisfactory Server',
+		description: 'Satisfactory dedicated server with blueprint sync.',
+		tags: ['game', 'server'],
+		stars: 733,
+		source: 'github.com',
+	}),
+	found({
+		namespace: 'github.com/dormant/abandoned-server',
+		name: 'Abandoned Server',
+		description: 'Advertised by the topic, but its manifest no longer parses.',
+		tags: ['server'],
+		stars: 3,
+		source: 'github.com',
+		verifiable: false,
+	}),
+	found({
+		namespace: 'github.com/halfbuilt/draft-server',
+		name: 'Draft Server',
+		description: 'Manifest is a work in progress and fails schema validation.',
+		tags: ['server'],
+		stars: 11,
+		source: 'github.com',
+		verifiable: false,
+	}),
 ];

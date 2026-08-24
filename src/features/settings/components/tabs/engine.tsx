@@ -6,8 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 
-import { LEVELS, normaliseLevel } from '@/features/settings/engine/log-level';
-import { useEngineStore } from '@/features/settings/engine/store';
+import { LEVELS, normaliseLevel } from '@/features/settings/lib/log-level';
+import { useEngineStore } from '@/features/settings/stores/engine-store';
 import { useTranslation } from '@/lib/i18n';
 
 import { Notice, Section, SettingRow } from '../section';

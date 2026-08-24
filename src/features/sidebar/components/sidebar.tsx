@@ -1,11 +1,11 @@
 import type { JSX } from 'react';
 
 import { SearchBar } from '@/features/search';
-import { useShellStore } from '@/features/shell/store';
+import { useShellStore } from '@/features/shell/stores/shell-store';
+import { ArrowList } from '@/features/sidebar/components/arrows/arrow-list';
+import { PrimaryNav } from '@/features/sidebar/components/nav/primary-nav';
 import { cn } from '@/lib/cn';
 
-import { ArrowList } from './arrow-list';
-import { PrimaryNav } from './primary-nav';
 import { RailTopBar } from './rail-top-bar';
 import { ResizeHandle } from './resize-handle';
 
