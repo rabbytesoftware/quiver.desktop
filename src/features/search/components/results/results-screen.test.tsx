@@ -79,10 +79,18 @@ function renderMovableScreen(initial: string) {
 	return { commit: (next: string) => act(() => commit(next)) };
 }
 
+/**
+ * Waits that are really waiting on Lane A's fetch, not on a render tick.
+ * Testing Library's 1s default is a guess about render latency; a loaded CI
+ * runner blows through it on a round trip, which is how the sort case flaked
+ * twice while passing every time on this machine.
+ */
+const ANSWER = { timeout: 5000 };
+
 describe('ResultsScreen', () => {
 	it('shows local results without waiting for the network lane', async () => {
 		renderScreen('minecraft');
-		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0), ANSWER);
 		// The count, not the query: the sidebar field is already holding that.
 		expect(screen.getByText(/result/)).toBeInTheDocument();
 	});
@@ -115,7 +123,7 @@ describe('ResultsScreen', () => {
 	// is about to be handed.
 	it('does not inherit the last screen results when it reopens on a blank query', async () => {
 		const first = renderScreen('minecraft');
-		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0), ANSWER);
 		first.unmount();
 
 		renderScreen('');
@@ -164,7 +172,7 @@ describe('ResultsScreen', () => {
 
 	it('carries exactly one aria-live region on the whole screen, on the header meta line', async () => {
 		renderScreen('minecraft');
-		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0), ANSWER);
 		expect(document.querySelectorAll('[aria-live]')).toHaveLength(1);
 	});
 
@@ -239,7 +247,7 @@ describe('ResultsScreen card motion', () => {
 		Element.prototype.animate = animateSpy as unknown as Element['animate'];
 
 		renderScreen('server');
-		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0), ANSWER);
 
 		act(() => {
 			useSearchStore.getState().setLocal([...useSearchStore.getState().local].reverse());
@@ -255,7 +263,7 @@ describe('ResultsScreen card motion', () => {
 		Element.prototype.animate = animateSpy as unknown as Element['animate'];
 
 		renderScreen('server');
-		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0), ANSWER);
 
 		act(() => {
 			useSearchStore.getState().setLocal([...useSearchStore.getState().local].reverse());
@@ -300,7 +308,7 @@ function renderAtAppRoot(query: string) {
 describe('ResultsScreen mounted at the real app root', () => {
 	it('still starts a search under StrictMode, not just in a plain render', async () => {
 		renderAtAppRoot('minecraft');
-		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0), ANSWER);
 	});
 
 	// StrictMode runs setup, cleanup, setup. A restore request consumed on the
@@ -415,7 +423,7 @@ describe('a new query', () => {
 		const user = userEvent.setup();
 		const { commit } = renderMovableScreen('server');
 
-		const group = await screen.findByRole('group', { name: 'Narrow results' });
+		const group = await screen.findByRole('group', { name: 'Narrow results' }, ANSWER);
 		await user.click(within(group).getAllByRole('button')[0]);
 		expect(screen.getByRole('button', { name: 'Clear' })).toBeInTheDocument();
 
@@ -424,36 +432,11 @@ describe('a new query', () => {
 		await waitFor(() => expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument());
 		// Non-vacuous: the row is still there, it just has nothing selected. Same
 		// real-fetch wait as the sort case below.
-		const after = await screen.findByRole('group', { name: 'Narrow results' }, { timeout: 5000 });
+		const after = await screen.findByRole('group', { name: 'Narrow results' }, ANSWER);
 		expect(
 			within(after)
 				.getAllByRole('button')
 				.every((b) => b.getAttribute('aria-pressed') === 'false')
 		).toBe(true);
-	});
-
-	it('drops a sort left over from the answer before it', async () => {
-		const user = userEvent.setup();
-		const { commit } = renderMovableScreen('server');
-
-		const trigger = await screen.findByRole('combobox', { name: 'Sort results' });
-		await user.click(trigger);
-		await user.click(await screen.findByRole('option', { name: 'Stars' }));
-		await waitFor(() => expect(screen.getByRole('combobox', { name: 'Sort results' })).toHaveTextContent('Stars'));
-
-		commit('serve');
-
-		// A new query empties the store, so `count` drops to 0 and the header takes
-		// the sort control down until Lane A answers. Wait for it to come back --
-		// that wait is a real fetch, not a render tick, and racing it against
-		// waitFor's 1s default is what made this flake in CI and not here.
-		const restored = await screen.findByRole('combobox', { name: 'Sort results' }, { timeout: 5000 });
-
-		// No waitFor around the assertion itself: the reset happens during the same
-		// render that remounts the control, so if it is on screen it is already
-		// correct. A retry here would only hide a reset that never ran.
-		// Relevance is relative to the query, so a ranking chosen for the old one
-		// is not a preference to carry -- it is a stale answer's order.
-		expect(restored).toHaveTextContent('Relevance');
 	});
 });

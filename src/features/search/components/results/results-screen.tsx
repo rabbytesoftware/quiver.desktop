@@ -3,7 +3,7 @@ import { type JSX, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { SearchInspector } from '@/features/search/components/search-inspector';
 import { useSearch } from '@/features/search/hooks/use-search';
 import type { FacetKind } from '@/features/search/lib/narrow';
-import { NO_SELECTION, applySelection, isNarrowed, toggle } from '@/features/search/lib/narrow';
+import { NO_SELECTION, applySelection, toggle } from '@/features/search/lib/narrow';
 import type { SortKey } from '@/features/search/lib/sort';
 import { DEFAULT_SORT, sortEntries } from '@/features/search/lib/sort';
 import { useSearchStore } from '@/lib/core-store/store/search';
@@ -47,8 +47,11 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 	const [sortedQuery, setSortedQuery] = useState(query);
 	if (sortedQuery !== query) {
 		setSortedQuery(query);
-		if (isNarrowed(selection)) setSelection(NO_SELECTION);
-		if (sort !== DEFAULT_SORT) setSort(DEFAULT_SORT);
+		// Unguarded: both are the constants this state initialises to, so React
+		// bails on the set when nothing was narrowed or re-sorted. Guarding them
+		// bought nothing and split one rule across three conditions.
+		setSelection(NO_SELECTION);
+		setSort(DEFAULT_SORT);
 	}
 
 	const answer = useMemo(() => [...local, ...streamed], [local, streamed]);
