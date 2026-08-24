@@ -21,13 +21,46 @@ async function boot() {
 	const { apiFetch } = await import('@/lib/transport/api');
 
 	await setupListeners();
-	await realDelay(700);
+	await booted(useStatusStore, useArrowStore);
 
 	return { useArrowStore, useStatusStore, apiFetch };
 }
 
 function realDelay(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Waits for the boot to land rather than guessing how long it takes. This
+ * replaced a flat `realDelay(700)`, which was enough on an idle machine and not
+ * under coverage instrumentation: `carries media through the nested DTO shape`
+ * failed about one run in eight, reading an arrow the projection had not written
+ * yet, while `npm test` stayed green because it runs faster than `test:coverage`.
+ *
+ * Settling is two conditions, not one. `status: ready` says the daemon answered;
+ * a catalog size that stops moving says the projection has finished draining the
+ * seed behind it. Waiting on `ready` alone reintroduces the same race.
+ */
+async function booted(
+	useStatusStore: { getState: () => { status: string } },
+	useArrowStore: { getState: () => { arrows: Map<string, unknown> } }
+): Promise<void> {
+	const deadline = Date.now() + 10_000;
+	let previous = -1;
+	let stable = 0;
+
+	while (Date.now() < deadline) {
+		const size = useArrowStore.getState().arrows.size;
+		const ready = useStatusStore.getState().status === 'ready';
+
+		stable = ready && size > 0 && size === previous ? stable + 1 : 0;
+		if (stable >= 3) return;
+
+		previous = size;
+		await realDelay(20);
+	}
+
+	throw new Error('the mock never booted: status or catalog never settled');
 }
 
 beforeEach(() => {
