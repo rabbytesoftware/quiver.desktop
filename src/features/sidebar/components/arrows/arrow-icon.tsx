@@ -26,8 +26,11 @@ function monogram(name: string): string {
 
 const AVATAR = cn(ROW_GLYPH_BOX, 'overflow-hidden rounded-sm bg-transparent');
 
+// 0.425 * 20px (the sidebar's --icon) = 8.5px, identical to the old fixed
+// value there -- but now genuinely proportional at any other --icon size
+// (e.g. a 44px collection-detail badge), not just correct by coincidence.
 const MONOGRAM =
-	'size-full rounded-none bg-transparent text-[8.5px] font-[700] leading-(--icon) tracking-[0] text-white uppercase';
+	'size-full rounded-none bg-transparent text-[calc(var(--icon)*0.425)] font-[700] leading-(--icon) tracking-[0] text-white uppercase';
 
 interface ArrowIconProps {
 	namespace: string;

@@ -5,7 +5,9 @@ import { Link } from '@tanstack/react-router';
 import type { SearchEntry, SearchProvenance } from '@/domain/search';
 import { isHeld } from '@/domain/search';
 import { cn } from '@/lib/cn';
+import { cssUrl } from '@/lib/css';
 import { useTranslation } from '@/lib/i18n';
+import { ownerOf } from '@/lib/namespace';
 
 import '@/features/search/styles/card.css';
 
@@ -39,15 +41,6 @@ const INFO = [
 ].join(' ');
 
 /**
- * Manifests come from arbitrary repositories, so a media URL is untrusted text
- * being spliced into a CSS declaration. Quoting it as a CSS string is what stops
- * a crafted `banner` from closing `url(` and appending declarations of its own.
- */
-function cssUrl(url: string): string {
-	return `url(${JSON.stringify(url)})`;
-}
-
-/**
  * Only a real banner becomes a background image now. The icon-only case is the
  * common one (spec 8.1.1: of the arrows reachable through discovery, every one
  * carries an icon and none carries a banner), and painting a 36px mark on flat
@@ -58,15 +51,9 @@ function bannerStyle(entry: SearchEntry): CSSProperties | undefined {
 	return entry.banner ? { backgroundImage: cssUrl(entry.banner) } : undefined;
 }
 
-/** `github.com/PaperMC/Paper` -> `PaperMC`; the host is already the source. */
-function owner(namespace: string): string {
-	const parts = namespace.split('/');
-	return parts.length > 2 ? parts[parts.length - 2] : parts[0];
-}
-
 /** The description is what the caption is for; the host is the fallback. */
 function subtitle(entry: SearchEntry): string {
-	return entry.description.trim() === '' ? owner(entry.namespace) : entry.description;
+	return entry.description.trim() === '' ? ownerOf(entry.namespace) : entry.description;
 }
 
 /**
@@ -135,7 +122,7 @@ export function ArrowCard({ entry }: { entry: SearchEntry }): JSX.Element {
 							)}
 							<span data-slot="drawn-type">
 								<span data-slot="drawn-name">{entry.name}</span>
-								<span data-slot="drawn-owner">{owner(entry.namespace)}</span>
+								<span data-slot="drawn-owner">{ownerOf(entry.namespace)}</span>
 							</span>
 						</span>
 					)}

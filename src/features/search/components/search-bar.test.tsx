@@ -8,10 +8,15 @@ import {
 } from '@tanstack/react-router';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LOCAL_DEBOUNCE_MS, SearchBar } from '@/features/search';
+import { resolveNamespaceTarget } from '@/features/search/api/resolve-namespace';
 import { useSearchStore } from '@/lib/core-store/store/search';
+
+vi.mock('@/features/search/api/resolve-namespace', () => ({ resolveNamespaceTarget: vi.fn() }));
+
+const mockResolveNamespaceTarget = vi.mocked(resolveNamespaceTarget);
 
 async function renderField(initialEntries = ['/']) {
 	const rootRoute = createRootRoute({
@@ -33,9 +38,19 @@ async function renderField(initialEntries = ['/']) {
 		validateSearch: (search: Record<string, unknown>) => ({ q: typeof search.q === 'string' ? search.q : '' }),
 		component: () => <div data-testid="search-page" />,
 	});
+	const arrowRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: '/arrow/$',
+		component: () => <div data-testid="arrow-page" />,
+	});
+	const collectionRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: '/collection/$',
+		component: () => <div data-testid="collection-page" />,
+	});
 
 	const router = createRouter({
-		routeTree: rootRoute.addChildren([indexRoute, searchRoute]),
+		routeTree: rootRoute.addChildren([indexRoute, searchRoute, arrowRoute, collectionRoute]),
 		history: createMemoryHistory({ initialEntries }),
 	});
 
@@ -47,6 +62,11 @@ async function renderField(initialEntries = ['/']) {
 }
 
 describe('SearchBar', () => {
+	beforeEach(() => {
+		mockResolveNamespaceTarget.mockReset();
+		mockResolveNamespaceTarget.mockResolvedValue(null);
+	});
+
 	it('names what is searched, not the act of searching', async () => {
 		const { input } = await renderField();
 		expect(input).toHaveAttribute('placeholder', 'Search Arrows');
@@ -297,9 +317,21 @@ describe('SearchBar', () => {
 		const { input, router, user } = await renderField(['/search?q=']);
 
 		await user.type(input, 'serv{Enter}');
-		expect(router.state.location.search).toEqual({ q: 'serv' });
+		// Enter now awaits a (mocked, here) namespace check before committing --
+		// a microtask hop past what `user.type` itself waits out.
+		await waitFor(() => expect(router.state.location.search).toEqual({ q: 'serv' }));
 
 		vi.useRealTimers();
+	});
+
+	it('does not check for a namespace, or start a search, when Enter is pressed on an empty field', async () => {
+		const { input, router, user } = await renderField(['/search?q=']);
+
+		await user.click(input);
+		await user.keyboard('{Enter}');
+
+		expect(mockResolveNamespaceTarget).not.toHaveBeenCalled();
+		expect(router.state.location.search).toEqual({ q: '' });
 	});
 
 	it('does not let a stale debounce undo a back-navigation that lands before it fires', async () => {
@@ -320,5 +352,84 @@ describe('SearchBar', () => {
 		expect(router.history.length).toBe(2);
 
 		vi.useRealTimers();
+	});
+
+	describe('Enter redirecting to a resolved namespace', () => {
+		it('goes straight to the collection page instead of searching', async () => {
+			mockResolveNamespaceTarget.mockResolvedValue({
+				kind: 'collection',
+				namespace: 'github.com/rabbyte/game-servers',
+			});
+			const { input, router, user } = await renderField();
+
+			await user.type(input, 'github.com/rabbyte/game-servers{Enter}');
+
+			expect(await screen.findByTestId('collection-page')).toBeInTheDocument();
+			expect(router.state.location.pathname).toBe('/collection/github.com/rabbyte/game-servers');
+		});
+
+		it('goes straight to the arrow page instead of searching', async () => {
+			mockResolveNamespaceTarget.mockResolvedValue({
+				kind: 'arrow',
+				namespace: 'github.com/rabbyte/minecraft@v1.21.4',
+			});
+			const { input, router, user } = await renderField();
+
+			await user.type(input, 'github.com/rabbyte/minecraft@v1.21.4{Enter}');
+
+			// The router percent-encodes `@` in a splat segment (see
+			// collection-arrow-tile.test.tsx for the same rule on the Link side).
+			expect(await screen.findByTestId('arrow-page')).toBeInTheDocument();
+			expect(router.state.location.pathname).toBe('/arrow/github.com/rabbyte/minecraft%40v1.21.4');
+		});
+
+		it('does not also start a search pass for text it redirected on', async () => {
+			useSearchStore.getState().clearSubmit();
+			mockResolveNamespaceTarget.mockResolvedValue({
+				kind: 'collection',
+				namespace: 'github.com/rabbyte/game-servers',
+			});
+			const { input, user } = await renderField();
+
+			await user.type(input, 'github.com/rabbyte/game-servers{Enter}');
+
+			await screen.findByTestId('collection-page');
+			expect(useSearchStore.getState().submitQuery).toBeNull();
+		});
+
+		it('searches normally when nothing resolves', async () => {
+			mockResolveNamespaceTarget.mockResolvedValue(null);
+			const { input, router, user } = await renderField();
+
+			await user.type(input, 'github.com/rabbyte/unknown-thing{Enter}');
+
+			await waitFor(() =>
+				expect(router.state.location.search).toEqual({ q: 'github.com/rabbyte/unknown-thing' })
+			);
+			expect(router.state.location.pathname).toBe('/search');
+		});
+
+		it('searches normally when the namespace check itself fails', async () => {
+			mockResolveNamespaceTarget.mockRejectedValue(new Error('backend unreachable'));
+			const { input, router, user } = await renderField();
+
+			await user.type(input, 'github.com/rabbyte/game-servers{Enter}');
+
+			await waitFor(() => expect(router.state.location.search).toEqual({ q: 'github.com/rabbyte/game-servers' }));
+			expect(router.state.location.pathname).toBe('/search');
+		});
+
+		it('never checks while merely typing -- only Enter can redirect', async () => {
+			mockResolveNamespaceTarget.mockResolvedValue({
+				kind: 'collection',
+				namespace: 'github.com/rabbyte/game-servers',
+			});
+			const { input, router, user } = await renderField();
+
+			await user.type(input, 'github.com/rabbyte/game-servers');
+
+			await waitFor(() => expect(router.state.location.pathname).toBe('/search'));
+			expect(mockResolveNamespaceTarget).not.toHaveBeenCalled();
+		});
 	});
 });

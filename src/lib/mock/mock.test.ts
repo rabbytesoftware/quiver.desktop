@@ -120,13 +120,15 @@ describe('the normal scenario', () => {
 		expect(detail.last_return.steps.filter((s) => s.status === 'pending')).toHaveLength(2);
 	});
 
-	it('ships a collection member that does not resolve, with a reason', async () => {
-		const detail = await get<{ arrows: Array<{ resolved: boolean; reason?: string }> }>(
+	it('ships a collection member that does not resolve, with no name and no reason', async () => {
+		const detail = await get<{ arrows: Array<{ namespace: string; resolved: boolean; name?: string }> }>(
 			`/v0/collection/${encodeURIComponent(`${NS}/game-servers`)}`
 		);
 		const unresolved = detail.arrows.filter((a) => !a.resolved);
 		expect(unresolved).toHaveLength(1);
-		expect(unresolved[0].reason).toMatch(/yanked/);
+		expect(unresolved[0].namespace).toMatch(/ark-survival/);
+		expect(unresolved[0].name).toBeUndefined();
+		expect(unresolved[0]).not.toHaveProperty('reason');
 	});
 
 	it('ships a package with no methods at all', async () => {

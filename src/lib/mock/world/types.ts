@@ -79,7 +79,13 @@ export interface MockArrow {
 export interface MockCollectionMember {
 	namespace: string;
 	resolved: boolean;
-	reason?: string;
+	name?: string;
+	description?: string;
+}
+
+export interface MockCollectionMedia {
+	icon?: string;
+	banner?: string;
 }
 
 export interface MockCollection {
@@ -88,6 +94,9 @@ export interface MockCollection {
 	description: string;
 	maintainers: string[];
 	followed: boolean;
+	url?: string;
+	tags: string[];
+	media?: MockCollectionMedia;
 	arrows: MockCollectionMember[];
 }
 

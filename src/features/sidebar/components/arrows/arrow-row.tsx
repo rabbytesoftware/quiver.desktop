@@ -3,10 +3,10 @@ import type { JSX } from 'react';
 import { Link } from '@tanstack/react-router';
 
 import type { ArrowEntry } from '@/domain/arrow';
-import { splitNamespace } from '@/features/sidebar/lib/namespace';
 import { blockReselect } from '@/features/sidebar/lib/reselect';
 import { ROW_ACTIVE, ROW_BASE, ROW_INACTIVE, ROW_SUBLABEL } from '@/features/sidebar/lib/row-base';
 import { cn } from '@/lib/cn';
+import { splitNamespace } from '@/lib/namespace';
 
 import { ArrowIcon } from './arrow-icon';
 

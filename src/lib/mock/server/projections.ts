@@ -104,21 +104,30 @@ export function toSearchResultDTO(
 	};
 }
 
+/** Matches quiver.core's real CollectionListItemDTO -- no maintainers, no media at list level. */
 export function toCollectionListDTO(collection: MockCollection): unknown {
 	return {
 		namespace: collection.namespace,
 		name: collection.name,
 		description: collection.description,
-		maintainers: collection.maintainers,
-		followed: collection.followed,
+		tags: collection.tags,
 		arrow_count: collection.arrows.length,
+		followed: collection.followed,
 	};
 }
 
+/** Matches quiver.core's real CollectionDetailDTO: url/media are only present on the wire when set. */
 export function toCollectionDetailDTO(collection: MockCollection): unknown {
 	return {
-		...(toCollectionListDTO(collection) as object),
+		namespace: collection.namespace,
+		name: collection.name,
+		description: collection.description,
+		...(collection.url ? { url: collection.url } : {}),
+		maintainers: collection.maintainers,
+		tags: collection.tags,
+		...(collection.media ? { media: collection.media } : {}),
 		arrows: collection.arrows,
+		followed: collection.followed,
 	};
 }
 

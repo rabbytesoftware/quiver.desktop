@@ -260,15 +260,34 @@ export const NORMAL_COLLECTIONS: MockCollection[] = [
 		description: 'Everything needed to host a weekend with friends.',
 		maintainers: ['rabbyte'],
 		followed: true,
+		url: `https://${NS}/game-servers`,
+		tags: ['gaming', 'self-hosted'],
+		// One of the few fixtures with a banner (matches the game-servers
+		// arrows' own "one of the few" banner convention above), so the
+		// no-banner path stays covered by Homelab Essentials below instead.
+		media: { banner: bannerFor(`${NS}/game-servers`) },
 		arrows: [
-			{ namespace: `${NS}/minecraft@v1.21.4`, resolved: true },
-			{ namespace: `${NS}/terraria@v1.4.4.9`, resolved: true },
-			{ namespace: `${NS}/factorio@v2.0.28`, resolved: true },
 			{
-				namespace: `${NS}/ark-survival@v3.1.0`,
-				resolved: false,
-				reason: 'ref v3.1.0 was yanked upstream',
+				namespace: `${NS}/minecraft@v1.21.4`,
+				resolved: true,
+				name: 'Minecraft Server',
+				description: 'Vanilla Minecraft dedicated server with automatic world backups.',
 			},
+			{
+				namespace: `${NS}/terraria@v1.4.4.9`,
+				resolved: true,
+				name: 'Terraria Server',
+				description: 'tModLoader-compatible Terraria dedicated server.',
+			},
+			{
+				namespace: `${NS}/factorio@v2.0.28`,
+				resolved: true,
+				name: 'Factorio Headless',
+				description: 'Headless Factorio server for co-op games.',
+			},
+			// Unresolved: core never sends name/description for these, and
+			// there is no `reason` field anywhere in the real API for why.
+			{ namespace: `${NS}/ark-survival@v3.1.0`, resolved: false },
 		],
 	},
 	{
@@ -277,10 +296,29 @@ export const NORMAL_COLLECTIONS: MockCollection[] = [
 		description: 'Reverse proxy, database, metrics.',
 		maintainers: ['rabbyte', 'char2cs'],
 		followed: false,
+		tags: ['ops'],
+		// No media at all -- the common case (per media.ts's own arrow
+		// convention: most fixtures carry no banner either) -- so the
+		// no-banner, single-column header layout has real fixture coverage.
 		arrows: [
-			{ namespace: `${NS}/caddy@v2.8.4`, resolved: true },
-			{ namespace: `${NS}/postgres@v17.2`, resolved: true },
-			{ namespace: `${NS}/grafana@v11.4.0`, resolved: true },
+			{
+				namespace: `${NS}/caddy@v2.8.4`,
+				resolved: true,
+				name: 'Caddy',
+				description: 'Automatic-HTTPS reverse proxy.',
+			},
+			{
+				namespace: `${NS}/postgres@v17.2`,
+				resolved: true,
+				name: 'PostgreSQL',
+				description: 'PostgreSQL 17 with the timescale extension preinstalled.',
+			},
+			{
+				namespace: `${NS}/grafana@v11.4.0`,
+				resolved: true,
+				name: 'Grafana',
+				description: 'Dashboards for the metrics your arrows emit.',
+			},
 		],
 	},
 ];

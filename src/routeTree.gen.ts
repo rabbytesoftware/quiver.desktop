@@ -13,6 +13,7 @@ import { Route as SettingsRouteImport } from "./routes/settings"
 import { Route as SearchRouteImport } from "./routes/search"
 import { Route as RemoteRouteImport } from "./routes/remote"
 import { Route as IndexRouteImport } from "./routes/index"
+import { Route as CollectionSplatRouteImport } from "./routes/collection.$"
 import { Route as ArrowSplatRouteImport } from "./routes/arrow.$"
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -35,6 +36,11 @@ const IndexRoute = IndexRouteImport.update({
   path: "/",
   getParentRoute: () => rootRouteImport,
 } as any)
+const CollectionSplatRoute = CollectionSplatRouteImport.update({
+  id: "/collection/$",
+  path: "/collection/$",
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ArrowSplatRoute = ArrowSplatRouteImport.update({
   id: "/arrow/$",
   path: "/arrow/$",
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   "/search": typeof SearchRoute
   "/settings": typeof SettingsRoute
   "/arrow/$": typeof ArrowSplatRoute
+  "/collection/$": typeof CollectionSplatRoute
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   "/search": typeof SearchRoute
   "/settings": typeof SettingsRoute
   "/arrow/$": typeof ArrowSplatRoute
+  "/collection/$": typeof CollectionSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +70,27 @@ export interface FileRoutesById {
   "/search": typeof SearchRoute
   "/settings": typeof SettingsRoute
   "/arrow/$": typeof ArrowSplatRoute
+  "/collection/$": typeof CollectionSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: "/" | "/remote" | "/search" | "/settings" | "/arrow/$"
+  fullPaths:
+    | "/"
+    | "/remote"
+    | "/search"
+    | "/settings"
+    | "/arrow/$"
+    | "/collection/$"
   fileRoutesByTo: FileRoutesByTo
-  to: "/" | "/remote" | "/search" | "/settings" | "/arrow/$"
-  id: "__root__" | "/" | "/remote" | "/search" | "/settings" | "/arrow/$"
+  to: "/" | "/remote" | "/search" | "/settings" | "/arrow/$" | "/collection/$"
+  id:
+    | "__root__"
+    | "/"
+    | "/remote"
+    | "/search"
+    | "/settings"
+    | "/arrow/$"
+    | "/collection/$"
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,6 +99,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   ArrowSplatRoute: typeof ArrowSplatRoute
+  CollectionSplatRoute: typeof CollectionSplatRoute
 }
 
 declare module "@tanstack/react-router" {
@@ -109,6 +132,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    "/collection/$": {
+      id: "/collection/$"
+      path: "/collection/$"
+      fullPath: "/collection/$"
+      preLoaderRoute: typeof CollectionSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/arrow/$": {
       id: "/arrow/$"
       path: "/arrow/$"
@@ -125,6 +155,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   ArrowSplatRoute: ArrowSplatRoute,
+  CollectionSplatRoute: CollectionSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

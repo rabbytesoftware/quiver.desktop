@@ -117,12 +117,13 @@ export function buildExtremeCollections(arrows: MockArrow[]): MockCollection[] {
 		const size = intBetween(rng, 4, 14);
 		const members: MockCollectionMember[] = Array.from({ length: size }, () => {
 			const m = pick(rng, arrows);
-			return { namespace: `${m.namespace}@${m.ref}`, resolved: true };
+			return { namespace: `${m.namespace}@${m.ref}`, resolved: true, name: m.name, description: m.description };
 		});
+		// Unresolved: core never sends name/description for these, and there is
+		// no `reason` field anywhere in the real API for why one failed.
 		members.push({
 			namespace: `github.com/quiver-demo/missing-${i}@v1.0.0`,
 			resolved: false,
-			reason: 'host unreachable',
 		});
 
 		return {
@@ -131,6 +132,7 @@ export function buildExtremeCollections(arrows: MockArrow[]): MockCollection[] {
 			description: `Generated collection ${i + 1}, ${size} members.`,
 			maintainers: ['quiver-demo'],
 			followed: i % 3 === 0,
+			tags: [],
 			arrows: members.filter(
 				(member, idx, all) => all.findIndex((x) => x.namespace === member.namespace) === idx
 			),
