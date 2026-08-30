@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react';
 import type { CSSProperties } from 'react';
+
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 
 import { ArrowIcon } from './arrow-icon';

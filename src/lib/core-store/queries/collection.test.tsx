@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react';
+
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { apiFetch } from '@/lib/transport/api';
@@ -53,6 +54,9 @@ describe('useCollectionDetail', () => {
 
 describe('collectionQueryKey', () => {
 	it('builds a stable key from the namespace', () => {
-		expect(collectionQueryKey('github.com/rabbyte/game-servers')).toEqual(['collection', 'github.com/rabbyte/game-servers']);
+		expect(collectionQueryKey('github.com/rabbyte/game-servers')).toEqual([
+			'collection',
+			'github.com/rabbyte/game-servers',
+		]);
 	});
 });

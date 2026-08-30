@@ -5,7 +5,9 @@ import { UnresolvedArrowsDialog } from './unresolved-arrows-dialog';
 
 describe('UnresolvedArrowsDialog', () => {
 	it('lists the bare routes with no invented explanation', () => {
-		render(<UnresolvedArrowsDialog open onOpenChange={vi.fn()} routes={['github.com/rabbyte/ark-survival@v3.1.0']} />);
+		render(
+			<UnresolvedArrowsDialog open onOpenChange={vi.fn()} routes={['github.com/rabbyte/ark-survival@v3.1.0']} />
+		);
 		expect(screen.getByText('github.com/rabbyte/ark-survival@v3.1.0')).toBeInTheDocument();
 	});
 

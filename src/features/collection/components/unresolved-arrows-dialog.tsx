@@ -18,8 +18,9 @@ export function UnresolvedArrowsDialog({ open, onOpenChange, routes }: Unresolve
 				<DialogHeader>
 					<DialogTitle>Unresolved arrows</DialogTitle>
 					<DialogDescription>
-						Quiver couldn't resolve these routes -- there's no name, version, or reason to show, only what was asked
-						for.
+						{
+							"Quiver couldn't resolve these routes -- there's no name, version, or reason to show, only what was asked for."
+						}
 					</DialogDescription>
 				</DialogHeader>
 				<DialogPanel>

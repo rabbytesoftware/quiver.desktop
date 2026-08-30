@@ -16,9 +16,9 @@ export function CollectionDetailScreen({ namespace }: CollectionDetailScreenProp
 	const { data, isLoading, isError } = useCollectionDetail(namespace);
 	const [unresolvedOpen, setUnresolvedOpen] = useState(false);
 
-	if (!namespace) return <div className="collection-error">Couldn't load this collection.</div>;
+	if (!namespace) return <div className="collection-error">{"Couldn't load this collection."}</div>;
 	if (isLoading) return <div className="collection-loading">Loading...</div>;
-	if (isError || !data) return <div className="collection-error">Couldn't load this collection.</div>;
+	if (isError || !data) return <div className="collection-error">{"Couldn't load this collection."}</div>;
 
 	// toCollectionArrow (dtos/v0/collection.ts) already splits the version off
 	// `namespace` on every member regardless of resolved status -- an
@@ -26,7 +26,10 @@ export function CollectionDetailScreen({ namespace }: CollectionDetailScreenProp
 	// `arrow.version` is populated here too. Reattach it: the dialog is
 	// supposed to show the exact route that was asked for
 	// (github.com/rabbyte/ark-survival@v3.1.0), not the bare package path.
-	const unresolvedRoutes = data.arrows.filter((arrow) => !arrow.resolved).map(collectionArrowRoute);
+	const unresolvedRoutes = data.arrows.reduce<string[]>((routes, arrow) => {
+		if (!arrow.resolved) routes.push(collectionArrowRoute(arrow));
+		return routes;
+	}, []);
 
 	return (
 		<div className="collection-detail-screen">

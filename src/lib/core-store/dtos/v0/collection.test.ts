@@ -4,7 +4,11 @@ import { toCollectionArrow, toCollectionListItem, toCollectionDetail } from './c
 
 describe('toCollectionArrow', () => {
 	it('splits the version out of a versioned namespace', () => {
-		const arrow = toCollectionArrow({ namespace: 'github.com/rabbyte/minecraft@v1.21.4', resolved: true, name: 'Minecraft Server' });
+		const arrow = toCollectionArrow({
+			namespace: 'github.com/rabbyte/minecraft@v1.21.4',
+			resolved: true,
+			name: 'Minecraft Server',
+		});
 		expect(arrow.namespace).toBe('github.com/rabbyte/minecraft');
 		expect(arrow.version).toBe('v1.21.4');
 		expect(arrow.name).toBe('Minecraft Server');
@@ -27,7 +31,14 @@ describe('toCollectionArrow', () => {
 describe('toCollectionListItem', () => {
 	it('maps required fields', () => {
 		const item = toCollectionListItem({ namespace: 'ns', name: 'Col', arrow_count: 3, followed: true });
-		expect(item).toEqual({ namespace: 'ns', name: 'Col', description: '', tags: [], followed: true, arrowCount: 3 });
+		expect(item).toEqual({
+			namespace: 'ns',
+			name: 'Col',
+			description: '',
+			tags: [],
+			followed: true,
+			arrowCount: 3,
+		});
 	});
 
 	it('defaults description and tags when absent', () => {

@@ -10,8 +10,8 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resolveNamespaceTarget } from '@/features/search/api/resolve-namespace';
 import { LOCAL_DEBOUNCE_MS, SearchBar } from '@/features/search';
+import { resolveNamespaceTarget } from '@/features/search/api/resolve-namespace';
 import { useSearchStore } from '@/lib/core-store/store/search';
 
 vi.mock('@/features/search/api/resolve-namespace', () => ({ resolveNamespaceTarget: vi.fn() }));
@@ -356,7 +356,10 @@ describe('SearchBar', () => {
 
 	describe('Enter redirecting to a resolved namespace', () => {
 		it('goes straight to the collection page instead of searching', async () => {
-			mockResolveNamespaceTarget.mockResolvedValue({ kind: 'collection', namespace: 'github.com/rabbyte/game-servers' });
+			mockResolveNamespaceTarget.mockResolvedValue({
+				kind: 'collection',
+				namespace: 'github.com/rabbyte/game-servers',
+			});
 			const { input, router, user } = await renderField();
 
 			await user.type(input, 'github.com/rabbyte/game-servers{Enter}');
@@ -366,7 +369,10 @@ describe('SearchBar', () => {
 		});
 
 		it('goes straight to the arrow page instead of searching', async () => {
-			mockResolveNamespaceTarget.mockResolvedValue({ kind: 'arrow', namespace: 'github.com/rabbyte/minecraft@v1.21.4' });
+			mockResolveNamespaceTarget.mockResolvedValue({
+				kind: 'arrow',
+				namespace: 'github.com/rabbyte/minecraft@v1.21.4',
+			});
 			const { input, router, user } = await renderField();
 
 			await user.type(input, 'github.com/rabbyte/minecraft@v1.21.4{Enter}');
@@ -379,7 +385,10 @@ describe('SearchBar', () => {
 
 		it('does not also start a search pass for text it redirected on', async () => {
 			useSearchStore.getState().clearSubmit();
-			mockResolveNamespaceTarget.mockResolvedValue({ kind: 'collection', namespace: 'github.com/rabbyte/game-servers' });
+			mockResolveNamespaceTarget.mockResolvedValue({
+				kind: 'collection',
+				namespace: 'github.com/rabbyte/game-servers',
+			});
 			const { input, user } = await renderField();
 
 			await user.type(input, 'github.com/rabbyte/game-servers{Enter}');
@@ -394,7 +403,9 @@ describe('SearchBar', () => {
 
 			await user.type(input, 'github.com/rabbyte/unknown-thing{Enter}');
 
-			await waitFor(() => expect(router.state.location.search).toEqual({ q: 'github.com/rabbyte/unknown-thing' }));
+			await waitFor(() =>
+				expect(router.state.location.search).toEqual({ q: 'github.com/rabbyte/unknown-thing' })
+			);
 			expect(router.state.location.pathname).toBe('/search');
 		});
 
@@ -404,14 +415,15 @@ describe('SearchBar', () => {
 
 			await user.type(input, 'github.com/rabbyte/game-servers{Enter}');
 
-			await waitFor(() =>
-				expect(router.state.location.search).toEqual({ q: 'github.com/rabbyte/game-servers' })
-			);
+			await waitFor(() => expect(router.state.location.search).toEqual({ q: 'github.com/rabbyte/game-servers' }));
 			expect(router.state.location.pathname).toBe('/search');
 		});
 
 		it('never checks while merely typing -- only Enter can redirect', async () => {
-			mockResolveNamespaceTarget.mockResolvedValue({ kind: 'collection', namespace: 'github.com/rabbyte/game-servers' });
+			mockResolveNamespaceTarget.mockResolvedValue({
+				kind: 'collection',
+				namespace: 'github.com/rabbyte/game-servers',
+			});
 			const { input, router, user } = await renderField();
 
 			await user.type(input, 'github.com/rabbyte/game-servers');

@@ -2,6 +2,7 @@ import type { CSSProperties, JSX } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+
 import type { CollectionDetail } from '@/domain/collection';
 import { ArrowIcon } from '@/features/sidebar/components/arrows/arrow-icon';
 import { useFollowCollection, useUnfollowCollection } from '@/lib/core-store/mutations/collection';
@@ -15,7 +16,11 @@ interface CollectionHeroProps {
 	onUnresolvedClick?: () => void;
 }
 
-export function CollectionHero({ collection, unresolvedCount = 0, onUnresolvedClick }: CollectionHeroProps): JSX.Element {
+export function CollectionHero({
+	collection,
+	unresolvedCount = 0,
+	onUnresolvedClick,
+}: CollectionHeroProps): JSX.Element {
 	const follow = useFollowCollection();
 	const unfollow = useUnfollowCollection();
 
@@ -34,7 +39,11 @@ export function CollectionHero({ collection, unresolvedCount = 0, onUnresolvedCl
 				<div className="collection-hero-left">
 					<div className="collection-hero-identity">
 						<span className="collection-badge-wrap" style={{ '--icon': '44px' } as CSSProperties}>
-							<ArrowIcon namespace={collection.namespace} name={collection.name} icon={collection.media.icon ?? null} />
+							<ArrowIcon
+								namespace={collection.namespace}
+								name={collection.name}
+								icon={collection.media.icon ?? null}
+							/>
 						</span>
 						<div className="collection-title-block">
 							<div className="collection-title">{collection.name}</div>

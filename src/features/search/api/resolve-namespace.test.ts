@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ApiError } from '@/lib/transport/api';
+import { apiFetch, ApiError } from '@/lib/transport/api';
 
 import { resolveNamespaceTarget } from './resolve-namespace';
 
@@ -8,8 +8,6 @@ vi.mock('@/lib/transport/api', async () => {
 	const actual = await vi.importActual<typeof import('@/lib/transport/api')>('@/lib/transport/api');
 	return { ...actual, apiFetch: vi.fn() };
 });
-
-import { apiFetch } from '@/lib/transport/api';
 
 const mockApiFetch = vi.mocked(apiFetch);
 

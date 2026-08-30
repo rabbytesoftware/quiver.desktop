@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react';
+
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { ReactNode } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
 import type { CollectionDetail } from '@/domain/collection';
@@ -39,14 +40,18 @@ describe('CollectionHero', () => {
 	});
 
 	it('renders the banner image when media.banner is set', () => {
-		const { container } = renderWithClient(<CollectionHero collection={{ ...BASE, media: { banner: 'banner.png' } }} />);
+		const { container } = renderWithClient(
+			<CollectionHero collection={{ ...BASE, media: { banner: 'banner.png' } }} />
+		);
 		const banner = container.querySelector('.collection-banner') as HTMLElement | null;
 		expect(banner).toBeInTheDocument();
 		expect(banner?.style.backgroundImage).toContain('banner.png');
 	});
 
 	it('does not collapse the row when there is a banner', () => {
-		const { container } = renderWithClient(<CollectionHero collection={{ ...BASE, media: { banner: 'banner.png' } }} />);
+		const { container } = renderWithClient(
+			<CollectionHero collection={{ ...BASE, media: { banner: 'banner.png' } }} />
+		);
 		expect(container.querySelector('.collection-hero-row')).not.toHaveClass('no-banner');
 	});
 
@@ -90,7 +95,9 @@ describe('CollectionHero', () => {
 
 	it('calls onUnresolvedClick when the pill is clicked', () => {
 		const onUnresolvedClick = vi.fn();
-		renderWithClient(<CollectionHero collection={BASE} onUnresolvedClick={onUnresolvedClick} unresolvedCount={2} />);
+		renderWithClient(
+			<CollectionHero collection={BASE} onUnresolvedClick={onUnresolvedClick} unresolvedCount={2} />
+		);
 		fireEvent.click(screen.getByRole('button', { name: /2 unresolved/ }));
 		expect(onUnresolvedClick).toHaveBeenCalledOnce();
 	});
