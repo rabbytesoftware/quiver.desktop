@@ -1,0 +1,309 @@
+/* Layer order matches card.css: components must land after Tailwind's base
+   reset (padding/margin: 0), and layer order is fixed by first appearance --
+   any consumer of this file that hasn't already imported card.css needs this
+   declared here too. */
+@layer theme, base, components, utilities;
+
+@layer components {
+	/* ---------- Hero ---------- */
+
+	.collection-hero {
+		padding: 22px 24px 18px 24px;
+	}
+
+	/* auto 1fr: the banner (fixed 2:1, sized off its own aspect-ratio) takes
+	   the left column, the identity/description/meta/actions column stretches
+	   to fill the rest. .no-banner collapses to a single column when there is
+	   no media.banner -- no placeholder art renders in that case, so there is
+	   nothing to give a column to. */
+	.collection-hero-row {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		column-gap: 24px;
+		align-items: stretch;
+	}
+	.collection-hero-row.no-banner {
+		grid-template-columns: 1fr;
+	}
+
+	/* Sized entirely by its own aspect-ratio against the stretched row height
+	   -- never given an explicit width -- so it always matches the identity
+	   column's height exactly with nothing left over, while staying exactly
+	   2:1 so background-size: cover never has to crop anything. */
+	.collection-banner {
+		position: relative;
+		aspect-ratio: 2 / 1;
+		height: 100%;
+		border-radius: var(--radius);
+		overflow: hidden;
+		background-color: var(--muted);
+		background-size: cover;
+		background-position: center;
+	}
+
+	.collection-hero-left {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+
+	.collection-hero-identity {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+	}
+
+	.collection-identity-group {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		min-width: 0;
+	}
+
+	/* A pure --icon scoping point for the real ArrowIcon component -- no
+	   visual styling of its own. ArrowIcon already owns its box (size,
+	   radius, monogram fallback); this only overrides the CSS variable
+	   ArrowIcon's `size-(--icon)`/`leading-(--icon)` utilities read, the same
+	   mechanism the sidebar's 20px rows rely on, just scoped to 44px here. */
+	.collection-badge-wrap {
+		display: inline-flex;
+	}
+
+	.collection-title-block {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
+	}
+	.collection-title {
+		font-size: 19px;
+		line-height: 23px;
+		font-weight: 600;
+		letter-spacing: -0.3px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.collection-namespace {
+		font-family: var(--font-mono);
+		font-size: 11.5px;
+		line-height: 14px;
+		color: var(--muted-foreground);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.collection-description {
+		margin-top: 12px;
+		max-width: 560px;
+		font-size: 13px;
+		line-height: 19px;
+		color: var(--muted-foreground);
+	}
+
+	.collection-meta {
+		margin-top: 10px;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 12.5px;
+		line-height: 16px;
+		color: var(--muted-foreground);
+	}
+	.collection-meta .count {
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+	}
+	.collection-meta .dot {
+		opacity: 0.5;
+	}
+
+	/* badge.tsx's real "error" variant, size "default", at its sm: (desktop)
+	   breakpoint: h-4.5 (18px), rounded-sm (--radius-sm), gap-1 (4px), icon
+	   size-3 (12px), px-[spacing(1)-1px] (3px), text-xs (12px). The color
+	   pairing (text-destructive-foreground on an 8%-opacity fill) is a real
+	   bug in that variant -- destructive-foreground is meant for text on a
+	   SOLID destructive fill, illegible against a near-transparent one --
+	   fixed at the source in badge.tsx to text-destructive. The border is a
+	   deliberate addition beyond the real variant: --destructive here is
+	   pure gray (0 chroma), and without a border this pill has almost no
+	   shape against the page; Badge's own "outline" variant establishes that
+	   a border is a normal way to give a pill definition. */
+	.collection-unresolved-flag {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		height: 18px;
+		padding: 0 3px;
+		border-radius: var(--radius-sm);
+		border: 1px solid color-mix(in oklch, var(--destructive) 35%, transparent);
+		background: color-mix(in oklch, var(--destructive) 8%, transparent);
+		color: var(--destructive);
+		font-size: 12px;
+		font-weight: 500;
+		cursor: pointer;
+	}
+	.collection-unresolved-flag:hover {
+		background: color-mix(in oklch, var(--destructive) 14%, transparent);
+	}
+
+	.collection-actions {
+		margin-top: 14px;
+		display: flex;
+	}
+
+	/* ---------- Section head + grid ---------- */
+
+	.collection-section-head {
+		border-bottom: 1px solid var(--border);
+		padding: 10px 24px;
+	}
+	.collection-section-title {
+		font-size: 13px;
+		font-weight: 600;
+		letter-spacing: -0.1px;
+	}
+
+	.collection-panel {
+		padding: 20px 24px 32px 24px;
+	}
+
+	.collection-member-grid {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 18px 12px;
+	}
+
+	.collection-member-cell {
+		display: block;
+		min-width: 0;
+		cursor: pointer;
+	}
+
+	/* card.css's own [data-slot='card-banner'] rules give this element the
+	   verbatim spring transform; this class only carries the box's own
+	   layout (aspect-ratio + the --reveal custom property the info strip's
+	   height reads) since that part isn't in card.css -- CARD in
+	   arrow-card.tsx sets it inline via Tailwind arbitrary values, not via
+	   the stylesheet. */
+	.collection-member-frame {
+		position: relative;
+		display: block;
+		aspect-ratio: 2 / 1;
+		min-width: 0;
+		--reveal: 30px;
+	}
+
+	/* The opacity reveal for the info strip lives here rather than in
+	   card.css because in the real ArrowCard it's inline Tailwind utility
+	   classes on the element (`opacity-0 ... group-hover:opacity-100`), not
+	   part of the stylesheet -- there is nothing to import for this half of
+	   the mechanic, only the banner's transform. */
+	.collection-member-info {
+		position: absolute;
+		inset-inline: 0;
+		bottom: 0;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		height: var(--reveal, 30px);
+		padding: 0 6px;
+		min-width: 0;
+		color: var(--foreground);
+		opacity: 0;
+		transition: opacity 90ms;
+	}
+	.collection-member-cell:hover .collection-member-info,
+	.collection-member-cell:focus-visible .collection-member-info {
+		opacity: 1;
+		transition-duration: 40ms;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.collection-member-info {
+			transition: none;
+		}
+	}
+
+	.collection-member-info-icon-wrap {
+		display: inline-flex;
+		flex: none;
+	}
+	.collection-member-info-text {
+		flex: 1;
+		min-width: 0;
+		font-family: var(--font-mono);
+		font-size: 9.5px;
+		line-height: 12px;
+		letter-spacing: -0.2px;
+		opacity: 0.9;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.collection-member-caption {
+		display: block;
+		min-width: 0;
+		padding: 7px 2px 0;
+	}
+	.collection-member-caption-name {
+		display: block;
+		font-size: 12.5px;
+		line-height: 15px;
+		font-weight: 500;
+		letter-spacing: -0.1px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.collection-member-caption-sub {
+		display: block;
+		margin-top: 1px;
+		font-size: 11px;
+		line-height: 14px;
+		color: var(--muted-foreground);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	/* ---------- Unresolved-arrows dialog ---------- */
+
+	.collection-unresolved-list {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	.collection-unresolved-row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 9px 10px;
+		border-radius: var(--radius-sm);
+		background: var(--muted);
+		color: var(--muted-foreground);
+	}
+	.collection-unresolved-row .icon {
+		flex: none;
+		display: flex;
+		color: var(--muted-foreground);
+	}
+	.collection-unresolved-row .route {
+		min-width: 0;
+		font-family: var(--font-mono);
+		font-size: 12px;
+		line-height: 16px;
+		overflow-wrap: anywhere;
+		color: var(--foreground);
+	}
+
+	/* ---------- Loading / error ---------- */
+
+	.collection-loading,
+	.collection-error {
+		padding: 24px;
+		font-size: 13px;
+		color: var(--muted-foreground);
+	}
+}
