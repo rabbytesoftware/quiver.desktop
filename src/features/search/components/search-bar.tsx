@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 
+import { resolveNamespaceTarget } from '@/features/search/api/resolve-namespace';
 import { cn } from '@/lib/cn';
 import { useSearchStore } from '@/lib/core-store/store/search';
 import { useTranslation } from '@/lib/i18n';
@@ -76,12 +77,28 @@ export function SearchBar(): JSX.Element {
 		}, LOCAL_DEBOUNCE_MS);
 	}
 
-	function submit(): void {
+	async function submit(): Promise<void> {
 		clearPending();
+		const trimmed = draft.trim();
+
+		// Enter is also "take me there": if what's typed names a real arrow or
+		// collection, that beats a search for it every time. Only on Enter --
+		// resolving on every keystroke would fire two lookups per character.
+		if (trimmed !== '') {
+			const target = await resolveNamespaceTarget(trimmed).catch(() => null);
+			if (target !== null) {
+				void navigate({
+					to: target.kind === 'collection' ? '/collection/$' : '/arrow/$',
+					params: { _splat: target.namespace },
+				});
+				return;
+			}
+		}
+
 		// Spec 2.2: Enter fires the pass now, not after 600ms of stillness. The
 		// mounted controller lives behind the /search route, a sibling of this
 		// field, so the request travels through the store.
-		if (draft.trim() !== '') useSearchStore.getState().requestSubmit(draft);
+		if (trimmed !== '') useSearchStore.getState().requestSubmit(draft);
 		commit(draft);
 	}
 
@@ -111,7 +128,7 @@ export function SearchBar(): JSX.Element {
 				onFocus={open}
 				onChange={(event) => change(event.target.value)}
 				onKeyDown={(event) => {
-					if (event.key === 'Enter') submit();
+					if (event.key === 'Enter') void submit();
 				}}
 				aria-label={t('search.label')}
 				placeholder={t('search.placeholder')}
