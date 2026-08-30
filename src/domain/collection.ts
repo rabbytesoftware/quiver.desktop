@@ -1,16 +1,28 @@
 export interface CollectionArrow {
 	namespace: string;
-	name: string;
 	version?: string;
+	resolved: boolean;
+	name?: string;
+	description?: string;
 }
 
 export interface CollectionListItem {
 	namespace: string;
 	name: string;
 	description: string;
-	arrows: CollectionArrow[];
+	tags: string[];
+	followed: boolean;
+	arrowCount: number;
+}
+
+export interface CollectionMedia {
+	icon?: string;
+	banner?: string;
 }
 
 export interface CollectionDetail extends CollectionListItem {
-	readme: string;
+	url?: string;
+	maintainers: string[];
+	media: CollectionMedia;
+	arrows: CollectionArrow[];
 }
