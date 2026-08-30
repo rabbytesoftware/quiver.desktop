@@ -55,6 +55,18 @@ describe('collections', () => {
 		expect((await call('POST', `/v0/collection/${enc('nope/nope')}/follow`)).status).toBe(404);
 		expect((await call('DELETE', `/v0/collection/${enc('nope/nope')}/follow`)).status).toBe(404);
 	});
+
+	it('carries media and per-member names on a collection that has them', async () => {
+		const { body } = await call('GET', `/v0/collection/${enc(GAME_SERVERS)}`);
+		const detail = body!.data as { media?: { banner?: string }; arrows: Array<{ namespace: string; name?: string }> };
+		expect(detail.media?.banner).toBeTruthy();
+		expect(detail.arrows.find((a) => a.namespace === MINECRAFT)?.name).toBe('Minecraft Server');
+	});
+
+	it('omits media entirely for a collection that has none', async () => {
+		const { body } = await call('GET', `/v0/collection/${enc(`${NS}/homelab`)}`);
+		expect(JSON.stringify(body!.data)).not.toContain('"media"');
+	});
 });
 
 describe('library membership', () => {
