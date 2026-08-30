@@ -1,45 +1,42 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import type { CollectionDetail } from '@/domain/collection';
+import { collectionQueryKey } from '@/lib/core-store/queries/collection';
 import { apiFetch } from '@/lib/transport/api';
 
-/** Both endpoints return no body to reconcile against, so an optimistic flip is the only signal the UI gets before settling. */
-function collectionQueryKey(namespace: string) {
-	return ['collection', namespace] as const;
+/**
+ * Follow and unfollow are the same request shape either way the boolean goes:
+ * optimistic flip in `onMutate`, rollback in `onError`. Both endpoints return
+ * no body to reconcile against, so `onSettled` invalidates rather than trusts
+ * the optimistic value forever -- it's the only way this ever finds out the
+ * request landed on a `followed` quiver.core computed differently (a second
+ * tab, a server-side no-op).
+ */
+function useSetCollectionFollowed(method: 'POST' | 'DELETE', followed: boolean) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({ namespace }: { namespace: string }) =>
+			apiFetch<void>(`/v0/collection/${encodeURIComponent(namespace)}/follow`, { method }),
+		onMutate: async ({ namespace }) => {
+			const key = collectionQueryKey(namespace);
+			await queryClient.cancelQueries({ queryKey: key });
+			const previous = queryClient.getQueryData<CollectionDetail>(key);
+			if (previous) queryClient.setQueryData<CollectionDetail>(key, { ...previous, followed });
+			return { previous, key };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) queryClient.setQueryData(context.key, context.previous);
+		},
+		onSettled: (_data, _error, { namespace }) => {
+			queryClient.invalidateQueries({ queryKey: collectionQueryKey(namespace) });
+		},
+	});
 }
 
 export function useFollowCollection() {
-	const queryClient = useQueryClient();
-	return useMutation({
-		mutationFn: ({ namespace }: { namespace: string }) =>
-			apiFetch<void>(`/v0/collection/${encodeURIComponent(namespace)}/follow`, { method: 'POST' }),
-		onMutate: async ({ namespace }) => {
-			const key = collectionQueryKey(namespace);
-			await queryClient.cancelQueries({ queryKey: key });
-			const previous = queryClient.getQueryData<CollectionDetail>(key);
-			if (previous) queryClient.setQueryData<CollectionDetail>(key, { ...previous, followed: true });
-			return { previous, key };
-		},
-		onError: (_err, _vars, context) => {
-			if (context?.previous) queryClient.setQueryData(context.key, context.previous);
-		},
-	});
+	return useSetCollectionFollowed('POST', true);
 }
 
 export function useUnfollowCollection() {
-	const queryClient = useQueryClient();
-	return useMutation({
-		mutationFn: ({ namespace }: { namespace: string }) =>
-			apiFetch<void>(`/v0/collection/${encodeURIComponent(namespace)}/follow`, { method: 'DELETE' }),
-		onMutate: async ({ namespace }) => {
-			const key = collectionQueryKey(namespace);
-			await queryClient.cancelQueries({ queryKey: key });
-			const previous = queryClient.getQueryData<CollectionDetail>(key);
-			if (previous) queryClient.setQueryData<CollectionDetail>(key, { ...previous, followed: false });
-			return { previous, key };
-		},
-		onError: (_err, _vars, context) => {
-			if (context?.previous) queryClient.setQueryData(context.key, context.previous);
-		},
-	});
+	return useSetCollectionFollowed('DELETE', false);
 }

@@ -1,5 +1,6 @@
 import { useState, type JSX } from 'react';
 
+import { collectionArrowRoute } from '@/domain/collection';
 import { useCollectionDetail } from '@/lib/core-store/queries/collection';
 
 import { CollectionArrowGrid } from './components/collection-arrow-grid';
@@ -15,6 +16,7 @@ export function CollectionDetailScreen({ namespace }: CollectionDetailScreenProp
 	const { data, isLoading, isError } = useCollectionDetail(namespace);
 	const [unresolvedOpen, setUnresolvedOpen] = useState(false);
 
+	if (!namespace) return <div className="collection-error">Couldn't load this collection.</div>;
 	if (isLoading) return <div className="collection-loading">Loading...</div>;
 	if (isError || !data) return <div className="collection-error">Couldn't load this collection.</div>;
 
@@ -24,9 +26,7 @@ export function CollectionDetailScreen({ namespace }: CollectionDetailScreenProp
 	// `arrow.version` is populated here too. Reattach it: the dialog is
 	// supposed to show the exact route that was asked for
 	// (github.com/rabbyte/ark-survival@v3.1.0), not the bare package path.
-	const unresolvedRoutes = data.arrows
-		.filter((arrow) => !arrow.resolved)
-		.map((arrow) => (arrow.version ? `${arrow.namespace}@${arrow.version}` : arrow.namespace));
+	const unresolvedRoutes = data.arrows.filter((arrow) => !arrow.resolved).map(collectionArrowRoute);
 
 	return (
 		<div className="collection-detail-screen">

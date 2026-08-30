@@ -26,3 +26,8 @@ export interface CollectionDetail extends CollectionListItem {
 	media: CollectionMedia;
 	arrows: CollectionArrow[];
 }
+
+/** The exact route quiver.core resolved this member from -- `owner/repo@version`, or bare `owner/repo` when the member carries no version. */
+export function collectionArrowRoute(arrow: CollectionArrow): string {
+	return arrow.version ? `${arrow.namespace}@${arrow.version}` : arrow.namespace;
+}

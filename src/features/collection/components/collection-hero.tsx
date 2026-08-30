@@ -1,9 +1,11 @@
 import type { CSSProperties, JSX } from 'react';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { CollectionDetail } from '@/domain/collection';
 import { ArrowIcon } from '@/features/sidebar/components/arrows/arrow-icon';
 import { useFollowCollection, useUnfollowCollection } from '@/lib/core-store/mutations/collection';
+import { cssUrl } from '@/lib/css';
 
 import '../styles/collection.css';
 
@@ -11,16 +13,6 @@ interface CollectionHeroProps {
 	collection: CollectionDetail;
 	unresolvedCount?: number;
 	onUnresolvedClick?: () => void;
-}
-
-/**
- * Manifests come from arbitrary repositories, so a media URL is untrusted
- * text being spliced into a CSS declaration -- quoting it as a CSS string is
- * what stops a crafted `banner` from closing `url(` and appending
- * declarations of its own. Mirrors arrow-card.tsx's cssUrl() exactly.
- */
-function cssUrl(url: string): string {
-	return `url(${JSON.stringify(url)})`;
 }
 
 export function CollectionHero({ collection, unresolvedCount = 0, onUnresolvedClick }: CollectionHeroProps): JSX.Element {
@@ -63,9 +55,13 @@ export function CollectionHero({ collection, unresolvedCount = 0, onUnresolvedCl
 						{unresolvedCount > 0 && (
 							<>
 								<span className="dot">·</span>
-								<button className="collection-unresolved-flag" onClick={onUnresolvedClick} type="button">
+								<Badge
+									className="collection-unresolved-flag"
+									render={<button onClick={onUnresolvedClick} type="button" />}
+									variant="error"
+								>
 									{unresolvedCount} unresolved
-								</button>
+								</Badge>
 							</>
 						)}
 					</div>

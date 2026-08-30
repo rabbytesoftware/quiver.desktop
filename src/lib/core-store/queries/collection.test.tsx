@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { apiFetch } from '@/lib/transport/api';
 
-import { useCollectionDetail } from './collection';
+import { collectionQueryKey, useCollectionDetail } from './collection';
 
 vi.mock('@/lib/transport/api', () => ({ apiFetch: vi.fn() }));
 
@@ -41,5 +41,18 @@ describe('useCollectionDetail', () => {
 		renderHook(() => useCollectionDetail('a/b/c'), { wrapper });
 
 		await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/v0/collection/a%2Fb%2Fc'));
+	});
+
+	it('never fetches for an empty namespace', async () => {
+		renderHook(() => useCollectionDetail(''), { wrapper });
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(apiFetch).not.toHaveBeenCalled();
+	});
+});
+
+describe('collectionQueryKey', () => {
+	it('builds a stable key from the namespace', () => {
+		expect(collectionQueryKey('github.com/rabbyte/game-servers')).toEqual(['collection', 'github.com/rabbyte/game-servers']);
 	});
 });

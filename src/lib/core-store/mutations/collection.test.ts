@@ -69,6 +69,16 @@ describe('useFollowCollection', () => {
 
 		expect(qc.getQueryData(['collection', 'col/ns'])).toBeUndefined();
 	});
+
+	it('invalidates the collection query once the request settles, since neither endpoint returns a body to reconcile against', async () => {
+		const qc = new QueryClient();
+		const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+		const { result } = renderHook(() => useFollowCollection(), { wrapper: wrapper(qc) });
+
+		await act(() => result.current.mutateAsync({ namespace: 'col/ns' }));
+
+		expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['collection', 'col/ns'] });
+	});
 });
 
 describe('useUnfollowCollection', () => {

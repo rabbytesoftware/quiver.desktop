@@ -1,7 +1,11 @@
 import type { CSSProperties, JSX } from 'react';
 
+import { Link } from '@tanstack/react-router';
+
 import type { CollectionArrow } from '@/domain/collection';
+import { collectionArrowRoute } from '@/domain/collection';
 import { ArrowIcon } from '@/features/sidebar/components/arrows/arrow-icon';
+import { ownerOf } from '@/lib/namespace';
 
 import '@/features/search/styles/card.css';
 import '../styles/collection.css';
@@ -17,26 +21,27 @@ function displayName(arrow: CollectionArrow): string {
 	return parts[parts.length - 1] || arrow.namespace;
 }
 
-/** `github.com/rabbyte/minecraft` -> `rabbyte`; the host is already the source. */
-function owner(namespace: string): string {
-	const parts = namespace.split('/');
-	return parts.length > 2 ? parts[parts.length - 2] : parts[0];
-}
-
 /**
  * Same shape as ArrowCard (arrow-card.tsx), reusing card.css's real
  * data-slot selectors for the verbatim spring transform -- data-slot="arrow-card"
  * on this root is what `[data-slot='arrow-card']:hover [data-slot='card-banner']`
- * actually hooks the hover kick to. A collection member has no icon or banner
- * field at all (CollectionArrowDTO carries namespace/resolved/name/description
- * only), so the drawn-ghost fallback is the only state this ever renders --
- * not a rare edge case here the way it is for a real, catalog-backed ArrowCard.
+ * actually hooks the hover kick to, and is a real `<Link>` to `/arrow/$` for the
+ * same reason ArrowCard is: it looks and hovers like the real thing, so it
+ * navigates like it too. A collection member has no icon or banner field at all
+ * (CollectionArrowDTO carries namespace/resolved/name/description only), so the
+ * drawn-ghost fallback is the only state this ever renders -- not a rare edge
+ * case here the way it is for a real, catalog-backed ArrowCard.
  */
 export function CollectionArrowTile({ arrow }: CollectionArrowTileProps): JSX.Element {
 	const name = displayName(arrow);
 
 	return (
-		<div className="collection-member-cell" data-slot="arrow-card">
+		<Link
+			className="collection-member-cell"
+			data-slot="arrow-card"
+			params={{ _splat: collectionArrowRoute(arrow) }}
+			to="/arrow/$"
+		>
 			<span className="collection-member-frame">
 				{/* absolute inset-0 overflow-hidden rounded-lg bg-muted bg-cover
 				    bg-center: arrow-card.tsx's own inline classes for this slot --
@@ -51,7 +56,7 @@ export function CollectionArrowTile({ arrow }: CollectionArrowTileProps): JSX.El
 						<span data-slot="drawn-ghost">{name.slice(0, 1).toUpperCase()}</span>
 						<span data-slot="drawn-type">
 							<span data-slot="drawn-name">{name}</span>
-							<span data-slot="drawn-owner">{owner(arrow.namespace)}</span>
+							<span data-slot="drawn-owner">{ownerOf(arrow.namespace)}</span>
 						</span>
 					</span>
 				</span>
@@ -66,6 +71,6 @@ export function CollectionArrowTile({ arrow }: CollectionArrowTileProps): JSX.El
 				<span className="collection-member-caption-name">{name}</span>
 				<span className="collection-member-caption-sub">{arrow.namespace}</span>
 			</span>
-		</div>
+		</Link>
 	);
 }

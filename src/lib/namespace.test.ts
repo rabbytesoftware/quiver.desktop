@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { splitNamespace } from './namespace';
+import { ownerOf, splitNamespace } from './namespace';
 
 describe('splitNamespace', () => {
 	it('separates the version from the path', () => {
@@ -28,5 +28,19 @@ describe('splitNamespace', () => {
 
 	it('handles a namespace that is nothing but a version', () => {
 		expect(splitNamespace('@v1.21.4')).toEqual({ head: '', tail: '@v1.21.4' });
+	});
+});
+
+describe('ownerOf', () => {
+	it('takes the segment before the repo when the host is present', () => {
+		expect(ownerOf('github.com/rabbyte/minecraft')).toBe('rabbyte');
+	});
+
+	it('falls back to the first segment when there is no host', () => {
+		expect(ownerOf('rabbyte/minecraft')).toBe('rabbyte');
+	});
+
+	it('falls back to the whole string when there is no slash at all', () => {
+		expect(ownerOf('minecraft')).toBe('minecraft');
 	});
 });

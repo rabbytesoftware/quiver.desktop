@@ -53,13 +53,6 @@
 		gap: 16px;
 	}
 
-	.collection-identity-group {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		min-width: 0;
-	}
-
 	/* A pure --icon scoping point for the real ArrowIcon component -- no
 	   visual styling of its own. ArrowIcon already owns its box (size,
 	   radius, monogram fallback); this only overrides the CSS variable
@@ -119,29 +112,13 @@
 		opacity: 0.5;
 	}
 
-	/* badge.tsx's real "error" variant, size "default", at its sm: (desktop)
-	   breakpoint: h-4.5 (18px), rounded-sm (--radius-sm), gap-1 (4px), icon
-	   size-3 (12px), px-[spacing(1)-1px] (3px), text-xs (12px). The color
-	   pairing (text-destructive-foreground on an 8%-opacity fill) is a real
-	   bug in that variant -- destructive-foreground is meant for text on a
-	   SOLID destructive fill, illegible against a near-transparent one --
-	   fixed at the source in badge.tsx to text-destructive. The border is a
-	   deliberate addition beyond the real variant: --destructive here is
-	   pure gray (0 chroma), and without a border this pill has almost no
-	   shape against the page; Badge's own "outline" variant establishes that
-	   a border is a normal way to give a pill definition. */
+	/* Badge's real "error" variant has no border, and without one this pill
+	   (--destructive here is pure gray, 0 chroma) had almost no shape against
+	   the page -- Badge's own "outline" variant establishes that a border is
+	   a normal way to give a pill definition, so this adds one on top of the
+	   real variant rather than reimplementing it. */
 	.collection-unresolved-flag {
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		height: 18px;
-		padding: 0 3px;
-		border-radius: var(--radius-sm);
 		border: 1px solid color-mix(in oklch, var(--destructive) 35%, transparent);
-		background: color-mix(in oklch, var(--destructive) 8%, transparent);
-		color: var(--destructive);
-		font-size: 12px;
-		font-weight: 500;
 		cursor: pointer;
 	}
 	.collection-unresolved-flag:hover {
@@ -179,6 +156,19 @@
 		display: block;
 		min-width: 0;
 		cursor: pointer;
+		outline: none;
+	}
+	/* The 30px hover lift (--reveal) is taller than the 18px row gap, so a
+	   hovered tile's banner reaches into the row above it -- z-index on a grid
+	   item applies even without an explicit `position`, the same guarantee
+	   ArrowCard's own `hover:z-[2]` gives it. */
+	.collection-member-cell:hover,
+	.collection-member-cell:focus-visible {
+		z-index: 2;
+	}
+	.collection-member-cell:focus-visible {
+		outline: 2px solid var(--foreground);
+		outline-offset: 2px;
 	}
 
 	/* card.css's own [data-slot='card-banner'] rules give this element the
@@ -282,11 +272,6 @@
 		padding: 9px 10px;
 		border-radius: var(--radius-sm);
 		background: var(--muted);
-		color: var(--muted-foreground);
-	}
-	.collection-unresolved-row .icon {
-		flex: none;
-		display: flex;
 		color: var(--muted-foreground);
 	}
 	.collection-unresolved-row .route {

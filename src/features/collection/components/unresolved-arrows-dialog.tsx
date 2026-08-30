@@ -24,8 +24,8 @@ export function UnresolvedArrowsDialog({ open, onOpenChange, routes }: Unresolve
 				</DialogHeader>
 				<DialogPanel>
 					<div className="collection-unresolved-list">
-						{routes.map((route) => (
-							<div className="collection-unresolved-row" key={route}>
+						{routes.map((route, index) => (
+							<div className="collection-unresolved-row" key={`${index}:${route}`}>
 								<span className="route">{route}</span>
 							</div>
 						))}

@@ -1,4 +1,5 @@
 import type { CollectionArrow, CollectionDetail, CollectionListItem, CollectionMedia } from '@/domain/collection';
+import { splitNamespace } from '@/lib/namespace';
 
 export interface CollectionArrowDTO {
 	/** `owner/repo@version` -- core sends no separate version field for a member arrow. */
@@ -34,11 +35,10 @@ export interface CollectionDetailDTO {
 	followed: boolean;
 }
 
-/** Core folds the version into `namespace` as `owner/repo@version`; this is the only place that gets split back apart. */
+/** Core folds the version into `namespace` as `owner/repo@version`; this splits it back apart with the same rule the sidebar's namespace rows use. */
 function parseArrowRef(namespace: string): { namespace: string; version?: string } {
-	const at = namespace.lastIndexOf('@');
-	if (at === -1) return { namespace };
-	return { namespace: namespace.slice(0, at), version: namespace.slice(at + 1) };
+	const { head, tail } = splitNamespace(namespace);
+	return tail === '' ? { namespace: head } : { namespace: head, version: tail.slice(1) };
 }
 
 export function toCollectionArrow(dto: CollectionArrowDTO): CollectionArrow {
@@ -63,12 +63,7 @@ export function toCollectionListItem(dto: CollectionListItemDTO): CollectionList
 
 export function toCollectionDetail(dto: CollectionDetailDTO): CollectionDetail {
 	return {
-		namespace: dto.namespace,
-		name: dto.name,
-		description: dto.description ?? '',
-		tags: dto.tags ?? [],
-		followed: dto.followed,
-		arrowCount: dto.arrows.length,
+		...toCollectionListItem({ ...dto, arrow_count: dto.arrows.length }),
 		url: dto.url,
 		maintainers: dto.maintainers ?? [],
 		media: toCollectionMedia(dto.media),
