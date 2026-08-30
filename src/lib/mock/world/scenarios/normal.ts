@@ -260,6 +260,7 @@ export const NORMAL_COLLECTIONS: MockCollection[] = [
 		description: 'Everything needed to host a weekend with friends.',
 		maintainers: ['rabbyte'],
 		followed: true,
+		url: `https://${NS}/game-servers`,
 		tags: ['gaming', 'self-hosted'],
 		// One of the few fixtures with a banner (matches the game-servers
 		// arrows' own "one of the few" banner convention above), so the
