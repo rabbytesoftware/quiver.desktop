@@ -1,4 +1,4 @@
-import type { ActiveRun, ArrowState, StepProgress } from '@/domain/arrow';
+import type { ActiveRun, ArrowState, ArrowStepDefinition, StepProgress } from '@/domain/arrow';
 
 export type ScenarioName = 'normal' | 'extreme' | 'empty';
 
@@ -27,8 +27,9 @@ export interface MockPort {
 export interface MockMethod {
 	name: string;
 	description: string;
-	available_in: Array<'ready' | 'running'>;
-	steps: string[];
+	/** Any `ArrowState` -- core lets a manifest gate a custom method into any of them, not just ready/running. */
+	available_in: ArrowState[];
+	steps: ArrowStepDefinition[];
 }
 
 export interface MockTarget {
@@ -60,6 +61,8 @@ export interface MockArrow {
 	icon: string | null;
 	banner: string | null;
 	maintainers: string[];
+	/** Optional -- most fixtures have none; `arrow()` defaults it to `[]`. */
+	credits?: string[];
 	url: string;
 	user_installed: boolean;
 	state: ArrowState;
@@ -74,6 +77,16 @@ export interface MockArrow {
 	stars?: number;
 	/** The host that served the manifest, e.g. github.com. */
 	source?: string;
+	/** Raw markdown. Undefined for arrows without an ARROW.md -- Overview then falls back to Details. See `ArrowDetail.readme`'s own comment for the wire status. */
+	readme?: string;
+	/**
+	 * What this arrow needs, namespace@ref already resolved -- the mock's
+	 * stand-in for quiver.core's resolved dependency plan (quiver.core #220).
+	 * `dependents` (the reverse direction) is never stored -- it's derived by
+	 * scanning every arrow's own `dependencies` for one pointing back here,
+	 * same as `toArrowDependentsDTO` does for the real endpoint.
+	 */
+	dependencies?: { namespace: string; type: 'tool' | 'service' }[];
 }
 
 export interface MockCollectionMember {
@@ -200,4 +213,20 @@ export interface MockWorld {
 
 export function versioned(arrow: Pick<MockArrow, 'namespace' | 'ref'>): string {
 	return `${arrow.namespace}@${arrow.ref}`;
+}
+
+/**
+ * `world.arrows` is keyed by the ref-qualified `namespace@ref` (see
+ * `versioned`), since that's the only key that stays unambiguous once an
+ * arrow has more than one installed version. Real quiver.core's `:ns` route
+ * param accepts a bare namespace too, though -- Search links to a Discovered
+ * or single-version arrow with just its namespace, having no installed ref to
+ * offer. Fall back to a scan for the one arrow whose bare namespace matches
+ * when an exact key lookup misses, so a bare-namespace request still resolves
+ * for any arrow that isn't genuinely ambiguous between multiple versions.
+ */
+export function findArrow(arrows: Map<string, MockArrow>, ns: string): MockArrow | undefined {
+	const exact = arrows.get(ns);
+	if (exact) return exact;
+	return [...arrows.values()].find((a) => a.namespace === ns);
 }

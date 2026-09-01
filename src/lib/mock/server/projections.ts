@@ -1,10 +1,59 @@
 import type { SearchProvenance } from '@/domain/search';
-import type { ArrowListResponseItemDTO } from '@/lib/core-store/dtos/v0/arrow';
+import type {
+	ArrowDependenciesDTO,
+	ArrowDependentsDTO,
+	ArrowDetailDTO,
+	ArrowListResponseItemDTO,
+	ArrowManifestDTO,
+	ArrowReadmeDTO,
+} from '@/lib/core-store/dtos/v0/arrow';
 import type { RuntimeUpdateDTO } from '@/lib/core-store/dtos/v0/runtime';
 import type { DiscoveryJobDTO, DiscoveryJobStartedDTO, SearchResultDTO } from '@/lib/core-store/dtos/v0/search';
+import { splitNamespace } from '@/lib/namespace';
 
-import type { MockArrow, MockCollection, MockDiscoveryJob } from '../world/types';
+import { INSTALL_STEPS, START_STEPS, STOP_STEPS, UNINSTALL_STEPS, UPDATE_STEPS } from '../world/scenarios/kit';
+import type { MockArrow, MockCollection, MockDiscoveryJob, MockMethod, MockTarget } from '../world/types';
 import { versioned } from '../world/types';
+
+// Every arrow's lifecycle preview uses this exact same step sequence per
+// phase -- handlers/runtime.ts simulates every arrow's install/execute/stop/
+// update/uninstall with this exact generic sequence regardless of its
+// manifest, so what StepPreviewModal previews and what actually runs always
+// agree. `StepDTO` is `ArrowStepDefinition` verbatim, so these need no
+// reshaping to become the wire lifecycle -- they already are it.
+const LIFECYCLE_STEPS = {
+	install: INSTALL_STEPS,
+	update: UPDATE_STEPS,
+	execute: START_STEPS,
+	stop: STOP_STEPS,
+	uninstall: UNINSTALL_STEPS,
+} as const;
+
+function toMethodDTO(method: MockMethod): ArrowManifestDTO['targets'][string]['methods'][string] {
+	return {
+		name: method.name,
+		description: method.description,
+		available_in: method.available_in,
+		steps: method.steps,
+	};
+}
+
+function toTargetManifestDTO(
+	target: MockTarget,
+	requirement: MockArrow['requirement']
+): ArrowManifestDTO['targets'][string] {
+	return {
+		requirements: requirement,
+		lifecycle: {
+			install: LIFECYCLE_STEPS.install,
+			update: LIFECYCLE_STEPS.update,
+			execute: LIFECYCLE_STEPS.execute,
+			stop: LIFECYCLE_STEPS.stop,
+			uninstall: LIFECYCLE_STEPS.uninstall,
+		},
+		methods: Object.fromEntries(Object.entries(target.methods).map(([name, m]) => [name, toMethodDTO(m)])),
+	};
+}
 
 export function toArrowListDTO(arrows: MockArrow[]): ArrowListResponseItemDTO[] {
 	const byBase = new Map<string, MockArrow[]>();
@@ -53,7 +102,16 @@ export function toRuntimeFrame(arrow: MockArrow): RuntimeUpdateDTO {
 	};
 }
 
-export function toArrowDetailDTO(arrow: MockArrow): unknown {
+/**
+ * `GET /v0/arrow/:ns` -- matches quiver.core's real `ArrowDetailDTO`
+ * (internal/api/v0/dto/arrow_detail.go) exactly. No media, maintainers,
+ * credits, url, requirements, netbridge, variables, or methods here -- those
+ * only ever come from `toArrowManifestDTO` below, over the separate
+ * `/manifest` endpoint. Keeping the two split, even in the mock, is what lets
+ * a client that wrongly assumes one combined endpoint get caught here instead
+ * of failing against real quiver.core.
+ */
+export function toArrowDetailDTO(arrow: MockArrow): ArrowDetailDTO {
 	return {
 		namespace: arrow.namespace,
 		name: arrow.name,
@@ -67,14 +125,58 @@ export function toArrowDetailDTO(arrow: MockArrow): unknown {
 		user_installed: arrow.user_installed,
 		active_run: arrow.active_run,
 		last_return: arrow.last_return,
-		media: { icon: arrow.icon, banner: arrow.banner },
-		maintainers: arrow.maintainers,
-		url: arrow.url,
-		requirement: arrow.requirement,
-		netbridge: arrow.netbridge,
-		variables: arrow.variables,
-		targets: arrow.targets,
 	};
+}
+
+/** `GET /v0/arrow/:ns/manifest` -- matches quiver.core's real `ArrowManifestDTO` (internal/api/v0/dto/arrow_manifest.go). */
+export function toArrowManifestDTO(arrow: MockArrow): ArrowManifestDTO {
+	return {
+		namespace: arrow.namespace,
+		name: arrow.name,
+		description: arrow.description,
+		tags: arrow.tags,
+		variables: arrow.variables,
+		targets: Object.fromEntries(
+			arrow.targets.map((target) => [target.platform, toTargetManifestDTO(target, arrow.requirement)])
+		),
+		manifest: {
+			url: arrow.url,
+			maintainers: arrow.maintainers.map((name) => ({ name })),
+			credits: (arrow.credits ?? []).map((name) => ({ name })),
+			media: { icon: arrow.icon ?? undefined, banner: arrow.banner ?? undefined },
+			netbridge: arrow.netbridge,
+		},
+	};
+}
+
+/** `GET /v0/arrow/:ns/readme` -- matches quiver.core's real `ArrowReadmeDTO` (internal/api/v0/dto/arrow_readme.go, quiver.core #219). `:ns` here is always the bare namespace. */
+export function toArrowReadmeDTO(bareNamespace: string, readme: string): ArrowReadmeDTO {
+	return { namespace: bareNamespace, readme };
+}
+
+/** `GET /v0/arrow/:ns/dependencies` -- matches quiver.core's real `ArrowDependenciesDTO` (internal/api/v0/dto/arrow_dependencies.go, quiver.core #220). */
+export function toArrowDependenciesDTO(arrow: MockArrow): ArrowDependenciesDTO {
+	return {
+		namespace: versioned(arrow),
+		dependencies: (arrow.dependencies ?? []).map((dep) => ({ namespace: dep.namespace, type: dep.type })),
+	};
+}
+
+/**
+ * `GET /v0/arrow/:ns/dependents` -- matches quiver.core's real `ArrowDependentsDTO`
+ * (internal/api/v0/dto/arrow_dependents.go, quiver.core #220). The mock has no
+ * separate edge store, so this scans every other arrow's own declared
+ * `dependencies` for one pointing back at this namespace -- that scan IS the
+ * graph here, same as core's edge table is there.
+ */
+export function toArrowDependentsDTO(arrow: MockArrow, allArrows: MockArrow[]): ArrowDependentsDTO {
+	const bare = arrow.namespace;
+	const dependents: string[] = [];
+	for (const candidate of allArrows) {
+		const dependsOnThis = (candidate.dependencies ?? []).some((dep) => splitNamespace(dep.namespace).head === bare);
+		if (dependsOnThis) dependents.push(versioned(candidate));
+	}
+	return { namespace: versioned(arrow), dependents };
 }
 
 /**

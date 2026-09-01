@@ -1,5 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import { ArrowDetailsScreen } from '@/features/arrow-details/arrow-details-screen';
+
 export const Route = createFileRoute('/arrow/$')({
 	component: ArrowPage,
 });
@@ -7,5 +9,5 @@ export const Route = createFileRoute('/arrow/$')({
 function ArrowPage() {
 	const { _splat } = Route.useParams();
 
-	return <div data-testid="arrow-page" data-namespace={_splat} />;
+	return <ArrowDetailsScreen namespace={_splat ?? ''} />;
 }

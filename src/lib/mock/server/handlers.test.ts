@@ -90,6 +90,19 @@ describe('library membership', () => {
 		const { status } = await call('POST', `/v0/arrow/${enc(MINECRAFT)}`);
 		expect(status).toBe(500);
 	});
+
+	it('resolves GET /v0/arrow/:ns by a bare namespace too, when it is unambiguous', async () => {
+		const { status, body } = await call('GET', `/v0/arrow/${enc('github.com/rabbyte/minecraft')}`);
+		expect(status).toBe(200);
+		expect((body!.data as { namespace: string }).namespace).toBe('github.com/rabbyte/minecraft');
+	});
+
+	it('registers library membership by a bare namespace too -- Search links to a Discovered arrow with no installed ref to offer', async () => {
+		const bare = `${NS}/mariadb`;
+		const { status } = await call('POST', `/v0/arrow/${enc(bare)}`);
+		expect(status).toBe(200);
+		expect(mock.world.arrows.get(`${bare}@v11.6.2`)!.user_installed).toBe(true);
+	});
 });
 
 describe('runtime refusals', () => {
@@ -109,14 +122,14 @@ describe('runtime refusals', () => {
 		expect(body!.error).toMatch(/not running/);
 	});
 
-	it('requires _execute to name a method', async () => {
-		const { status, body } = await call('POST', `/v0/runtime/${enc(POSTGRES)}/_execute`, {});
-		expect(status).toBe(400);
-		expect(body!.error).toMatch(/method name/);
+	it('refuses execute outside ready, unconditionally -- no manifest override exists for it', async () => {
+		const { status, body } = await call('POST', `/v0/runtime/${enc(MINECRAFT)}/execute`, {});
+		expect(status).toBe(409);
+		expect(body!.error).toMatch(/ready/);
 	});
 
-	it('404s a method the arrow does not declare', async () => {
-		const { status } = await call('POST', `/v0/runtime/${enc(POSTGRES)}/_execute`, { method: 'teleport' });
+	it('404s a custom method the arrow does not declare, invoked by its own name', async () => {
+		const { status } = await call('POST', `/v0/runtime/${enc(POSTGRES)}/teleport`, {});
 		expect(status).toBe(404);
 	});
 
@@ -149,15 +162,46 @@ describe('runtime verbs that do run', () => {
 		expect(arrow.state).toBe('ready');
 	});
 
-	it('a non-start method leaves the state where it found it', async () => {
+	it('a custom method, invoked by its own name, leaves the state where it found it', async () => {
 		const arrow = mock.world.arrows.get(MINECRAFT)!;
 		expect(arrow.state).toBe('running');
 
-		await call('POST', `/v0/runtime/${enc(MINECRAFT)}/_execute`, { method: 'backup' });
+		await call('POST', `/v0/runtime/${enc(MINECRAFT)}/backup`, {});
 		await vi.advanceTimersByTimeAsync(700 * 5);
 
 		expect(arrow.state).toBe('running');
 		expect(arrow.last_return?.method).toBe('backup');
+	});
+
+	it('execute walks the shared go-action steps and lands on running, with a pid', async () => {
+		const arrow = mock.world.arrows.get(POSTGRES)!;
+		arrow.state = 'ready';
+		const { status } = await call('POST', `/v0/runtime/${enc(POSTGRES)}/execute`, {});
+		expect(status).toBe(202);
+		expect(arrow.state).toBe('ready');
+
+		await vi.advanceTimersByTimeAsync(700 * 5);
+		expect(arrow.state).toBe('running');
+		expect(arrow.active_run?.pid).toBeGreaterThan(0);
+	});
+
+	it('update walks its own steps and lands back on ready', async () => {
+		const arrow = mock.world.arrows.get(`${NS}/terraria@v1.4.4.9`)!;
+		expect(arrow.state).toBe('outdated');
+		const { status } = await call('POST', `/v0/runtime/${enc(`${NS}/terraria@v1.4.4.9`)}/update`, {});
+		expect(status).toBe(202);
+		expect(arrow.state).toBe('updating');
+
+		await vi.advanceTimersByTimeAsync(700 * 6);
+		expect(arrow.state).toBe('ready');
+	});
+
+	it('refuses update outside ready/outdated', async () => {
+		// MINECRAFT is 'running' -- past the broad STARTABLE gate, so this
+		// exercises update's own narrower check specifically.
+		const { status, body } = await call('POST', `/v0/runtime/${enc(MINECRAFT)}/update`, {});
+		expect(status).toBe(409);
+		expect(body!.error).toMatch(/ready\/outdated/);
 	});
 
 	it('carries the submitted variables into the run and its return', async () => {
@@ -205,11 +249,15 @@ describe('the router itself', () => {
 	});
 
 	it('keeps a malformed body from taking the request down', async () => {
-		const res = await mock.backend.fetch(`/v0/runtime/${enc(POSTGRES)}/_execute`, {
+		// parseBody falls back to the raw string on a JSON.parse failure; a
+		// handler reading `.variables` off that must not throw. `install` is
+		// startable for POSTGRES ('ready'), so a 202 here proves the fallback
+		// never reaches the router's own try/catch as a 500.
+		const res = await mock.backend.fetch(`/v0/runtime/${enc(POSTGRES)}/install`, {
 			method: 'POST',
 			body: 'not json at all',
 		});
-		expect(res.status).toBe(400);
+		expect(res.status).toBe(202);
 	});
 
 	it('does not match a route of a different depth', async () => {

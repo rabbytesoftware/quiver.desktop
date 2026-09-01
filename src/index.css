@@ -118,6 +118,7 @@
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
 	--radius-xl: calc(var(--radius) + 4px);
+	--radius-2xl: calc(var(--radius) + 8px);
 
 	--font-sans: var(--font-sans);
 	--font-mono: var(--font-mono);
@@ -161,10 +162,17 @@
 	--color-sidebar-count-deleted: var(--sidebar-count-deleted);
 
 	--animate-skeleton: skeleton 2s -1s infinite linear;
+	--animate-flicker-spin: flicker-spin 0.72s steps(8) infinite;
 
 	@keyframes skeleton {
 		to {
 			background-position: -200% 0;
+		}
+	}
+
+	@keyframes flicker-spin {
+		to {
+			transform: translateX(-100%);
 		}
 	}
 }

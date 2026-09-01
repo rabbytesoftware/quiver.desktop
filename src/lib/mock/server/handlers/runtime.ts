@@ -1,7 +1,7 @@
-import type { ArrowState, StepProgress } from '@/domain/arrow';
+import type { ArrowState, ArrowStepDefinition, StepProgress } from '@/domain/arrow';
 
-import { INSTALL_STEPS } from '../../world/scenarios/kit';
-import { MOCK_HOST_PLATFORM, type MockArrow, type MockWorld } from '../../world/types';
+import { INSTALL_STEPS, START_STEPS, STOP_STEPS, UNINSTALL_STEPS, UPDATE_STEPS } from '../../world/scenarios/kit';
+import { findArrow, MOCK_HOST_PLATFORM, type MockArrow, type MockWorld } from '../../world/types';
 import { versioned } from '../../world/types';
 import { accepted, fail } from '../envelope';
 import { toRuntimeFrame } from '../projections';
@@ -13,8 +13,8 @@ const STEP_MS = 700;
 
 const STARTABLE: ArrowState[] = ['absent', 'ready', 'running', 'outdated', 'detached', 'removed'];
 
-function pending(titles: string[]): StepProgress[] {
-	return titles.map((title, index) => ({ index, title, status: 'pending', type: 'exec' }));
+function pending(steps: ArrowStepDefinition[]): StepProgress[] {
+	return steps.map((step, index) => ({ index, title: step.title, status: 'pending', type: 'exec' }));
 }
 
 function push(world: MockWorld, arrow: MockArrow): void {
@@ -25,7 +25,7 @@ function runSteps(
 	world: MockWorld,
 	arrow: MockArrow,
 	method: string,
-	titles: string[],
+	steps: ArrowStepDefinition[],
 	variables: Record<string, string>,
 	transitional: ArrowState,
 	finalState: ArrowState,
@@ -35,7 +35,7 @@ function runSteps(
 	world.cancels.get(key)?.();
 
 	arrow.state = transitional;
-	arrow.active_run = { method, variables, steps: pending(titles), ...(pid ? { pid } : {}) };
+	arrow.active_run = { method, variables, steps: pending(steps), ...(pid ? { pid } : {}) };
 	arrow.last_return = null;
 	push(world, arrow);
 
@@ -50,7 +50,7 @@ function runSteps(
 
 		if (index > 0) run.steps[index - 1].status = 'completed';
 
-		if (index >= titles.length) {
+		if (index >= steps.length) {
 			stop();
 			world.cancels.delete(key);
 			arrow.state = finalState;
@@ -73,7 +73,7 @@ function runSteps(
 }
 
 function requireArrow(world: MockWorld, ns: string): MockArrow | Response {
-	const arrow = world.arrows.get(ns);
+	const arrow = findArrow(world.arrows, ns);
 	return arrow ?? fail(`arrow ${ns} not found`, 404);
 }
 
@@ -108,15 +108,7 @@ export const runtimeRoutes: Route[] = [
 				}
 
 				case 'uninstall': {
-					runSteps(
-						world,
-						arrow,
-						'uninstall',
-						['Stop process', 'Remove workdir', 'Prune runtime config'],
-						{},
-						'uninstalling',
-						'absent'
-					);
+					runSteps(world, arrow, 'uninstall', UNINSTALL_STEPS, {}, 'uninstalling', 'absent');
 					return accepted();
 				}
 
@@ -124,41 +116,57 @@ export const runtimeRoutes: Route[] = [
 					if (arrow.state !== 'running') {
 						return fail(`arrow ${req.params.ns} is not running`, 409);
 					}
-					runSteps(world, arrow, 'stop', ['Signal process', 'Await exit'], {}, 'stopping', 'ready');
+					runSteps(world, arrow, 'stop', STOP_STEPS, {}, 'stopping', 'ready');
 					return accepted();
 				}
 
-				case '_execute': {
-					const name = body.method;
-					if (!name) return fail('_execute requires a method name', 400);
-
-					const target = arrow.targets.find((t) => t.platform === MOCK_HOST_PLATFORM);
-					const method = target?.methods[name];
-					if (!method) {
-						return fail(`arrow ${req.params.ns} has no method ${name} for ${MOCK_HOST_PLATFORM}`, 404);
-					}
-					if (!method.available_in.includes(arrow.state as 'ready' | 'running')) {
+				case 'update': {
+					if (arrow.state !== 'ready' && arrow.state !== 'outdated') {
 						return fail(
-							`method ${name} is available in ${method.available_in.join('/')}, not ${arrow.state}`,
+							`arrow ${req.params.ns} is ${arrow.state}; update only runs from ready/outdated`,
 							409
 						);
 					}
-
-					const willRun = name === 'start';
-					runSteps(
-						world,
-						arrow,
-						name,
-						method.steps,
-						variables,
-						arrow.state,
-						willRun ? 'running' : arrow.state
-					);
+					runSteps(world, arrow, 'update', UPDATE_STEPS, {}, 'updating', 'ready');
 					return accepted();
 				}
 
-				default:
-					return fail(`unknown runtime verb ${req.params.verb}`, 404);
+				// The one universal "go" action -- `Target.Lifecycle.Execute`, not a
+				// custom method lookup. Real quiver.core hard-gates this to `ready`
+				// only, with no manifest override possible (`BeginExecution.Validate`);
+				// mirror that exactly rather than checking any method's `available_in`.
+				case 'execute': {
+					if (arrow.state !== 'ready') {
+						return fail(`arrow ${req.params.ns} is ${arrow.state}; execute only runs from ready`, 409);
+					}
+					const target = arrow.targets.find((t) => t.platform === MOCK_HOST_PLATFORM);
+					if (!target) {
+						return fail(`arrow ${req.params.ns} declares no target for ${MOCK_HOST_PLATFORM}`, 422);
+					}
+					runSteps(world, arrow, 'execute', START_STEPS, variables, 'ready', 'running');
+					return accepted();
+				}
+
+				default: {
+					// Any other word is a custom method, invoked by its own name --
+					// `POST /v0/runtime/:ns/backup`, not a verb this handler special-cases.
+					const target = arrow.targets.find((t) => t.platform === MOCK_HOST_PLATFORM);
+					const method = target?.methods[req.params.verb];
+					if (!method) {
+						return fail(
+							`arrow ${req.params.ns} has no method ${req.params.verb} for ${MOCK_HOST_PLATFORM}`,
+							404
+						);
+					}
+					if (!method.available_in.includes(arrow.state)) {
+						return fail(
+							`method ${req.params.verb} is available in ${method.available_in.join('/')}, not ${arrow.state}`,
+							409
+						);
+					}
+					runSteps(world, arrow, req.params.verb, method.steps, variables, arrow.state, arrow.state);
+					return accepted();
+				}
 			}
 		},
 	},
