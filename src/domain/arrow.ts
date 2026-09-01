@@ -67,6 +67,13 @@ export interface ArrowEntry {
 	state: ArrowState;
 	active_run: ActiveRun | null;
 	last_return: LastReturn | null;
+	/**
+	 * When this arrow's `execute` last completed successfully. Optional because
+	 * quiver.core doesn't stamp it yet (tracked separately, enhancement/last_used) --
+	 * every arrow reports `undefined`/`null` until that lands, which is exactly
+	 * the "never used" case Home's Recents section already treats as absent.
+	 */
+	last_used_at?: string | null;
 }
 
 export interface RuntimeUpdate {

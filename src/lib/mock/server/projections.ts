@@ -74,6 +74,7 @@ export function toArrowListDTO(arrows: MockArrow[]): ArrowListResponseItemDTO[] 
 			version: a.version,
 			state: a.state,
 			installed_at: a.installed_at,
+			...(a.last_used_at ? { last_used_at: a.last_used_at } : {}),
 		})),
 	}));
 }

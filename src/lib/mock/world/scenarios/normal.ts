@@ -63,6 +63,8 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		ref: 'v1.21.4',
 		version: '1.21.4',
 		state: 'running',
+		// Most-recently-used of the three Recents fixtures below.
+		last_used_at: '2026-07-20T18:42:00Z',
 		tags: ['game', 'server', 'java'],
 		// One of the few fixtures with a banner, so the card's banner path stays
 		// covered while the rest exercise the icon fallback that ships.
@@ -197,6 +199,7 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		ref: 'v17.2',
 		version: '17.2',
 		state: 'ready',
+		last_used_at: '2026-07-18T10:15:00Z',
 		tags: ['database', 'service'],
 		netbridge: [{ name: 'sql', protocol: 'tcp', default: 5432, required: true }],
 		variables: [
@@ -285,6 +288,7 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		ref: 'v1.28.1',
 		version: '1.28.1',
 		state: 'detached',
+		last_used_at: '2026-07-16T08:00:00Z',
 		tags: ['storage', 'service'],
 	}),
 	arrow({
@@ -408,6 +412,28 @@ export const NORMAL_COLLECTIONS: MockCollection[] = [
 				resolved: true,
 				name: 'PostgreSQL',
 				description: 'PostgreSQL 17 with the timescale extension preinstalled.',
+			},
+			{
+				namespace: `${NS}/grafana@v11.4.0`,
+				resolved: true,
+				name: 'Grafana',
+				description: 'Dashboards for the metrics your arrows emit.',
+			},
+		],
+	},
+	{
+		namespace: `${NS}/monitoring-stack`,
+		name: 'Monitoring Stack',
+		description: 'A minimal metrics and caching layer for other arrows to lean on.',
+		maintainers: ['rabbyte'],
+		followed: true,
+		tags: ['ops', 'monitoring'],
+		arrows: [
+			{
+				namespace: `${NS}/redis@v7.4.1`,
+				resolved: true,
+				name: 'Redis',
+				description: 'Redis 7 keystore.',
 			},
 			{
 				namespace: `${NS}/grafana@v11.4.0`,

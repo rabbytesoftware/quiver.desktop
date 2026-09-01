@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from "./routes/__root"
 import { Route as SettingsRouteImport } from "./routes/settings"
 import { Route as SearchRouteImport } from "./routes/search"
 import { Route as RemoteRouteImport } from "./routes/remote"
+import { Route as LibraryRouteImport } from "./routes/library"
+import { Route as CollectionsRouteImport } from "./routes/collections"
 import { Route as IndexRouteImport } from "./routes/index"
 import { Route as CollectionSplatRouteImport } from "./routes/collection.$"
 import { Route as ArrowSplatRouteImport } from "./routes/arrow.$"
@@ -29,6 +31,16 @@ const SearchRoute = SearchRouteImport.update({
 const RemoteRoute = RemoteRouteImport.update({
   id: "/remote",
   path: "/remote",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryRoute = LibraryRouteImport.update({
+  id: "/library",
+  path: "/library",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollectionsRoute = CollectionsRouteImport.update({
+  id: "/collections",
+  path: "/collections",
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -49,6 +61,8 @@ const ArrowSplatRoute = ArrowSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
+  "/collections": typeof CollectionsRoute
+  "/library": typeof LibraryRoute
   "/remote": typeof RemoteRoute
   "/search": typeof SearchRoute
   "/settings": typeof SettingsRoute
@@ -57,6 +71,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
+  "/collections": typeof CollectionsRoute
+  "/library": typeof LibraryRoute
   "/remote": typeof RemoteRoute
   "/search": typeof SearchRoute
   "/settings": typeof SettingsRoute
@@ -66,6 +82,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   "/": typeof IndexRoute
+  "/collections": typeof CollectionsRoute
+  "/library": typeof LibraryRoute
   "/remote": typeof RemoteRoute
   "/search": typeof SearchRoute
   "/settings": typeof SettingsRoute
@@ -76,16 +94,28 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | "/"
+    | "/collections"
+    | "/library"
     | "/remote"
     | "/search"
     | "/settings"
     | "/arrow/$"
     | "/collection/$"
   fileRoutesByTo: FileRoutesByTo
-  to: "/" | "/remote" | "/search" | "/settings" | "/arrow/$" | "/collection/$"
+  to:
+    | "/"
+    | "/collections"
+    | "/library"
+    | "/remote"
+    | "/search"
+    | "/settings"
+    | "/arrow/$"
+    | "/collection/$"
   id:
     | "__root__"
     | "/"
+    | "/collections"
+    | "/library"
     | "/remote"
     | "/search"
     | "/settings"
@@ -95,6 +125,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CollectionsRoute: typeof CollectionsRoute
+  LibraryRoute: typeof LibraryRoute
   RemoteRoute: typeof RemoteRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
@@ -125,6 +157,20 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof RemoteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    "/library": {
+      id: "/library"
+      path: "/library"
+      fullPath: "/library"
+      preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/collections": {
+      id: "/collections"
+      path: "/collections"
+      fullPath: "/collections"
+      preLoaderRoute: typeof CollectionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/": {
       id: "/"
       path: "/"
@@ -151,6 +197,8 @@ declare module "@tanstack/react-router" {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CollectionsRoute: CollectionsRoute,
+  LibraryRoute: LibraryRoute,
   RemoteRoute: RemoteRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,

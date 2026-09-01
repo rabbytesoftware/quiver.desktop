@@ -7,7 +7,13 @@ export const collectionRoutes: Route[] = [
 		method: 'GET',
 		pattern: '/v0/collection',
 		fault: 'collections',
-		handler: (_req, world) => ok([...world.collections.values()].map(toCollectionListDTO)),
+		handler: (req, world) => {
+			const followedParam = req.query.get('followed');
+			const collections = [...world.collections.values()].filter(
+				(collection) => followedParam === null || collection.followed === (followedParam === 'true')
+			);
+			return ok(collections.map(toCollectionListDTO));
+		},
 	},
 	{
 		method: 'GET',

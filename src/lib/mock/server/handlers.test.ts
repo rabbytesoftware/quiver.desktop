@@ -38,8 +38,23 @@ describe('collections', () => {
 	it('lists them with a member count rather than the members', async () => {
 		const { body } = await call('GET', '/v0/collection');
 		const list = body!.data as Array<{ namespace: string; arrow_count: number }>;
-		expect(list).toHaveLength(2);
+		expect(list).toHaveLength(3);
 		expect(list.find((c) => c.namespace === GAME_SERVERS)?.arrow_count).toBe(4);
+	});
+
+	it('filters to only followed collections when asked', async () => {
+		const { body } = await call('GET', '/v0/collection?followed=true');
+		const list = body!.data as Array<{ namespace: string; followed: boolean }>;
+		expect(list.length).toBeGreaterThan(0);
+		expect(list.every((c) => c.followed)).toBe(true);
+		expect(list.find((c) => c.namespace === `${NS}/homelab`)).toBeUndefined();
+	});
+
+	it('filters to only unfollowed collections when asked', async () => {
+		const { body } = await call('GET', '/v0/collection?followed=false');
+		const list = body!.data as Array<{ namespace: string; followed: boolean }>;
+		expect(list.every((c) => !c.followed)).toBe(true);
+		expect(list.find((c) => c.namespace === `${NS}/homelab`)).toBeDefined();
 	});
 
 	it('follows and unfollows', async () => {
@@ -156,6 +171,20 @@ describe('runtime verbs that do run', () => {
 	it('stop takes a running arrow back to ready', async () => {
 		const arrow = mock.world.arrows.get(MINECRAFT)!;
 		await call('POST', `/v0/runtime/${enc(MINECRAFT)}/stop`);
+		expect(arrow.state).toBe('stopping');
+
+		await vi.advanceTimersByTimeAsync(700 * 4);
+		expect(arrow.state).toBe('ready');
+	});
+
+	// Mirrors quiver.core's real BeginStop.Validate: a detached arrow's only
+	// recovery path is this same plain stop call, not a distinct "force" verb.
+	it('stop also recovers a detached arrow back to ready', async () => {
+		const arrow = mock.world.arrows.get(`${NS}/syncthing@v1.28.1`)!;
+		expect(arrow.state).toBe('detached');
+
+		const { status } = await call('POST', `/v0/runtime/${enc(`${NS}/syncthing@v1.28.1`)}/stop`);
+		expect(status).toBe(202);
 		expect(arrow.state).toBe('stopping');
 
 		await vi.advanceTimersByTimeAsync(700 * 4);

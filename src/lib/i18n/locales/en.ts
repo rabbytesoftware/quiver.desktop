@@ -265,6 +265,33 @@ export const en = {
 	},
 
 	'arrow.version.label': 'Version',
+
+	'home.recents': 'Recents',
+	'home.library': 'Library',
+	'home.collections': 'Collections',
+	'home.viewAllArrows': {
+		one: 'View {count} arrow',
+		other: 'View all {count} arrows',
+	},
+	'home.viewAllCollections': {
+		one: 'View {count} collection',
+		other: 'View all {count} collections',
+	},
+	'home.empty.title': 'Nothing here yet',
+	'home.empty.description': 'Installed arrows and the collections you follow will show up here.',
+	'home.empty.cta': 'Search for arrows',
+
+	'library.subtitle': {
+		one: '{count} installed arrow',
+		other: '{count} installed arrows',
+	},
+	'library.sort.name': 'Sort: Name',
+
+	'collections.subtitle': '{count} followed',
+	'collections.arrowCount': {
+		one: '{count} arrow',
+		other: '{count} arrows',
+	},
 } as const satisfies Catalogue;
 
 export type MessageKey = keyof typeof en;

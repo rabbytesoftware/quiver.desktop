@@ -20,6 +20,8 @@ export interface InstalledVersionDTO {
 	version: string;
 	state: ArrowState;
 	installed_at?: string;
+	/** Set once quiver.core stamps it on a completed `execute` (enhancement/last_used); absent until then. */
+	last_used_at?: string;
 }
 
 export interface ArrowListResponseItemDTO {
@@ -68,6 +70,7 @@ export function toArrowCatalogRecords(items: ArrowListResponseItemDTO[], connect
 			icon: arrow.media?.icon || null,
 			banner: arrow.media?.banner || null,
 			version: v.version,
+			last_used_at: v.last_used_at ?? null,
 		}))
 	);
 }
