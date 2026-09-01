@@ -14,7 +14,7 @@ function NumberField({
 			className={cn('inline-flex items-center', className)}
 			{...props}
 		>
-			<NumberFieldPrimitive.Group className="inline-flex h-8 items-center border border-input bg-transparent shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+			<NumberFieldPrimitive.Group className="inline-flex h-8 items-center overflow-hidden rounded-md border border-input bg-transparent shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
 				<NumberFieldPrimitive.Decrement className="h-full w-6 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
 					−
 				</NumberFieldPrimitive.Decrement>

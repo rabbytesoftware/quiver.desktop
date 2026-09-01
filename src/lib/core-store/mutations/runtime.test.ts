@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vites
 
 import { apiFetch } from '@/lib/transport/api';
 
-import { useInstall, useUninstall, useStop, useExecute } from './runtime';
+import { useExecute, useExecuteArrow, useInstall, useStop, useUninstall, useUpdate } from './runtime';
 
 vi.mock('@/lib/transport/api', () => ({ apiFetch: vi.fn() }));
 
@@ -70,13 +70,37 @@ describe('useStop', () => {
 });
 
 describe('useExecute', () => {
-	it('POSTs to /v0/runtime/:ns/:method using the caller-supplied method', async () => {
+	it('POSTs to /v0/runtime/:ns/:method using the caller-supplied custom method name', async () => {
 		const { result } = renderHook(() => useExecute(), { wrapper: wrapper() });
-		await act(() => result.current.mutateAsync({ namespace: 'ns@v1', method: '_execute', variables: { a: 'b' } }));
-		expect(apiFetch).toHaveBeenCalledWith('/v0/runtime/ns%40v1/_execute', {
+		await act(() => result.current.mutateAsync({ namespace: 'ns@v1', method: 'backup', variables: { a: 'b' } }));
+		expect(apiFetch).toHaveBeenCalledWith('/v0/runtime/ns%40v1/backup', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ variables: { a: 'b' } }),
+		});
+	});
+});
+
+describe('useUpdate', () => {
+	it('POSTs to /v0/runtime/:ns/update', async () => {
+		const { result } = renderHook(() => useUpdate(), { wrapper: wrapper() });
+		await act(() => result.current.mutateAsync({ namespace: 'ns@v1' }));
+		expect(apiFetch).toHaveBeenCalledWith('/v0/runtime/ns%40v1/update', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ variables: {} }),
+		});
+	});
+});
+
+describe('useExecuteArrow', () => {
+	it('POSTs to /v0/runtime/:ns/execute -- the one universal go action, never a custom method name', async () => {
+		const { result } = renderHook(() => useExecuteArrow(), { wrapper: wrapper() });
+		await act(() => result.current.mutateAsync({ namespace: 'ns@v1', variables: { PORT: '25565' } }));
+		expect(apiFetch).toHaveBeenCalledWith('/v0/runtime/ns%40v1/execute', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ variables: { PORT: '25565' } }),
 		});
 	});
 });

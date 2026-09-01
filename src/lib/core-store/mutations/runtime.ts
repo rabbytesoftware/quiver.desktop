@@ -37,6 +37,26 @@ export function useStop() {
 	});
 }
 
+export function useUpdate() {
+	return useMutation({
+		mutationFn: ({ namespace, variables = {} }: { namespace: string; variables?: Record<string, string> }) =>
+			runtimeMethod({ namespace, method: 'update', variables }),
+	});
+}
+
+/**
+ * The one universal "go" action -- `Target.Lifecycle.Execute`, always this
+ * exact call, never a custom method name. Hard-gated to `ready` only by core
+ * itself (`BeginExecution.Validate`); no manifest override is possible, so
+ * don't add a state check here that could drift from that.
+ */
+export function useExecuteArrow() {
+	return useMutation({
+		mutationFn: ({ namespace, variables = {} }: { namespace: string; variables?: Record<string, string> }) =>
+			runtimeMethod({ namespace, method: 'execute', variables }),
+	});
+}
+
 export function useExecute() {
 	return useMutation({
 		mutationFn: ({

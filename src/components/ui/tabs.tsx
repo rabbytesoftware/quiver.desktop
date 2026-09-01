@@ -44,7 +44,15 @@ export function TabsList({
 			{children}
 			<TabsPrimitive.Indicator
 				className={cn(
-					'absolute bottom-0 left-0 h-(--active-tab-height) w-(--active-tab-width) translate-x-(--active-tab-left) -translate-y-(--active-tab-bottom) transition-[width,translate] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]',
+					// No `transition` here, deliberately: both `width` and `translate`
+					// are driven by custom properties WebKit batch-updates via inline
+					// style on every tab change, and animating EITHER one (tried both,
+					// separately) can leave the indicator permanently stuck at the
+					// previous tab's computed size/position -- not a missed animation
+					// frame, `getComputedStyle` kept reporting the stale value
+					// indefinitely, confirmed live, until `transition: none` was
+					// forced and reverted. Snapping instantly is the reliable option.
+					'absolute bottom-0 left-0 h-(--active-tab-height) w-(--active-tab-width) translate-x-(--active-tab-left) -translate-y-(--active-tab-bottom)',
 					variant === 'underline'
 						? 'z-10 bg-primary data-[orientation=horizontal]:h-0.5 data-[orientation=vertical]:w-0.5 data-[orientation=vertical]:-translate-x-px data-[orientation=horizontal]:translate-y-px'
 						: cn('-z-1', SELECTED_SURFACE)

@@ -132,10 +132,80 @@ describe('the normal scenario', () => {
 	});
 
 	it('ships a package with no methods at all', async () => {
-		const detail = await get<{ targets: Array<{ methods: Record<string, unknown> }> }>(
-			`/v0/arrow/${encodeURIComponent(`${NS}/pixelmon-assets@v9.2.1`)}`
+		// Methods live on the manifest endpoint, not the plain detail call --
+		// matches quiver.core's real split (GET /v0/arrow/:ns carries no targets).
+		const manifest = await get<{ targets: Record<string, { methods: Record<string, unknown> }> }>(
+			`/v0/arrow/${encodeURIComponent(`${NS}/pixelmon-assets@v9.2.1`)}/manifest`
 		);
-		expect(Object.keys(detail.targets[0].methods)).toHaveLength(0);
+		expect(Object.keys(Object.values(manifest.targets)[0].methods)).toHaveLength(0);
+	});
+});
+
+describe('the readme endpoint', () => {
+	it('serves the readme for an arrow that has one, from the bare namespace', async () => {
+		const readme = await get<{ namespace: string; readme: string }>(
+			`/v0/arrow/${encodeURIComponent(`${NS}/minecraft`)}/readme`
+		);
+		expect(readme.namespace).toBe(`${NS}/minecraft`);
+		expect(readme.readme).toContain('Minecraft Server packages');
+	});
+
+	it('404s for an arrow with no readme', async () => {
+		const res = await mock.backend.fetch(`/v0/arrow/${encodeURIComponent(`${NS}/redis`)}/readme`);
+		expect(res.status).toBe(404);
+	});
+
+	it('400s when the namespace carries a ref, matching /manifest', async () => {
+		const res = await mock.backend.fetch(`/v0/arrow/${encodeURIComponent(MINECRAFT)}/readme`);
+		expect(res.status).toBe(400);
+	});
+
+	it('404s for a namespace that does not exist at all', async () => {
+		const res = await mock.backend.fetch(`/v0/arrow/${encodeURIComponent(`${NS}/nonexistent`)}/readme`);
+		expect(res.status).toBe(404);
+	});
+});
+
+describe('the dependencies endpoint', () => {
+	it('serves what an arrow declares it needs', async () => {
+		const deps = await get<{ namespace: string; dependencies: { namespace: string; type: string }[] }>(
+			`/v0/arrow/${encodeURIComponent(MINECRAFT)}/dependencies`
+		);
+		expect(deps.namespace).toBe(MINECRAFT);
+		expect(deps.dependencies).toEqual([{ namespace: `${NS}/nats@v2.10.24`, type: 'tool' }]);
+	});
+
+	it('serves an empty list for an arrow that declares no dependencies', async () => {
+		const deps = await get<{ dependencies: unknown[] }>(`/v0/arrow/${encodeURIComponent(POSTGRES)}/dependencies`);
+		expect(deps.dependencies).toEqual([]);
+	});
+
+	it('404s for a namespace that does not exist at all', async () => {
+		const res = await mock.backend.fetch(`/v0/arrow/${encodeURIComponent(`${NS}/nonexistent`)}/dependencies`);
+		expect(res.status).toBe(404);
+	});
+});
+
+describe('the dependents endpoint', () => {
+	it('serves every arrow that declares a dependency on this one, computed from the reverse scan', async () => {
+		const nats = `${NS}/nats@v2.10.24`;
+		const dependents = await get<{ namespace: string; dependents: string[] }>(
+			`/v0/arrow/${encodeURIComponent(nats)}/dependents`
+		);
+		expect(dependents.namespace).toBe(nats);
+		expect(dependents.dependents).toEqual([MINECRAFT]);
+	});
+
+	it('serves an empty list for an arrow nothing depends on', async () => {
+		const dependents = await get<{ dependents: unknown[] }>(
+			`/v0/arrow/${encodeURIComponent(MINECRAFT)}/dependents`
+		);
+		expect(dependents.dependents).toEqual([]);
+	});
+
+	it('404s for a namespace that does not exist at all', async () => {
+		const res = await mock.backend.fetch(`/v0/arrow/${encodeURIComponent(`${NS}/nonexistent`)}/dependents`);
+		expect(res.status).toBe(404);
 	});
 });
 
@@ -234,24 +304,22 @@ describe('install', () => {
 describe('methods', () => {
 	beforeEach(() => vi.useFakeTimers());
 
-	it('refuses a method that is not available in the current state', async () => {
-		const res = await mock.backend.fetch(`/v0/runtime/${encodeURIComponent(MINECRAFT)}/_execute`, {
-			method: 'POST',
-			body: JSON.stringify({ method: 'stop' }),
-		});
+	it('refuses a custom method that is not available in the current state', async () => {
+		// 'rcon' is only available_in ['running'] on MINECRAFT's own manifest.
+		const res = await mock.backend.fetch(`/v0/runtime/${encodeURIComponent(MINECRAFT)}/rcon`, { method: 'POST' });
 		expect(res.status).toBe(202);
 
-		const bad = await mock.backend.fetch(`/v0/runtime/${encodeURIComponent(POSTGRES)}/_execute`, {
-			method: 'POST',
-			body: JSON.stringify({ method: 'stop' }),
-		});
+		const arrow = mock.world.arrows.get(MINECRAFT)!;
+		arrow.state = 'absent';
+		const bad = await mock.backend.fetch(`/v0/runtime/${encodeURIComponent(MINECRAFT)}/rcon`, { method: 'POST' });
 		expect(bad.status).toBe(409);
 		await expect(bad.json()).resolves.toMatchObject({ error: expect.stringContaining('available in running') });
 	});
 
-	it('leaves a started arrow running, with a pid', async () => {
+	it('leaves a started arrow running, with a pid, via the reserved execute verb', async () => {
 		const key = POSTGRES;
-		await post(`/v0/runtime/${encodeURIComponent(key)}/_execute`, { method: 'start' });
+		mock.world.arrows.get(key)!.state = 'ready';
+		await post(`/v0/runtime/${encodeURIComponent(key)}/execute`);
 		await vi.advanceTimersByTimeAsync(700 * 5);
 
 		const arrow = mock.world.arrows.get(key)!;

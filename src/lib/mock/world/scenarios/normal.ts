@@ -5,15 +5,55 @@ import {
 	INSTALL_STEPS,
 	method,
 	OTHER_PLATFORM,
+	runStep,
+	signalStep,
 	START_STEPS,
 	stepsAllDone,
 	stepsFailedAt,
+	STOP_STEPS,
 	target,
+	UPDATE_STEPS,
 	variable,
 } from './kit';
 import { bannerFor } from './media';
 
 const NS = 'github.com/rabbyte';
+
+// Exercises the richer end of what an ARROW.md can carry -- GFM lists/task
+// lists/inline code, an image, and a fenced ```mermaid``` diagram -- not just
+// headings and prose.
+const MINECRAFT_README = [
+	'## About',
+	'',
+	'Minecraft Server packages a vanilla Java Edition server with sane defaults, automatic world backups, and RCON wired up out of the box. It targets Java 21 and runs on macOS, Linux and Windows.',
+	'',
+	`![Minecraft Server](${bannerFor(`${NS}/minecraft`)})`,
+	'',
+	'## What you get',
+	'',
+	"- Vanilla server jar, pinned to this arrow's exact ref",
+	'- World auto-backup before every stop',
+	'- RCON enabled on a local port unless overridden',
+	'- Clean shutdown via a graceful stop signal, not a hard kill',
+	'',
+	'## Lifecycle',
+	'',
+	'~~~mermaid',
+	'stateDiagram-v2',
+	'    [*] --> Ready: install',
+	'    Ready --> Starting: start',
+	'    Starting --> Running',
+	'    Running --> Stopping: stop',
+	'    Stopping --> Ready',
+	'    Running --> Running: backup',
+	'~~~',
+	'',
+	'## Getting started',
+	'',
+	'- [ ] Set `MOTD` and `DIFFICULTY` in Settings',
+	'- [ ] Run **Start** -- first boot generates the world and can take a minute or two',
+	'- [ ] Watch the Activity tab for progress',
+].join('\n');
 
 export const NORMAL_ARROWS: MockArrow[] = [
 	arrow({
@@ -45,14 +85,38 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		targets: [
 			target(HOST_PLATFORM, [
 				method('start', 'Start the server', ['ready'], START_STEPS),
-				method('stop', 'Stop the server', ['running'], ['Save world', 'Signal process', 'Await exit']),
+				method(
+					'stop',
+					'Stop the server',
+					['running'],
+					[
+						runStep('Save world', 'rcon-cli save-all'),
+						signalStep('Signal process', 'graceful'),
+						runStep('Await exit', 'while kill -0 {{pid}} 2>/dev/null; do sleep 1; done'),
+					]
+				),
 				method(
 					'backup',
 					'Snapshot the world directory',
 					['ready', 'running'],
-					['Freeze world', 'Copy region files', 'Compress']
+					[
+						runStep('Freeze world', 'rcon-cli save-off'),
+						runStep('Copy region files', 'cp -r {{workdir}}/world {{backup_dir}}/world-{{timestamp}}'),
+						runStep(
+							'Compress',
+							'tar -czf {{backup_dir}}/world-{{timestamp}}.tar.gz {{backup_dir}}/world-{{timestamp}}'
+						),
+					]
 				),
-				method('rcon', 'Open a remote console session', ['running'], ['Connect', 'Authenticate']),
+				method(
+					'rcon',
+					'Open a remote console session',
+					['running'],
+					[
+						runStep('Connect', 'nc {{host}} 25575'),
+						runStep('Authenticate', 'rcon-cli --password {{RCON_PASSWORD}} login'),
+					]
+				),
 			]),
 		],
 		active_run: {
@@ -61,6 +125,12 @@ export const NORMAL_ARROWS: MockArrow[] = [
 			variables: { MOTD: 'A Quiver server', MAX_PLAYERS: '20', DIFFICULTY: 'normal', ONLINE_MODE: 'true' },
 			steps: stepsAllDone(START_STEPS),
 		},
+		readme: MINECRAFT_README,
+		// Publishes player join/leave events over NATS for other arrows (a
+		// Discord bridge, say) to consume -- also exercises `/dependents`
+		// end to end, since NATS's own fixture declares no `dependencies` of
+		// its own and gets this one purely from the reverse scan.
+		dependencies: [{ namespace: `${NS}/nats@v2.10.24`, type: 'tool' }],
 	}),
 
 	arrow({
@@ -147,11 +217,11 @@ export const NORMAL_ARROWS: MockArrow[] = [
 			method: 'install',
 			variables: {},
 			steps: [
-				{ index: 0, title: INSTALL_STEPS[0], status: 'completed', type: 'exec' },
-				{ index: 1, title: INSTALL_STEPS[1], status: 'running', type: 'exec' },
-				{ index: 2, title: INSTALL_STEPS[2], status: 'pending', type: 'exec' },
-				{ index: 3, title: INSTALL_STEPS[3], status: 'pending', type: 'exec' },
-				{ index: 4, title: INSTALL_STEPS[4], status: 'pending', type: 'exec' },
+				{ index: 0, title: INSTALL_STEPS[0].title, status: 'completed', type: 'exec' },
+				{ index: 1, title: INSTALL_STEPS[1].title, status: 'running', type: 'exec' },
+				{ index: 2, title: INSTALL_STEPS[2].title, status: 'pending', type: 'exec' },
+				{ index: 3, title: INSTALL_STEPS[3].title, status: 'pending', type: 'exec' },
+				{ index: 4, title: INSTALL_STEPS[4].title, status: 'pending', type: 'exec' },
 			],
 		},
 	}),
@@ -163,6 +233,16 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		version: '2.8.4',
 		state: 'updating',
 		tags: ['network', 'service'],
+		active_run: {
+			method: 'update',
+			variables: {},
+			steps: [
+				{ index: 0, title: UPDATE_STEPS[0].title, status: 'completed', type: 'exec' },
+				{ index: 1, title: UPDATE_STEPS[1].title, status: 'running', type: 'exec' },
+				{ index: 2, title: UPDATE_STEPS[2].title, status: 'pending', type: 'exec' },
+				{ index: 3, title: UPDATE_STEPS[3].title, status: 'pending', type: 'exec' },
+			],
+		},
 	}),
 	arrow({
 		namespace: `${NS}/grafana`,
@@ -172,6 +252,14 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		version: '11.4.0',
 		state: 'stopping',
 		tags: ['observability', 'service'],
+		active_run: {
+			method: 'stop',
+			variables: {},
+			steps: [
+				{ index: 0, title: STOP_STEPS[0].title, status: 'running', type: 'exec' },
+				{ index: 1, title: STOP_STEPS[1].title, status: 'pending', type: 'exec' },
+			],
+		},
 	}),
 	arrow({
 		namespace: `${NS}/nats`,
@@ -181,6 +269,14 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		version: '2.10.24',
 		state: 'draining',
 		tags: ['network', 'service'],
+		active_run: {
+			method: 'stop',
+			variables: {},
+			steps: [
+				{ index: 0, title: STOP_STEPS[0].title, status: 'completed', type: 'exec' },
+				{ index: 1, title: STOP_STEPS[1].title, status: 'running', type: 'exec' },
+			],
+		},
 	}),
 	arrow({
 		namespace: `${NS}/syncthing`,

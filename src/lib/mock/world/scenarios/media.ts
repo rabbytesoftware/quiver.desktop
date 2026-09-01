@@ -12,7 +12,9 @@
 
 function dataUri(width: number, height: number, body: string): string {
 	const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">${body}</svg>`;
-	return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+	// `encodeURIComponent` leaves `(`/`)` unescaped, which breaks this URI when
+	// dropped straight into a markdown `![]()` destination -- escape them too.
+	return `data:image/svg+xml,${encodeURIComponent(svg).replace(/\(/g, '%28').replace(/\)/g, '%29')}`;
 }
 
 /**

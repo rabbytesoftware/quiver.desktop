@@ -16,7 +16,9 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 describe('useCollectionDetail', () => {
-	beforeEach(() => vi.mocked(apiFetch).mockReset());
+	beforeEach(() => {
+		vi.mocked(apiFetch).mockReset();
+	});
 
 	it('fetches by namespace and maps the detail DTO through toCollectionDetail', async () => {
 		vi.mocked(apiFetch).mockResolvedValue({
