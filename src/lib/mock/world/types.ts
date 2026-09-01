@@ -67,6 +67,8 @@ export interface MockArrow {
 	user_installed: boolean;
 	state: ArrowState;
 	installed_at: string;
+	/** When `execute` last completed successfully -- mirrors quiver.core's still-unmerged `last_used_at` (enhancement/last_used). Undefined for an arrow that's never been run. */
+	last_used_at?: string;
 	requirement: MockRequirement;
 	netbridge: MockPort[];
 	variables: MockVariable[];

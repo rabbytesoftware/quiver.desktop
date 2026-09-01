@@ -343,6 +343,7 @@ describe('setupListeners', () => {
 				icon: null,
 				banner: null,
 				version: '1',
+				last_used_at: null,
 			},
 		]);
 	});

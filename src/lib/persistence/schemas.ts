@@ -9,6 +9,7 @@ export interface ArrowCatalogRecord {
 	icon: string | null;
 	banner: string | null;
 	version: string;
+	last_used_at?: string | null;
 }
 
 export interface QuiverDB extends DBSchema {

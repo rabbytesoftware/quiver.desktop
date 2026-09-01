@@ -113,7 +113,11 @@ export const runtimeRoutes: Route[] = [
 				}
 
 				case 'stop': {
-					if (arrow.state !== 'running') {
+					// Mirrors quiver.core's real BeginStop.Validate: a detached arrow
+					// (a live process the daemon lost track of) is also a valid stop
+					// target -- its only real recovery path is a plain, ordinary stop,
+					// same call as stopping a running one (see docs/arrow-details-spec.md §9).
+					if (arrow.state !== 'running' && arrow.state !== 'detached') {
 						return fail(`arrow ${req.params.ns} is not running`, 409);
 					}
 					runSteps(world, arrow, 'stop', STOP_STEPS, {}, 'stopping', 'ready');
