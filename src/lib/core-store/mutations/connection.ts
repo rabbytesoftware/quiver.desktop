@@ -4,10 +4,16 @@ import { invoke } from '@tauri-apps/api/core';
 
 import type { ConnectionConfig } from '@/domain/connection';
 
+export function useCheckRemoteHealth() {
+	return useMutation({
+		mutationFn: ({ url }: { url: string }) => invoke('check_remote_health', { url }),
+	});
+}
+
 export function useAddConnection() {
 	return useMutation({
-		mutationFn: ({ name, url, token }: { name: string; url: string; token: string }) =>
-			invoke<ConnectionConfig>('add_connection', { name, url, token }),
+		mutationFn: ({ name, url, code }: { name: string; url: string; code: string }) =>
+			invoke<ConnectionConfig>('add_connection', { name, url, code }),
 	});
 }
 

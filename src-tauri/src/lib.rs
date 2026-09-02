@@ -230,6 +230,7 @@ pub fn run() {
 		})
 		.invoke_handler(tauri::generate_handler![
 			commands::connection::get_connections,
+			commands::connection::check_remote_health,
 			commands::connection::add_connection,
 			commands::connection::remove_connection,
 			commands::connection::switch_connection,

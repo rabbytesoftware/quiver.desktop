@@ -30,7 +30,22 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 		api_version: 'v0',
 	};
 
-	const snapshot: ConnectionsSnapshot = { connections: [connection], active_id: connection.id };
+	// A saved-but-inactive remote, so Remote Control has more than "Local" to
+	// show under the mock -- its list, switcher, and populated-vs-empty
+	// states all need a second connection to exercise. Named and hosted the
+	// same way `connection` above is: unmistakably fake, never a real host.
+	const remote: ConnectionConfig = {
+		id: 'mock:home-lab',
+		name: 'Mock · Home Lab',
+		kind: 'remote',
+		url: 'http://mock.home-lab.local:7420',
+		api_version: 'v0',
+	};
+
+	const snapshot: ConnectionsSnapshot = {
+		connections: [connection, remote],
+		active_id: connection.id,
+	};
 
 	const backend: Backend = {
 		fetch(path, init) {

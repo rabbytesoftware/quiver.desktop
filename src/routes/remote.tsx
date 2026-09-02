@@ -1,9 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-export const Route = createFileRoute('/remote')({
-	component: RemotePage,
-});
+import { RemoteScreen } from '@/features/remote';
 
-function RemotePage() {
-	return <div data-testid="remote-page" />;
-}
+export const Route = createFileRoute('/remote')({
+	component: RemoteScreen,
+});

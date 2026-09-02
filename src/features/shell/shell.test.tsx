@@ -1,5 +1,6 @@
 import type { JSX } from 'react';
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -114,7 +115,14 @@ function renderRoot(at: string) {
 		]),
 		history: createMemoryHistory({ initialEntries: [at] }),
 	});
-	return render(<RouterProvider router={router} />);
+	// The root layout now mounts `CommandPalette`, which -- like the rest of
+	// the app -- needs a QueryClientProvider ancestor for its mutations.
+	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+	return render(
+		<QueryClientProvider client={queryClient}>
+			<RouterProvider router={router} />
+		</QueryClientProvider>
+	);
 }
 
 beforeEach(() => {
