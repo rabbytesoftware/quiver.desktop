@@ -69,4 +69,20 @@ describe('resolveNamespaceTarget', () => {
 
 		await expect(resolveNamespaceTarget('github.com/rabbyte/game-servers')).rejects.toThrow('boom');
 	});
+
+	// Collections have no `@ref` in their domain model at all -- quiver.core
+	// answers a versioned namespace on /v0/collection with a 500, not a clean
+	// 404, since there is no such thing as "not found" for a shape that can
+	// never exist. Querying it anyway would make every versioned arrow lookup
+	// fail via the propagation above, even though the arrow endpoint itself
+	// answers fine.
+	it('skips the collection check for a versioned namespace and still resolves the arrow', async () => {
+		mockApiFetch.mockImplementation((path) => {
+			if (path.startsWith('/v0/collection/')) return Promise.reject(new ApiError('internal error', 500));
+			return Promise.resolve({});
+		});
+
+		const target = await resolveNamespaceTarget('github.com/char2cs/crowbar@nightly');
+		expect(target).toEqual({ kind: 'arrow', namespace: 'github.com/char2cs/crowbar@nightly' });
+	});
 });
