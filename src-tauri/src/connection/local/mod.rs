@@ -111,6 +111,7 @@ fn quiver_home() -> Option<std::path::PathBuf> {
 /// yet still unique per worktree and identical across reruns of the same one
 /// — the same stability `dev_quiver_home` gives everything else. `None` in a
 /// release build, for the same reason `dev_quiver_home` is.
+#[cfg(unix)]
 fn dev_socket_override(manifest_dir: &str, is_debug_build: bool) -> Option<std::path::PathBuf> {
 	use std::hash::{Hash, Hasher};
 
@@ -321,6 +322,7 @@ mod tests {
 		);
 	}
 
+	#[cfg(unix)]
 	#[test]
 	fn dev_socket_override_is_none_in_a_release_build() {
 		assert_eq!(
@@ -334,6 +336,7 @@ mod tests {
 	/// the same worktree would leave the previous run's daemon unreachable
 	/// and orphaned — the exact failure mode `LOCAL_TCP_PORT`'s own doc
 	/// describes for Windows before it was fixed there.
+	#[cfg(unix)]
 	#[test]
 	fn dev_socket_override_is_the_same_path_for_the_same_checkout() {
 		let manifest_dir = "/Users/dev/quiver.desktop/src-tauri";
@@ -343,6 +346,7 @@ mod tests {
 		);
 	}
 
+	#[cfg(unix)]
 	#[test]
 	fn dev_socket_override_differs_between_checkouts() {
 		assert_ne!(
@@ -356,6 +360,7 @@ mod tests {
 	/// `.quiver`-anchored path (173 bytes, measured) exceeds `sockaddr_un`'s
 	/// ~104-byte limit and fails to bind with EINVAL. The override must stay
 	/// short regardless of how long the checkout path itself is.
+	#[cfg(unix)]
 	#[test]
 	fn dev_socket_override_stays_well_under_the_unix_socket_path_limit() {
 		let long_manifest_dir = "/Users/char2cs/.crowbar/projects/cb81ea03-54b7-4093-8bdd-fdd6b183e91d/github.com/rabbytesoftware/quiver.desktop/feature/remote-control/worktree/src-tauri";
