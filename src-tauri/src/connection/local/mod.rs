@@ -23,13 +23,30 @@ pub enum LocalHost {
 }
 
 impl LocalHost {
-	/// The value passed to `quiver daemon --host`.
-	pub fn host_arg(&self) -> String {
+	/// The value passed to `quiver daemon --host`. `dev_override_active` is
+	/// `quiver_home().is_some()` at the real call site, taken as a parameter
+	/// so the two paths this can take are both directly testable — `cargo
+	/// test` is itself a debug build, so a call with no parameter could never
+	/// exercise the production branch at all.
+	pub fn host_arg(&self, dev_override_active: bool) -> String {
 		match self {
-			// Bare `unix://` means core's own default path, which is what
-			// default_socket_path() mirrors. Passing an explicit path would
-			// diverge silently if core ever moved it.
-			Self::Unix(_) => "unix://".into(),
+			Self::Unix(path) => {
+				if dev_override_active {
+					// In a dev build, core's own bare-`unix://` default now
+					// resolves under QUIVER_HOME (see `quiver_home`), which is
+					// this checkout's own long, unshortened path — too long for
+					// a unix socket (see `dev_socket_override`). `path` is
+					// already the short override `default_socket_path()`
+					// computed, so it has to be passed explicitly here instead.
+					format!("unix://{path}")
+				} else {
+					// In production, bare `unix://` means core's own default
+					// path, which is what default_socket_path() mirrors there
+					// too. Passing an explicit path would diverge silently if
+					// core ever moved it.
+					"unix://".into()
+				}
+			}
 			Self::Tcp(port) => format!("tcp://127.0.0.1:{port}"),
 		}
 	}
@@ -62,8 +79,55 @@ impl LocalHost {
 #[cfg(windows)]
 pub const LOCAL_TCP_PORT: u16 = 40257;
 
+/// The directory quiver.core should treat as its home in THIS build, when it
+/// must differ from the user's real one. `None` means "don't override" --
+/// use quiver.core's own default, `$HOME/.quiver`.
+///
+/// Anchored to `manifest_dir` (this checkout's own `src-tauri/`, passed in as
+/// `CARGO_MANIFEST_DIR` at the real call site) rather than the process's
+/// runtime cwd: `make dev-bundle` launches its `.app` via `open`, which does
+/// not reliably inherit the terminal's cwd, so only a compile-time anchor is
+/// right for every dev target, not just `tauri dev`. `is_debug_build` is
+/// `cfg!(debug_assertions)` at the call site -- true for `tauri dev` and
+/// `tauri build --debug` (`dev-desktop`, `dev-mock`, `dev-bundle`), false for
+/// the real `tauri build` (`build-app`), so a shipped production build is
+/// never scoped away from a user's real installed arrows and config.
+fn dev_quiver_home(manifest_dir: &str, is_debug_build: bool) -> Option<std::path::PathBuf> {
+	is_debug_build.then(|| std::path::Path::new(manifest_dir).join(".quiver"))
+}
+
+/// `dev_quiver_home` at its real call site: this build's actual profile and
+/// this checkout's actual location, baked in at compile time.
+fn quiver_home() -> Option<std::path::PathBuf> {
+	dev_quiver_home(env!("CARGO_MANIFEST_DIR"), cfg!(debug_assertions))
+}
+
+/// Unix domain socket paths are capped at roughly 104 bytes (`sockaddr_un`),
+/// and a checkout under this project's own workspace tooling runs well past
+/// that on its own — 173 bytes, measured, for one worktree — so the socket
+/// cannot live under `dev_quiver_home`'s checkout-anchored directory the way
+/// the rest of a dev build's data can. It lives in the OS temp dir instead,
+/// named by a hash of the checkout path: short and safely within the limit,
+/// yet still unique per worktree and identical across reruns of the same one
+/// — the same stability `dev_quiver_home` gives everything else. `None` in a
+/// release build, for the same reason `dev_quiver_home` is.
+fn dev_socket_override(manifest_dir: &str, is_debug_build: bool) -> Option<std::path::PathBuf> {
+	use std::hash::{Hash, Hasher};
+
+	if !is_debug_build {
+		return None;
+	}
+	let mut hasher = std::collections::hash_map::DefaultHasher::new();
+	manifest_dir.hash(&mut hasher);
+	Some(std::env::temp_dir().join(format!("quiver-dev-{:016x}.sock", hasher.finish())))
+}
+
 #[cfg(unix)]
 fn default_socket_path() -> String {
+	if let Some(path) = dev_socket_override(env!("CARGO_MANIFEST_DIR"), cfg!(debug_assertions))
+	{
+		return path.to_string_lossy().into_owned();
+	}
 	let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
 	format!("{}/.quiver/quiver.sock", home)
 }
@@ -203,20 +267,104 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn unix_host_arg_is_the_bare_default_scheme() {
+	fn a_debug_build_scopes_home_under_the_checkout_it_was_built_from() {
+		assert_eq!(
+			dev_quiver_home("/Users/dev/quiver.desktop/src-tauri", true),
+			Some(std::path::PathBuf::from(
+				"/Users/dev/quiver.desktop/src-tauri/.quiver"
+			))
+		);
+	}
+
+	/// The property production ships on: a real `tauri build` (not `--debug`)
+	/// must never override quiver.core's own default, or a shipped app would
+	/// start scoping a user's real installed arrows and config away from
+	/// their actual `~/.quiver`.
+	#[test]
+	fn a_release_build_never_overrides_the_real_home() {
+		assert_eq!(
+			dev_quiver_home("/Users/dev/quiver.desktop/src-tauri", false),
+			None
+		);
+	}
+
+	#[test]
+	fn unix_host_arg_is_the_bare_default_scheme_in_production() {
 		// `unix://` with no path means "quiver.core's default", which is
 		// ~/.quiver/quiver.sock — the same path default_socket_path() builds.
 		// Passing an explicit path would silently diverge if core ever moved it.
-		assert_eq!(LocalHost::Unix("/x/y.sock".into()).host_arg(), "unix://");
+		assert_eq!(
+			LocalHost::Unix("/x/y.sock".into()).host_arg(false),
+			"unix://"
+		);
+	}
+
+	/// The other half of the fix in this module: a dev build's own default
+	/// resolves under QUIVER_HOME (its own long checkout path) if left bare,
+	/// which is exactly what breaks the bind (see `dev_socket_override`). The
+	/// explicit path must be passed instead, not core's default.
+	#[test]
+	fn unix_host_arg_is_the_explicit_short_override_in_a_dev_build() {
+		assert_eq!(
+			LocalHost::Unix("/tmp/quiver-dev-abc123.sock".into()).host_arg(true),
+			"unix:///tmp/quiver-dev-abc123.sock"
+		);
 	}
 
 	#[test]
 	fn tcp_host_arg_pins_loopback_not_all_interfaces() {
-		let arg = LocalHost::Tcp(51234).host_arg();
+		let arg = LocalHost::Tcp(51234).host_arg(false);
 		assert_eq!(arg, "tcp://127.0.0.1:51234");
 		assert!(
 			!arg.contains("0.0.0.0"),
 			"binding all interfaces would expose an unauthenticated daemon to the network"
+		);
+	}
+
+	#[test]
+	fn dev_socket_override_is_none_in_a_release_build() {
+		assert_eq!(
+			dev_socket_override("/Users/dev/quiver.desktop/src-tauri", false),
+			None
+		);
+	}
+
+	/// The property that matters for `default_socket_path()`: the same
+	/// checkout must always get the same socket path, or every restart of
+	/// the same worktree would leave the previous run's daemon unreachable
+	/// and orphaned — the exact failure mode `LOCAL_TCP_PORT`'s own doc
+	/// describes for Windows before it was fixed there.
+	#[test]
+	fn dev_socket_override_is_the_same_path_for_the_same_checkout() {
+		let manifest_dir = "/Users/dev/quiver.desktop/src-tauri";
+		assert_eq!(
+			dev_socket_override(manifest_dir, true),
+			dev_socket_override(manifest_dir, true)
+		);
+	}
+
+	#[test]
+	fn dev_socket_override_differs_between_checkouts() {
+		assert_ne!(
+			dev_socket_override("/Users/dev/quiver.desktop-a/src-tauri", true),
+			dev_socket_override("/Users/dev/quiver.desktop-b/src-tauri", true)
+		);
+	}
+
+	/// The whole reason this override exists: a checkout under this
+	/// project's own workspace tooling is long enough that the real
+	/// `.quiver`-anchored path (173 bytes, measured) exceeds `sockaddr_un`'s
+	/// ~104-byte limit and fails to bind with EINVAL. The override must stay
+	/// short regardless of how long the checkout path itself is.
+	#[test]
+	fn dev_socket_override_stays_well_under_the_unix_socket_path_limit() {
+		let long_manifest_dir = "/Users/char2cs/.crowbar/projects/cb81ea03-54b7-4093-8bdd-fdd6b183e91d/github.com/rabbytesoftware/quiver.desktop/feature/remote-control/worktree/src-tauri";
+		let path = dev_socket_override(long_manifest_dir, true)
+			.expect("must override in a dev build");
+		assert!(
+			path.to_string_lossy().len() < 100,
+			"got a {}-byte path, too close to sockaddr_un's ~104-byte limit: {path:?}",
+			path.to_string_lossy().len()
 		);
 	}
 
@@ -241,13 +389,19 @@ mod tests {
 	/// And it is the address this platform is documented to use — the pairing a
 	/// compiler cannot check, written out per platform in literals rather than
 	/// derived from the thing under test.
+	///
+	/// `cargo test` is itself a debug build, so this can only ever observe the
+	/// dev-scoped override (see `dev_socket_override`) on unix, never the real
+	/// production default — that half is covered directly by
+	/// `unix_host_arg_is_the_bare_default_scheme_in_production` and the
+	/// `dev_quiver_home`/`dev_socket_override` tests instead.
 	#[test]
 	fn the_local_daemon_address_is_the_documented_one_for_this_platform() {
 		let host = local_host();
 		#[cfg(unix)]
 		assert!(
-			matches!(&host, LocalHost::Unix(p) if p.ends_with("/.quiver/quiver.sock")),
-			"unix addresses quiver.core's default socket; got {host:?}"
+			matches!(&host, LocalHost::Unix(p) if p.contains("quiver-dev-") && p.ends_with(".sock")),
+			"unix addresses the dev-scoped override under test; got {host:?}"
 		);
 		// The literal, not `LOCAL_TCP_PORT`: comparing the constant to itself
 		// would pass whatever it were changed to.
