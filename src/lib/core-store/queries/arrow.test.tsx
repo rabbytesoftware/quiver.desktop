@@ -64,7 +64,7 @@ describe('useArrowDetail', () => {
 		mockApiFetch.mockReset();
 	});
 
-	it('fetches the readme from the bare namespace, not namespace@ref', async () => {
+	it('fetches the readme and manifest from the bare namespace, not namespace@ref', async () => {
 		mockEndpoints('# About\n\nA server.');
 
 		renderHook(() => useArrowDetail(NS), { wrapper });
@@ -72,8 +72,8 @@ describe('useArrowDetail', () => {
 		await waitFor(() =>
 			expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(BARE_NS)}/readme`)
 		);
+		expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(BARE_NS)}/manifest`);
 		expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(NS)}`);
-		expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(NS)}/manifest`);
 	});
 
 	it('resolves readme to the fetched prose', async () => {

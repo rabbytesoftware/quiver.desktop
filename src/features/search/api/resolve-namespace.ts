@@ -35,8 +35,16 @@ export async function resolveNamespaceTarget(input: string): Promise<NamespaceTa
 	const namespace = input.trim();
 	if (!NAMESPACE_SHAPE.test(namespace)) return null;
 
+	// A collection is never versioned, so a namespace carrying an `@ref` can
+	// only ever name an arrow -- quiver.core answers /v0/collection for one
+	// with a 500 ("internal error"), not a clean 404, since there is no such
+	// thing as "not found" for a shape collections can never have. Querying
+	// it anyway would let that 500 propagate (see the test for a genuine
+	// server error) and fail every versioned lookup outright.
+	const hasRef = namespace.includes('@');
+
 	const [isCollection, isArrow] = await Promise.all([
-		exists(`/v0/collection/${encodeURIComponent(namespace)}`),
+		hasRef ? Promise.resolve(false) : exists(`/v0/collection/${encodeURIComponent(namespace)}`),
 		exists(`/v0/arrow/${encodeURIComponent(namespace)}`),
 	]);
 

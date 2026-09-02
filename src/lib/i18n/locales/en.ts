@@ -292,6 +292,78 @@ export const en = {
 		one: '{count} arrow',
 		other: '{count} arrows',
 	},
+
+	'remote.title': 'Remote Control',
+	'remote.subtitle': 'Manage your saved connections.',
+	'remote.addButton': 'Add remote',
+
+	'remote.local.subtitle': 'This device',
+
+	'remote.status.starting': 'Connecting…',
+	'remote.status.ready': 'Connected',
+	'remote.status.disconnected': 'Disconnected',
+	'remote.status.disconnectedReason':
+		"Couldn't reach the daemon. Check the URL, that Quiver is running there, and that the pairing hasn't expired.",
+
+	'remote.action.retry': 'Retry',
+	'remote.action.switchToLocal': 'Switch to Local',
+
+	'remote.menu.more': 'More actions',
+	'remote.menu.switch': 'Switch to this connection',
+	'remote.menu.rename': 'Rename',
+	'remote.menu.remove': 'Remove',
+
+	'remote.empty.title': 'No remote daemons yet',
+	'remote.empty.description': 'Add one to connect to Quiver running elsewhere on your network.',
+
+	'remote.add.title': 'Add a remote connection',
+	'remote.add.description': 'Point this app at a Quiver daemon running on another machine.',
+	'remote.add.descriptionPairing': 'Almost there — enter the pairing code from that machine.',
+	'remote.add.name.label': 'Name',
+	'remote.add.name.placeholder': 'Home Lab',
+	'remote.add.url.label': 'URL',
+	'remote.add.url.placeholder': 'http://10.0.1.8:7420',
+	'remote.add.code.label': 'Pairing code',
+	'remote.add.code.hint':
+		'Run "quiver auth generate" on that machine, then enter the code shown. It expires in 5 minutes and works once.',
+	'remote.add.cancel': 'Cancel',
+	'remote.add.back': 'Back',
+	'remote.add.continue': 'Continue',
+	'remote.add.checking': 'Checking…',
+	'remote.add.healthError': "Couldn't reach that address. Check the URL and try again.",
+	'remote.add.submit': 'Add connection',
+	'remote.add.submitting': 'Adding…',
+
+	'remote.rename.title': 'Rename connection',
+	'remote.rename.label': 'Name',
+	'remote.rename.cancel': 'Cancel',
+	'remote.rename.submit': 'Save',
+
+	'remote.remove.title': 'Remove {name}?',
+	'remote.remove.description': "You'll need a new pairing code to reconnect later.",
+	'remote.remove.activeWarning': 'This is your current connection — removing it switches you back to Local.',
+	'remote.remove.cancel': 'Cancel',
+	'remote.remove.submit': 'Remove',
+
+	'remote.toast.connected': 'Connected to {name}',
+	'remote.toast.disconnected': "Couldn't reach {name}",
+	'remote.toast.added': 'Added {name}',
+	'remote.toast.renamed': 'Renamed to {name}',
+	'remote.toast.removed': 'Removed {name}',
+	'remote.toast.connectFailed': "Couldn't switch to {name}",
+	'remote.toast.addFailed': "Couldn't add {name}",
+	'remote.toast.renameFailed': "Couldn't rename to {name}",
+	'remote.toast.removeFailed': "Couldn't remove {name}",
+
+	'remote.switcher.label': 'Switch connection',
+
+	'remote.command.placeholder': 'Switch connection…',
+	'remote.command.groupLabel': 'Connections',
+	'remote.command.current': 'Current',
+	'remote.command.empty': 'No connections match "{query}".',
+	'remote.command.navigate': 'Navigate',
+	'remote.command.select': 'Select',
+	'remote.command.close': 'Close',
 } as const satisfies Catalogue;
 
 export type MessageKey = keyof typeof en;

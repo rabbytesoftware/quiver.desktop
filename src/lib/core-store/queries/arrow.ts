@@ -74,10 +74,10 @@ async function fetchDependents(namespace: string): Promise<string[]> {
  * returns all five; don't add one to the mock as a shortcut, since that
  * would stop the mock from catching a client that assumes there is.
  *
- * The readme call takes the bare namespace -- core rejects a `namespace@ref`
- * path there (`ErrInvalidNamespace`, 400), same as it already does for
- * `/manifest`. The two dependency calls take the full `namespace@ref`, same
- * as the detail/manifest calls.
+ * Both readme and manifest take the bare namespace -- core rejects a
+ * `namespace@ref` path on either (`ErrInvalidNamespace`, 400), confirmed
+ * live against the real daemon. The two dependency calls take the full
+ * `namespace@ref`, since the resolved plan is version-specific.
  *
  * `versions` (the version-switcher's list) intentionally comes back empty --
  * it belongs to the catalog, not any of these calls, and the calling screen
@@ -88,10 +88,11 @@ export function useArrowDetail(namespace: string) {
 	return useQuery<ArrowDetail>({
 		queryKey: arrowDetailQueryKey(namespace),
 		queryFn: async () => {
+			const bareNamespace = splitNamespace(namespace).head;
 			const [detail, manifest, readme, dependencies, dependents] = await Promise.all([
 				apiFetch<ArrowDetailDTO>(`/v0/arrow/${encodeURIComponent(namespace)}`),
-				apiFetch<ArrowManifestDTO>(`/v0/arrow/${encodeURIComponent(namespace)}/manifest`),
-				fetchReadme(splitNamespace(namespace).head),
+				apiFetch<ArrowManifestDTO>(`/v0/arrow/${encodeURIComponent(bareNamespace)}/manifest`),
+				fetchReadme(bareNamespace),
 				fetchDependencies(namespace),
 				fetchDependents(namespace),
 			]);

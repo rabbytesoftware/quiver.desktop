@@ -575,11 +575,23 @@ describe('chaos', () => {
 });
 
 describe('the shell it impersonates', () => {
-	it('reports one connection, named so it cannot be mistaken for a real host', async () => {
+	it('reports the local mock connection, named so it cannot be mistaken for a real host', async () => {
 		const { connections, active_id } = await mock.backend.getConnections();
-		expect(connections).toHaveLength(1);
 		expect(active_id).toBe('mock:normal');
 		expect(connections[0].name).toBe('Mock · Normal');
+	});
+
+	// The Remote Control screen has nothing to show off with only "Local" in
+	// play -- a saved-but-inactive remote is what exercises that screen's
+	// list, switcher, and empty-state-vs-populated paths under the mock.
+	it('also registers one saved remote, so Remote Control has something to show', async () => {
+		const { connections, active_id } = await mock.backend.getConnections();
+		expect(connections).toHaveLength(2);
+		const remote = connections.find((c) => c.kind === 'remote');
+		expect(remote).toMatchObject({ kind: 'remote', id: 'mock:home-lab' });
+		expect(remote?.name).toMatch(/^Mock · /);
+		expect(remote?.url).toBeTruthy();
+		expect(active_id).not.toBe(remote?.id);
 	});
 
 	it('announces starting before ready, so the connecting screen is reachable', async () => {

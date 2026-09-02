@@ -8,7 +8,7 @@ use tauri_plugin_shell::ShellExt;
 
 use crate::connection::transport::Transport;
 
-use super::LocalHost;
+use super::{quiver_home, LocalHost};
 
 const HEALTH_RETRY_MS: u64 = 200;
 const HEALTH_MAX_ATTEMPTS: u32 = 25;
@@ -86,13 +86,23 @@ impl SidecarManager {
 		// argument must be the bare binary name, NOT the `binaries/quiver`
 		// path from tauri.conf.json's externalBin. `tauri dev` runs unbundled
 		// and never catches a mistake here — use `make dev-bundle`.
-		let (events, child) = app
+		// A dev/preview build points the daemon it spawns at this checkout's
+		// own `.quiver`, never the user's real one — quiver.core only infers
+		// this on its own for an unstamped `go run` build, and this sidecar is
+		// always a version-stamped release download, so it never would.
+		let dev_home = quiver_home();
+
+		let mut command = app
 			.shell()
 			.sidecar("quiver")
 			.map_err(|e| e.to_string())?
-			.args(["daemon", "--host", &self.host.host_arg()])
-			.spawn()
-			.map_err(|e| e.to_string())?;
+			.args(["daemon", "--host", &self.host.host_arg(dev_home.is_some())]);
+
+		if let Some(home) = dev_home {
+			command = command.env("QUIVER_HOME", home);
+		}
+
+		let (events, child) = command.spawn().map_err(|e| e.to_string())?;
 
 		log::info!("[local] spawned quiver.core (pid {})", child.pid());
 

@@ -7,11 +7,19 @@ use tokio::sync::{Mutex, RwLock};
 
 use crate::connection::bridge::WsBridgeManager;
 use crate::connection::local::LocalConnection;
-use crate::connection::remote::RemoteConnection;
+use crate::connection::remote::{redeem_pairing_code, RemoteConnection};
+use crate::connection::transport::http::HttpTransport;
 use crate::connection::types::{ConnectionConfig, QuiverConnection};
 
 const KEYRING_SERVICE: &str = "quiver.desktop";
 const STORE_KEY: &str = "connections";
+const DEVICE_STORE: &str = "device.json";
+const DEVICE_ID_KEY: &str = "device_id";
+/// The label a paired device shows up under in `quiver auth devices list` on
+/// the core side -- one label for every remote this app is ever pointed at,
+/// since a device id already identifies the pairing, not the connection's
+/// own (purely local, user-chosen) display name.
+const DEVICE_LABEL: &str = "Quiver Desktop";
 
 pub struct ConnectionManager {
 	active: RwLock<Box<dyn QuiverConnection>>,
@@ -57,28 +65,38 @@ impl ConnectionManager {
 		self.active.read().await.start(&app).await;
 	}
 
-	pub async fn list_connections(&self, app: &AppHandle) -> Vec<ConnectionConfig> {
-		let mut list = vec![self.active.read().await.config().clone()];
-		list.extend(load_remote_configs(app).await);
-		list
-	}
-
 	pub async fn get_connections(&self, app: &AppHandle) -> (Vec<ConnectionConfig>, String) {
 		let active = self.active.read().await;
 		let active_id = active.config().id.clone();
-		let mut list = vec![active.config().clone()];
+		let active_config = active.config().clone();
 		drop(active);
-		list.extend(load_remote_configs(app).await);
+
+		let local_default = LocalConnection::new().config().clone();
+		let remotes = load_remote_configs(app).await;
+		let list = merge_connections(&active_id, active_config, local_default, remotes);
 		(list, active_id)
 	}
 
+	/// `code` is a one-time device-pairing code (see `quiver auth generate` on
+	/// the core side), not a bearer token: this daemon has no auth surface to
+	/// redeem it against unless it is bound to `tcp://`, and the redeemed
+	/// token that comes back is what actually authenticates every request
+	/// this connection ever makes.
 	pub async fn add_connection(
 		&self,
 		app: &AppHandle,
 		name: String,
 		url: String,
-		token: String,
+		code: String,
 	) -> Result<ConnectionConfig, String> {
+		let device_id = device_id(app).await?;
+		// Tokenless and thrown away after this one call: there is nothing to
+		// authenticate this probe with, since the token it is fetching is the
+		// only one that will ever exist for this pairing.
+		let pairing_probe = HttpTransport::new(url.clone(), None);
+		let token = redeem_pairing_code(&pairing_probe, &code, &device_id, DEVICE_LABEL)
+			.await?;
+
 		let id = uuid::Uuid::new_v4().to_string();
 		let conn = RemoteConnection::new(id.clone(), name, url, token.clone())
 			.await
@@ -276,6 +294,43 @@ async fn build_connection(app: &AppHandle, id: &str) -> Result<Box<dyn QuiverCon
 
 // ── Persistence helpers ───────────────────────────────────────────────────────
 
+/// One entry per known connection -- "local" plus every saved remote --
+/// never a duplicate: a saved remote that happens to be `active_id` would
+/// otherwise appear both as the active connection and again from its own
+/// persisted entry, and "local" would vanish outright, since it is never
+/// itself one of the persisted remotes. Whichever entry matches `active_id`
+/// is taken from the live `active_config` rather than the persisted copy, so
+/// a rename that has not round-tripped through storage yet still shows up --
+/// this also covers a connection that is still active after being removed
+/// from the saved list, which `remove_connection` allows.
+fn merge_connections(
+	active_id: &str,
+	active_config: ConnectionConfig,
+	local_default: ConnectionConfig,
+	remotes: Vec<ConnectionConfig>,
+) -> Vec<ConnectionConfig> {
+	let local_config = if active_id == "local" {
+		active_config.clone()
+	} else {
+		local_default
+	};
+
+	let mut list = vec![local_config];
+	let mut active_is_listed = active_id == "local";
+	for remote in remotes {
+		if remote.id == active_id {
+			list.push(active_config.clone());
+			active_is_listed = true;
+		} else {
+			list.push(remote);
+		}
+	}
+	if !active_is_listed {
+		list.push(active_config);
+	}
+	list
+}
+
 async fn load_remote_configs(app: &AppHandle) -> Vec<ConnectionConfig> {
 	let store = match app.store("connections.json") {
 		Ok(s) => s,
@@ -293,6 +348,25 @@ async fn save_remote_configs(app: &AppHandle, configs: &[ConnectionConfig]) -> R
 	let value = serde_json::to_value(configs).map_err(|e| e.to_string())?;
 	store.set(STORE_KEY, value);
 	store.save().map_err(|e| e.to_string())
+}
+
+/// This installation's stable device-pairing id -- minted once, on first
+/// use, and persisted so every pairing this app ever performs (across every
+/// remote it is ever pointed at) is attributed to the same device, letting
+/// an operator find and revoke it as one thing via `quiver auth devices
+/// list` rather than once per connection.
+async fn device_id(app: &AppHandle) -> Result<String, String> {
+	let store = app.store(DEVICE_STORE).map_err(|e| e.to_string())?;
+	if let Some(id) = store
+		.get(DEVICE_ID_KEY)
+		.and_then(|v| v.as_str().map(str::to_string))
+	{
+		return Ok(id);
+	}
+	let id = uuid::Uuid::new_v4().to_string();
+	store.set(DEVICE_ID_KEY, serde_json::Value::String(id.clone()));
+	store.save().map_err(|e| e.to_string())?;
+	Ok(id)
 }
 
 #[cfg(test)]
@@ -703,5 +777,76 @@ mod tests {
 				|| log == ["enter b", "leave b", "enter a", "leave a"],
 			"switches must not interleave; got {log:?}"
 		);
+	}
+
+	fn config(id: &str, name: &str) -> ConnectionConfig {
+		ConnectionConfig {
+			id: id.into(),
+			name: name.into(),
+			kind: "remote".into(),
+			url: Some(format!("http://{id}.example")),
+			api_version: "v0".into(),
+		}
+	}
+
+	/// Reproduces a real bug: with `active` = local and a saved remote, the
+	/// remote used to appear once (correctly) -- this pins that the fix did
+	/// not regress the unremarkable case.
+	#[test]
+	fn merge_connections_lists_local_once_alongside_every_saved_remote() {
+		let local = config("local", "Local");
+		let remotes = vec![config("home-lab", "Home Lab")];
+
+		let list = merge_connections("local", local.clone(), local.clone(), remotes);
+
+		let ids: Vec<&str> = list.iter().map(|c| c.id.as_str()).collect();
+		assert_eq!(ids, ["local", "home-lab"]);
+	}
+
+	/// The actual bug: when the active connection IS a saved remote, the old
+	/// `[active] + remotes` concatenation listed that remote twice (once as
+	/// `active`, once again from its own persisted entry) and dropped
+	/// "local" entirely, since "local" is never itself a persisted remote.
+	#[test]
+	fn merge_connections_does_not_duplicate_the_active_remote_or_drop_local() {
+		let local_default = config("local", "Local");
+		let active_remote = config("home-lab", "Home Lab");
+		let remotes = vec![active_remote.clone()];
+
+		let list = merge_connections("home-lab", active_remote, local_default, remotes);
+
+		let ids: Vec<&str> = list.iter().map(|c| c.id.as_str()).collect();
+		assert_eq!(
+			ids,
+			["local", "home-lab"],
+			"must list each connection exactly once"
+		);
+	}
+
+	/// The active connection's live config (e.g. a rename not yet persisted)
+	/// wins over the stale persisted copy for that same id.
+	#[test]
+	fn merge_connections_prefers_the_live_active_config_over_the_persisted_one() {
+		let local_default = config("local", "Local");
+		let live = config("home-lab", "Renamed");
+		let stale = config("home-lab", "Home Lab");
+
+		let list = merge_connections("home-lab", live, local_default, vec![stale]);
+
+		assert_eq!(list[1].name, "Renamed");
+	}
+
+	/// A connection can still be active after `remove_connection` drops it
+	/// from the saved list (removal never touches `active`); it must keep
+	/// showing up rather than disappear from the merged list.
+	#[test]
+	fn merge_connections_keeps_an_active_connection_that_is_no_longer_saved() {
+		let local_default = config("local", "Local");
+		let active_remote = config("home-lab", "Home Lab");
+
+		let list = merge_connections("home-lab", active_remote, local_default, vec![]);
+
+		let ids: Vec<&str> = list.iter().map(|c| c.id.as_str()).collect();
+		assert_eq!(ids, ["local", "home-lab"]);
 	}
 }

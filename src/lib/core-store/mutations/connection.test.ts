@@ -6,7 +6,13 @@ import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vites
 
 import { invoke } from '@tauri-apps/api/core';
 
-import { useAddConnection, useRemoveConnection, useSwitchConnection, useRenameConnection } from './connection';
+import {
+	useAddConnection,
+	useCheckRemoteHealth,
+	useRemoveConnection,
+	useSwitchConnection,
+	useRenameConnection,
+} from './connection';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
@@ -23,14 +29,22 @@ beforeEach(() => {
 	mockInvoke.mockResolvedValue(undefined as never);
 });
 
+describe('useCheckRemoteHealth', () => {
+	it('calls check_remote_health with url', async () => {
+		const { result } = renderHook(() => useCheckRemoteHealth(), { wrapper: makeWrapper() });
+		await act(() => result.current.mutateAsync({ url: 'http://10.0.0.1:7420' }));
+		expect(invoke).toHaveBeenCalledWith('check_remote_health', { url: 'http://10.0.0.1:7420' });
+	});
+});
+
 describe('useAddConnection', () => {
-	it('calls add_connection with name, url, token', async () => {
+	it('calls add_connection with name, url, code', async () => {
 		const { result } = renderHook(() => useAddConnection(), { wrapper: makeWrapper() });
-		await act(() => result.current.mutateAsync({ name: 'Prod', url: 'tcp://10.0.0.1:40257', token: 'tok' }));
+		await act(() => result.current.mutateAsync({ name: 'Prod', url: 'tcp://10.0.0.1:40257', code: '482913' }));
 		expect(invoke).toHaveBeenCalledWith('add_connection', {
 			name: 'Prod',
 			url: 'tcp://10.0.0.1:40257',
-			token: 'tok',
+			code: '482913',
 		});
 	});
 });

@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::connection::transport::http::HttpTransport;
@@ -73,7 +73,7 @@ fn health_request() -> Result<tauri::http::Request<Vec<u8>>, String> {
 /// The lock is gone (see `manager::ConnectionManager::switch_to`) and so is the
 /// unboundedness — either alone would have been half a fix, because a switch
 /// that never returns is still a switch the user cannot escape.
-async fn probe_health(transport: &dyn Transport) -> Result<(), String> {
+pub async fn probe_health(transport: &dyn Transport) -> Result<(), String> {
 	let req = health_request()?;
 	match tokio::time::timeout(HEALTH_TIMEOUT, transport.request(req)).await {
 		Ok(Ok(resp)) if resp.status().is_success() => Ok(()),
@@ -141,6 +141,65 @@ async fn negotiate_version(transport: &dyn Transport) -> String {
 		}
 	}
 	"v0".into()
+}
+
+/// Exchanges a one-time device-pairing code for a long-lived bearer token.
+///
+/// Only meaningful against a `tcp://`-bound core -- a `unix://` daemon has no
+/// auth surface at all, so nothing calls this on the local path. The caller
+/// passes a throwaway, TOKENLESS transport pointed at the candidate URL:
+/// there is nothing to authenticate with yet, since the token this call
+/// returns is the only one that will ever exist for this pairing.
+pub async fn redeem_pairing_code(
+	transport: &dyn Transport,
+	code: &str,
+	device_id: &str,
+	label: &str,
+) -> Result<String, String> {
+	#[derive(Serialize)]
+	struct RedeemRequest<'a> {
+		code: &'a str,
+		device_id: &'a str,
+		label: &'a str,
+	}
+	#[derive(Deserialize)]
+	struct SessionTokenDTO {
+		token: String,
+	}
+	#[derive(Deserialize)]
+	struct RedeemEnvelope {
+		data: Option<SessionTokenDTO>,
+	}
+
+	let body = serde_json::to_vec(&RedeemRequest {
+		code,
+		device_id,
+		label,
+	})
+	.map_err(|e| format!("pairing: build request: {e}"))?;
+
+	let req = tauri::http::Request::builder()
+		.method("POST")
+		.uri("quiver://localhost/v0/auth/pairing/redeem")
+		.header("content-type", "application/json")
+		.body(body)
+		.map_err(|e| format!("pairing: build request: {e}"))?;
+
+	let resp = transport
+		.request(req)
+		.await
+		.map_err(|e| format!("pairing: {e}"))?;
+
+	if !resp.status().is_success() {
+		return Err(format!("pairing failed: status {}", resp.status()));
+	}
+
+	let envelope: RedeemEnvelope = serde_json::from_slice(resp.body())
+		.map_err(|e| format!("pairing: malformed response: {e}"))?;
+
+	envelope.data
+		.map(|d| d.token)
+		.ok_or_else(|| "pairing failed: no token in response".to_string())
 }
 
 #[async_trait]
@@ -340,5 +399,124 @@ mod tests {
 			err.contains("timed out"),
 			"the failure must say the peer never answered; got {err:?}"
 		);
+	}
+
+	// ── Pairing-code redemption ───────────────────────────────────────────
+
+	#[tokio::test]
+	async fn redeem_pairing_code_returns_the_token_on_success() {
+		let json = r#"{"success":true,"data":{"token":"tok_abc123"}}"#;
+		let token = redeem_pairing_code(
+			&StubTransport::ok(json),
+			"482913",
+			"device-1",
+			"Quiver Desktop",
+		)
+		.await
+		.expect("redeem must succeed");
+		assert_eq!(token, "tok_abc123");
+	}
+
+	/// A rejected code (expired, already claimed, or simply wrong) comes back
+	/// as a non-success status -- named in the error, the same way
+	/// `probe_health` names a bad status rather than swallowing it.
+	#[tokio::test]
+	async fn redeem_pairing_code_names_the_status_on_failure() {
+		let err = redeem_pairing_code(
+			&StubTransport::not_found(),
+			"482913",
+			"device-1",
+			"Quiver Desktop",
+		)
+		.await
+		.unwrap_err();
+		assert!(err.contains("404"), "got {err:?}");
+	}
+
+	#[tokio::test]
+	async fn redeem_pairing_code_fails_when_the_peer_is_unreachable() {
+		let err = redeem_pairing_code(
+			&StubTransport::unreachable(),
+			"482913",
+			"device-1",
+			"Quiver Desktop",
+		)
+		.await
+		.unwrap_err();
+		assert!(!err.is_empty());
+	}
+
+	/// A malformed or token-less success response must not be mistaken for a
+	/// working pairing -- an empty string token would silently authenticate
+	/// nothing on every request that follows.
+	#[tokio::test]
+	async fn redeem_pairing_code_fails_when_the_response_carries_no_token() {
+		let json = r#"{"success":true,"data":null}"#;
+		let err = redeem_pairing_code(
+			&StubTransport::ok(json),
+			"482913",
+			"device-1",
+			"Quiver Desktop",
+		)
+		.await
+		.unwrap_err();
+		assert!(!err.is_empty());
+	}
+
+	/// A `Transport` double that records the one request it receives, so a
+	/// test can assert on exactly what `redeem_pairing_code` sent.
+	/// `StubTransport`'s modes above only ever answer -- none of them keep a
+	/// copy of what arrived.
+	struct CapturingTransport {
+		captured: std::sync::Mutex<Option<Request<Vec<u8>>>>,
+	}
+
+	impl CapturingTransport {
+		fn new() -> Self {
+			Self {
+				captured: std::sync::Mutex::new(None),
+			}
+		}
+	}
+
+	#[async_trait]
+	impl Transport for CapturingTransport {
+		async fn request(
+			&self,
+			req: Request<Vec<u8>>,
+		) -> Result<Response<Vec<u8>>, TransportError> {
+			*self.captured.lock().unwrap() = Some(req);
+			Response::builder()
+				.status(201)
+				.body(br#"{"success":true,"data":{"token":"tok"}}"#.to_vec())
+				.map_err(|e| TransportError::Protocol(e.to_string()))
+		}
+
+		async fn open_ws(&self, _path: &str) -> Result<WsStream, TransportError> {
+			Err(TransportError::Protocol(
+				"not supported by CapturingTransport".into(),
+			))
+		}
+	}
+
+	#[tokio::test]
+	async fn redeem_pairing_code_sends_the_code_device_id_and_label() {
+		let transport = CapturingTransport::new();
+		redeem_pairing_code(&transport, "482913", "device-xyz", "Quiver Desktop")
+			.await
+			.expect("redeem must succeed");
+
+		let captured = transport
+			.captured
+			.lock()
+			.unwrap()
+			.take()
+			.expect("a request must have been captured");
+		assert_eq!(captured.method(), "POST");
+		assert_eq!(captured.uri().path(), "/v0/auth/pairing/redeem");
+		let body = String::from_utf8(captured.body().clone()).unwrap();
+		assert!(body.contains("\"code\":\"482913\""), "got {body}");
+		assert!(body.contains("\"device_id\":\"device-xyz\""), "got {body}");
+		assert!(body.contains("\"label\":\"Quiver Desktop\""), "got {body}");
 	}
 }
