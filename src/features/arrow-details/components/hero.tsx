@@ -149,7 +149,7 @@ export function Hero({ detail, platform, values, onValueChange, onVersionChange 
 			>
 				{banner && (
 					<div
-						className="aspect-2/1 w-full overflow-hidden rounded-lg bg-muted bg-cover bg-center"
+						className="aspect-2/1 w-full overflow-hidden rounded-lg bg-muted bg-contain bg-center bg-no-repeat"
 						style={{ backgroundImage: cssUrl(banner) }}
 					/>
 				)}

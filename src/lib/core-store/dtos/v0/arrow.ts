@@ -13,6 +13,7 @@ import type {
 	RuntimeUpdate,
 	StepProgress,
 } from '@/domain/arrow';
+import { splitNamespace } from '@/lib/namespace';
 import type { ArrowCatalogRecord } from '@/lib/persistence/schemas';
 
 export interface InstalledVersionDTO {
@@ -51,7 +52,13 @@ export interface ArrowDetailDTO {
 	license: string;
 	state: ArrowState;
 	tags: string[];
-	installed_ref: string;
+	/**
+	 * Absent, not just empty, when `namespace` already carries the resolved ref
+	 * itself -- quiver.core PR #225 made `GetDetail` resolve live for an
+	 * uncatalogued namespace, and the live-resolved case stamps the ref onto
+	 * `namespace` rather than reporting it here.
+	 */
+	installed_ref?: string;
 	installed_at: string;
 	installed_constraint?: string;
 	user_installed: boolean;
@@ -259,15 +266,24 @@ export function toArrowDetail(
 	dependencies: ArrowDependencyDTO[],
 	dependents: string[]
 ): ArrowDetail {
+	// A catalogued arrow's `namespace` comes back bare, with the ref reported
+	// separately as `installed_ref`. A live-resolved-but-uncatalogued one
+	// (quiver.core PR #225) already carries its resolved ref on `namespace`
+	// itself and omits `installed_ref` -- use it as-is rather than appending
+	// a second, absent ref.
+	const { head, tail } = splitNamespace(detail.namespace);
+	const namespace = tail ? detail.namespace : `${head}@${detail.installed_ref}`;
+	// Non-null: `installed_ref` is only ever absent on the wire when `tail`
+	// already supplied the ref instead (see `ArrowDetailDTO.installed_ref`).
+	const installedRef = tail ? tail.slice(1) : detail.installed_ref!;
 	return {
-		// `detail.namespace` is the bare namespace (core reports the ref
-		// separately, as `installed_ref`) -- every runtime/arrow endpoint this
-		// app calls afterwards (install/execute/stop/etc, and re-fetching this
-		// same detail) expects the full `namespace@ref` form, matching the
-		// route param and the reactive store's own keying (`versioned()`).
-		// Combining it here means every downstream consumer (Hero, the action
-		// mutations, ActionButton) can just use `detail.namespace` as-is.
-		namespace: `${detail.namespace}@${detail.installed_ref}`,
+		// Every runtime/arrow endpoint this app calls afterwards
+		// (install/execute/stop/etc, and re-fetching this same detail) expects
+		// the full `namespace@ref` form, matching the route param and the
+		// reactive store's own keying (`versioned()`). Resolving it here means
+		// every downstream consumer (Hero, the action mutations, ActionButton)
+		// can just use `detail.namespace` as-is.
+		namespace,
 		name: detail.name,
 		description: detail.description,
 		license: detail.license,
@@ -281,7 +297,7 @@ export function toArrowDetail(
 		targets: toTargets(manifest.targets),
 		state: detail.state,
 		user_installed: detail.user_installed,
-		installed_ref: detail.installed_ref,
+		installed_ref: installedRef,
 		installed_at: detail.installed_at,
 		installed_constraint: detail.installed_constraint,
 		active_run: detail.active_run ?? null,
