@@ -7,6 +7,7 @@ export { useRegisterArrow, useRemoveArrow } from './mutations/arrow';
 export { useFollowCollection, useUnfollowCollection } from './mutations/collection';
 export { useFollowedCollections } from './queries/collections';
 export {
+	useCheckRemoteHealth,
 	useAddConnection,
 	useRemoveConnection,
 	useSwitchConnection,

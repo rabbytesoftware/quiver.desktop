@@ -174,6 +174,23 @@ describe('toArrowDetail', () => {
 		expect(result.namespace).toBe('github.com/rabbyte/minecraft@v1.21.4');
 	});
 
+	it('uses detail.namespace as-is when it already carries a ref, deriving installed_ref from it', () => {
+		// quiver.core PR #225: GetDetail now resolves live for an uncatalogued
+		// namespace, stamping the resolved ref onto `namespace` itself and
+		// omitting `installed_ref` entirely -- unlike the catalogued case above,
+		// where the ref only ever shows up as `installed_ref`.
+		const result = toArrowDetail(
+			{ ...DETAIL, namespace: 'github.com/char2cs/crowbar@develop', installed_ref: undefined },
+			MANIFEST,
+			[],
+			null,
+			[],
+			[]
+		);
+		expect(result.namespace).toBe('github.com/char2cs/crowbar@develop');
+		expect(result.installed_ref).toBe('develop');
+	});
+
 	it('sources url/maintainers/credits/media from the nested raw manifest, not the base detail call', () => {
 		const result = toArrowDetail(DETAIL, MANIFEST, [], null, [], []);
 		expect(result.url).toBe('https://github.com/rabbyte/minecraft');

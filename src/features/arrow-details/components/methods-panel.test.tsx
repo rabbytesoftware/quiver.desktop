@@ -3,9 +3,17 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { runStep, signalStep } from '@/__mocks__/arrow-steps';
-import type { ArrowMethod, ArrowVariable } from '@/domain/arrow';
+import type { ArrowLifecycle, ArrowMethod, ArrowVariable } from '@/domain/arrow';
 
 import { MethodsPanel } from './methods-panel';
+
+const LIFECYCLE: ArrowLifecycle = {
+	install: [runStep('Fetch archive')],
+	update: [],
+	execute: [runStep('Start process')],
+	stop: [],
+	uninstall: [runStep('Remove workdir')],
+};
 
 const METHODS: ArrowMethod[] = [
 	{
@@ -99,5 +107,41 @@ describe('MethodsPanel', () => {
 	it('is read-only: renders no Run affordance for any method', () => {
 		render(<MethodsPanel methods={METHODS} variables={[]} />);
 		expect(screen.queryByRole('button', { name: /run/i })).not.toBeInTheDocument();
+	});
+
+	it('lists lifecycle actions before custom methods, in install/update/execute/stop/uninstall order, skipping ones with no steps', () => {
+		const { container } = render(<MethodsPanel lifecycle={LIFECYCLE} methods={METHODS} variables={[]} />);
+
+		const names = [...container.querySelectorAll('p.font-mono')].map((el) => el.textContent);
+		expect(names).toEqual(['Install', 'Start', 'Uninstall', 'backup', 'rcon']);
+	});
+
+	it('counts lifecycle actions and custom methods together in the count badge', () => {
+		render(<MethodsPanel lifecycle={LIFECYCLE} methods={METHODS} variables={[]} />);
+		expect(screen.getByText('5 methods')).toBeInTheDocument();
+	});
+
+	it('shows a lifecycle action’s step count without a description paragraph', () => {
+		const onlyInstall: ArrowLifecycle = { ...LIFECYCLE, execute: [], uninstall: [] };
+		render(<MethodsPanel lifecycle={onlyInstall} methods={[]} variables={[]} />);
+
+		expect(screen.getByText('Install')).toBeInTheDocument();
+		expect(screen.getByText('1 steps')).toBeInTheDocument();
+	});
+
+	it('previews a lifecycle action’s own steps when its info button is clicked', async () => {
+		const user = userEvent.setup();
+		render(<MethodsPanel lifecycle={LIFECYCLE} methods={[]} variables={[]} />);
+
+		const infoButtons = screen.getAllByRole('button', { name: 'What this does' });
+		await user.click(infoButtons[0]);
+
+		expect(await screen.findByText('Fetch archive')).toBeInTheDocument();
+	});
+
+	it('renders only custom methods when lifecycle is omitted, unchanged from before', () => {
+		render(<MethodsPanel methods={METHODS} variables={[]} />);
+		expect(screen.getByText('2 methods')).toBeInTheDocument();
+		expect(screen.queryByText('Install')).not.toBeInTheDocument();
 	});
 });

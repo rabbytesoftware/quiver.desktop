@@ -226,6 +226,7 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 			groupable: true,
 			content: (
 				<MethodsPanel
+					lifecycle={target?.lifecycle}
 					methods={methods}
 					onValueChange={handleValueChange}
 					values={values}
