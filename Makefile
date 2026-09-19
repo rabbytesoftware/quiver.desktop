@@ -245,10 +245,12 @@ build: build-frontend build-rust
 # as dirname(current_exe)/<name>, so an unbundled run looks for it right there.
 # `tauri build` needs no such help: the bundler copies from src-tauri/binaries.
 fetch-sidecar:
-	@echo "📥 Fetching quiver.core sidecar ($(_CORE_VERSION)) for $(TARGET_TRIPLE)..."
 	@if [ -z "$(_CORE_VERSION)" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi
+	$(eval RESOLVED_CORE_VERSION := $(shell node scripts/resolve-core-version.mjs "$(_CORE_VERSION)"))
+	@if [ -z "$(RESOLVED_CORE_VERSION)" ]; then echo "❌ could not resolve a release matching $(_CORE_VERSION)" && exit 1; fi
+	@echo "📥 Fetching quiver.core sidecar ($(RESOLVED_CORE_VERSION), matched $(_CORE_VERSION)) for $(TARGET_TRIPLE)..."
 	@mkdir -p src-tauri/binaries
-	@gh release download "$(_CORE_VERSION)" \
+	@gh release download "$(RESOLVED_CORE_VERSION)" \
 		--repo rabbytesoftware/quiver.core \
 		--pattern "$(QUIVER_BINARY)" \
 		--dir src-tauri/binaries \
@@ -397,16 +399,13 @@ pr-checks:
 	@echo "=============================="
 	@CORE_VERSION=$$(node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]'); \
 	if [ -z "$$CORE_VERSION" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi; \
-	case "$$CORE_VERSION" in \
-	  nightly|latest|main|master|develop|HEAD) \
-	    echo "❌ '$$CORE_VERSION' is a rolling tag, not an immutable release."; \
-	    echo "   Pin quiver.coreVersion to a specific beta-*/stable-* tag."; \
-	    exit 1 ;; \
-	esac; \
-	echo "Checking quiver.core release: $$CORE_VERSION"; \
-	gh release view "$$CORE_VERSION" --repo rabbytesoftware/quiver.core --json tagName --jq '.tagName' >/dev/null || \
-	  (echo "❌ quiver.core release $$CORE_VERSION not found" && exit 1); \
-	echo "✅ quiver.core release $$CORE_VERSION exists and is immutable"
+	echo "Resolving constraint: $$CORE_VERSION"; \
+	RESOLVED_VERSION=$$(node scripts/resolve-core-version.mjs "$$CORE_VERSION" 2>/dev/null); \
+	if [ -z "$$RESOLVED_VERSION" ]; then echo "❌ could not resolve a release matching $$CORE_VERSION" && exit 1; fi; \
+	echo "Resolved to: $$RESOLVED_VERSION"; \
+	gh release view "$$RESOLVED_VERSION" --repo rabbytesoftware/quiver.core --json tagName --jq '.tagName' >/dev/null || \
+	  (echo "❌ quiver.core release $$RESOLVED_VERSION not found" && exit 1); \
+	echo "✅ quiver.core release $$RESOLVED_VERSION exists and matches constraint $$CORE_VERSION"
 	@echo ""
 	@echo "Step 2/6: Code Quality Checks"
 	@echo "=============================="
