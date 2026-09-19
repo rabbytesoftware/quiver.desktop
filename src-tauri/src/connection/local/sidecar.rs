@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -92,11 +93,25 @@ impl SidecarManager {
 		// always a version-stamped release download, so it never would.
 		let dev_home = quiver_home();
 
-		let mut command = app
-			.shell()
-			.sidecar("quiver")
-			.map_err(|e| e.to_string())?
-			.args(["daemon", "--host", &self.host.host_arg(dev_home.is_some())]);
+		// The bundled `binaries/quiver` is only ever day-one bootstrap seed: once
+		// quiver.core has self-updated at least once (its own Task 1.8), the
+		// current binary lives at a stable path outside the bundle and this app
+		// must prefer it — otherwise every launch after a self-update would
+		// still run the stale seed the app first shipped with. This check is
+		// independent of `dev_home` above: `dev_home`, when set, only scopes the
+		// spawned daemon's *data* directory (state/vault/config) to this
+		// checkout, and says nothing about which binary answers `daemon`.
+		let mut command = match Self::resolve_binary_path(&Self::quiver_home_dir()) {
+			Some(installed) => {
+				log::info!(
+					"[local] using self-installed quiver.core at {}",
+					installed.display()
+				);
+				app.shell().command(&installed)
+			}
+			None => app.shell().sidecar("quiver").map_err(|e| e.to_string())?,
+		}
+		.args(["daemon", "--host", &self.host.host_arg(dev_home.is_some())]);
 
 		if let Some(home) = dev_home {
 			command = command.env("QUIVER_HOME", home);
@@ -117,6 +132,38 @@ impl SidecarManager {
 		// is what this function used to do) throws both away. See `pump_events`.
 		tauri::async_runtime::spawn(pump_events(events));
 		Ok(())
+	}
+
+	/// Looks for a self-installed quiver.core at its stable, version-independent
+	/// install path (`{quiver_home}/self/` — see quiver.core's Task 1.8, not the
+	/// per-`@ref` `namespaces/` tree ordinary arrows use). Returns `None` when
+	/// nothing is installed there yet, in which case the caller falls back to
+	/// the bundled bootstrap sidecar.
+	pub fn resolve_binary_path(quiver_home: &Path) -> Option<PathBuf> {
+		let bin_name = if cfg!(windows) {
+			"quiver.exe"
+		} else {
+			"quiver"
+		};
+		let candidate = quiver_home.join("self").join(bin_name);
+		candidate.exists().then_some(candidate)
+	}
+
+	/// Mirrors quiver.core's own default home-directory resolution exactly —
+	/// see quiver.core's `internal/core/metadata/resolve_home.go` and
+	/// `resolve_home_windows.go`, both driven by `metadata.yaml`'s
+	/// `paths.home`: `QUIVER_HOME` wins when set (and non-empty), otherwise the
+	/// platform default (`~/.quiver` on Unix, `C:\Users\{{USER}}\Documents\.quiver`
+	/// on Windows). This has to track that default exactly, not just plausibly
+	/// — it is how this app finds the same `self/` directory quiver.core's own
+	/// Task 1.8 installs into.
+	fn quiver_home_dir() -> PathBuf {
+		if let Ok(home) = std::env::var("QUIVER_HOME") {
+			if !home.is_empty() {
+				return PathBuf::from(home);
+			}
+		}
+		platform_default_home()
 	}
 
 	/// Record the child, and let go of the lock. See [`take_spawned`] for why the
@@ -183,6 +230,33 @@ impl SidecarManager {
 			HEALTH_RETRY_MS * HEALTH_MAX_ATTEMPTS as u64,
 		))
 	}
+}
+
+/// The Unix half of `SidecarManager::quiver_home_dir`'s platform default:
+/// `$HOME/.quiver`, matching quiver.core's own `resolveHome()` (which expands
+/// its `~/.quiver` template via `os.UserHomeDir()` — `$HOME` on Unix). Falling
+/// back to `/tmp` when `HOME` is unset mirrors the same fallback already used
+/// for the dev socket path in `local::mod::default_socket_path`, and keeps
+/// this infallible rather than forcing every caller to handle an env lookup
+/// that essentially never fails on a real desktop.
+#[cfg(unix)]
+fn platform_default_home() -> PathBuf {
+	let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+	PathBuf::from(home).join(".quiver")
+}
+
+/// The Windows half of `SidecarManager::quiver_home_dir`'s platform default.
+/// `metadata.yaml`'s `paths.home.windows` documents the literal template
+/// `C:\Users\{{USER}}\Documents\.quiver`; quiver.core's own
+/// `resolve_home_windows.go` fills `{{USER}}` from `os/user.Current()`
+/// (falling back to `"unknown"` if that fails) rather than deriving the whole
+/// path from `%USERPROFILE%`, so this mirrors that exactly — including the
+/// same `"unknown"` fallback — instead of reconstructing a differently-shaped
+/// but plausible-looking path.
+#[cfg(windows)]
+fn platform_default_home() -> PathBuf {
+	let user = std::env::var("USERNAME").unwrap_or_else(|_| "unknown".into());
+	PathBuf::from(format!(r"C:\Users\{user}\Documents\.quiver"))
 }
 
 /// Take the spawned child out of `slot`, if there is one — the whole of the
@@ -285,8 +359,10 @@ async fn health_ok(transport: &dyn Transport) -> bool {
 mod tests {
 	use super::*;
 	use crate::connection::transport::{TransportError, WsStream};
+	use std::fs;
 	use tauri::http::{Request, Response};
 	use tauri_plugin_shell::process::TerminatedPayload;
+	use tempfile::TempDir;
 
 	/// Answers `/v0/health` however the test needs it answered.
 	enum Peer {
@@ -492,5 +568,99 @@ mod tests {
 		tokio::time::timeout(Duration::from_secs(5), pump_events(rx))
 			.await
 			.expect("the pump must end when the daemon's stream closes");
+	}
+
+	// ── Preferring a self-installed Core ─────────────────────────────────────
+
+	#[test]
+	fn resolve_binary_path_prefers_installed_core_when_present() {
+		let home = TempDir::new().unwrap();
+		let self_dir = home.path().join("self");
+		fs::create_dir_all(&self_dir).unwrap();
+		let installed_bin = self_dir.join(if cfg!(windows) {
+			"quiver.exe"
+		} else {
+			"quiver"
+		});
+		fs::write(&installed_bin, b"fake binary").unwrap();
+
+		let resolved = SidecarManager::resolve_binary_path(home.path());
+
+		assert_eq!(resolved, Some(installed_bin));
+	}
+
+	#[test]
+	fn resolve_binary_path_none_when_not_installed() {
+		let home = TempDir::new().unwrap();
+
+		let resolved = SidecarManager::resolve_binary_path(home.path());
+
+		assert_eq!(resolved, None);
+	}
+
+	/// Guards every test below that touches `QUIVER_HOME`: `std::env::set_var`
+	/// and `remove_var` mutate process-global state, and two tests racing on
+	/// the same variable (or the crate-wide `environ` array libc backs it
+	/// with) could each observe the other's value. Nothing else in this test
+	/// binary writes `QUIVER_HOME`, so serializing only the tests below is
+	/// enough to make each of them deterministic.
+	fn quiver_home_env_lock() -> &'static Mutex<()> {
+		static LOCK: std::sync::OnceLock<Mutex<()>> = std::sync::OnceLock::new();
+		LOCK.get_or_init(|| Mutex::new(()))
+	}
+
+	/// The override quiver.core itself honors first — see
+	/// `resolveHome()`/`homeOverrideEnv` in its own `metadata` package. This
+	/// app has to agree on that env var, or it would look for a self-installed
+	/// Core in a directory quiver.core was never told to use.
+	#[test]
+	fn quiver_home_dir_prefers_the_env_var_override_when_set() {
+		let _guard = quiver_home_env_lock()
+			.lock()
+			.unwrap_or_else(|e| e.into_inner());
+		unsafe {
+			std::env::set_var("QUIVER_HOME", "/tmp/quiver-home-dir-override-test");
+		}
+
+		let resolved = SidecarManager::quiver_home_dir();
+
+		unsafe {
+			std::env::remove_var("QUIVER_HOME");
+		}
+		assert_eq!(
+			resolved,
+			PathBuf::from("/tmp/quiver-home-dir-override-test")
+		);
+	}
+
+	/// With no override, this has to land on exactly the same default
+	/// quiver.core's own `metadata.yaml` (`paths.home`) documents — not
+	/// merely a plausible-looking `~/.quiver`. Unix and Windows are asserted
+	/// separately because the underlying env var (`HOME` vs `USERNAME`) and
+	/// the shape of the default path differ per platform.
+	#[test]
+	fn quiver_home_dir_falls_back_to_the_platform_default_when_unset() {
+		let _guard = quiver_home_env_lock()
+			.lock()
+			.unwrap_or_else(|e| e.into_inner());
+		unsafe {
+			std::env::remove_var("QUIVER_HOME");
+		}
+
+		let resolved = SidecarManager::quiver_home_dir();
+
+		#[cfg(unix)]
+		{
+			let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+			assert_eq!(resolved, PathBuf::from(home).join(".quiver"));
+		}
+		#[cfg(windows)]
+		{
+			let user = std::env::var("USERNAME").unwrap_or_else(|_| "unknown".into());
+			assert_eq!(
+				resolved,
+				PathBuf::from(format!(r"C:\Users\{user}\Documents\.quiver"))
+			);
+		}
 	}
 }
