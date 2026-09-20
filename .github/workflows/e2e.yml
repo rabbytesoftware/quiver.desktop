@@ -44,15 +44,19 @@ concurrency:
 #   1. bootstrap.spec.ts: quiver.desktop's own ARROW.md has to be published at
 #      a ref core can actually resolve, so the "registers quiver.desktop as
 #      its own arrow" and "shows both self-arrows" assertions 404 until this
-#      branch is merged. That is now a precondition that genuinely clears:
-#      `announceSelf` announces the namespace REFLESS, and core's
-#      `resolveRefless` reads that as "the latest stable release, else the
-#      default branch" -- so the file only has to be on `develop` (or, later,
-#      carried by a `stable-*` tag), both of which the normal merge path
-#      produces. It is satisfied by definition for this job's real trigger, a
-#      `stable-*` tag push; only a `workflow_dispatch` run from an unmerged
-#      branch can still 404 here.
-#      (It previously announced `@0.1.0` -- tauri.conf.json's productVersion
+#      branch is merged. That is now a precondition that genuinely clears, by
+#      either of the two refs `announceSelf` can announce:
+#        - on this job's REAL trigger, a `stable-*` tag push, the build step
+#          below stamps the binary with that very tag (src-tauri/build.rs),
+#          so the announce carries `@<tag>` and core resolves ARROW.md at it.
+#          The tag exists on the remote by definition here -- pushing it is
+#          what started this run.
+#        - a `workflow_dispatch` run is not stamped, so the announce is
+#          REFLESS, which core's `resolveRefless` reads as "the latest stable
+#          release, else the default branch": the file only has to be on
+#          `develop`, which the normal merge path produces. Only a dispatch
+#          from a branch that has not merged yet can still 404 here.
+#      (It originally announced `@0.1.0` -- tauri.conf.json's productVersion
 #      -- which demanded a git ref literally named `0.1.0`. Nothing in this
 #      repo ever creates one, so that 404 was permanent rather than pending.)
 #   2. self-update-while-running.spec.ts: needs a fixture arrow a production

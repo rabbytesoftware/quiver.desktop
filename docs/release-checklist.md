@@ -226,15 +226,20 @@ faster pre-tag check.
    preconditions documented directly in `.github/workflows/e2e.yml`'s own
    comment:
    - `bootstrap.spec.ts` needs `quiver.desktop`'s own `ARROW.md` reachable at
-     a ref `quiver.core` can resolve on the published repo. `announceSelf`
-     announces the namespace **refless**, which core reads as "the latest
-     `stable-*` release, else the default branch" — so for a real release
-     this is satisfied by the tag cut in steps 3–4, and it is only unmet when
-     the harness is run by `workflow_dispatch` from a branch that has not
-     merged yet. (Before this was fixed, the announce carried `@0.1.0` —
-     `tauri.conf.json`'s `version` — and demanded a git ref literally named
-     `0.1.0`, which this repo's `stable-<series>[.patch]` tagging never
-     creates; that 404 was permanent, not pending.)
+     a ref `quiver.core` can resolve on the published repo. Which ref
+     `announceSelf` asks for depends on how the build under test was made,
+     and both answers clear on the normal merge path: a build cut from a
+     `stable-*` tag carries that tag (baked in by `src-tauri/build.rs`) and
+     announces `<ns>@<tag>`, which resolves because pushing that tag is what
+     triggered the run; any other build announces the namespace **refless**,
+     which core reads as "the latest `stable-*` release, else the default
+     branch". So for a real release this is satisfied by the tag cut in
+     steps 3–4, and it is only unmet when the harness is run by
+     `workflow_dispatch` from a branch that has not merged yet. (Before this
+     was fixed, the announce carried `@0.1.0` — `tauri.conf.json`'s
+     `version` — and demanded a git ref literally named `0.1.0`, which this
+     repo's `stable-<series>[.patch]` tagging never creates; that 404 was
+     permanent, not pending.)
    - `self-update-while-running.spec.ts` needs a fixture arrow a *production*
      daemon can actually resolve (`QUIVER_E2E_FIXTURE_NS`) — no such fixture
      exists yet, only the Go integration suite's in-process stub resolver.
@@ -259,6 +264,22 @@ faster pre-tag check.
    as "expected, ignore it" without reading which failure it actually was.
    Any failure *other than* the three listed above is a real regression and
    blocks the release.
+5. While you have run logs open, confirm the **`Stable Release`** run (not
+   this one) actually stamped the artifacts you are about to ship. In each of
+   its three `Build (<os>)` jobs, the `Validate the release tag, when one was
+   given` step must print:
+   ```
+   ✅ stamping this build as <stable-tag>
+   ```
+   If it printed `ℹ️  no release-tag given` instead, the tag never reached
+   `src-tauri/build.rs`, and the shipped app will announce its own arrow
+   refless: it still registers and still works, but its catalog row tracks the
+   latest published release rather than the build the user installed, so it
+   will show an "update available" badge (above a no-op Update action, since
+   `ARROW.md` declares no `update` lifecycle) as soon as anything newer lands.
+   That is a degraded release, not a broken one — decide deliberately whether
+   to re-run the build with the tag wired through rather than discovering it
+   from user reports later.
 
 ## 6. Manual smoke test — a stale desktop actually gets told it's outdated
 

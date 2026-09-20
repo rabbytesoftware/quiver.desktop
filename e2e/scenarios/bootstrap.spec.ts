@@ -78,8 +78,8 @@ describe('bootstrap: a clean QUIVER_HOME comes up self-installed', () => {
 
 		// This row exists only because the running app announced itself:
 		// `announceSelf` (src/lib/core-store/listeners/self-announce.ts) POSTs
-		// /v0/arrow/<ns>@<version> on every successful connection, and core's
-		// Add-time `preinstalled` check has to agree the app is really here.
+		// /v0/arrow/<ns> on every successful connection, and core's Add-time
+		// `preinstalled` check has to agree the app is really here.
 		//
 		// PRECONDITION, and it is a real one rather than a test artefact:
 		// unlike quiver.core's, quiver.desktop's manifest is NOT embedded in
@@ -87,16 +87,24 @@ describe('bootstrap: a clean QUIVER_HOME comes up self-installed', () => {
 		// `metadata.GetPlatforms()`, so it requires quiver.desktop's ARROW.md
 		// to be reachable on github.com.
 		//
-		// `announceSelf` announces the namespace REFLESS, so the ref core
-		// looks under is core's own `resolveRefless` answer: the latest
-		// `stable-*` release if the repo publishes one, otherwise its default
-		// branch (`develop`). Either way the normal merge path produces it, so
-		// this precondition clears on merge -- and is satisfied by definition
-		// once a `stable-*` tag exists, which is what triggers the CI job that
-		// runs this spec. Running it from an unmerged branch still 404s, and
+		// Which ref it looks under depends on how the app under test was
+		// built, and BOTH answers clear that precondition through the normal
+		// merge path:
+		//
+		//   - built from a `stable-*` tag (what .github/workflows/e2e.yml
+		//     does on its real trigger, a tag push): the binary carries that
+		//     tag, the announce is `<ns>@<tag>`, and core takes the explicit
+		//     ref as written -- resolvable, because the tag that triggered
+		//     the run is on the remote.
+		//   - built from anything else (a local run, a `workflow_dispatch`):
+		//     no tag is baked in, so the announce is REFLESS and core's
+		//     `resolveRefless` answers with the latest `stable-*` release, or
+		//     the default branch (`develop`) if there is none.
+		//
+		// Running this from a branch that has not merged yet still 404s, and
 		// that is the honest result, not a harness fault.
 		//
-		// This is the one thing that changed: the announce used to carry
+		// What it must never go back to: the announce originally carried
 		// `@0.1.0` (tauri.conf.json's productVersion), and core takes an
 		// explicit ref as written with no fallback, so it demanded a git ref
 		// named `0.1.0` that nothing in this repo's release process -- which
