@@ -91,6 +91,10 @@ overrides `HOME` per spec and lets `QUIVER_HOME` default beneath it.
 
 ## Running locally (Linux)
 
+Needs Node on `PATH` alongside bun -- `expect-webdriverio` (a transitive
+dependency of `webdriverio`/`@wdio/*`) requires a real Node runtime; bun alone
+fails instantly with `TypeError: The superclass is not a constructor`.
+
 ```bash
 sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
   libayatana-appindicator3-dev librsvg2-dev build-essential \
