@@ -25,6 +25,16 @@ export interface ConnectionsSnapshot {
 export interface Backend {
 	fetch(path: string, init?: RequestInit): Promise<Response>;
 	openSocket(path: string): SocketLike;
+	/**
+	 * The `stable-*` tag THIS binary was built from, or `null` for any build
+	 * that was not cut from one (every dev, PR-CI and locally built app).
+	 *
+	 * A compile-time constant baked in by `src-tauri/build.rs`, not a runtime
+	 * lookup and not `tauri.conf.json`'s `version` -- that is a productVersion
+	 * ("0.1.0"), and no git ref will ever carry that name. See
+	 * `src-tauri/src/commands/build_info.rs`.
+	 */
+	getBuildTag(): Promise<string | null>;
 	getConnections(): Promise<ConnectionsSnapshot>;
 	onCoreStatus(cb: (status: ConnectionStatus) => void): Promise<() => void>;
 	onConnectionsChanged(cb: (snapshot: ConnectionsSnapshot) => void): Promise<() => void>;
@@ -47,6 +57,10 @@ export const realBackend: Backend = {
 
 	openSocket(path) {
 		return new QuiverWebSocket(path);
+	},
+
+	getBuildTag() {
+		return invoke<string | null>('get_build_tag');
 	},
 
 	getConnections() {

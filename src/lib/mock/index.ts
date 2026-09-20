@@ -56,6 +56,15 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 			return hub.open(path);
 		},
 
+		// `null`, and not a plausible-looking `stable-*` string: the build tag
+		// is a property of the BINARY, not of the daemon this stands in for,
+		// and anything running the mock is by definition an untagged dev
+		// build. Handing one back would make `announceSelf` claim a release
+		// ref no mock scenario can make true.
+		getBuildTag() {
+			return Promise.resolve(null);
+		},
+
 		getConnections() {
 			return Promise.resolve(snapshot);
 		},

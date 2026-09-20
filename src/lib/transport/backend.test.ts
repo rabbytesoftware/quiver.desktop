@@ -1,9 +1,20 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
+
+// Partial, via `importOriginal`: `Channel` is imported by quiver-socket.ts and
+// has to stay real. Only `invoke` -- the IPC boundary these tests stand in for
+// -- is replaced.
+vi.mock('@tauri-apps/api/core', async (importOriginal) => ({
+	...(await importOriginal<typeof import('@tauri-apps/api/core')>()),
+	invoke: vi.fn(),
+}));
+
+import { invoke } from '@tauri-apps/api/core';
 
 import type { Backend, ConnectionsSnapshot, SocketLike } from './backend';
 import { apiBase, backend, installBackend, realBackend, resetBackend, SOCKET_OPEN } from './backend';
 
 const shell = window as unknown as { __QUIVER__?: { api?: string } };
+const mockInvoke = invoke as MockedFunction<typeof invoke>;
 
 function stubSocket(): SocketLike {
 	return {
@@ -21,6 +32,7 @@ function stubBackend(over: Partial<Backend> = {}): Backend {
 	return {
 		fetch: vi.fn().mockResolvedValue(new Response('{}')),
 		openSocket: vi.fn(stubSocket),
+		getBuildTag: vi.fn().mockResolvedValue(null),
 		getConnections: vi.fn().mockResolvedValue({ connections: [], active_id: 'stub' }),
 		onCoreStatus: vi.fn().mockResolvedValue(() => {}),
 		onConnectionsChanged: vi.fn().mockResolvedValue(() => {}),
@@ -75,6 +87,33 @@ describe('realBackend.fetch', () => {
 	});
 });
 
+describe('realBackend.getBuildTag', () => {
+	it('hands back the release tag a stamped binary was built from', async () => {
+		mockInvoke.mockResolvedValue('stable-26.5.1');
+
+		await expect(realBackend.getBuildTag()).resolves.toBe('stable-26.5.1');
+		expect(mockInvoke).toHaveBeenCalledWith('get_build_tag');
+	});
+
+	it('hands back null for a build that was never cut from a tag', async () => {
+		// Rust answers `Option<String>`, so absence arrives as JSON null --
+		// the ordinary case for every dev and CI build, not an error.
+		mockInvoke.mockResolvedValue(null);
+
+		await expect(realBackend.getBuildTag()).resolves.toBeNull();
+	});
+
+	it('does not invent a version when the command is unavailable', async () => {
+		// An older shell without this command rejects the invoke. The caller
+		// (announceSelf) is what decides to fall back; this layer must not
+		// quietly substitute `tauri.conf.json`'s productVersion, which is what
+		// the removed `getAppVersion` did and why the announce 404'd.
+		mockInvoke.mockRejectedValue(new Error('command get_build_tag not found'));
+
+		await expect(realBackend.getBuildTag()).rejects.toThrow(/get_build_tag/);
+	});
+});
+
 describe('apiBase', () => {
 	it('rejects an empty origin as firmly as a missing one', () => {
 		shell.__QUIVER__ = { api: '' };
@@ -96,6 +135,7 @@ describe('the interface', () => {
 		installBackend(stubBackend({ getConnections: vi.fn().mockResolvedValue(snapshot) }));
 
 		await expect(backend().getConnections()).resolves.toEqual(snapshot);
+		await expect(backend().getBuildTag()).resolves.toBeNull();
 		await expect(backend().onCoreStatus(() => {})).resolves.toBeTypeOf('function');
 		await expect(backend().onConnectionsChanged(() => {})).resolves.toBeTypeOf('function');
 		expect(backend().openSocket('/v0/arrow').readyState).toBe(SOCKET_OPEN);
