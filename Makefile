@@ -268,8 +268,19 @@ fetch-sidecar:
 # copy the result into the same two spots fetch-sidecar populates, for the same
 # reason (see the comment above that target) — `make build` over there always
 # writes to bin/quiver regardless of platform, so that source path is fixed.
+#
+# `SidecarManager::spawn` (src-tauri/src/connection/local/sidecar.rs) checks
+# `{dev_home}/self/quiver` (dev_home = src-tauri/.quiver, see `dev_quiver_home`
+# in local/mod.rs) BEFORE falling back to this sidecar, and quiver.core
+# self-installs a copy of whatever binary is currently running into that same
+# `self/` dir on every boot. Left in place, that copy would win over the
+# freshly built sidecar on every run after the first, silently hiding Core
+# edits. That directory only ever holds a disposable-by-construction artifact
+# scoped to this checkout, so clear it before every build — not just once —
+# so `dev-local` always launches what this recipe just built.
 fetch-sidecar-local:
 	@if [ -z "$(QUIVER_CORE_DEV_PATH)" ]; then echo "❌ set QUIVER_CORE_DEV_PATH to a quiver.core checkout" && exit 1; fi
+	@rm -rf src-tauri/.quiver/self
 	@echo "📥 Building quiver.core from $(QUIVER_CORE_DEV_PATH)..."
 	@$(MAKE) -C "$(QUIVER_CORE_DEV_PATH)" build
 	@mkdir -p src-tauri/binaries
