@@ -100,15 +100,23 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Set up Node
-        # expect-webdriverio (a transitive dep of webdriverio/@wdio/*) needs a
-        # real Node runtime underneath bun -- without it the suite dies
-        # instantly with "TypeError: The superclass is not a constructor".
-        # ubuntu-latest happens to preinstall a compatible Node today, which
-        # is why this was previously invisible; pin it explicitly so the job
-        # does not silently depend on the runner's own default.
+        # Two independent needs, and the version is set by the stricter one.
+        #
+        # 1. expect-webdriverio (a transitive dep of webdriverio/@wdio/*) needs
+        #    a real Node runtime underneath bun -- without it the suite dies
+        #    instantly with "TypeError: The superclass is not a constructor".
+        #    ubuntu-latest happens to preinstall a compatible Node today, which
+        #    is why this was previously invisible; pin it explicitly so the job
+        #    does not silently depend on the runner's own default.
+        # 2. `make fetch-sidecar` below runs scripts/resolve-core-version.mjs,
+        #    whose entry point is guarded by `import.meta.main` -- undefined
+        #    before Node 24.2. On an older runtime the script prints nothing
+        #    and exits 0, and the Makefile's own empty-output check then fails
+        #    the job with "could not resolve a release matching ^26.5". That is
+        #    why this is 24 and not the 22 it was first pinned to.
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Cache cargo
         uses: actions/cache@v4
