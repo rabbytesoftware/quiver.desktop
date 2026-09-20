@@ -60,6 +60,10 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 			return Promise.resolve(snapshot);
 		},
 
+		getAppVersion() {
+			return Promise.resolve('0.0.0-mock');
+		},
+
 		onCoreStatus(cb) {
 			world.clock.after(0, () => cb('starting' as ConnectionStatus));
 			world.clock.after(BOOT_MS, () => cb('ready' as ConnectionStatus));
