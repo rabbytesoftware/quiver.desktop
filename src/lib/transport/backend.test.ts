@@ -24,7 +24,6 @@ function stubBackend(over: Partial<Backend> = {}): Backend {
 		getConnections: vi.fn().mockResolvedValue({ connections: [], active_id: 'stub' }),
 		getAppVersion: vi.fn().mockResolvedValue('0.0.0'),
 		onCoreStatus: vi.fn().mockResolvedValue(() => {}),
-		onCoreUpdateStatus: vi.fn().mockResolvedValue(() => {}),
 		onConnectionsChanged: vi.fn().mockResolvedValue(() => {}),
 		...over,
 	};
@@ -100,7 +99,6 @@ describe('the interface', () => {
 		await expect(backend().getConnections()).resolves.toEqual(snapshot);
 		await expect(backend().getAppVersion()).resolves.toBeTypeOf('string');
 		await expect(backend().onCoreStatus(() => {})).resolves.toBeTypeOf('function');
-		await expect(backend().onCoreUpdateStatus(() => {})).resolves.toBeTypeOf('function');
 		await expect(backend().onConnectionsChanged(() => {})).resolves.toBeTypeOf('function');
 		expect(backend().openSocket('/v0/arrow').readyState).toBe(SOCKET_OPEN);
 	});

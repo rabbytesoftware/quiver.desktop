@@ -15,13 +15,6 @@ pub enum CoreStatus {
 	Disconnected,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub struct CoreUpdateStatus {
-	pub outdated: bool,
-	pub recommended_ref: Option<String>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionConfig {
 	pub id: String,
@@ -47,7 +40,6 @@ pub trait QuiverConnection: Send + Sync {
 pub trait Emitter: Send + Sync + 'static {
 	fn emit_core_status(&self, status: CoreStatus);
 	fn emit_connection_changed(&self, payload: serde_json::Value);
-	fn emit_core_update_status(&self, status: CoreUpdateStatus);
 }
 
 // ── Command error ─────────────────────────────────────────────────────────────
@@ -74,17 +66,6 @@ mod tests {
 	fn core_status_serializes_to_snake_case() {
 		let json = serde_json::to_string(&CoreStatus::Disconnected).unwrap();
 		assert_eq!(json, r#""disconnected""#);
-	}
-
-	#[test]
-	fn core_update_status_serializes_snake_case() {
-		let json = serde_json::to_value(&CoreUpdateStatus {
-			outdated: true,
-			recommended_ref: Some("stable-26.0.0".into()),
-		})
-		.unwrap();
-		assert_eq!(json["outdated"], true);
-		assert_eq!(json["recommended_ref"], "stable-26.0.0");
 	}
 
 	#[test]

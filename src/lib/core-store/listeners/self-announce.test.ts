@@ -23,7 +23,6 @@ function stubBackend(getAppVersion: () => Promise<string>): void {
 		getConnections: vi.fn(),
 		getAppVersion,
 		onCoreStatus: vi.fn(),
-		onCoreUpdateStatus: vi.fn(),
 		onConnectionsChanged: vi.fn(),
 	});
 }
@@ -33,17 +32,16 @@ beforeEach(() => {
 });
 
 describe('announceSelf', () => {
-	it('POSTs the ordinary add-arrow endpoint at quiver.desktop\'s own namespace and version', async () => {
+	it("POSTs the ordinary add-arrow endpoint at quiver.desktop's own namespace and version", async () => {
 		stubBackend(() => Promise.resolve('0.1.0'));
 		mockApiFetch.mockResolvedValue(undefined);
 
 		await announceSelf();
 
 		expect(apiFetch).toHaveBeenCalledTimes(1);
-		expect(apiFetch).toHaveBeenCalledWith(
-			'/v0/arrow/github.com%2Frabbytesoftware%2Fquiver.desktop%400.1.0',
-			{ method: 'POST' }
-		);
+		expect(apiFetch).toHaveBeenCalledWith('/v0/arrow/github.com%2Frabbytesoftware%2Fquiver.desktop%400.1.0', {
+			method: 'POST',
+		});
 	});
 
 	it('reads the version from Backend rather than hardcoding one', async () => {
@@ -52,10 +50,9 @@ describe('announceSelf', () => {
 
 		await announceSelf();
 
-		expect(apiFetch).toHaveBeenCalledWith(
-			'/v0/arrow/github.com%2Frabbytesoftware%2Fquiver.desktop%409.9.9-test',
-			{ method: 'POST' }
-		);
+		expect(apiFetch).toHaveBeenCalledWith('/v0/arrow/github.com%2Frabbytesoftware%2Fquiver.desktop%409.9.9-test', {
+			method: 'POST',
+		});
 	});
 
 	it('logs and swallows a failure reading the app version, without POSTing anything', async () => {
