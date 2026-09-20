@@ -44,21 +44,26 @@ variables:
   - name: "QUIVER_DESKTOP_DETECT_COMMAND_WINDOWS"
     description: >-
       Command the preinstalled check runs on Windows (cmd.exe /C). The app is
-      on no PATH, so this tests for the executable where the published NSIS
-      setup.exe puts it: %LOCALAPPDATA%\Quiver, Tauri's default because its
-      nsis installMode defaults to currentUser.
+      on no PATH, so this checks both real install locations quiver.desktop's
+      own Windows bundler produces (`cargo tauri build --bundles msi,nsis`,
+      see docs/release-checklist.md -- both are built and published for every
+      release, not just one): the NSIS setup.exe, whose installMode defaults
+      to currentUser and puts the executable under %LOCALAPPDATA%\Quiver, and
+      the MSI (WiX) installer, whose default scope is per-machine, under
+      %ProgramFiles%\Quiver.
 
-      Deliberately contains NO double quotes, which is a hard constraint and
-      not a style choice. quiver.core spawns this as exec.Command("cmd.exe",
-      "/C", joined) with no SysProcAttr.CmdLine, so Go escapes the string with
-      syscall.EscapeArg -- every " becomes \" -- and cmd.exe's /C rule then
-      strips the outer quotes and reads \" as a literal backslash plus a quote
-      toggle, mangling the path. A quote-free string round-trips through both
-      untouched. The cost is that a path containing a space cannot be
-      expressed, which is why the per-machine MSI root (%ProgramFiles% is
-      always "C:\Program Files") is NOT checked here; override this variable
-      to detect a per-machine or relocated install.
-    default: 'if exist %LOCALAPPDATA%\Quiver\quiverdesktop.exe (exit 0) else (exit 1)'
+      Quoted paths are safe to write plainly now, exactly as in a real
+      cmd.exe prompt: quiver.core's Windows step spawner sets
+      SysProcAttr.CmdLine explicitly and wraps the whole command in one quote
+      pair that cmd's own quote-stripping rule removes, so a quoted path
+      round-trips untouched. This used to be a quote-free command for exactly
+      that reason -- Go's default escaping fought cmd.exe's own re-parsing of
+      its /C argument and mangled any quoted path -- which meant a path
+      containing a space (any %ProgramFiles% install, or %LOCALAPPDATA% on an
+      account with a space in the username) could never be expressed. That
+      workaround is gone now that the underlying engine bug is fixed; both
+      locations are checked directly instead of requiring an override.
+    default: 'if exist "%LOCALAPPDATA%\Quiver\quiverdesktop.exe" (exit 0) else if exist "%ProgramFiles%\Quiver\quiverdesktop.exe" (exit 0) else (exit 1)'
 
 targets:
   "*":
@@ -72,20 +77,21 @@ targets:
       preinstalled:
         - type: run
           title: "Detect an existing Quiver Desktop install"
-          # Exact os/arch keys, never a "darwin/*" or "windows/*" glob.
-          # quiver.core resolves a step's Overrideable fields with a plain
-          # exact map lookup (step.Overrideable.Resolve), not the glob-aware
-          # path.Match resolution the spec documents and Exports actually gets
-          # -- so a glob key silently falls through to `default` on every
-          # target. Established by Task 3.1 for the Windows keys and verified
-          # again here; the `default` is therefore Linux's, not a shared Unix
-          # one.
+          # quiver.core fixed step-field glob resolution: selector.go's
+          # resolveOverrideable now runs for step fields too (previously only
+          # exports: got it, via step.Overrideable.Resolve's plain exact map
+          # lookup), so a "windows/*" key here now correctly resolves on both
+          # windows/amd64 and windows/arm64 -- ranked exact (3) > glob (2) >
+          # bare "*" (1), same specificity rule as target selection. Darwin
+          # keeps the exact darwin/amd64 + darwin/arm64 keys established by
+          # Task 3.1: exact was, and still is, equally correct there, and
+          # this fix isn't touching that convention. The `default` is
+          # therefore Linux's, not a shared Unix one.
           command:
             default: "${QUIVER_DESKTOP_DETECT_COMMAND}"
             "darwin/amd64": "${QUIVER_DESKTOP_DETECT_COMMAND_DARWIN}"
             "darwin/arm64": "${QUIVER_DESKTOP_DETECT_COMMAND_DARWIN}"
-            "windows/amd64": "${QUIVER_DESKTOP_DETECT_COMMAND_WINDOWS}"
-            "windows/arm64": "${QUIVER_DESKTOP_DETECT_COMMAND_WINDOWS}"
+            "windows/*": "${QUIVER_DESKTOP_DETECT_COMMAND_WINDOWS}"
           timeout: "10s"
           exit_on_failure: false
 ```
