@@ -66,6 +66,10 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 			return Promise.resolve(() => {});
 		},
 
+		onCoreUpdateStatus() {
+			return Promise.resolve(() => {});
+		},
+
 		onConnectionsChanged() {
 			return Promise.resolve(() => {});
 		},

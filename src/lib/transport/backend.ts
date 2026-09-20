@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import type { ConnectionConfig, ConnectionStatus } from '@/domain/connection';
+import type { CoreUpdateStatus } from '@/lib/core-store/store/update-status';
 
 import { QuiverWebSocket } from './quiver-socket';
 
@@ -27,6 +28,7 @@ export interface Backend {
 	openSocket(path: string): SocketLike;
 	getConnections(): Promise<ConnectionsSnapshot>;
 	onCoreStatus(cb: (status: ConnectionStatus) => void): Promise<() => void>;
+	onCoreUpdateStatus(cb: (status: CoreUpdateStatus) => void): Promise<() => void>;
 	onConnectionsChanged(cb: (snapshot: ConnectionsSnapshot) => void): Promise<() => void>;
 }
 
@@ -55,6 +57,10 @@ export const realBackend: Backend = {
 
 	onCoreStatus(cb) {
 		return listen<{ status: ConnectionStatus }>('core://status', (e) => cb(e.payload.status));
+	},
+
+	onCoreUpdateStatus(cb) {
+		return listen<{ status: CoreUpdateStatus }>('core://update_status', (e) => cb(e.payload.status));
 	},
 
 	onConnectionsChanged(cb) {
