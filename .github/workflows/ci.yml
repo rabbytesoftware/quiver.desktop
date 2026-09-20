@@ -8,9 +8,11 @@ on:
 env:
   RUST_VERSION: 'stable'
   BUN_VERSION: 'latest'
-  # Only used by the jobs that run scripts/resolve-core-version.mjs. Must stay
-  # >= 24.2: the script's `import.meta.main` entry-point guard is undefined on
-  # anything older, which turns a failed resolve into silent empty output.
+  # Only used by the jobs that run scripts/resolve-core-version.mjs. `import.meta.main`
+  # (the script's entry-point guard) was added in Node v22.18.0 / v24.2.0 -- an
+  # unpatched runtime silently prints nothing and exits 0 instead of erroring, which
+  # is why every call site also carries an empty-output guard as the real safety net,
+  # not the version pin alone.
   NODE_VERSION: '24'
 
 jobs:
@@ -142,10 +144,12 @@ jobs:
 
     # scripts/resolve-core-version.mjs is a real module with real needs: it
     # `import`s `semver` (so node_modules has to exist) and guards its entry
-    # point with `import.meta.main`, which is undefined before Node 24.2 — on
-    # an older runtime the script prints nothing and exits 0, handing the
-    # steps below an empty string instead of a tag. Neither can be assumed of
-    # the runner image, so pin both.
+    # point with `import.meta.main`, added in Node v22.18.0 / v24.2.0 — on an
+    # unpatched runtime the script silently prints nothing and exits 0 instead
+    # of erroring, handing the steps below an empty string instead of a tag
+    # (the empty-output guard further down is the real safety net here, not
+    # the version pin alone). Neither node_modules nor a supporting Node
+    # version can be assumed of the runner image, so pin both.
     - name: Set up Node
       uses: actions/setup-node@v4
       with:

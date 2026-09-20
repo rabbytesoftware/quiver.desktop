@@ -38,10 +38,17 @@ const SELF_NAMESPACE = 'github.com/rabbytesoftware/quiver.desktop';
  *     never again the answer" once a repository has any.
  *
  * The accepted trade-off: the row tracks the latest PUBLISHED desktop release
- * rather than the exact build the user is running. That costs nothing here --
- * quiver.desktop's ARROW.md declares only a `preinstalled` check and no
- * install/update lifecycle, so the row is a catalog-presence marker, not
- * something core can act on a version difference for.
+ * rather than the exact build the user is running -- and this DOES cost
+ * something, not nothing. The outdated badge is generic (keyed off
+ * `ArrowState`, not namespace -- see arrow-details/lib/status.ts), so once
+ * ANY newer commit lands on the tracked branch/tag, this app's own tile shows
+ * the same "update available" badge any other outdated arrow gets. Its
+ * Update action is currently a no-op, since ARROW.md declares no `update`
+ * lifecycle. This is a known, accepted cosmetic gap (real but non-damaging),
+ * not a defect in this file -- it closes once quiver.desktop gains its own
+ * build-time version stamping and can announce a concrete ref again instead
+ * of refless. See the final-review-fix-desktop report for the full trade-off
+ * discussion.
  *
  * Fire-and-forget-with-logging, matching `emit_core_status`'s
  * swallow-on-failure convention (Rust's `.ok()`): a daemon too old for this
