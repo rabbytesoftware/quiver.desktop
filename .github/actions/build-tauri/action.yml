@@ -9,6 +9,17 @@ inputs:
       Callers resolve that through scripts/resolve-core-version.mjs first; see
       the `prepare` job in nightly/prerelease/stable-release.yml.
     required: true
+  release-tag:
+    description: >-
+      The quiver.desktop release tag THIS build is being cut from
+      (`stable-<series>[.patch]`), baked into the binary by src-tauri/build.rs
+      so the app can announce its own arrow at a ref that really resolves.
+      Optional, and empty is the ordinary case: only stable-release.yml pushes
+      its tag before building, so only it can name one. Nightly and
+      pre-release builds leave it unset and the app falls back to announcing
+      refless, exactly as before.
+    required: false
+    default: ''
   rust-version:
     description: 'Rust toolchain version'
     required: false
@@ -45,6 +56,27 @@ runs:
             ;;
         esac
         echo "✅ fetching the quiver.core sidecar from ${QUIVER_VERSION}"
+
+    # Same reasoning as the guard above, one layer quieter: a malformed tag
+    # here does not break the build, it is simply rejected at runtime by
+    # `commands::build_info::is_release_tag` and the app announces refless —
+    # so a mistyped caller would ship a release that silently behaves like a
+    # dev build. Say so here instead, where the cause is.
+    - name: Validate the release tag, when one was given
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ inputs.release-tag }}
+      run: |
+        if [ -z "$RELEASE_TAG" ]; then
+          echo "ℹ️  no release-tag given — this build will announce its own arrow refless."
+          exit 0
+        fi
+        if ! echo "$RELEASE_TAG" | grep -Eq '^stable-[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+          echo "❌ release-tag must be a quiver.desktop stable tag (stable-<series>[.patch]), got '${RELEASE_TAG}'."
+          echo "   Anything else is rejected at runtime and the build would ship announcing refless."
+          exit 1
+        fi
+        echo "✅ stamping this build as ${RELEASE_TAG}"
 
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
@@ -158,9 +190,15 @@ runs:
       shell: bash
       run: bash icons-compiler/compile-icon.sh
 
+    # QUIVER_DESKTOP_RELEASE_TAG on each of the three build steps (and only on
+    # those): it is read by src-tauri/build.rs at compile time, and cargo
+    # re-runs that script when the variable changes, so a restored target/
+    # cache cannot carry the previous release's stamp into this one.
     - name: Build Tauri app (macOS universal DMG)
       if: runner.os == 'macOS'
       shell: bash
+      env:
+        QUIVER_DESKTOP_RELEASE_TAG: ${{ inputs.release-tag }}
       run: bash scripts/build-macos-dmg.sh
 
     # bundle.macOS.files points at icons/Assets.car, which only ever exists
@@ -169,6 +207,8 @@ runs:
     - name: Build Tauri app (Linux)
       if: runner.os == 'Linux'
       shell: bash
+      env:
+        QUIVER_DESKTOP_RELEASE_TAG: ${{ inputs.release-tag }}
       run: |
         cargo tauri build --bundles appimage,deb \
           --config '{"bundle":{"macOS":{"files":{}}}}'
@@ -176,6 +216,8 @@ runs:
     - name: Build Tauri app (Windows)
       if: runner.os == 'Windows'
       shell: bash
+      env:
+        QUIVER_DESKTOP_RELEASE_TAG: ${{ inputs.release-tag }}
       run: |
         cargo tauri build --bundles msi,nsis \
           --config '{"bundle":{"macOS":{"files":{}}}}'

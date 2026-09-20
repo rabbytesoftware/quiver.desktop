@@ -158,10 +158,18 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    # `release-tag` is passed EXPLICITLY rather than left to `git describe`
+    # inside the build. The tag genuinely exists by now — `prepare` created and
+    # pushed it, and this job `needs: prepare` — but the checkout above is the
+    # default `fetch-depth: 1` with no `git fetch --tags`, so it is not in this
+    # runner's working copy at all. Handing it over is what lets
+    # src-tauri/build.rs bake it in, and so what lets the shipped app announce
+    # its own arrow at the tag it was really cut from instead of refless.
     - name: Build Tauri app
       uses: ./.github/actions/build-tauri
       with:
         quiver-version: ${{ needs.prepare.outputs.core_version }}
+        release-tag: ${{ needs.prepare.outputs.tag }}
         rust-version: ${{ env.RUST_VERSION }}
         bun-version: ${{ env.BUN_VERSION }}
       env:
