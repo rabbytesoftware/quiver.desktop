@@ -533,6 +533,31 @@ describe('setupListeners', () => {
 		expect(announceSelf).not.toHaveBeenCalled();
 	});
 
+	it('starts streams without waiting for a slow self-announce to resolve', async () => {
+		const announceGate = deferred<void>();
+		mockAnnounceSelf.mockReturnValueOnce(announceGate.promise);
+
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+
+		expect(subscribeArrowStream).toHaveBeenCalledWith(expect.objectContaining({ connectionId: 'local' }));
+		expect(wsManager.subscribe).toHaveBeenCalledWith('/v0/runtime', expect.any(Function));
+
+		announceGate.resolve();
+	});
+
+	it('adopts an already-running core without waiting for a slow self-announce to resolve', async () => {
+		const announceGate = deferred<void>();
+		mockAnnounceSelf.mockReturnValueOnce(announceGate.promise);
+		mockCoreIsReachable.mockResolvedValue(true);
+
+		await setupListeners();
+
+		expect(subscribeArrowStream).toHaveBeenCalledWith(expect.objectContaining({ connectionId: 'local' }));
+
+		announceGate.resolve();
+	});
+
 	it('self-announces again on every fresh ready, e.g. after switching connections', async () => {
 		await setupListeners();
 		await emit('core://status', { status: 'ready' });
