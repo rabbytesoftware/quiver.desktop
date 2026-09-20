@@ -1,4 +1,3 @@
-import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
@@ -27,8 +26,6 @@ export interface Backend {
 	fetch(path: string, init?: RequestInit): Promise<Response>;
 	openSocket(path: string): SocketLike;
 	getConnections(): Promise<ConnectionsSnapshot>;
-	/** This app's own running version -- tauri.conf.json's `version` (kept in sync with Cargo.toml), the single source of truth every self-reported version comes from. */
-	getAppVersion(): Promise<string>;
 	onCoreStatus(cb: (status: ConnectionStatus) => void): Promise<() => void>;
 	onConnectionsChanged(cb: (snapshot: ConnectionsSnapshot) => void): Promise<() => void>;
 }
@@ -54,10 +51,6 @@ export const realBackend: Backend = {
 
 	getConnections() {
 		return invoke<ConnectionsSnapshot>('get_connections');
-	},
-
-	getAppVersion() {
-		return getVersion();
 	},
 
 	onCoreStatus(cb) {

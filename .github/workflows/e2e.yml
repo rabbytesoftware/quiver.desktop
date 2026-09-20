@@ -41,10 +41,20 @@ concurrency:
 # yet control mean a `stable-*` tag push will currently still show real,
 # expected failures here, not harness bugs:
 #
-#   1. bootstrap.spec.ts: quiver.desktop's own ARROW.md is not yet published
-#      at a reachable ref on the real repo, so the "registers quiver.desktop
-#      as its own arrow" and "shows both self-arrows" assertions 404 until
-#      this branch is merged and tagged.
+#   1. bootstrap.spec.ts: quiver.desktop's own ARROW.md has to be published at
+#      a ref core can actually resolve, so the "registers quiver.desktop as
+#      its own arrow" and "shows both self-arrows" assertions 404 until this
+#      branch is merged. That is now a precondition that genuinely clears:
+#      `announceSelf` announces the namespace REFLESS, and core's
+#      `resolveRefless` reads that as "the latest stable release, else the
+#      default branch" -- so the file only has to be on `develop` (or, later,
+#      carried by a `stable-*` tag), both of which the normal merge path
+#      produces. It is satisfied by definition for this job's real trigger, a
+#      `stable-*` tag push; only a `workflow_dispatch` run from an unmerged
+#      branch can still 404 here.
+#      (It previously announced `@0.1.0` -- tauri.conf.json's productVersion
+#      -- which demanded a git ref literally named `0.1.0`. Nothing in this
+#      repo ever creates one, so that 404 was permanent rather than pending.)
 #   2. self-update-while-running.spec.ts: needs a fixture arrow a production
 #      daemon can actually resolve (QUIVER_E2E_FIXTURE_NS) -- no such fixture
 #      mechanism reaches a real daemon yet, only the Go integration suite's

@@ -85,9 +85,23 @@ describe('bootstrap: a clean QUIVER_HOME comes up self-installed', () => {
 		// unlike quiver.core's, quiver.desktop's manifest is NOT embedded in
 		// core. Add resolves it from the remote through
 		// `metadata.GetPlatforms()`, so it requires quiver.desktop's ARROW.md
-		// to be reachable at the running app's version on github.com. Until
-		// this branch is merged and a matching ref is tagged, this call
-		// answers 404 and that is the honest result, not a harness fault.
+		// to be reachable on github.com.
+		//
+		// `announceSelf` announces the namespace REFLESS, so the ref core
+		// looks under is core's own `resolveRefless` answer: the latest
+		// `stable-*` release if the repo publishes one, otherwise its default
+		// branch (`develop`). Either way the normal merge path produces it, so
+		// this precondition clears on merge -- and is satisfied by definition
+		// once a `stable-*` tag exists, which is what triggers the CI job that
+		// runs this spec. Running it from an unmerged branch still 404s, and
+		// that is the honest result, not a harness fault.
+		//
+		// This is the one thing that changed: the announce used to carry
+		// `@0.1.0` (tauri.conf.json's productVersion), and core takes an
+		// explicit ref as written with no fallback, so it demanded a git ref
+		// named `0.1.0` that nothing in this repo's release process -- which
+		// tags `stable-<series>[.patch]` -- ever creates. That 404 was
+		// permanent, not pending.
 		expect(status).toBe(200);
 		expect(body).not.toBeNull();
 		expect(body!.namespace).toContain('quiver.desktop');

@@ -4,70 +4,46 @@ vi.mock('@/lib/transport/api', () => ({
 	apiFetch: vi.fn(),
 }));
 
-vi.mock('@/lib/transport/backend', () => ({
-	backend: vi.fn(),
-}));
-
 import { apiFetch } from '@/lib/transport/api';
-import { backend } from '@/lib/transport/backend';
 
 import { announceSelf } from './self-announce';
 
 const mockApiFetch = apiFetch as MockedFunction<typeof apiFetch>;
-const mockBackend = backend as MockedFunction<typeof backend>;
 
-function stubBackend(getAppVersion: () => Promise<string>): void {
-	mockBackend.mockReturnValue({
-		fetch: vi.fn(),
-		openSocket: vi.fn(),
-		getConnections: vi.fn(),
-		getAppVersion,
-		onCoreStatus: vi.fn(),
-		onConnectionsChanged: vi.fn(),
-	});
-}
+/** The encoded form of `github.com/rabbytesoftware/quiver.desktop`, with no `@ref`. */
+const SELF_PATH = '/v0/arrow/github.com%2Frabbytesoftware%2Fquiver.desktop';
 
 beforeEach(() => {
 	vi.clearAllMocks();
 });
 
 describe('announceSelf', () => {
-	it("POSTs the ordinary add-arrow endpoint at quiver.desktop's own namespace and version", async () => {
-		stubBackend(() => Promise.resolve('0.1.0'));
+	it("POSTs the ordinary add-arrow endpoint at quiver.desktop's own namespace", async () => {
 		mockApiFetch.mockResolvedValue(undefined);
 
 		await announceSelf();
 
 		expect(apiFetch).toHaveBeenCalledTimes(1);
-		expect(apiFetch).toHaveBeenCalledWith('/v0/arrow/github.com%2Frabbytesoftware%2Fquiver.desktop%400.1.0', {
-			method: 'POST',
-		});
+		expect(apiFetch).toHaveBeenCalledWith(SELF_PATH, { method: 'POST' });
 	});
 
-	it('reads the version from Backend rather than hardcoding one', async () => {
-		stubBackend(() => Promise.resolve('9.9.9-test'));
+	it('announces no ref at all, so core resolves one from the real remote', async () => {
 		mockApiFetch.mockResolvedValue(undefined);
 
 		await announceSelf();
 
-		expect(apiFetch).toHaveBeenCalledWith('/v0/arrow/github.com%2Frabbytesoftware%2Fquiver.desktop%409.9.9-test', {
-			method: 'POST',
-		});
-	});
-
-	it('logs and swallows a failure reading the app version, without POSTing anything', async () => {
-		stubBackend(() => Promise.reject(new Error('no tauri internals')));
-		const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-		await expect(announceSelf()).resolves.toBeUndefined();
-
-		expect(logged).toHaveBeenCalled();
-		expect(apiFetch).not.toHaveBeenCalled();
-		logged.mockRestore();
+		// The regression this guards is specific: announcing `@0.1.0` (Tauri's
+		// productVersion) demanded a git ref named `0.1.0`, which nothing in
+		// this repo's release process ever creates, so the call 404'd forever.
+		// A refless namespace is core's own `resolveRefless` path -- latest
+		// stable release, else the default branch -- so the `%40` separator
+		// must not reappear here.
+		const [path] = mockApiFetch.mock.calls[0]!;
+		expect(path).not.toContain('%40');
+		expect(path).not.toContain('@');
 	});
 
 	it('logs and swallows a failure from the POST itself, rather than throwing', async () => {
-		stubBackend(() => Promise.resolve('0.1.0'));
 		mockApiFetch.mockRejectedValue(new Error('502 bad gateway'));
 		const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
 

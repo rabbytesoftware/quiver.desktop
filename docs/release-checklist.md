@@ -226,8 +226,15 @@ faster pre-tag check.
    preconditions documented directly in `.github/workflows/e2e.yml`'s own
    comment:
    - `bootstrap.spec.ts` needs `quiver.desktop`'s own `ARROW.md` reachable at
-     a real ref on the published repo — it 404s until this branch is merged
-     and tagged.
+     a ref `quiver.core` can resolve on the published repo. `announceSelf`
+     announces the namespace **refless**, which core reads as "the latest
+     `stable-*` release, else the default branch" — so for a real release
+     this is satisfied by the tag cut in steps 3–4, and it is only unmet when
+     the harness is run by `workflow_dispatch` from a branch that has not
+     merged yet. (Before this was fixed, the announce carried `@0.1.0` —
+     `tauri.conf.json`'s `version` — and demanded a git ref literally named
+     `0.1.0`, which this repo's `stable-<series>[.patch]` tagging never
+     creates; that 404 was permanent, not pending.)
    - `self-update-while-running.spec.ts` needs a fixture arrow a *production*
      daemon can actually resolve (`QUIVER_E2E_FIXTURE_NS`) — no such fixture
      exists yet, only the Go integration suite's in-process stub resolver.
