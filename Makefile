@@ -3,7 +3,7 @@
 	fmt-check-rust fmt-rust lint-rust audit-rust \
 	code-quality-frontend code-quality-rust \
 	build-frontend build-rust build \
-	fetch-sidecar dev dev-desktop dev-mock dev-web build-app dev-bundle icon \
+	fetch-sidecar fetch-sidecar-local dev dev-desktop dev-local dev-mock dev-web build-app dev-bundle icon \
 	test-frontend coverage-frontend \
 	test-rust coverage-rust \
 	pr-checks clean doctor-frontend
@@ -128,9 +128,11 @@ help:
 	@echo "  make build-rust            - Build Tauri backend (debug)"
 	@echo "  make build                 - Build both frontend and Rust (debug)"
 	@echo "  make fetch-sidecar         - Download quiver.core sidecar binary for this platform"
+	@echo "  make fetch-sidecar-local   - Build quiver.core from QUIVER_CORE_DEV_PATH and use it as the sidecar"
 	@echo "  make icon                  - macOS only: compile quiver.icon → Assets.car + .icns (Xcode 26+)"
 	@echo "  make dev-desktop           - The desktop app against a real quiver.core (fetches the sidecar)"
 	@echo "  make dev                   - Alias for dev-desktop"
+	@echo "  make dev-local             - The desktop app against a sibling quiver.core checkout (QUIVER_CORE_DEV_PATH)"
 	@echo "  make dev-mock              - The desktop app against the MOCK: no sidecar, no daemon, no network"
 	@echo "  make dev-web               - The mock in a plain browser: HMR, no Rust rebuild"
 	@echo "                               dev-mock and dev-web take SCENARIO=normal|extreme|empty"
@@ -261,6 +263,22 @@ fetch-sidecar:
 	@cp "$(SIDECAR_PATH)" "src-tauri/target/debug/quiver$(EXE_SUFFIX)"
 	@echo "✅ Sidecar ready: $(SIDECAR_PATH)"
 
+# The local-dev counterpart to fetch-sidecar: instead of downloading a release,
+# build quiver.core straight from a sibling checkout (QUIVER_CORE_DEV_PATH) and
+# copy the result into the same two spots fetch-sidecar populates, for the same
+# reason (see the comment above that target) — `make build` over there always
+# writes to bin/quiver regardless of platform, so that source path is fixed.
+fetch-sidecar-local:
+	@if [ -z "$(QUIVER_CORE_DEV_PATH)" ]; then echo "❌ set QUIVER_CORE_DEV_PATH to a quiver.core checkout" && exit 1; fi
+	@echo "📥 Building quiver.core from $(QUIVER_CORE_DEV_PATH)..."
+	@$(MAKE) -C "$(QUIVER_CORE_DEV_PATH)" build
+	@mkdir -p src-tauri/binaries
+	@cp "$(QUIVER_CORE_DEV_PATH)/bin/quiver" "$(SIDECAR_PATH)"
+	@chmod +x "$(SIDECAR_PATH)"
+	@mkdir -p src-tauri/target/debug
+	@cp "$(SIDECAR_PATH)" "src-tauri/target/debug/quiver$(EXE_SUFFIX)"
+	@echo "✅ Local sidecar ready: $(SIDECAR_PATH)"
+
 # make dev-mock SCENARIO=extreme
 SCENARIO ?= normal
 
@@ -271,6 +289,14 @@ dev-desktop:
 
 # Every existing doc and CI job says `make dev`.
 dev: dev-desktop
+
+# Same as dev-desktop, but the sidecar comes from a sibling quiver.core
+# checkout you're actively editing instead of a published release — the local
+# dev loop for iterating on both repos together. PATH for cargo/bun is already
+# exported at the top of this file, so no per-recipe override is needed here.
+dev-local: fetch-sidecar-local
+	@echo "🚀 Starting Tauri dev environment against local quiver.core..."
+	@$(BUN) run tauri dev
 
 # The same desktop app with a fabricated daemon. No sidecar: no `gh` auth, no
 # release download. The Rust side still tries to spawn one and fails, which
