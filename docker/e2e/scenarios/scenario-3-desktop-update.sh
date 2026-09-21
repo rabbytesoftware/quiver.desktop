@@ -139,8 +139,7 @@ assert_eq "ready" "$(runtime_state "$DESK_ARROW_V1")" \
 
 say "B. Bootstrapping and running core's own update"
 api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW_V1")/install" \
-	'{"variables":{"QUIVER_RELEASE_ASSET_URL":"unused-for-install","QUIVER_RELEASE_CHECKSUM":"unused-for-install"}}' \
-	202 >/dev/null
+	'{"variables":{}}' 202 >/dev/null
 # install on an Outdated arrow settles it back to ready; either is a legal
 # starting point for BeginUpdate.
 for _ in $(seq 1 60); do

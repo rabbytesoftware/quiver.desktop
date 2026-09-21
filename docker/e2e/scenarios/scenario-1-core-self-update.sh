@@ -58,17 +58,16 @@ arrow_detail "$CORE_ARROW" | jq '.' >"$SCENARIO_DIR/self-arrow-before.json"
 # bootstrap tests/integration/selfupdate/selfupdate_test.go performs, for the
 # same reason: BeginUpdate refuses an aggregate that has never existed.
 #
-# The two placeholder variables are NOT a convenience. quiver.core's own
-# ARROW.md declares QUIVER_RELEASE_ASSET_URL and QUIVER_RELEASE_CHECKSUM
-# without defaults, and ResolveVariables requires every declared no-default
-# variable on EVERY execution of the arrow, not just the lifecycle that reads
-# them -- so an install that never looks at either still has to be handed
-# both. See the report: this is the same defect as C1 in quiver.desktop's
-# manifest, and it is in quiver.core's own.
+# Sent with NO variables, which is the point. quiver.core's own ARROW.md
+# declares QUIVER_RELEASE_ASSET_URL and QUIVER_RELEASE_CHECKSUM without
+# defaults, and ResolveVariables used to require every declared no-default
+# variable on EVERY execution of the arrow rather than on the lifecycle that
+# reads them -- so this call needed two placeholder values for an install that
+# looks at neither. That is fixed (requireReferenced), and this call is the
+# end-to-end proof: nothing supplies them, and the install still runs.
 say "Bootstrapping the self-arrow's runtime state"
 api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW")/install" \
-	'{"variables":{"QUIVER_RELEASE_ASSET_URL":"unused-for-install","QUIVER_RELEASE_CHECKSUM":"unused-for-install"}}' \
-	202 >/dev/null
+	'{"variables":{}}' 202 >/dev/null
 wait_for_state "$CORE_ARROW" ready 120
 
 # --- act: a new release appears upstream -----------------------------------

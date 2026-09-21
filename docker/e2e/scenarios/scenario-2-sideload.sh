@@ -61,12 +61,14 @@ info "the headless daemon is pid $HEADLESS_PID"
 # The self-arrow has to be Ready before anything can depend on it.
 # quiver.desktop's manifest declares a `tools:` edge on
 # quiver.core@stable-26.5*, and installOneDep BeginInstalls any dependency
-# whose runtime aggregate does not exist yet -- with nil variables, which
-# quiver.core's own manifest cannot satisfy. See the report's C1 finding.
+# whose runtime aggregate does not exist yet -- with NIL variables. Before
+# requireReferenced, quiver.core's own manifest could not satisfy that, so
+# installing quiver.desktop failed on its own dependency unless something had
+# walked core's self-arrow to Ready by hand. This call sends no variables
+# either, for the same reason.
 say "Bootstrapping the core self-arrow so it can be depended on"
 api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW")/install" \
-	'{"variables":{"QUIVER_RELEASE_ASSET_URL":"unused-for-install","QUIVER_RELEASE_CHECKSUM":"unused-for-install"}}' \
-	202 >/dev/null
+	'{"variables":{}}' 202 >/dev/null
 wait_for_state "$CORE_ARROW" ready 120
 
 # --- act: add + install quiver.desktop THROUGH CORE ------------------------
@@ -174,5 +176,21 @@ assert_daemon_count 1
 assert_eq "$HEADLESS_PID" "$(daemon_pid)" "the daemon pid after the app exited"
 assert_eq "200" "$(api_status GET /v0/health)" "the daemon still answers after the app exited"
 screenshot "02-app-closed-daemon-survives"
+
+# --- and the whole thing comes back off ------------------------------------
+
+say "Uninstalling through the API with NO variables, exactly as the UI does"
+# src/features/arrow-details/components/hero.tsx calls uninstall with no
+# variables form at all. quiver.desktop's uninstall steps expand only
+# ${QUIVER_DESKTOP_APPIMAGE_PATH}, which has a default -- but the engine used
+# to demand every declared no-default variable on every method, so this call
+# was refused with "required variable not provided" and the uninstall button
+# could never work. Sent bare here on purpose.
+api_ok POST "/v0/runtime/$(ns_enc "$DESK_ARROW")/uninstall" '{"variables":{}}' 202 >/dev/null
+ok "POST /v0/runtime/$DESK_ARROW/uninstall accepted with no variables (202)"
+wait_for_state "$DESK_ARROW" absent 120
+assert_no_file "$INSTALL_PATH" "the installed app after uninstall"
+assert_daemon_count 1
+assert_daemon_alive "after the uninstall"
 
 scenario_end
