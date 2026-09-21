@@ -1,0 +1,29 @@
+# E2E verification box for the 3 hard core<->desktop install/update/sideload
+# scenarios. Bring up with:
+#   docker compose -f docker/e2e/docker-compose.yml run --rm e2e ./scenarios/run-all.sh
+# or, to just poke around with a real desktop visible in a browser:
+#   docker compose -f docker/e2e/docker-compose.yml up --build
+# then open http://localhost:6080/vnc.html
+services:
+  e2e:
+    build:
+      context: ../..
+      dockerfile: docker/e2e/Dockerfile
+    image: quiver-e2e:latest
+    ports:
+      - "127.0.0.1:6080:6080"
+    volumes:
+      # This repo (quiver.desktop) at its usual mount point...
+      - ../..:/workspace/quiver.desktop
+      # ...and a sibling checkout of quiver.core, expected to already exist
+      # on the host at the path the sibling-repo dev convention already uses
+      # (see quiver.desktop's own Makefile QUIVER_CORE_DEV_PATH).
+      - ${QUIVER_CORE_DEV_PATH:-../../../quiver.core-self-update}:/workspace/quiver.core
+      - quiver-e2e-cargo:/usr/local/cargo/registry
+      - quiver-e2e-go:/root/go/pkg/mod
+    shm_size: "1gb"
+    working_dir: /workspace/quiver.desktop
+
+volumes:
+  quiver-e2e-cargo:
+  quiver-e2e-go:
