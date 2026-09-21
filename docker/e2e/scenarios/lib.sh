@@ -357,6 +357,110 @@ screenshot() {
 	fi
 }
 
+# --- driving the real UI ---------------------------------------------------
+#
+# A scenario that wants to prove a BUTTON works has to press the button. These
+# move a real pointer on the real X display and press a real mouse button, so
+# what runs afterwards is the app's own click handler, its own mutation and
+# its own IPC into Rust -- not a request the harness composed itself.
+
+# desktop_window_id prints the X window id of the running app.
+desktop_window_id() {
+	xdotool search --name '^Quiver$' 2>/dev/null | tail -n 1
+}
+
+# focus_desktop raises and focuses the app window, and prints its CLIENT AREA
+# geometry on screen as "X Y W H". Clicks are placed relative to that origin
+# rather than to the screen, so a window manager that decorates or positions
+# the window differently cannot silently move every target.
+#
+# xwininfo, and not `xdotool getwindowgeometry`. Under xfwm the latter reports
+# the window's position within its own reparenting frame, which here is
+# (10,85) while the client area actually starts at (5,56) -- a 29-pixel
+# vertical lie, enough to turn a click on a sidebar row into a click on the
+# empty space below it, which is exactly what it did. xwininfo's "Absolute
+# upper-left" is the client area's real position on the root window.
+focus_desktop() {
+	local id info x y w h
+	id="$(desktop_window_id)"
+	[ -n "$id" ] || fail "no Quiver window to drive: $(wmctrl -l 2>&1)"
+
+	wmctrl -i -a "$id" 2>/dev/null || true
+	xdotool windowactivate --sync "$id" 2>/dev/null || true
+	sleep 0.5
+
+	info="$(xwininfo -id "$id")"
+	x="$(printf '%s' "$info" | awk '/Absolute upper-left X:/ {print $4}')"
+	y="$(printf '%s' "$info" | awk '/Absolute upper-left Y:/ {print $4}')"
+	w="$(printf '%s' "$info" | awk '/^  Width:/ {print $2}')"
+	h="$(printf '%s' "$info" | awk '/^  Height:/ {print $2}')"
+	[ -n "$x" ] && [ -n "$y" ] && [ -n "$w" ] && [ -n "$h" ] ||
+		fail "could not read the Quiver window's geometry: $info"
+	printf '%s %s %s %s\n' "$x" "$y" "$w" "$h"
+}
+
+# click_in_app X Y -- clicks at a point given in the app window's own
+# coordinates.
+click_in_app() {
+	local wx wy geom
+	geom="$(focus_desktop)"
+	wx=$(( $(printf '%s' "$geom" | cut -d' ' -f1) + $1 ))
+	wy=$(( $(printf '%s' "$geom" | cut -d' ' -f2) + $2 ))
+	info "clicking at window-relative ($1,$2) -> screen ($wx,$wy)"
+	xdotool mousemove --sync "$wx" "$wy" sleep 0.2 click 1
+	sleep 1
+}
+
+# find_button_center LABEL -- prints "X Y" in the app window's own coordinates
+# for the primary action button, located by reading the pixels rather than by
+# a coordinate written down once and left to rot.
+#
+# The hero's primary action is the one solid near-black pill in the content
+# area (everything right of the sidebar). Nothing else in that area is a
+# filled dark block: the status badge is an outline, the tags are outlines,
+# and the banner is light grey. Locating it this way means a layout change
+# moves the click with it, and a layout change that removes the button fails
+# here with the screenshot attached instead of clicking empty space.
+find_button_center() {
+	local shot="$SCENARIO_DIR/.locate.png"
+	scrot -o "$shot" 2>/dev/null || fail "could not screenshot to locate a button"
+	local geom
+	geom="$(focus_desktop)"
+	python3 "$E2E_DIR/fixtures/find-button.py" \
+		"$shot" \
+		"$(printf '%s' "$geom" | cut -d' ' -f1)" \
+		"$(printf '%s' "$geom" | cut -d' ' -f2)" \
+		"$(printf '%s' "$geom" | cut -d' ' -f3)" \
+		"$(printf '%s' "$geom" | cut -d' ' -f4)" ||
+		fail "could not find the primary action button on screen (see $shot)"
+}
+
+# upstream_hits PATH -- how many times the upstream fixture has served PATH.
+#
+# The fixture records every request it serves as one line of JSON, which makes
+# it the only witness to a request made by code this harness did not call: it
+# can say that the APP went to the releases API, which no assertion against
+# core's own state ever could.
+upstream_hits() {
+	grep -cF "\"path\": \"$1\"" "$RESULTS/upstream.log" 2>/dev/null || true
+}
+
+# wait_for_upstream_hit PATH SINCE TIMEOUT WHAT -- waits for a NEW request for
+# PATH beyond the SINCE count taken before whatever was supposed to cause it,
+# so an earlier phase's request cannot be mistaken for this one's.
+wait_for_upstream_hit() {
+	local path="$1" since="$2" timeout="${3:-30}" what="${4:-$1}"
+	local deadline=$(( SECONDS + timeout ))
+	while [ "$SECONDS" -lt "$deadline" ]; do
+		if [ "$(upstream_hits "$path")" -gt "$since" ]; then
+			ok "$what"
+			return 0
+		fi
+		sleep 0.5
+	done
+	fail "$what -- nothing new requested $path from the upstream fixture within ${timeout}s (count stayed at $since)"
+}
+
 # --- upstream fixture control ----------------------------------------------
 
 # publish_release USER/REPO TAG FILE... -- puts assets under a tag.

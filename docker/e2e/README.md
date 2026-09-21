@@ -55,9 +55,15 @@ A fixture that just renamed the binary `Quiver.AppImage` would present a
 process called `Quiver.AppImage` and quietly break that assumption instead of
 testing it. See that script's header for the full accounting.
 
-**The update click.** Scenario 3 calls `POST /v0/runtime/:ns/update` directly
-rather than driving the button. Everything either side of it — the drift
-check that raises the badge, and the four lifecycle steps that run — is real.
+**The update click** is not a stand-in at all any more. Scenario 3 opens
+Quiver's own page in the running app, finds the hero's primary action by
+reading the pixels (`fixtures/find-button.py`, so a layout change moves the
+click rather than silently missing it), and presses a real mouse button on it
+with `xdotool`. Everything after that is the app's own code: the click
+handler, `releaseVariables()`, the `invoke` into `src-tauri/src/release/`, a
+real HTTPS request to the releases API, and the mutation that posts the
+result to core. The fixture's own request log is what proves the app went to
+the releases API, because nothing else in the run ever asks it anything.
 
 ## Why the app is built with `tauri build --no-bundle`
 

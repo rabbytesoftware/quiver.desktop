@@ -16,8 +16,11 @@
 #      as outdated, and running that arrow's update lifecycle stops the old
 #      process, replaces the file, and brings a new one back up.
 #
-# The "user agrees" click is made as a direct API call, as the brief allows.
-# Everything either side of it is the real thing.
+# The "user agrees" click is a REAL click: a pointer moved onto the button in
+# the running app and a mouse button pressed. Everything it sets off is the
+# app's own code, including resolving its own release asset against the
+# releases API, which is the half that used to be missing and made the button
+# 422 before a single step ran.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -208,15 +211,51 @@ assert_eq "outdated" "$(runtime_state "$DESK_ARROW_V1")" \
 arrow_detail "$DESK_ARROW_V1" | jq '.' >"$SCENARIO_DIR/desktop-arrow-outdated.json"
 screenshot "03-core-reports-desktop-outdated"
 
-say "C. The user agrees: running quiver.desktop's update lifecycle"
-# This is the one simulated click. Everything it triggers -- the fetch, the
-# checksum, the pkill, the replace, the relaunch -- is the manifest's own
-# steps run by the real wizard.
-api_ok POST "/v0/runtime/$(ns_enc "$DESK_ARROW_V1")/update" \
-	"$(jq -nc --arg u "$DESK_URL" --arg c "$DESK_SUM_V2" \
-		'{variables:{QUIVER_RELEASE_ASSET_URL:$u,QUIVER_RELEASE_CHECKSUM:$c}}')" \
-	202 >/dev/null
-ok "POST /v0/runtime/$DESK_ARROW_V1/update accepted (202)"
+say "C. The user agrees, by actually clicking Update"
+# THE REAL CLICK. Not a request this harness composed: a pointer moved onto
+# the button the person sees and a mouse button pressed, so everything after
+# it is the app's own code -- hero.tsx's handler, releaseVariables(), the
+# invoke into src-tauri/src/release/, a real HTTPS request to the releases
+# API, and the mutation that posts the result to core.
+#
+# This is what the ledger recorded as the last thing NOT proven. The lifecycle
+# mechanics were already green here, but they were reached by a POST carrying
+# values the harness had resolved itself; the button, as shipped, sent no
+# variables and 422'd. Driving the pointer is the only way to prove the wiring
+# rather than assert it.
+say "C. Opening Quiver's own page in the running app"
+# The Library shelf's card for Quiver, which is a real router Link to
+# /arrow/$ (collection-arrow-tile.tsx) -- the same thing a person clicks. The
+# card, not the sidebar row: it is a ~450x220 target rather than a ~20px-tall
+# one, so this does not depend on the sidebar's exact line height. The
+# screenshot taken immediately above shows the layout being clicked into.
+click_in_app 493 190
+sleep 3
+screenshot "04-quiver-own-page"
+
+RELEASES_API="/repos/rabbytesoftware/quiver.desktop/releases/latest"
+API_HITS_BEFORE="$(upstream_hits "$RELEASES_API")"
+info "the releases API has been asked $API_HITS_BEFORE times before the click"
+
+UPDATE_BUTTON="$(find_button_center)"
+info "the hero's primary action is at window $UPDATE_BUTTON"
+# shellcheck disable=SC2086  # deliberately two arguments
+click_in_app $UPDATE_BUTTON
+screenshot "05-update-clicked"
+
+say "C. The click must have sent the app to the releases API for its own asset"
+# Read off the upstream fixture's own request log, which is written by the
+# stand-in for api.github.com and by nothing else. This request exists only
+# because the app resolved its own release at click time: no step of the
+# manifest talks to the releases API, and this harness never calls it.
+#
+# NOT asserted by polling the runtime state: this arrow reports `outdated`
+# throughout, before and after, because the row stays at stable-1.0 while
+# upstream's latest is stable-1.1 -- the known gap this scenario records at
+# the bottom. A poll for a transient `updating` between two `outdated`s would
+# be racing a state that never clears.
+wait_for_upstream_hit "$RELEASES_API" "$API_HITS_BEFORE" 30 \
+	"the app asked api.github.com for its own latest release when Update was clicked"
 
 say "C. The old process must go away"
 gone=0
@@ -251,6 +290,23 @@ assert_eq "completed,completed,completed,completed" \
 	"$(printf '%s' "$UPDATE_RETURN" | jq -r '[.steps[].status] | join(",")')" \
 	"every update step's status (fetch, stop, install, relaunch)"
 
+# WHAT THE BUTTON ACTUALLY SENT. The execution's own recorded variables, read
+# back off the runtime aggregate: nothing in this harness put them there.
+# They can only have come from the app resolving its own release against the
+# releases API at the moment the pointer went down, which is the claim the
+# whole click is here to make.
+assert_eq "$DESK_URL" \
+	"$(printf '%s' "$UPDATE_RETURN" | jq -r '.variables.QUIVER_RELEASE_ASSET_URL')" \
+	"the asset URL the app resolved and sent"
+assert_eq "$DESK_SUM_V2" \
+	"$(printf '%s' "$UPDATE_RETURN" | jq -r '.variables.QUIVER_RELEASE_CHECKSUM')" \
+	"the checksum the app read off the releases API's own per-asset digest"
+# And it is the NEW release, not the one the row sits at -- the distinction
+# that makes a caller-side resolver necessary in the first place.
+assert_ne "$DESK_SUM_V1" \
+	"$(printf '%s' "$UPDATE_RETURN" | jq -r '.variables.QUIVER_RELEASE_CHECKSUM')" \
+	"the checksum the app sent (must not be the installed version's)"
+
 assert_eq "$DESK_SUM_V2" "$(sha256_of "$INSTALL_PATH")" \
 	"the installed file's sha256 after the update"
 
@@ -276,7 +332,7 @@ RUNNING_EXE="$(readlink -f "/proc/$DESKTOP_PID_V2/exe")"
 info "the relaunched app is running $RUNNING_EXE"
 assert_contains "$RUNNING_EXE" "quiver-appimage/$DESK_V2/" \
 	"the executable path of the relaunched app"
-screenshot "04-desktop-reopened-after-update"
+screenshot "06-desktop-reopened-after-update"
 
 say "C. And the thing that came back announces itself as the NEW build"
 # Independent of the path check and end-to-end: the relaunched app's own

@@ -33,6 +33,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdotool \
     wmctrl \
     scrot \
+    # Reading back what scrot captured, so a scenario can find the button it
+    # is about to press instead of trusting a coordinate written down once.
+    # See fixtures/find-button.py.
+    python3-pil \
     dbus-x11 \
     python3-websockify \
     fonts-dejavu-core \
