@@ -14,6 +14,24 @@ Quiver is a truly decentralized, cross-platform, open-source application store. 
 
 ---
 
+## Install
+
+macOS and Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rabbytesoftware/quiver.desktop/develop/install.sh | bash
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/rabbytesoftware/quiver.desktop/develop/install.ps1 | iex
+```
+
+Both scripts read the latest GitHub release, pick the right asset for your machine, and put it where `quiver.core` looks for it: the AppImage under `~/.local/share/Quiver` on Linux, `Quiver.app` in `/Applications` on macOS, and the per-user NSIS install under `%LOCALAPPDATA%\Quiver` on Windows. `ARROW.md` installs to exactly the same places, so it makes no difference which route you take.
+
+---
+
 ## Contributing
 
 Quiver is open-source and we welcome contributions from the community — whether that's improving the UI, adding features, or anything in between.
