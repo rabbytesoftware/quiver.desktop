@@ -20,21 +20,6 @@ const mockBackend = backend as MockedFunction<typeof backend>;
 /** The encoded form of `github.com/rabbytesoftware/quiver.desktop`, with no `@ref`. */
 const SELF_PATH = '/v0/arrow/github.com%2Frabbytesoftware%2Fquiver.desktop';
 
-const LIST_PATH = '/v0/arrow?user_installed=true';
-
-/** A `GET /v0/arrow?user_installed=true` response with quiver.desktop installed at the given refs. */
-function catalogWithVersions(...refs: string[]) {
-	return [
-		{
-			namespace: 'github.com/rabbytesoftware/quiver.desktop',
-			name: 'Quiver',
-			description: 'The Quiver desktop application.',
-			tags: null,
-			versions: refs.map((ref) => ({ ref, version: ref, state: 'ready' })),
-		},
-	];
-}
-
 /** Stands in for a binary that was (or was not) built from a release tag. */
 function builtFrom(tag: string | null): MockedFunction<Backend['getBuildTag']> {
 	const getBuildTag = vi.fn().mockResolvedValue(tag) as MockedFunction<Backend['getBuildTag']>;
@@ -66,9 +51,7 @@ describe('announceSelf, from a build cut from a real release tag', () => {
 
 		await announceSelf();
 
-		// POST to announce, then GET to check for stale versions of itself to
-		// retire (see the "retiring other installed versions" describe below).
-		expect(apiFetch).toHaveBeenCalledTimes(2);
+		expect(apiFetch).toHaveBeenCalledTimes(1);
 		expect(apiFetch).toHaveBeenCalledWith(`${SELF_PATH}%40stable-26.5.1`, { method: 'POST' });
 	});
 
@@ -122,102 +105,6 @@ describe('announceSelf, from a build with no release tag', () => {
 
 		expect(getBuildTag).toHaveBeenCalledTimes(1);
 		expect(apiFetch).toHaveBeenCalledTimes(1);
-	});
-});
-
-describe('announceSelf, retiring other installed versions of itself', () => {
-	it('retires every other installed version once the new one is announced', async () => {
-		builtFrom('stable-1.1');
-		mockApiFetch.mockImplementation((path: string) => {
-			if (path === LIST_PATH) return Promise.resolve(catalogWithVersions('stable-1.0', 'stable-1.1'));
-			return Promise.resolve(undefined);
-		});
-
-		await announceSelf();
-
-		expect(apiFetch).toHaveBeenCalledWith(`${SELF_PATH}%40stable-1.0`, { method: 'DELETE' });
-		expect(apiFetch).not.toHaveBeenCalledWith(`${SELF_PATH}%40stable-1.1`, { method: 'DELETE' });
-	});
-
-	it('retires more than one stale version at once', async () => {
-		builtFrom('stable-1.2');
-		mockApiFetch.mockImplementation((path: string) => {
-			if (path === LIST_PATH)
-				return Promise.resolve(catalogWithVersions('stable-1.0', 'stable-1.1', 'stable-1.2'));
-			return Promise.resolve(undefined);
-		});
-
-		await announceSelf();
-
-		expect(apiFetch).toHaveBeenCalledWith(`${SELF_PATH}%40stable-1.0`, { method: 'DELETE' });
-		expect(apiFetch).toHaveBeenCalledWith(`${SELF_PATH}%40stable-1.1`, { method: 'DELETE' });
-	});
-
-	it('deletes nothing when the version just announced is the only one installed', async () => {
-		builtFrom('stable-1.0');
-		mockApiFetch.mockImplementation((path: string) => {
-			if (path === LIST_PATH) return Promise.resolve(catalogWithVersions('stable-1.0'));
-			return Promise.resolve(undefined);
-		});
-
-		await announceSelf();
-
-		expect(apiFetch).not.toHaveBeenCalledWith(expect.anything(), { method: 'DELETE' });
-	});
-
-	it('does not even list installed versions for a refless announce', async () => {
-		// No tag: this process cannot tell which resolved ref is "current"
-		// without re-deriving core's own resolveRefless logic, so it leaves
-		// every installed version alone rather than guessing.
-		await announceSelf();
-
-		expect(apiFetch).not.toHaveBeenCalledWith(LIST_PATH);
-		expect(apiFetch).toHaveBeenCalledTimes(1);
-	});
-
-	it("does nothing if quiver.desktop's own row is missing from the listing", async () => {
-		builtFrom('stable-1.1');
-		mockApiFetch.mockImplementation((path: string) => {
-			if (path === LIST_PATH) return Promise.resolve([]);
-			return Promise.resolve(undefined);
-		});
-
-		await expect(announceSelf()).resolves.toBeUndefined();
-
-		expect(apiFetch).not.toHaveBeenCalledWith(expect.anything(), { method: 'DELETE' });
-	});
-
-	it('swallows a failure listing installed versions, rather than throwing', async () => {
-		builtFrom('stable-1.1');
-		mockApiFetch.mockImplementation((path: string) => {
-			if (path === LIST_PATH) return Promise.reject(new Error('502 bad gateway'));
-			return Promise.resolve(undefined);
-		});
-		const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-		await expect(announceSelf()).resolves.toBeUndefined();
-
-		expect(logged).toHaveBeenCalled();
-		logged.mockRestore();
-	});
-
-	it('swallows a failure retiring one stale version, without blocking the others', async () => {
-		builtFrom('stable-1.2');
-		mockApiFetch.mockImplementation((path: string, init?: { method?: string }) => {
-			if (path === LIST_PATH)
-				return Promise.resolve(catalogWithVersions('stable-1.0', 'stable-1.1', 'stable-1.2'));
-			if (init?.method === 'DELETE' && path === `${SELF_PATH}%40stable-1.0`) {
-				return Promise.reject(new Error('409 dependents exist'));
-			}
-			return Promise.resolve(undefined);
-		});
-		const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-		await expect(announceSelf()).resolves.toBeUndefined();
-
-		expect(apiFetch).toHaveBeenCalledWith(`${SELF_PATH}%40stable-1.1`, { method: 'DELETE' });
-		expect(logged).toHaveBeenCalled();
-		logged.mockRestore();
 	});
 });
 

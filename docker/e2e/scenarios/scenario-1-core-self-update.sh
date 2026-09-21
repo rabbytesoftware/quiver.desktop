@@ -167,12 +167,15 @@ assert_eq "200" "$(api_status GET "/v0/arrow/$(ns_enc "$CORE_NS@$CORE_V2")")" \
 assert_eq "Quiver Core" "$(arrow_field "$CORE_NS@$CORE_V2" '.data.name')" \
 	"the new self-arrow row's name"
 
-# RetireStale is supposed to leave exactly one quiver.core row in the CATALOG
-# (see selfarrow.RetireStale: a stale record is dangerous, because BeginUpdate
-# against it would fetch into a workdir that may still be the file this
-# process is executing out of). GET on a removed namespace still answers 200
-# via GetDetail's live-preview fallback for an uncatalogued namespace, so the
-# catalog listing is what has to be asserted, not the status code.
+# The new process's own EnsureRegistered (Container.Start) is supposed to
+# leave exactly one quiver.core row in the CATALOG: it finds the old self row
+# still on record and moves it onto the new ref via UpgradeVersionSeeded,
+# whose own reaction removes the old row -- a stale record left behind is
+# dangerous, because BeginUpdate against it would fetch into a workdir that
+# may still be the file this process is executing out of. GET on a removed
+# namespace still answers 200 via GetDetail's live-preview fallback for an
+# uncatalogued namespace, so the catalog listing is what has to be asserted,
+# not the status code.
 assert_eq "$CORE_V2" "$(catalogued_refs "$CORE_NS")" \
 	"the quiver.core refs left in the catalog after the handover"
 

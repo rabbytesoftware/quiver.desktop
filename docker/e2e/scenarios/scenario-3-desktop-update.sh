@@ -251,10 +251,10 @@ say "C. The click must have sent the app to the releases API for its own asset"
 #
 # NOT asserted by polling the runtime state: this arrow reports `outdated`
 # for the whole click-to-relaunch window, because the row stays at stable-1.0
-# (with upstream's latest at stable-1.1) until the relaunched process
-# self-announces and retires it, near the bottom of this scenario. A poll for
-# a transient `updating` here would be racing a state that does not clear
-# until well after this point.
+# (with upstream's latest at stable-1.1) until the update execution ends and
+# core's own onUpdateEnded reaction swaps it, near the bottom of this
+# scenario. A poll for a transient `updating` here would be racing a state
+# that does not clear until well after this point.
 wait_for_upstream_hit "$RELEASES_API" "$API_HITS_BEFORE" 30 \
 	"the app asked api.github.com for its own latest release when Update was clicked"
 
@@ -335,11 +335,15 @@ assert_contains "$RUNNING_EXE" "quiver-appimage/$DESK_V2/" \
 	"the executable path of the relaunched app"
 screenshot "06-desktop-reopened-after-update"
 
-say "C. And the thing that came back announces itself as the NEW build"
-# Independent of the path check and end-to-end: the relaunched app's own
-# frontend has to have loaded, connected to core and run announceSelf at the
-# tag build.rs baked into it for this row to exist.
-wait_for_catalogued "$DESK_ARROW_V2" 120 "the relaunched app announced itself as the NEW build"
+say "C. And the new build's own row exists"
+# By this point the row may already exist through either of two paths: core's
+# own onUpdateEnded reaction (usecases/runtime.go), which notices the update
+# execution that just succeeded left the arrow resolving to a different ref
+# and swaps the catalog row onto it server-side, or the relaunched app's own
+# frontend loading, connecting to core and running announceSelf at the tag
+# build.rs baked into it -- an ordinary idempotent Add either way. Whichever
+# ran first, the row for the new build must exist.
+wait_for_catalogued "$DESK_ARROW_V2" 120 "the new build's own row exists"
 api_body GET /v0/arrow | jq '.' >"$SCENARIO_DIR/catalog-after-update.json"
 
 assert_daemon_count 1
@@ -353,20 +357,18 @@ assert_eq "$CORE_V2" "$(daemon_version)" "the daemon version at the end of the s
 # (${REF} inside those steps is always the ref being updated FROM, never the
 # one being updated TO -- which is why the asset URL has to be supplied by the
 # caller rather than templated from ${REF}). Left alone, that would leave the
-# OLD row catalogued and outdated forever: nothing else ever revisits it once
-# self-announce has created a new row for the version actually running.
+# OLD row catalogued and outdated forever.
 #
-# So self-announce retires every OTHER installed version of quiver.desktop's
-# own namespace once it announces the new one -- the same "only one real
-# install exists" invariant quiver.core's own selfarrow.RetireStale enforces
-# for itself, applied here from the client side since quiver.desktop is a
-# separate process with no access to call that directly. The relaunched
-# stable-1.1 process's own self-announce (already waited for above, the same
-# call that proved "C. And the thing that came back...") is what performs
-# this, so by the time execution reaches here it should already be done --
-# waited for explicitly anyway, since a slow DELETE racing this assertion is
-# exactly the kind of flake worth ruling out rather than hoping past.
-say "C. The stale stable-1.0 row is retired once the new one announces"
+# The swap is core's own job, not the client's: onRuntimeEnded's reaction to
+# the just-completed update execution (usecases/runtime.go onUpdateEnded)
+# notices the arrow now resolves to a different ref than its row claims and
+# swaps the row onto it via the same generic UpgradeVersion path any arrow's
+# version bump uses, landing the new row Ready directly since the software is
+# already fetched, placed and running -- no install: runs a second time. The
+# old row is removed by that same swap's own reaction (onArrowUpgraded), not
+# by anything quiver.desktop calls. quiver.core's own self-arrow advances
+# through the identical mechanism when it updates itself.
+say "C. The stale stable-1.0 row is retired once the update lifecycle ends"
 deadline=$(( SECONDS + 30 ))
 while [ "$SECONDS" -lt "$deadline" ]; do
 	[ "$(catalogued_refs "$DESK_NS")" = "$DESK_V2" ] && break
