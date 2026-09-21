@@ -29,7 +29,14 @@ export interface ArrowListResponseItemDTO {
 	namespace: string;
 	name: string;
 	description: string;
-	tags: string[];
+	/**
+	 * NULL, not absent and not empty, for any arrow whose manifest declares no
+	 * `tags:` -- which includes both of Quiver's own self-arrows. Go marshals
+	 * a nil slice as JSON null, and quiver.core's DTO carries the slice
+	 * through untouched. Every mapper below has to default it; a consumer
+	 * reading `.length` off what this hands back crashes the page otherwise.
+	 */
+	tags: string[] | null;
 	media?: {
 		icon?: string | null;
 		banner?: string | null;
@@ -51,7 +58,8 @@ export interface ArrowDetailDTO {
 	description: string;
 	license: string;
 	state: ArrowState;
-	tags: string[];
+	/** Null for an arrow with no `tags:`, exactly as above. */
+	tags: string[] | null;
 	/**
 	 * Absent, not just empty, when `namespace` already carries the resolved ref
 	 * itself -- quiver.core PR #225 made `GetDetail` resolve live for an
@@ -73,7 +81,7 @@ export function toArrowCatalogRecords(items: ArrowListResponseItemDTO[], connect
 			namespace: `${arrow.namespace}@${v.ref}`,
 			name: arrow.name,
 			description: arrow.description,
-			tags: arrow.tags,
+			tags: arrow.tags ?? [],
 			icon: arrow.media?.icon || null,
 			banner: arrow.media?.banner || null,
 			version: v.version,
@@ -155,18 +163,30 @@ export interface PortDTO {
 /** The raw manifest, nested whole under `manifest` -- the only place url/maintainers/credits/media/netbridge live on the wire. */
 export interface RawManifestDTO {
 	url: string;
-	maintainers: CreditDTO[];
-	credits: CreditDTO[];
+	/**
+	 * Null, not absent, for a manifest that declares none. Go marshals a nil
+	 * slice as JSON null and quiver.core's DTOs carry `domain.Arrow` through
+	 * untouched, so every list on this object can arrive that way -- and does:
+	 * neither of Quiver's own self-manifests declares `netbridge:`.
+	 *
+	 * This is the shape that cost a page. `tags` arriving null crashed the
+	 * whole arrow-details view on `detail.tags.length`, which put the Update
+	 * button out of reach on the one arrow that most needs it. The rest are
+	 * defaulted at the same boundary rather than waiting to be found the same
+	 * way.
+	 */
+	maintainers: CreditDTO[] | null;
+	credits: CreditDTO[] | null;
 	media: ArrowMediaDTO;
-	netbridge: PortDTO[];
+	netbridge: PortDTO[] | null;
 }
 
 export interface ArrowManifestDTO {
 	namespace: string;
 	name: string;
 	description: string;
-	tags: string[];
-	variables: VariableDTO[];
+	tags: string[] | null;
+	variables: VariableDTO[] | null;
 	targets: Record<string, TargetManifestDTO>;
 	manifest: RawManifestDTO;
 }
@@ -288,12 +308,12 @@ export function toArrowDetail(
 		description: detail.description,
 		license: detail.license,
 		url: manifest.manifest.url,
-		tags: detail.tags,
+		tags: detail.tags ?? [],
 		media: { icon: manifest.manifest.media.icon ?? null, banner: manifest.manifest.media.banner ?? null },
-		maintainers: manifest.manifest.maintainers.map(toCredit),
-		credits: manifest.manifest.credits.map(toCredit),
-		netbridge: manifest.manifest.netbridge,
-		variables: manifest.variables,
+		maintainers: (manifest.manifest.maintainers ?? []).map(toCredit),
+		credits: (manifest.manifest.credits ?? []).map(toCredit),
+		netbridge: manifest.manifest.netbridge ?? [],
+		variables: manifest.variables ?? [],
 		targets: toTargets(manifest.targets),
 		state: detail.state,
 		user_installed: detail.user_installed,
@@ -304,7 +324,7 @@ export function toArrowDetail(
 		last_return: detail.last_return ?? null,
 		versions,
 		readme,
-		dependencies: dependencies.map(toDependency),
-		dependents,
+		dependencies: (dependencies ?? []).map(toDependency),
+		dependents: dependents ?? [],
 	};
 }
