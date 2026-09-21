@@ -20,6 +20,12 @@ concurrency:
 env:
   RUST_VERSION: '1.88'
   BUN_VERSION: 'latest'
+  # Only used by the `prepare` job, which runs scripts/resolve-core-version.mjs.
+  # `import.meta.main` (the script's entry-point guard) was added in Node
+  # v22.18.0 / v24.2.0 -- an unpatched runtime silently prints nothing and
+  # exits 0 instead of erroring, which is why the call site also carries an
+  # empty-output guard as the real safety net, not the version pin alone.
+  NODE_VERSION: '24'
 
 jobs:
   prepare:
@@ -31,23 +37,59 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Read CORE_VERSION
-      id: version
-      run: |
-        CORE_VERSION=$(node -p "require('./package.json').quiver.coreVersion")
-        echo "CORE_VERSION=${CORE_VERSION}" >> "$GITHUB_OUTPUT"
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ env.BUN_VERSION }}
 
-    - name: Validate CORE_VERSION
+    # scripts/resolve-core-version.mjs `import`s `semver` (so node_modules has
+    # to exist) and guards its entry point with `import.meta.main`, added in
+    # Node v22.18.0 / v24.2.0 — an unpatched runtime silently prints nothing
+    # and exits 0, yielding an empty tag rather than a failure (the
+    # empty-output guard further down is the real safety net here, not the
+    # version pin alone). Pin both rather than trust whatever the runner
+    # image happens to ship today.
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+
+    # package.json pins a semver CONSTRAINT ("^26.5"), not a tag. Resolving it
+    # here — once — is what makes every downstream `gh` call work: this job's
+    # own existence check, the `gh release download` that
+    # .github/actions/build-tauri runs on all three platforms, and the release
+    # note below, all of which read the core_version output.
+    - name: Resolve and validate CORE_VERSION
+      id: version
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        CORE_VERSION="${{ steps.version.outputs.CORE_VERSION }}"
-        echo "Validating quiver.core release: ${CORE_VERSION}"
+        CORE_CONSTRAINT=$(node -p "require('./package.json').quiver.coreVersion")
+        if [ -z "$CORE_CONSTRAINT" ]; then
+          echo "❌ quiver.coreVersion missing from package.json"
+          exit 1
+        fi
+        echo "Resolving quiver.core constraint: ${CORE_CONSTRAINT}"
+
+        CORE_VERSION=$(node scripts/resolve-core-version.mjs "$CORE_CONSTRAINT")
+        if [ -z "$CORE_VERSION" ]; then
+          echo "❌ could not resolve a quiver.core release matching ${CORE_CONSTRAINT}"
+          exit 1
+        fi
+        echo "Resolved to: ${CORE_VERSION}"
+
         gh release view "$CORE_VERSION" --repo rabbytesoftware/quiver.core || {
           echo "❌ quiver.core release ${CORE_VERSION} not found."
           exit 1
         }
-        echo "✅ quiver.core release ${CORE_VERSION} exists"
+
+        # The RESOLVED tag, deliberately: every consumer of this output feeds
+        # it to `gh` as a literal tag, never as a constraint.
+        echo "CORE_VERSION=${CORE_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "✅ quiver.core release ${CORE_VERSION} exists and satisfies ${CORE_CONSTRAINT}"
 
   build:
     name: Build (${{ matrix.os }})

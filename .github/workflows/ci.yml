@@ -8,6 +8,12 @@ on:
 env:
   RUST_VERSION: 'stable'
   BUN_VERSION: 'latest'
+  # Only used by the jobs that run scripts/resolve-core-version.mjs. `import.meta.main`
+  # (the script's entry-point guard) was added in Node v22.18.0 / v24.2.0 -- an
+  # unpatched runtime silently prints nothing and exits 0 instead of erroring, which
+  # is why every call site also carries an empty-output guard as the real safety net,
+  # not the version pin alone.
+  NODE_VERSION: '24'
 
 jobs:
   draft-reminder:
@@ -131,31 +137,59 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Validate CORE_VERSION exists on quiver.core
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ env.BUN_VERSION }}
+
+    # scripts/resolve-core-version.mjs is a real module with real needs: it
+    # `import`s `semver` (so node_modules has to exist) and guards its entry
+    # point with `import.meta.main`, added in Node v22.18.0 / v24.2.0 — on an
+    # unpatched runtime the script silently prints nothing and exits 0 instead
+    # of erroring, handing the steps below an empty string instead of a tag
+    # (the empty-output guard further down is the real safety net here, not
+    # the version pin alone). Neither node_modules nor a supporting Node
+    # version can be assumed of the runner image, so pin both.
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+
+    - name: Validate CORE_VERSION resolves to a real quiver.core release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        CORE_VERSION=$(node -p "require('./package.json').quiver.coreVersion")
-        echo "Validating quiver.core release: ${CORE_VERSION}"
+        # package.json pins a semver CONSTRAINT ("^26.5"), not a tag, so it
+        # cannot be handed to `gh` as-is. Resolve it exactly the way
+        # `make pr-checks` does, then check what it resolved to.
+        CORE_CONSTRAINT=$(node -p "require('./package.json').quiver.coreVersion")
+        if [ -z "$CORE_CONSTRAINT" ]; then
+          echo "❌ quiver.coreVersion missing from package.json"
+          exit 1
+        fi
+        echo "Resolving quiver.core constraint: ${CORE_CONSTRAINT}"
 
-        # An existence check alone is not enough. `nightly` is a rolling tag —
-        # quiver.core deletes and recreates it on every push to its develop — so
-        # it always exists and would sail through, while pinning to it makes the
-        # build unreproducible: the same desktop commit bundles a different
-        # daemon depending on the day it was built.
-        case "$CORE_VERSION" in
-          nightly|latest|main|master|develop|HEAD)
-            echo "❌ '${CORE_VERSION}' is a rolling tag, not an immutable release."
-            echo "   Pin quiver.coreVersion to a specific beta-*/stable-* tag."
-            exit 1
-            ;;
-        esac
+        # No rolling-tag guard is needed here any more. The resolver only ever
+        # emits `stable-<semver>` (it filters the tag list on that prefix), and
+        # a rolling tag used as the constraint itself is not a valid semver
+        # range, so it fails in the resolver with "no stable release found
+        # satisfying ..." before any `gh` call. Immutability is a property of
+        # what the resolver can return, not something to re-check by hand.
+        CORE_VERSION=$(node scripts/resolve-core-version.mjs "$CORE_CONSTRAINT")
+        if [ -z "$CORE_VERSION" ]; then
+          echo "❌ could not resolve a quiver.core release matching ${CORE_CONSTRAINT}"
+          exit 1
+        fi
+        echo "Resolved to: ${CORE_VERSION}"
 
         gh release view "$CORE_VERSION" --repo rabbytesoftware/quiver.core || {
-          echo "❌ quiver.core release ${CORE_VERSION} not found. Update CORE_VERSION to a published release before merging."
+          echo "❌ quiver.core release ${CORE_VERSION} not found. Update quiver.coreVersion to a constraint matching a published release before merging."
           exit 1
         }
-        echo "✅ quiver.core release ${CORE_VERSION} exists and is immutable"
+        echo "✅ quiver.core release ${CORE_VERSION} exists, is immutable, and satisfies ${CORE_CONSTRAINT}"
 
   code-quality-frontend:
     name: Code Quality - Frontend

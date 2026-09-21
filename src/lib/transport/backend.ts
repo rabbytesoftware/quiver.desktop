@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import type { ConnectionConfig, ConnectionStatus } from '@/domain/connection';
+import type { ResolvedReleaseAsset } from '@/domain/release';
 
 import { QuiverWebSocket } from './quiver-socket';
 
@@ -25,6 +26,26 @@ export interface ConnectionsSnapshot {
 export interface Backend {
 	fetch(path: string, init?: RequestInit): Promise<Response>;
 	openSocket(path: string): SocketLike;
+	/**
+	 * The `stable-*` tag THIS binary was built from, or `null` for any build
+	 * that was not cut from one (every dev, PR-CI and locally built app).
+	 *
+	 * A compile-time constant baked in by `src-tauri/build.rs`, not a runtime
+	 * lookup and not `tauri.conf.json`'s `version` -- that is a productVersion
+	 * ("0.1.0"), and no git ref will ever carry that name. See
+	 * `src-tauri/src/commands/build_info.rs`.
+	 */
+	getBuildTag(): Promise<string | null>;
+	/**
+	 * This app's own newest release asset, for the machine it is running on.
+	 *
+	 * Native-side for the same reason `getBuildTag` is: selecting an asset
+	 * needs the real OS and CPU architecture, and the webview cannot report
+	 * either honestly (`navigator.platform` answers `MacIntel` on Apple
+	 * Silicon). Rejects with a `ReleaseResolveError` -- see
+	 * `src-tauri/src/release/mod.rs`.
+	 */
+	resolveReleaseAsset(): Promise<ResolvedReleaseAsset>;
 	getConnections(): Promise<ConnectionsSnapshot>;
 	onCoreStatus(cb: (status: ConnectionStatus) => void): Promise<() => void>;
 	onConnectionsChanged(cb: (snapshot: ConnectionsSnapshot) => void): Promise<() => void>;
@@ -47,6 +68,14 @@ export const realBackend: Backend = {
 
 	openSocket(path) {
 		return new QuiverWebSocket(path);
+	},
+
+	getBuildTag() {
+		return invoke<string | null>('get_build_tag');
+	},
+
+	resolveReleaseAsset() {
+		return invoke<ResolvedReleaseAsset>('resolve_release_asset');
 	},
 
 	getConnections() {

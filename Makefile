@@ -3,7 +3,7 @@
 	fmt-check-rust fmt-rust lint-rust audit-rust \
 	code-quality-frontend code-quality-rust \
 	build-frontend build-rust build \
-	fetch-sidecar dev dev-desktop dev-mock dev-web build-app dev-bundle icon \
+	fetch-sidecar fetch-sidecar-local dev dev-desktop dev-local dev-mock dev-web build-app dev-bundle icon \
 	test-frontend coverage-frontend \
 	test-rust coverage-rust \
 	pr-checks clean doctor-frontend
@@ -128,9 +128,11 @@ help:
 	@echo "  make build-rust            - Build Tauri backend (debug)"
 	@echo "  make build                 - Build both frontend and Rust (debug)"
 	@echo "  make fetch-sidecar         - Download quiver.core sidecar binary for this platform"
+	@echo "  make fetch-sidecar-local   - Build quiver.core from QUIVER_CORE_DEV_PATH and use it as the sidecar"
 	@echo "  make icon                  - macOS only: compile quiver.icon → Assets.car + .icns (Xcode 26+)"
 	@echo "  make dev-desktop           - The desktop app against a real quiver.core (fetches the sidecar)"
 	@echo "  make dev                   - Alias for dev-desktop"
+	@echo "  make dev-local             - The desktop app against a sibling quiver.core checkout (QUIVER_CORE_DEV_PATH)"
 	@echo "  make dev-mock              - The desktop app against the MOCK: no sidecar, no daemon, no network"
 	@echo "  make dev-web               - The mock in a plain browser: HMR, no Rust rebuild"
 	@echo "                               dev-mock and dev-web take SCENARIO=normal|extreme|empty"
@@ -245,10 +247,12 @@ build: build-frontend build-rust
 # as dirname(current_exe)/<name>, so an unbundled run looks for it right there.
 # `tauri build` needs no such help: the bundler copies from src-tauri/binaries.
 fetch-sidecar:
-	@echo "📥 Fetching quiver.core sidecar ($(_CORE_VERSION)) for $(TARGET_TRIPLE)..."
 	@if [ -z "$(_CORE_VERSION)" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi
+	$(eval RESOLVED_CORE_VERSION := $(shell node scripts/resolve-core-version.mjs "$(_CORE_VERSION)"))
+	@if [ -z "$(RESOLVED_CORE_VERSION)" ]; then echo "❌ could not resolve a release matching $(_CORE_VERSION)" && exit 1; fi
+	@echo "📥 Fetching quiver.core sidecar ($(RESOLVED_CORE_VERSION), matched $(_CORE_VERSION)) for $(TARGET_TRIPLE)..."
 	@mkdir -p src-tauri/binaries
-	@gh release download "$(_CORE_VERSION)" \
+	@gh release download "$(RESOLVED_CORE_VERSION)" \
 		--repo rabbytesoftware/quiver.core \
 		--pattern "$(QUIVER_BINARY)" \
 		--dir src-tauri/binaries \
@@ -258,6 +262,33 @@ fetch-sidecar:
 	@mkdir -p src-tauri/target/debug
 	@cp "$(SIDECAR_PATH)" "src-tauri/target/debug/quiver$(EXE_SUFFIX)"
 	@echo "✅ Sidecar ready: $(SIDECAR_PATH)"
+
+# The local-dev counterpart to fetch-sidecar: instead of downloading a release,
+# build quiver.core straight from a sibling checkout (QUIVER_CORE_DEV_PATH) and
+# copy the result into the same two spots fetch-sidecar populates, for the same
+# reason (see the comment above that target) — `make build` over there always
+# writes to bin/quiver regardless of platform, so that source path is fixed.
+#
+# `SidecarManager::spawn` (src-tauri/src/connection/local/sidecar.rs) checks
+# `{dev_home}/self/quiver` (dev_home = src-tauri/.quiver, see `dev_quiver_home`
+# in local/mod.rs) BEFORE falling back to this sidecar, and quiver.core
+# self-installs a copy of whatever binary is currently running into that same
+# `self/` dir on every boot. Left in place, that copy would win over the
+# freshly built sidecar on every run after the first, silently hiding Core
+# edits. That directory only ever holds a disposable-by-construction artifact
+# scoped to this checkout, so clear it before every build — not just once —
+# so `dev-local` always launches what this recipe just built.
+fetch-sidecar-local:
+	@if [ -z "$(QUIVER_CORE_DEV_PATH)" ]; then echo "❌ set QUIVER_CORE_DEV_PATH to a quiver.core checkout" && exit 1; fi
+	@rm -rf src-tauri/.quiver/self
+	@echo "📥 Building quiver.core from $(QUIVER_CORE_DEV_PATH)..."
+	@$(MAKE) -C "$(QUIVER_CORE_DEV_PATH)" build
+	@mkdir -p src-tauri/binaries
+	@cp "$(QUIVER_CORE_DEV_PATH)/bin/quiver" "$(SIDECAR_PATH)"
+	@chmod +x "$(SIDECAR_PATH)"
+	@mkdir -p src-tauri/target/debug
+	@cp "$(SIDECAR_PATH)" "src-tauri/target/debug/quiver$(EXE_SUFFIX)"
+	@echo "✅ Local sidecar ready: $(SIDECAR_PATH)"
 
 # make dev-mock SCENARIO=extreme
 SCENARIO ?= normal
@@ -269,6 +300,14 @@ dev-desktop:
 
 # Every existing doc and CI job says `make dev`.
 dev: dev-desktop
+
+# Same as dev-desktop, but the sidecar comes from a sibling quiver.core
+# checkout you're actively editing instead of a published release — the local
+# dev loop for iterating on both repos together. PATH for cargo/bun is already
+# exported at the top of this file, so no per-recipe override is needed here.
+dev-local: fetch-sidecar-local
+	@echo "🚀 Starting Tauri dev environment against local quiver.core..."
+	@$(BUN) run tauri dev
 
 # The same desktop app with a fabricated daemon. No sidecar: no `gh` auth, no
 # release download. The Rust side still tries to spawn one and fails, which
@@ -397,16 +436,13 @@ pr-checks:
 	@echo "=============================="
 	@CORE_VERSION=$$(node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]'); \
 	if [ -z "$$CORE_VERSION" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi; \
-	case "$$CORE_VERSION" in \
-	  nightly|latest|main|master|develop|HEAD) \
-	    echo "❌ '$$CORE_VERSION' is a rolling tag, not an immutable release."; \
-	    echo "   Pin quiver.coreVersion to a specific beta-*/stable-* tag."; \
-	    exit 1 ;; \
-	esac; \
-	echo "Checking quiver.core release: $$CORE_VERSION"; \
-	gh release view "$$CORE_VERSION" --repo rabbytesoftware/quiver.core --json tagName --jq '.tagName' >/dev/null || \
-	  (echo "❌ quiver.core release $$CORE_VERSION not found" && exit 1); \
-	echo "✅ quiver.core release $$CORE_VERSION exists and is immutable"
+	echo "Resolving constraint: $$CORE_VERSION"; \
+	RESOLVED_VERSION=$$(node scripts/resolve-core-version.mjs "$$CORE_VERSION" 2>/dev/null); \
+	if [ -z "$$RESOLVED_VERSION" ]; then echo "❌ could not resolve a release matching $$CORE_VERSION" && exit 1; fi; \
+	echo "Resolved to: $$RESOLVED_VERSION"; \
+	gh release view "$$RESOLVED_VERSION" --repo rabbytesoftware/quiver.core --json tagName --jq '.tagName' >/dev/null || \
+	  (echo "❌ quiver.core release $$RESOLVED_VERSION not found" && exit 1); \
+	echo "✅ quiver.core release $$RESOLVED_VERSION exists and matches constraint $$CORE_VERSION"
 	@echo ""
 	@echo "Step 2/6: Code Quality Checks"
 	@echo "=============================="

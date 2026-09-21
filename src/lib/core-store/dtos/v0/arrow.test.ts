@@ -123,52 +123,52 @@ describe('toInitialRuntimeUpdates', () => {
 	});
 });
 
-describe('toArrowDetail', () => {
-	const DETAIL: ArrowDetailDTO = {
-		namespace: 'github.com/rabbyte/minecraft',
-		name: 'Minecraft Server',
-		version: '1.21.4',
-		description: 'A server.',
-		license: 'MIT',
-		state: 'ready',
-		tags: ['game'],
-		installed_ref: 'v1.21.4',
-		installed_at: '2026-05-09T21:26:59Z',
-		user_installed: true,
-		active_run: null,
-		last_return: null,
-	};
+const DETAIL: ArrowDetailDTO = {
+	namespace: 'github.com/rabbyte/minecraft',
+	name: 'Minecraft Server',
+	version: '1.21.4',
+	description: 'A server.',
+	license: 'MIT',
+	state: 'ready',
+	tags: ['game'],
+	installed_ref: 'v1.21.4',
+	installed_at: '2026-05-09T21:26:59Z',
+	user_installed: true,
+	active_run: null,
+	last_return: null,
+};
 
-	const MANIFEST: ArrowManifestDTO = {
-		namespace: 'github.com/rabbyte/minecraft',
-		name: 'Minecraft Server',
-		description: 'A server.',
-		tags: ['game'],
-		variables: [{ name: 'server-name', description: 'Shown in the list.', type: 'string', default: 'My Server' }],
-		targets: {
-			'darwin/arm64': {
-				requirements: { cpu_cores: 2, memory_gb: 4, disk_gb: 10 },
-				lifecycle: {
-					install: [runStep('Fetch archive')],
-					update: [runStep('Fetch new version')],
-					execute: [runStep('Start process')],
-					stop: [signalStep('Signal process')],
-					uninstall: [runStep('Remove workdir')],
-				},
-				methods: {
-					backup: { name: 'backup', description: 'Snapshot the world.', available_in: ['ready'], steps: [] },
-				},
+const MANIFEST: ArrowManifestDTO = {
+	namespace: 'github.com/rabbyte/minecraft',
+	name: 'Minecraft Server',
+	description: 'A server.',
+	tags: ['game'],
+	variables: [{ name: 'server-name', description: 'Shown in the list.', type: 'string', default: 'My Server' }],
+	targets: {
+		'darwin/arm64': {
+			requirements: { cpu_cores: 2, memory_gb: 4, disk_gb: 10 },
+			lifecycle: {
+				install: [runStep('Fetch archive')],
+				update: [runStep('Fetch new version')],
+				execute: [runStep('Start process')],
+				stop: [signalStep('Signal process')],
+				uninstall: [runStep('Remove workdir')],
+			},
+			methods: {
+				backup: { name: 'backup', description: 'Snapshot the world.', available_in: ['ready'], steps: [] },
 			},
 		},
-		manifest: {
-			url: 'https://github.com/rabbyte/minecraft',
-			maintainers: [{ name: 'rabbyte', url: 'https://rabbyte.dev' }],
-			credits: [{ name: 'Mojang' }],
-			media: { icon: 'icon.png', banner: 'banner.png' },
-			netbridge: [{ name: 'game', protocol: 'tcp', default: 25565, required: true }],
-		},
-	};
+	},
+	manifest: {
+		url: 'https://github.com/rabbyte/minecraft',
+		maintainers: [{ name: 'rabbyte', url: 'https://rabbyte.dev' }],
+		credits: [{ name: 'Mojang' }],
+		media: { icon: 'icon.png', banner: 'banner.png' },
+		netbridge: [{ name: 'game', protocol: 'tcp', default: 25565, required: true }],
+	},
+};
 
+describe('toArrowDetail', () => {
 	it('combines the bare namespace with installed_ref, since every downstream call needs the full identifier', () => {
 		const result = toArrowDetail(DETAIL, MANIFEST, [], null, [], []);
 		expect(result.namespace).toBe('github.com/rabbyte/minecraft@v1.21.4');
@@ -284,5 +284,63 @@ describe('toArrowDetail', () => {
 		expect(result.user_installed).toBe(true);
 		expect(result.installed_ref).toBe('v1.21.4');
 		expect(result.installed_at).toBe('2026-05-09T21:26:59Z');
+	});
+});
+
+/**
+ * An arrow whose manifest declares no `tags:` arrives with `tags: null`, not
+ * with an absent key and not with an empty array: Go marshals a nil slice as
+ * JSON null and quiver.core passes the slice straight through. BOTH of
+ * Quiver's own self-arrows are in exactly that state.
+ *
+ * This is not hypothetical and it was not cheap. Opening Quiver's own page in
+ * the real app crashed the whole view with "null is not an object (evaluating
+ * 'e.tags.length')" -- the hero reads `detail.tags.length` to decide whether
+ * to render the tags row -- which meant the Update button on that page could
+ * not be reached at all, by anyone, whatever it sent. Caught by clicking
+ * through the running app in the E2E box; no unit test could have seen it,
+ * because every fixture in this file had been written with a tags array.
+ */
+describe('an arrow with no tags at all', () => {
+	const listItem = {
+		namespace: 'github.com/rabbytesoftware/quiver.desktop',
+		name: 'Quiver',
+		description: 'The Quiver desktop application.',
+		tags: null,
+		versions: [{ ref: 'stable-1.0', version: '0.1', state: 'ready' as const }],
+	};
+
+	it('comes back from the catalog mapper with an empty list, not null', () => {
+		const records = toArrowCatalogRecords([listItem], 'local');
+		expect(records[0].tags).toEqual([]);
+	});
+
+	it('comes back from the detail mapper with an empty list, not null', () => {
+		const detail = toArrowDetail({ ...DETAIL, tags: null }, MANIFEST, [], null, [], []);
+		expect(detail.tags).toEqual([]);
+	});
+
+	// Same nil-slice shape, same boundary. Neither self-manifest declares
+	// `netbridge:`, so this one is not hypothetical either -- MetaPanel reads
+	// `netbridge.length` exactly the way the hero read `tags.length`.
+	it('defaults every other list the wire can send as null', () => {
+		const detail = toArrowDetail(
+			{ ...DETAIL, tags: null },
+			{
+				...MANIFEST,
+				variables: null,
+				manifest: { ...MANIFEST.manifest, maintainers: null, credits: null, netbridge: null },
+			},
+			[],
+			null,
+			null as unknown as [],
+			null as unknown as []
+		);
+		expect(detail.netbridge).toEqual([]);
+		expect(detail.maintainers).toEqual([]);
+		expect(detail.credits).toEqual([]);
+		expect(detail.variables).toEqual([]);
+		expect(detail.dependencies).toEqual([]);
+		expect(detail.dependents).toEqual([]);
 	});
 });

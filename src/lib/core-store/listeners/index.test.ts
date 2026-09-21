@@ -43,6 +43,10 @@ vi.mock('../dtos/v0/runtime', async (importOriginal) => {
 	return { ...actual, toRuntimeUpdate: vi.fn(actual.toRuntimeUpdate) };
 });
 
+vi.mock('./self-announce', () => ({
+	announceSelf: vi.fn(),
+}));
+
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
@@ -53,6 +57,7 @@ import { apiFetch, coreIsReachable } from '@/lib/transport/api';
 import { wsManager } from '@/lib/transport/ws-manager';
 
 import { setupListeners } from './index';
+import { announceSelf } from './self-announce';
 import { toRuntimeUpdate } from '../dtos/v0/runtime';
 import { useArrowStore } from '../store/arrows';
 import { useStatusStore } from '../store/status';
@@ -66,6 +71,7 @@ const mockCoreIsReachable = coreIsReachable as MockedFunction<typeof coreIsReach
 const mockWipe = maybeWipeOnVersionChange as MockedFunction<typeof maybeWipeOnVersionChange>;
 const mockWsSubscribe = wsManager.subscribe as MockedFunction<typeof wsManager.subscribe>;
 const mockToRuntimeUpdate = toRuntimeUpdate as MockedFunction<typeof toRuntimeUpdate>;
+const mockAnnounceSelf = announceSelf as MockedFunction<typeof announceSelf>;
 
 const handlers = new Map<string, (e: { payload: unknown }) => Promise<void> | void>();
 
@@ -114,6 +120,7 @@ beforeEach(() => {
 	mockWipe.mockResolvedValue(undefined);
 	mockCoreIsReachable.mockResolvedValue(false);
 	mockInvoke.mockResolvedValue({ connections: [], active_id: 'local' });
+	mockAnnounceSelf.mockResolvedValue(undefined);
 	useArrowStore.getState().reset();
 	useStatusStore.setState({ status: 'starting' });
 });
@@ -503,6 +510,60 @@ describe('setupListeners', () => {
 		await emit('core://status', { status: 'disconnected' });
 		expect(useStatusStore.getState().status).toBe('disconnected');
 		expect(subscribeArrowStream).not.toHaveBeenCalled();
+	});
+
+	// ── Self-announcement (Task 3.2) ─────────────────────────────────────────
+
+	it('self-announces quiver.desktop exactly once when core reports ready', async () => {
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+		expect(announceSelf).toHaveBeenCalledTimes(1);
+	});
+
+	it('self-announces when adopting an already-running core at boot', async () => {
+		mockCoreIsReachable.mockResolvedValue(true);
+		await setupListeners();
+		expect(announceSelf).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not self-announce while the core is still starting, or once disconnected', async () => {
+		await setupListeners();
+		await emit('core://status', { status: 'starting' });
+		await emit('core://status', { status: 'disconnected' });
+		expect(announceSelf).not.toHaveBeenCalled();
+	});
+
+	it('starts streams without waiting for a slow self-announce to resolve', async () => {
+		const announceGate = deferred<void>();
+		mockAnnounceSelf.mockReturnValueOnce(announceGate.promise);
+
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+
+		expect(subscribeArrowStream).toHaveBeenCalledWith(expect.objectContaining({ connectionId: 'local' }));
+		expect(wsManager.subscribe).toHaveBeenCalledWith('/v0/runtime', expect.any(Function));
+
+		announceGate.resolve();
+	});
+
+	it('adopts an already-running core without waiting for a slow self-announce to resolve', async () => {
+		const announceGate = deferred<void>();
+		mockAnnounceSelf.mockReturnValueOnce(announceGate.promise);
+		mockCoreIsReachable.mockResolvedValue(true);
+
+		await setupListeners();
+
+		expect(subscribeArrowStream).toHaveBeenCalledWith(expect.objectContaining({ connectionId: 'local' }));
+
+		announceGate.resolve();
+	});
+
+	it('self-announces again on every fresh ready, e.g. after switching connections', async () => {
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+		await emit('core://status', { status: 'starting' });
+		await emit('core://status', { status: 'ready' });
+		expect(announceSelf).toHaveBeenCalledTimes(2);
 	});
 
 	it('restarts the stream against the new connection on a switch, without relying on connection://changed', async () => {

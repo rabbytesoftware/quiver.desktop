@@ -39,8 +39,8 @@
     "zustand": "^5.0.13"
   },
   "quiver": {
-    "_comment": "Must be an immutable quiver.core tag for a release build. Never `nightly-latest`: that rolling tag is remade on every push to quiver.core's develop, so a build pinned to it is not reproducible — and CI's check only asks whether the tag exists, which the rolling tag always does.",
-    "coreVersion": "nightly-latest"
+    "_comment": "A semver constraint resolved at build time to the highest matching stable-* release. Never use rolling tags (nightly-latest, beta-*) — they are not immutable and make builds non-reproducible.",
+    "coreVersion": "^26.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -54,6 +54,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/semver": "^7.8.0",
     "@typescript-eslint/eslint-plugin": "^8.59.0",
     "@typescript-eslint/parser": "^8.59.0",
     "@vitejs/plugin-react": "^6.0.1",
@@ -67,6 +68,7 @@
     "jsdom": "^29.1.1",
     "prettier": "^3.8.3",
     "react-doctor": "0.9.11",
+    "semver": "^7.8.5",
     "typescript": "~5.6.3",
     "vite": "^8.0.9",
     "vitest": "^4.1.6"

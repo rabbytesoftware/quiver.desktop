@@ -1,4 +1,5 @@
 import type { ConnectionConfig, ConnectionStatus } from '@/domain/connection';
+import type { ReleaseResolveError } from '@/domain/release';
 import type { Backend, ConnectionsSnapshot } from '@/lib/transport/backend';
 import { installBackend } from '@/lib/transport/backend';
 
@@ -54,6 +55,28 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 
 		openSocket(path) {
 			return hub.open(path);
+		},
+
+		// `null`, and not a plausible-looking `stable-*` string: the build tag
+		// is a property of the BINARY, not of the daemon this stands in for,
+		// and anything running the mock is by definition an untagged dev
+		// build. Handing one back would make `announceSelf` claim a release
+		// ref no mock scenario can make true.
+		getBuildTag() {
+			return Promise.resolve(null);
+		},
+
+		// Rejected, not answered with a plausible asset. The mock stands in
+		// for a daemon, not for github.com, and nothing in a mock scenario
+		// can make a release URL real -- handing one back would let a mock
+		// run start an update that then fetches a 404. `unsupported_platform`
+		// is the honest kind: a browser is not a platform Quiver publishes a
+		// bundle for, which is exactly the situation.
+		resolveReleaseAsset() {
+			return Promise.reject({
+				kind: 'unsupported_platform',
+				detail: 'the mock backend has no release to resolve',
+			} satisfies ReleaseResolveError);
 		},
 
 		getConnections() {

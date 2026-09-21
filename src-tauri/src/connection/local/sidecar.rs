@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -92,11 +93,31 @@ impl SidecarManager {
 		// always a version-stamped release download, so it never would.
 		let dev_home = quiver_home();
 
-		let mut command = app
-			.shell()
-			.sidecar("quiver")
-			.map_err(|e| e.to_string())?
-			.args(["daemon", "--host", &self.host.host_arg(dev_home.is_some())]);
+		// The bundled `binaries/quiver` is only ever day-one bootstrap seed: once
+		// quiver.core has self-updated at least once (its own Task 1.8), the
+		// current binary lives at a stable path outside the bundle and this app
+		// must prefer it — otherwise every launch after a self-update would
+		// still run the stale seed the app first shipped with. This is checked
+		// against `effective_home` — the SAME home `dev_home`, when set, scopes
+		// the spawned daemon's *data* directory to below — so a dev build only
+		// ever prefers a binary self-installed into THIS checkout's own scoped
+		// `.quiver/self/`, never a developer's real, unrelated one. Checking it
+		// against the real home instead (as this used to) would silently spawn
+		// that unrelated production binary the moment one existed there, while
+		// still correctly scoping the child's data directory to the checkout —
+		// defeating half of `dev_home`'s isolation guarantee.
+		let effective_home = Self::effective_home(dev_home.as_deref());
+		let mut command = match Self::resolve_binary_path(&effective_home) {
+			Some(installed) => {
+				log::info!(
+					"[local] using self-installed quiver.core at {}",
+					installed.display()
+				);
+				app.shell().command(&installed)
+			}
+			None => app.shell().sidecar("quiver").map_err(|e| e.to_string())?,
+		}
+		.args(["daemon", "--host", &self.host.host_arg(dev_home.is_some())]);
 
 		if let Some(home) = dev_home {
 			command = command.env("QUIVER_HOME", home);
@@ -117,6 +138,52 @@ impl SidecarManager {
 		// is what this function used to do) throws both away. See `pump_events`.
 		tauri::async_runtime::spawn(pump_events(events));
 		Ok(())
+	}
+
+	/// Looks for a self-installed quiver.core at its stable, version-independent
+	/// install path (`{quiver_home}/self/` — see quiver.core's Task 1.8, not the
+	/// per-`@ref` `namespaces/` tree ordinary arrows use). Returns `None` when
+	/// nothing is installed there yet, in which case the caller falls back to
+	/// the bundled bootstrap sidecar.
+	pub fn resolve_binary_path(quiver_home: &Path) -> Option<PathBuf> {
+		let bin_name = if cfg!(windows) {
+			"quiver.exe"
+		} else {
+			"quiver"
+		};
+		let candidate = quiver_home.join("self").join(bin_name);
+		candidate.exists().then_some(candidate)
+	}
+
+	/// Mirrors quiver.core's own default home-directory resolution exactly —
+	/// see quiver.core's `internal/core/metadata/resolve_home.go` and
+	/// `resolve_home_windows.go`, both driven by `metadata.yaml`'s
+	/// `paths.home`: `QUIVER_HOME` wins when set (and non-empty), otherwise the
+	/// platform default (`~/.quiver` on Unix, `C:\Users\{{USER}}\Documents\.quiver`
+	/// on Windows). This has to track that default exactly, not just plausibly
+	/// — it is how this app finds the same `self/` directory quiver.core's own
+	/// Task 1.8 installs into.
+	fn quiver_home_dir() -> PathBuf {
+		if let Ok(home) = std::env::var("QUIVER_HOME") {
+			if !home.is_empty() {
+				return PathBuf::from(home);
+			}
+		}
+		platform_default_home()
+	}
+
+	/// The one home `spawn` uses both to look for a self-installed binary and
+	/// (via `dev_home`, at the call site) to scope the spawned daemon's data
+	/// directory — the same directory for both, always, which is what keeps
+	/// `dev_home`'s isolation guarantee whole. `Some` (a dev build) wins over
+	/// [`Self::quiver_home_dir`]'s real, production resolution entirely: a dev
+	/// build must never fall through to a developer's real, unrelated
+	/// self-installed Core just because none is installed under the checkout's
+	/// own scoped home yet. `None` (a release build) falls back to
+	/// `quiver_home_dir()` unchanged.
+	fn effective_home(dev_home: Option<&Path>) -> PathBuf {
+		dev_home.map(Path::to_path_buf)
+			.unwrap_or_else(Self::quiver_home_dir)
 	}
 
 	/// Record the child, and let go of the lock. See [`take_spawned`] for why the
@@ -183,6 +250,33 @@ impl SidecarManager {
 			HEALTH_RETRY_MS * HEALTH_MAX_ATTEMPTS as u64,
 		))
 	}
+}
+
+/// The Unix half of `SidecarManager::quiver_home_dir`'s platform default:
+/// `$HOME/.quiver`, matching quiver.core's own `resolveHome()` (which expands
+/// its `~/.quiver` template via `os.UserHomeDir()` — `$HOME` on Unix). Falling
+/// back to `/tmp` when `HOME` is unset mirrors the same fallback already used
+/// for the dev socket path in `local::mod::default_socket_path`, and keeps
+/// this infallible rather than forcing every caller to handle an env lookup
+/// that essentially never fails on a real desktop.
+#[cfg(unix)]
+fn platform_default_home() -> PathBuf {
+	let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+	PathBuf::from(home).join(".quiver")
+}
+
+/// The Windows half of `SidecarManager::quiver_home_dir`'s platform default.
+/// `metadata.yaml`'s `paths.home.windows` documents the literal template
+/// `C:\Users\{{USER}}\Documents\.quiver`; quiver.core's own
+/// `resolve_home_windows.go` fills `{{USER}}` from `os/user.Current()`
+/// (falling back to `"unknown"` if that fails) rather than deriving the whole
+/// path from `%USERPROFILE%`, so this mirrors that exactly — including the
+/// same `"unknown"` fallback — instead of reconstructing a differently-shaped
+/// but plausible-looking path.
+#[cfg(windows)]
+fn platform_default_home() -> PathBuf {
+	let user = std::env::var("USERNAME").unwrap_or_else(|_| "unknown".into());
+	PathBuf::from(format!(r"C:\Users\{user}\Documents\.quiver"))
 }
 
 /// Take the spawned child out of `slot`, if there is one — the whole of the
@@ -285,8 +379,10 @@ async fn health_ok(transport: &dyn Transport) -> bool {
 mod tests {
 	use super::*;
 	use crate::connection::transport::{TransportError, WsStream};
+	use std::fs;
 	use tauri::http::{Request, Response};
 	use tauri_plugin_shell::process::TerminatedPayload;
+	use tempfile::TempDir;
 
 	/// Answers `/v0/health` however the test needs it answered.
 	enum Peer {
@@ -492,5 +588,264 @@ mod tests {
 		tokio::time::timeout(Duration::from_secs(5), pump_events(rx))
 			.await
 			.expect("the pump must end when the daemon's stream closes");
+	}
+
+	// ── Preferring a self-installed Core ─────────────────────────────────────
+
+	#[test]
+	fn resolve_binary_path_prefers_installed_core_when_present() {
+		let home = TempDir::new().unwrap();
+		let self_dir = home.path().join("self");
+		fs::create_dir_all(&self_dir).unwrap();
+		let installed_bin = self_dir.join(if cfg!(windows) {
+			"quiver.exe"
+		} else {
+			"quiver"
+		});
+		fs::write(&installed_bin, b"fake binary").unwrap();
+
+		let resolved = SidecarManager::resolve_binary_path(home.path());
+
+		assert_eq!(resolved, Some(installed_bin));
+	}
+
+	#[test]
+	fn resolve_binary_path_none_when_not_installed() {
+		let home = TempDir::new().unwrap();
+
+		let resolved = SidecarManager::resolve_binary_path(home.path());
+
+		assert_eq!(resolved, None);
+	}
+
+	/// Guards every test below that touches `QUIVER_HOME` (and, further down,
+	/// `HOME`/`USERNAME`): `std::env::set_var` and `remove_var` mutate
+	/// process-global state, and two tests racing on the same variable could
+	/// each observe the other's value. Serializing the tests below against
+	/// EACH OTHER is what this lock actually buys. It is a narrower guarantee
+	/// than full soundness, and this comment used to claim otherwise: per
+	/// `set_var`/`remove_var`'s own safety docs, they race against a
+	/// concurrent env-var READ on any other thread, not just a concurrent
+	/// write to the same key, because most platform implementations (glibc's
+	/// `environ` included) back the whole environment table with one shared
+	/// allocation. `cargo test`'s default multi-threaded runner can run one of
+	/// these `set_var` calls concurrently with, say, `tempfile::TempDir::new()`
+	/// reading `TMPDIR` in an unrelated test elsewhere in this file — a
+	/// different key, still a documented race. In practice, two full
+	/// `make test-rust` runs back to back showed no failures (128/128 both
+	/// times), so the real-world blast radius appears small — but that is an
+	/// empirical observation about this suite's current shape, not a
+	/// soundness argument this lock provides on its own.
+	fn quiver_home_env_lock() -> &'static Mutex<()> {
+		static LOCK: std::sync::OnceLock<Mutex<()>> = std::sync::OnceLock::new();
+		LOCK.get_or_init(|| Mutex::new(()))
+	}
+
+	/// The override quiver.core itself honors first — see
+	/// `resolveHome()`/`homeOverrideEnv` in its own `metadata` package. This
+	/// app has to agree on that env var, or it would look for a self-installed
+	/// Core in a directory quiver.core was never told to use.
+	#[test]
+	fn quiver_home_dir_prefers_the_env_var_override_when_set() {
+		let _guard = quiver_home_env_lock()
+			.lock()
+			.unwrap_or_else(|e| e.into_inner());
+		unsafe {
+			std::env::set_var("QUIVER_HOME", "/tmp/quiver-home-dir-override-test");
+		}
+
+		let resolved = SidecarManager::quiver_home_dir();
+
+		unsafe {
+			std::env::remove_var("QUIVER_HOME");
+		}
+		assert_eq!(
+			resolved,
+			PathBuf::from("/tmp/quiver-home-dir-override-test")
+		);
+	}
+
+	/// With no override, this has to land on exactly the same default
+	/// quiver.core's own `metadata.yaml` (`paths.home`) documents — not
+	/// merely a plausible-looking `~/.quiver`. Unix and Windows are asserted
+	/// separately because the underlying env var (`HOME` vs `USERNAME`) and
+	/// the shape of the default path differ per platform.
+	#[test]
+	fn quiver_home_dir_falls_back_to_the_platform_default_when_unset() {
+		let _guard = quiver_home_env_lock()
+			.lock()
+			.unwrap_or_else(|e| e.into_inner());
+		unsafe {
+			std::env::remove_var("QUIVER_HOME");
+		}
+
+		let resolved = SidecarManager::quiver_home_dir();
+
+		#[cfg(unix)]
+		{
+			let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+			assert_eq!(resolved, PathBuf::from(home).join(".quiver"));
+		}
+		#[cfg(windows)]
+		{
+			let user = std::env::var("USERNAME").unwrap_or_else(|_| "unknown".into());
+			assert_eq!(
+				resolved,
+				PathBuf::from(format!(r"C:\Users\{user}\Documents\.quiver"))
+			);
+		}
+	}
+
+	/// Exercises `platform_default_home()`'s own INNER fallback, reached only
+	/// when the platform env var it reads (`HOME` on Unix, `USERNAME` on
+	/// Windows) is unset too — not just `QUIVER_HOME`. The test above only
+	/// ever clears `QUIVER_HOME`, so it never reaches `/tmp/.quiver` (Unix) or
+	/// `"unknown"` (Windows): exactly the branches documented as this app's
+	/// deliberate divergence from quiver.core's Go implementation, which
+	/// returns the raw, unexpanded `~/.quiver` template instead. A regression
+	/// here — say, an `.unwrap()` that panics instead of falling back — would
+	/// pass the test above and still be invisible without this one.
+	#[test]
+	fn quiver_home_dir_falls_back_further_when_the_platform_env_var_is_also_unset() {
+		let _guard = quiver_home_env_lock()
+			.lock()
+			.unwrap_or_else(|e| e.into_inner());
+		unsafe {
+			std::env::remove_var("QUIVER_HOME");
+		}
+
+		#[cfg(unix)]
+		{
+			let prior = std::env::var("HOME").ok();
+			unsafe {
+				std::env::remove_var("HOME");
+			}
+
+			let resolved = SidecarManager::quiver_home_dir();
+
+			unsafe {
+				match &prior {
+					Some(value) => std::env::set_var("HOME", value),
+					None => std::env::remove_var("HOME"),
+				}
+			}
+			assert_eq!(resolved, PathBuf::from("/tmp/.quiver"));
+		}
+		#[cfg(windows)]
+		{
+			let prior = std::env::var("USERNAME").ok();
+			unsafe {
+				std::env::remove_var("USERNAME");
+			}
+
+			let resolved = SidecarManager::quiver_home_dir();
+
+			unsafe {
+				match &prior {
+					Some(value) => std::env::set_var("USERNAME", value),
+					None => std::env::remove_var("USERNAME"),
+				}
+			}
+			assert_eq!(
+				resolved,
+				PathBuf::from(r"C:\Users\unknown\Documents\.quiver")
+			);
+		}
+	}
+
+	// ── Scoping the self-install check to `dev_home` ─────────────────────────
+
+	/// The bug Finding 1 of the Task 2.2 review describes: without this,
+	/// `spawn` checked for a self-installed Core against the REAL production
+	/// home regardless of `dev_home`, so the moment a developer's own,
+	/// unrelated `quiver.core` self-updated once, every `make dev`/
+	/// `make dev-bundle` afterwards would silently spawn that production
+	/// binary — while still correctly scoping its *data* directory to the
+	/// checkout via `dev_home` — defeating half of `dev_home`'s isolation
+	/// guarantee. This proves the fix: with `dev_home` set (as in any debug
+	/// build) and a binary self-installed under the checkout-scoped home's
+	/// `self/`, resolution must land on THAT binary even when the real
+	/// production home (here, `QUIVER_HOME`) has an entirely different
+	/// self-installed binary of its own.
+	#[test]
+	fn effective_home_prefers_dev_home_over_a_real_self_installed_core() {
+		let _guard = quiver_home_env_lock()
+			.lock()
+			.unwrap_or_else(|e| e.into_inner());
+
+		let bin_name = if cfg!(windows) {
+			"quiver.exe"
+		} else {
+			"quiver"
+		};
+
+		// The checkout-scoped dev home, with its OWN self-installed binary.
+		let dev_home = TempDir::new().unwrap();
+		let dev_self_dir = dev_home.path().join("self");
+		fs::create_dir_all(&dev_self_dir).unwrap();
+		let dev_installed_bin = dev_self_dir.join(bin_name);
+		fs::write(&dev_installed_bin, b"dev-scoped binary").unwrap();
+
+		// The real production home -- what `quiver_home_dir()` resolves to
+		// without a `dev_home` override -- which ALSO has a self-installed
+		// binary: an unrelated one that must never be picked while `dev_home`
+		// is set, even though it exists and predates this fix's check.
+		let real_home = TempDir::new().unwrap();
+		let real_self_dir = real_home.path().join("self");
+		fs::create_dir_all(&real_self_dir).unwrap();
+		fs::write(real_self_dir.join(bin_name), b"real production binary").unwrap();
+		unsafe {
+			std::env::set_var("QUIVER_HOME", real_home.path());
+		}
+
+		let effective = SidecarManager::effective_home(Some(dev_home.path()));
+
+		unsafe {
+			std::env::remove_var("QUIVER_HOME");
+		}
+
+		assert_eq!(
+			effective,
+			dev_home.path(),
+			"a dev build must resolve the self-install check against its own \
+			 checkout-scoped home, never the real one -- even when the real \
+			 home also has a self-installed binary"
+		);
+
+		let resolved = SidecarManager::resolve_binary_path(&effective);
+		assert_eq!(
+			resolved,
+			Some(dev_installed_bin),
+			"spawn must prefer the binary self-installed into the checkout's \
+			 own home, not the real, unrelated production install"
+		);
+	}
+
+	/// The other half of `effective_home`: a release build (`dev_home: None`,
+	/// since `quiver_home()` only ever returns `Some` in a debug build) must
+	/// fall back to `quiver_home_dir()`'s real resolution unchanged -- this
+	/// fix must not touch production behavior at all.
+	#[test]
+	fn effective_home_falls_back_to_quiver_home_dir_when_dev_home_is_none() {
+		let _guard = quiver_home_env_lock()
+			.lock()
+			.unwrap_or_else(|e| e.into_inner());
+		unsafe {
+			std::env::set_var(
+				"QUIVER_HOME",
+				"/tmp/quiver-effective-home-fallback-test",
+			);
+		}
+
+		let effective = SidecarManager::effective_home(None);
+
+		unsafe {
+			std::env::remove_var("QUIVER_HOME");
+		}
+
+		assert_eq!(
+			effective,
+			PathBuf::from("/tmp/quiver-effective-home-fallback-test")
+		);
 	}
 }

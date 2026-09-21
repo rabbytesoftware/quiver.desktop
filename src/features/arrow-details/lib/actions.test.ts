@@ -226,3 +226,38 @@ describe('computeActions', () => {
 		});
 	});
 });
+
+/**
+ * The configure form on Quiver's own tile must not ask for the two values the
+ * app resolves for itself at click time. Asking would be asking a person to
+ * paste a download URL and a sha256 that `hero.tsx` is about to overwrite.
+ */
+describe('computeActions on Quiver’s own row', () => {
+	const SELF = 'github.com/rabbytesoftware/quiver.desktop@stable-1.0';
+	const VARIABLES = [
+		{ name: 'QUIVER_DESKTOP_APPIMAGE_PATH', description: '', type: 'string' as const, default: '/x' },
+		{ name: 'QUIVER_RELEASE_ASSET_URL', description: '', type: 'string' as const },
+		{ name: 'QUIVER_RELEASE_CHECKSUM', description: '', type: 'string' as const },
+	];
+
+	function usesOf(state: ArrowState, namespace: string, kind: string): string[] {
+		const actions = computeActions(detail({ namespace, state, variables: VARIABLES }), PLATFORM);
+		return actions.find((a) => a.kind === kind)?.usesVariables ?? [];
+	}
+
+	it('leaves the release variables out of install’s form', () => {
+		expect(usesOf('absent', SELF, 'install')).toEqual(['QUIVER_DESKTOP_APPIMAGE_PATH']);
+	});
+
+	it('leaves them out of reinstall’s form too', () => {
+		expect(usesOf('removed', SELF, 'reinstall')).toEqual(['QUIVER_DESKTOP_APPIMAGE_PATH']);
+	});
+
+	it('still asks for every declared variable on any other arrow', () => {
+		expect(usesOf('absent', 'github.com/rabbyte/minecraft@v1', 'install')).toEqual([
+			'QUIVER_DESKTOP_APPIMAGE_PATH',
+			'QUIVER_RELEASE_ASSET_URL',
+			'QUIVER_RELEASE_CHECKSUM',
+		]);
+	});
+});

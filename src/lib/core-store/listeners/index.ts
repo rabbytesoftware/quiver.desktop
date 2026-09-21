@@ -6,6 +6,7 @@ import { apiFetch, coreIsReachable } from '@/lib/transport/api';
 import { backend } from '@/lib/transport/backend';
 import { isReconnectSentinel, wsManager } from '@/lib/transport/ws-manager';
 
+import { announceSelf } from './self-announce';
 import type { ArrowListResponseItemDTO } from '../dtos/v0/arrow';
 import { toArrowCatalogRecords, toInitialRuntimeUpdates } from '../dtos/v0/arrow';
 import type { RuntimeUpdateDTO } from '../dtos/v0/runtime';
@@ -87,6 +88,7 @@ export async function setupListeners(): Promise<void> {
 		if (!(await coreIsReachable())) return;
 		if (generation !== myGeneration || startPending > 0 || disposeArrowStream) return;
 		useStatusStore.getState().setStatus('ready');
+		void announceSelf();
 		await beginStreams(myGeneration).catch((err) => {
 			console.error('core-store: failed to adopt an already-running core', err);
 		});
@@ -100,7 +102,14 @@ export async function setupListeners(): Promise<void> {
 			useArrowStore.getState().reset();
 		}
 		if (status === 'ready') {
-			await beginStreams(generation);
+			// Captured before beginStreams's own awaits, not read afterwards: it
+			// must see the generation this ready belongs to, even if a later
+			// `starting` (which bumps `generation`) lands before it finishes.
+			// `announceSelf` is fire-and-forget on purpose -- it never blocks
+			// (or is blocked by) the primary catalog load beginStreams performs.
+			const myGeneration = generation;
+			void announceSelf();
+			await beginStreams(myGeneration);
 		}
 	});
 

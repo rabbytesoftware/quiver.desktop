@@ -9,6 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { ArrowDetail } from '@/domain/arrow';
 import { computeActions, type ArrowActionKind } from '@/features/arrow-details/lib/actions';
 import { CONTENT_MAX_WIDTH, CONTENT_PADDING_X } from '@/features/arrow-details/lib/layout';
+import {
+	isSelfArrow,
+	releaseErrorMessageKey,
+	releaseVariables,
+	type ReleaseMessageKey,
+} from '@/features/arrow-details/lib/release-variables';
 import { problemMessage, computeStatus, STATUS_BADGE_VARIANT, STATUS_ICONS } from '@/features/arrow-details/lib/status';
 import { ArrowIcon } from '@/features/sidebar/components/arrows/arrow-icon';
 import { cn } from '@/lib/cn';
@@ -48,6 +54,11 @@ export function Hero({ detail, platform, values, onValueChange, onVersionChange 
 	const { t } = useTranslation();
 	const [problemOpen, setProblemOpen] = useState(false);
 	const [pendingKind, setPendingKind] = useState<ArrowActionKind | null>(null);
+	// Set when resolving Quiver's own release asset fails, which happens
+	// before any core call is made -- so there is no `last_return` for the
+	// generic problem chip to read, and nothing would otherwise appear on
+	// screen. Shown through the same MessageModal the problem chip opens.
+	const [releaseError, setReleaseError] = useState<{ messageKey: ReleaseMessageKey; detail: string } | null>(null);
 	const restarting = useRef(false);
 	// Restart's second leg reads the namespace/values current as of the
 	// moment `detail.state` actually reaches 'ready', not whatever the
@@ -75,8 +86,38 @@ export function Hero({ detail, platform, values, onValueChange, onVersionChange 
 	const problem = problemMessage(detail);
 	const actions = computeActions(detail, platform);
 
+	/**
+	 * The variables an action has to carry beyond whatever the user typed.
+	 *
+	 * For every arrow but Quiver's own this is nothing at all. For Quiver's
+	 * own, `install`, `reinstall` and `update` fetch a release asset that
+	 * `ARROW.md` cannot name (release filenames carry a static product
+	 * version, and `${REF}` at update time is the version being left, not the
+	 * one being installed), so the caller has to resolve it -- which is
+	 * exactly what `install.sh` does against the same releases API, and what
+	 * this does at the moment the button is clicked.
+	 *
+	 * Resolved on EVERY click, never remembered. Nothing here may depend on a
+	 * previous execution's values still being around inside core.
+	 */
+	async function extraVariables(kind: ArrowActionKind): Promise<Record<string, string>> {
+		const needsRelease = kind === 'install' || kind === 'reinstall' || kind === 'update';
+		if (!needsRelease || !isSelfArrow(detail.namespace)) return {};
+		return releaseVariables();
+	}
+
 	async function invoke(kind: ArrowActionKind) {
 		setPendingKind(kind);
+		let release: Record<string, string>;
+		try {
+			release = await extraVariables(kind);
+		} catch (err) {
+			const { kind: errKind, detail: errDetail } = err as { kind: string; detail: string };
+			setReleaseError({ messageKey: releaseErrorMessageKey(errKind), detail: errDetail });
+			setPendingKind(null);
+			return;
+		}
+
 		try {
 			switch (kind) {
 				case 'addToLibrary':
@@ -95,13 +136,20 @@ export function Hero({ detail, platform, values, onValueChange, onVersionChange 
 					break;
 				case 'install':
 				case 'reinstall':
-					await install.mutateAsync({ namespace: detail.namespace, variables: values });
+					await install.mutateAsync({
+						namespace: detail.namespace,
+						variables: { ...values, ...release },
+					});
 					break;
 				case 'uninstall':
 					await uninstall.mutateAsync({ namespace: detail.namespace });
 					break;
 				case 'update':
-					await update.mutateAsync({ namespace: detail.namespace });
+					// `release` is empty for every arrow but Quiver's own, which
+					// is the whole point: core requires only the variables the
+					// method's own steps expand, and an ordinary arrow's update
+					// expands none of these.
+					await update.mutateAsync({ namespace: detail.namespace, variables: release });
 					break;
 				case 'execute':
 					await execute.mutateAsync({ namespace: detail.namespace, variables: values });
@@ -252,6 +300,20 @@ export function Hero({ detail, platform, values, onValueChange, onVersionChange 
 					onOpenChange={setProblemOpen}
 					open={problemOpen}
 					title={t('arrow.problem.label')}
+				/>
+			)}
+
+			{releaseError && (
+				<MessageModal
+					// The sentence first, then the wire text underneath it, the
+					// same shape the problem dialog uses for a failed step: a
+					// person reads the first line and stops, and anyone
+					// reporting the issue has the specifics without having to
+					// find a log.
+					message={`${t(releaseError.messageKey)}\n\n${releaseError.detail}`}
+					onOpenChange={(open) => !open && setReleaseError(null)}
+					open
+					title={t('arrow.release.title')}
 				/>
 			)}
 		</div>
