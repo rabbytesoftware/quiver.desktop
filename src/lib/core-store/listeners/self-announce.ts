@@ -7,65 +7,25 @@ import { backend } from '@/lib/transport/backend';
  * connection -- the same `POST /v0/arrow/:ns` a user clicking "add" on any
  * other arrow would hit, at this app's own namespace.
  *
- * WHICH REF IT ANNOUNCES DEPENDS ON WHAT THIS BINARY IS, and both answers are
- * deliberate:
+ * A release build announces `@<tag>`, the exact `stable-*` tag it was cut
+ * from (stamped by `src-tauri/build.rs`, read via `Backend.getBuildTag()`),
+ * since core's resolver takes an explicit ref as written and never falls
+ * back. Any other build (dev, PR CI, a local `tauri build`) announces
+ * refless: no ref it could honestly claim exists, and core's own
+ * `resolveRefless` already answers "latest stable release, else the default
+ * branch" -- refless is a first-class resolution there, not a degraded one.
  *
- *   - A RELEASE BUILD announces `@<tag>`: the exact `stable-*` tag the build
- *     was cut from, baked in at compile time by `src-tauri/build.rs` and read
- *     back through `Backend.getBuildTag()` (see
- *     `src-tauri/src/commands/build_info.rs`). core's manifest resolver takes
- *     an explicit ref as written and does NOT fall back (resolvers/http.go:
- *     `if ref := namespace.Ref(); ref != "" { branches = []string{ref} }`), so
- *     this only works because the ref is real: `stable-release.yml` pushes the
- *     tag before it builds, and hands that same tag to the build. The row then
- *     tracks the version the user is ACTUALLY RUNNING.
- *   - ANY OTHER BUILD -- dev, PR CI, a local `tauri build`, anything not cut
- *     from a tag -- announces the namespace REFLESS, with no `@` at all. It
- *     has no ref it could honestly claim: an untagged commit is not a
- *     published ref, and `tauri.conf.json`'s `version` is a productVersion
- *     ("0.1.0"), never a git ref. Announcing that is what this call used to
- *     do, and it 404'd permanently rather than pending -- nothing in this
- *     repo's release process, which tags `stable-<series>[.patch]`, will ever
- *     create a ref named `0.1.0`.
- *
- * Refless is not a degraded fallback, it is core's own first-class answer.
- * `ResolveForInstall` reads a refless namespace through `resolveRefless`:
- * "the latest stable release, and a repository that publishes none as
- * whatever its default branch is" -- both read off the real remote, and the
- * namespace it returns always carries a concrete ref, so nothing refless ever
- * reaches the catalog. Today, with zero tags on quiver.desktop, that is the
- * default branch (`develop`, where this branch's ARROW.md lands) stamped
- * `RefIsBranch` + `RefCommitSHA`; once a real `stable-*` tag exists,
- * `resolveRefless` picks it and `checkBranchDrift` promotes an
- * already-registered branch-tracked row, trying tags first precisely so "a
- * branch is never again the answer" once a repository has any.
- *
- * WHAT THE REFLESS PATH STILL COSTS, honestly: such a row tracks the latest
- * PUBLISHED desktop release rather than the build in front of the user. The
- * outdated badge is generic (keyed off `ArrowState`, not namespace -- see
- * arrow-details/lib/status.ts), so the moment any newer commit lands on the
- * tracked branch/tag, this app's own tile shows the same "update available"
- * badge any other outdated arrow gets. ARROW.md declares a real `update`
- * lifecycle, so that badge is actionable even on a refless row -- what stays
- * imprecise is only WHICH commit it is behind, not whether updating does
- * anything. Stamping narrows that imprecision to builds that are not
- * releases -- a developer's own checkout, and CI -- where a tile claiming to
- * be behind `develop` is both true and nobody's problem. A user running a
- * real release gets a row pinned to the exact tag they installed.
- *
- * ADVANCING THAT ROW AFTER AN UPDATE is core's job, not this call's. A
- * successful `update:` execution moves core's own `onUpdateEnded` reaction to
- * resolve this arrow's latest release and swap the row onto it via the same
- * generic mechanism any other arrow's version bump uses (`UpgradeVersion`) --
- * see `internal/app/usecases/runtime.go` in quiver.core. This call only ever
- * needs to run once per real version: a re-announce at a tag core already has
- * on file is a no-op (`arrow.Add`'s own idempotency), so there is nothing here
- * to retire and nothing here that needs to know what changed.
+ * Advancing the row after an update is core's job, not this call's: a
+ * successful `update:` execution triggers core's own `onUpdateEnded`
+ * reaction (quiver.core, usecases/runtime.go), which swaps the row via the
+ * same generic mechanism any other arrow's version bump uses. This call only
+ * needs to run once per real version -- a re-announce at a tag core already
+ * has on file is a no-op.
  *
  * Fire-and-forget-with-logging, matching `emit_core_status`'s
- * swallow-on-failure convention (Rust's `.ok()`): a daemon too old for this
- * namespace, an unreachable manifest host, or a transient network error must
- * never fail or block the connection this rides on.
+ * swallow-on-failure convention: a daemon too old for this namespace, an
+ * unreachable manifest host, or a transient network error must never fail
+ * or block the connection this rides on.
  */
 export async function announceSelf(): Promise<void> {
 	const tag = await buildTag();

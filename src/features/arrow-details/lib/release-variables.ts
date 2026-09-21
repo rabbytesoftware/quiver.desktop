@@ -26,37 +26,24 @@ export function isSelfArrow(namespace: string): boolean {
  * Resolves this app's own release asset into the two execution variables
  * quiver.core requires for `install` and `update`.
  *
- * WHY THIS RUNS AT CLICK TIME rather than being baked into the manifest: see
- * the module comment on `src-tauri/src/release/mod.rs`. In short, the asset
- * is not derivable from anything the manifest knows, and `${REF}` during an
- * update names the version the user is leaving, not the one they are going
- * to.
+ * Runs at click time rather than being baked into the manifest: the asset
+ * isn't derivable from anything the manifest knows, and `${REF}` during an
+ * update names the version being left, not the one being installed. See
+ * `src-tauri/src/release/mod.rs`.
  *
- * WHY IT IS RESOLVED FRESH ON EVERY CALL, and never cached or reused: the
- * variable-resolution layer behind these two values (quiver.core's assembler,
- * layer 5) used to carry a previous execution's variables forward, so a bare
- * re-update could silently re-fetch and re-install the asset from the LAST
- * update instead of failing. That layer no longer supplies a variable the
- * manifest declared without a default, and this side independently never
- * relies on it: every click resolves again and sends both values, so the only
- * value the engine can use is the one just read off the releases API.
+ * Resolved fresh on every call, never cached: quiver.core's variable layer
+ * used to carry a previous execution's answer forward, so a bare re-update
+ * could silently re-install the LAST update's asset instead of failing.
+ * That layer no longer does, and this side never relies on it either.
  *
- * THE UNVERIFIABLE CASE. `install.sh` warns and installs anyway when a
- * release publishes no checksum, on the grounds that the download still came
- * from GitHub over TLS and refusing would leave the user with no app at all.
- * This path does NOT inherit that call, for two reasons that only apply here.
- * First, it cannot: `ARROW.md` verifies `${QUIVER_RELEASE_CHECKSUM}`, and
- * quiver.core's fetch step deliberately refuses a `${...}` checksum that
- * resolved to empty rather than reading it as "skip verification"
- * (`ErrChecksumUnresolved`), so "proceed unverified" is not a state this
- * lifecycle can be put into -- offering it would mean promising a user
- * something that then fails mid-update with the app already killed. Second,
- * the cost is not the same: refusing an in-app update leaves a working app on
- * screen and the one-line installer still available, where refusing a first
- * install leaves nothing. What HAS been made consistent is the input: both
- * this and the installers now read GitHub's own per-asset `digest` as well as
- * a published checksum manifest, so both verify in every case where anything
- * is publishable at all.
+ * Does not inherit `install.sh`'s "warn and install anyway" fallback for an
+ * unverifiable release: `ARROW.md` verifies the checksum variable, and
+ * quiver.core's fetch step refuses one that resolved to empty rather than
+ * treating it as "skip verification" -- offering that here would promise
+ * something that fails mid-update with the app already killed. Both this
+ * and the installers now read GitHub's per-asset digest as well as a
+ * published checksum manifest, so both verify whenever anything is
+ * publishable at all.
  */
 export async function releaseVariables(): Promise<Record<string, string>> {
 	const asset = await backend()

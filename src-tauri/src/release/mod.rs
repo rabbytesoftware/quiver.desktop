@@ -1,31 +1,20 @@
 //! Resolving THIS app's own release asset out of the GitHub releases API.
 //!
-//! WHY THIS EXISTS. `ARROW.md`'s `install` and `update` lifecycles fetch
-//! `${QUIVER_RELEASE_ASSET_URL}` and verify `${QUIVER_RELEASE_CHECKSUM}`, and
-//! neither variable has a default, so quiver.core requires both from whoever
-//! starts the execution. The manifest cannot supply them itself: release
-//! filenames carry `tauri.conf.json`'s static `"0.1.0"`, which never tracks
-//! the git tag a release is cut from, so no name is derivable from anything
-//! the manifest knows -- and `${REF}` during an update is the ref being
-//! updated FROM, not the one being updated TO, so templating from it would
-//! re-download the version the user already has. The contract is therefore
-//! that the CALLER resolves the asset. `install.sh` is the caller when a
-//! human runs the one-liner; this module is the caller when the user clicks
-//! Update inside the app.
+//! `ARROW.md`'s `install`/`update` lifecycles need `${QUIVER_RELEASE_ASSET_URL}`
+//! and `${QUIVER_RELEASE_CHECKSUM}` with no default, so the caller must
+//! resolve them: the manifest can't, since release filenames carry
+//! `tauri.conf.json`'s static "0.1.0", not the git tag, and `${REF}` during
+//! an update names the version being left, not the target. `install.sh` is
+//! the caller for the one-liner; this module is the caller when the user
+//! clicks Update in the app.
 //!
-//! WHY RUST AND NOT THE FRONTEND. Selection needs this machine's real OS and
-//! CPU architecture, and the webview cannot tell the truth about either:
-//! `navigator.platform` answers `MacIntel` on Apple Silicon, and no WebKitGTK
-//! user-agent string distinguishes amd64 from arm64. Picking the wrong
-//! architecture here installs a bundle that cannot run. `std::env::consts`
-//! is the compiler's own answer and is the direct analogue of `install.sh`'s
-//! `uname -s` / `uname -m`. Doing the request here also keeps it off the
-//! webview's network stack, where it would be the only cross-origin fetch the
-//! app ever makes.
+//! Done in Rust, not the frontend, because selection needs the real OS/CPU
+//! architecture and the webview cannot report either honestly (Apple
+//! Silicon's `navigator.platform` still answers `MacIntel`).
+//! `std::env::consts` is the direct analogue of `install.sh`'s
+//! `uname -s`/`uname -m`.
 //!
-//! The selection rules below are a port of `install.sh`'s, not a second
-//! opinion: pick by extension (never by filename), narrow by architecture only
-//! when that narrowing leaves something, and take the first survivor.
+//! Selection rules below are a port of `install.sh`'s, not a second opinion.
 
 use serde::{Deserialize, Serialize};
 
