@@ -1,9 +1,16 @@
 name: Nightly
 
-# Rolling build of `develop`, published to a single `nightly` tag that is
-# deleted and recreated each run. Deliberately NOT part of the beta-/stable-
+# Rolling build of `develop`, published to a single `nightly-rolling` tag that
+# is deleted and recreated each run. Deliberately NOT part of the beta-/stable-
 # tag scheme in prerelease.yml and stable-release.yml — nothing here creates a
-# durable tag, and nothing downstream should ever pin to `nightly`.
+# durable tag, and nothing downstream should ever pin to `nightly-rolling`.
+#
+# NOTE: the literal tag `nightly` is permanently unusable for this repo — a
+# release was briefly published under it while GitHub's Immutable Releases
+# setting was enabled (see repo settings: Immutable Releases is now off), and
+# GitHub keeps tag names reserved forever once an immutable release has used
+# them, even after that release and tag are deleted. Don't rename this back
+# to `nightly`.
 
 on:
   push:
@@ -186,14 +193,14 @@ jobs:
     - name: Delete previous nightly release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: gh release delete nightly --yes --cleanup-tag 2>/dev/null || true
+      run: gh release delete nightly-rolling --yes --cleanup-tag 2>/dev/null || true
 
     - name: Publish nightly release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         FILES=$(find artifacts/ -type f | tr '\n' ' ')
-        gh release create nightly \
+        gh release create nightly-rolling \
           --prerelease \
           --title "Nightly ($(git rev-parse --short HEAD))" \
           --notes "Automated nightly build from \`develop\` — ${{ github.sha }}
