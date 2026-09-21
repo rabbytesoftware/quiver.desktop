@@ -1,4 +1,5 @@
 import { QUIVER_DESKTOP_NAMESPACE } from '@/domain/release';
+import type { ArrowListResponseItemDTO } from '@/lib/core-store/dtos/v0/arrow';
 import { apiFetch } from '@/lib/transport/api';
 import { backend } from '@/lib/transport/backend';
 
@@ -45,12 +46,14 @@ import { backend } from '@/lib/transport/backend';
  * outdated badge is generic (keyed off `ArrowState`, not namespace -- see
  * arrow-details/lib/status.ts), so the moment any newer commit lands on the
  * tracked branch/tag, this app's own tile shows the same "update available"
- * badge any other outdated arrow gets, above an Update action that is a no-op
- * because ARROW.md declares no `update` lifecycle. That was the accepted cost
- * of announcing refless unconditionally; stamping narrows it to builds that
- * are not releases -- a developer's own checkout, and CI -- where a tile
- * claiming to be behind `develop` is both true and nobody's problem. A user
- * running a real release now gets a row pinned to the tag they installed.
+ * badge any other outdated arrow gets. ARROW.md now declares a real `update`
+ * lifecycle (it did not when this comment was first written), so that badge
+ * is actionable even on a refless row -- what stays imprecise is only WHICH
+ * commit it is behind, not whether updating does anything. Stamping narrows
+ * that imprecision to builds that are not releases -- a developer's own
+ * checkout, and CI -- where a tile claiming to be behind `develop` is both
+ * true and nobody's problem. A user running a real release gets a row pinned
+ * to the exact tag they installed.
  *
  * Fire-and-forget-with-logging, matching `emit_core_status`'s
  * swallow-on-failure convention (Rust's `.ok()`): a daemon too old for this
@@ -58,20 +61,70 @@ import { backend } from '@/lib/transport/backend';
  * never fail or block the connection this rides on.
  */
 export async function announceSelf(): Promise<void> {
-	const namespace = await selfNamespace();
+	const tag = await buildTag();
+	const namespace = tag ? `${QUIVER_DESKTOP_NAMESPACE}@${tag}` : QUIVER_DESKTOP_NAMESPACE;
 	try {
 		await apiFetch<void>(`/v0/arrow/${encodeURIComponent(namespace)}`, {
 			method: 'POST',
 		});
 	} catch (err) {
 		console.error('core-store: failed to self-announce quiver.desktop', err);
+		return;
+	}
+	if (tag) {
+		await retireOtherSelfVersions(tag);
 	}
 }
 
-/** This app's namespace, at its build tag when it has one. */
-async function selfNamespace(): Promise<string> {
-	const tag = await buildTag();
-	return tag ? `${QUIVER_DESKTOP_NAMESPACE}@${tag}` : QUIVER_DESKTOP_NAMESPACE;
+/**
+ * Removes every OTHER installed version of quiver.desktop's own catalog row
+ * besides the one just announced.
+ *
+ * quiver.desktop is a single-instance app, not an ordinary package where
+ * several installed versions can legitimately coexist side by side (see
+ * quiver.core's own TestVersioning_TwoVersionsCoexist for the general case
+ * this deliberately does not apply to): `update`'s lifecycle steps kill the
+ * running process and overwrite its files in place, so there is never more
+ * than one real install on disk. Without this, self-announcing at a new tag
+ * after every update leaves the OLD tag's row behind forever -- nothing else
+ * ever revisits it -- so it sits in the catalog permanently "installed" and
+ * permanently outdated. quiver.core's own self-arrow has the identical
+ * problem and solves it the same way, just from inside the daemon process in
+ * Go (`selfarrow.RetireStale`) rather than over HTTP from here, since
+ * quiver.desktop is a separate process with no access to call that directly.
+ *
+ * Only runs for a real release build (a known, exact tag, guaranteed by the
+ * caller). A refless install (dev/CI) resolves through core's own
+ * `resolveRefless` to whatever the daemon's manifold picks, and this process
+ * has no reliable way to know which resolved ref that was without re-deriving
+ * that same resolution itself, so it is left alone -- refless rows are
+ * already a documented, lower-stakes cost (see the doc comment above).
+ *
+ * Fire-and-forget-with-logging, same as the announce itself: a listing or
+ * deletion failure here must never surface to the caller or block startup.
+ */
+async function retireOtherSelfVersions(currentTag: string): Promise<void> {
+	let items: ArrowListResponseItemDTO[];
+	try {
+		items = await apiFetch<ArrowListResponseItemDTO[]>('/v0/arrow?user_installed=true');
+	} catch (err) {
+		console.error('core-store: failed to list installed quiver.desktop versions for retirement', err);
+		return;
+	}
+	const mine = items?.find((item) => item.namespace === QUIVER_DESKTOP_NAMESPACE);
+	if (!mine) return;
+
+	const stale = mine.versions.filter((v) => v.ref !== currentTag);
+	await Promise.all(
+		stale.map(async (v) => {
+			const staleNamespace = `${QUIVER_DESKTOP_NAMESPACE}@${v.ref}`;
+			try {
+				await apiFetch<void>(`/v0/arrow/${encodeURIComponent(staleNamespace)}`, { method: 'DELETE' });
+			} catch (err) {
+				console.error(`core-store: failed to retire stale ${staleNamespace}`, err);
+			}
+		})
+	);
 }
 
 /**

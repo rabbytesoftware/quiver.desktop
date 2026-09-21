@@ -250,10 +250,11 @@ say "C. The click must have sent the app to the releases API for its own asset"
 # manifest talks to the releases API, and this harness never calls it.
 #
 # NOT asserted by polling the runtime state: this arrow reports `outdated`
-# throughout, before and after, because the row stays at stable-1.0 while
-# upstream's latest is stable-1.1 -- the known gap this scenario records at
-# the bottom. A poll for a transient `updating` between two `outdated`s would
-# be racing a state that never clears.
+# for the whole click-to-relaunch window, because the row stays at stable-1.0
+# (with upstream's latest at stable-1.1) until the relaunched process
+# self-announces and retires it, near the bottom of this scenario. A poll for
+# a transient `updating` here would be racing a state that does not clear
+# until well after this point.
 wait_for_upstream_hit "$RELEASES_API" "$API_HITS_BEFORE" 30 \
 	"the app asked api.github.com for its own latest release when Update was clicked"
 
@@ -345,24 +346,42 @@ assert_daemon_count 1
 assert_daemon_alive "at the end of the scenario"
 assert_eq "$CORE_V2" "$(daemon_version)" "the daemon version at the end of the scenario"
 
-# --- a real gap, asserted rather than glossed over -------------------------
+# --- the stale catalog row is retired, not left behind ---------------------
 #
-# The arrow that was updated is STILL catalogued at stable-1.0, and still
-# reads outdated, even though the file on disk is now stable-1.1 and the app
-# running is stable-1.1. Running an `update` lifecycle replaces what the
-# manifest's steps replace; it does not move the catalog row to the ref the
-# version check recommended. ${REF} inside those steps is therefore always the
-# ref being updated FROM, never the one being updated TO -- which is why the
-# asset URL has to be supplied by the caller rather than templated from ${REF}.
+# Running an `update` lifecycle replaces what the manifest's steps replace; it
+# does not move the catalog row to the ref the version check recommended
+# (${REF} inside those steps is always the ref being updated FROM, never the
+# one being updated TO -- which is why the asset URL has to be supplied by the
+# caller rather than templated from ${REF}). Left alone, that would leave the
+# OLD row catalogued and outdated forever: nothing else ever revisits it once
+# self-announce has created a new row for the version actually running.
 #
-# Asserted, not ignored: if this ever changes, this scenario should fail and
-# be re-read, rather than silently keep passing on a stale description.
-say "C. Recording the known gap: the catalog row does not follow the update"
-assert_eq "$DESK_V1,$DESK_V2" "$(catalogued_refs "$DESK_NS")" \
-	"the desktop refs in the catalog after the update (the updated row plus the new self-announce)"
-assert_eq "outdated" "$(runtime_state "$DESK_ARROW_V1")" \
-	"the updated row's state (still outdated: the row is at $DESK_V1, upstream's latest is $DESK_V2)"
-info "KNOWN GAP: the file and the running app are $DESK_V2; the row that was"
-info "updated is still catalogued at $DESK_V1 and so still reads outdated."
+# So self-announce retires every OTHER installed version of quiver.desktop's
+# own namespace once it announces the new one -- the same "only one real
+# install exists" invariant quiver.core's own selfarrow.RetireStale enforces
+# for itself, applied here from the client side since quiver.desktop is a
+# separate process with no access to call that directly. The relaunched
+# stable-1.1 process's own self-announce (already waited for above, the same
+# call that proved "C. And the thing that came back...") is what performs
+# this, so by the time execution reaches here it should already be done --
+# waited for explicitly anyway, since a slow DELETE racing this assertion is
+# exactly the kind of flake worth ruling out rather than hoping past.
+say "C. The stale stable-1.0 row is retired once the new one announces"
+deadline=$(( SECONDS + 30 ))
+while [ "$SECONDS" -lt "$deadline" ]; do
+	[ "$(catalogued_refs "$DESK_NS")" = "$DESK_V2" ] && break
+	sleep 1
+done
+assert_eq "$DESK_V2" "$(catalogued_refs "$DESK_NS")" \
+	"the desktop refs in the catalog after the update (only the version actually running, not the one it replaced)"
+# is_catalogued, never arrow_field/arrow_detail, for an existence check: GetDetail
+# falls back to a live remote preview for an uncatalogued namespace and answers
+# 200 with a full-looking body, which would make a removed row look present.
+if is_catalogued "$DESK_ARROW_V1"; then
+	fail "the old stable-1.0 row is still catalogued after the update"
+fi
+ok "the old stable-1.0 row is gone from the catalog"
+assert_eq "false" "$(arrow_field "$DESK_ARROW_V2" '.data.outdated')" \
+	"the current row's outdated flag now that it is the only installed version"
 
 scenario_end
