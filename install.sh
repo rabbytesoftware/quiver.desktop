@@ -224,13 +224,73 @@ select_asset_url() {
 # select_checksums_url prints the URL of the release's checksum manifest, or
 # nothing when there is none.
 #
-# HONEST GAP: .github/workflows/stable-release.yml uploads the bundle files and
-# nothing else, so no release publishes a checksum manifest today and this
-# always prints nothing. The lookup is here so that publishing one later turns
-# verification on with no change to this script, and verify_checksum says out
-# loud when it found nothing rather than implying a check happened.
+# .github/workflows/stable-release.yml uploads the bundle files and nothing
+# else, so no release publishes a checksum manifest today and this prints
+# nothing. It stays because publishing one later turns this route on with no
+# change here, and because it is the only route for an asset that predates
+# GitHub recording digests of its own (see asset_digest, which is tried first
+# and is what actually verifies a release cut today).
 select_checksums_url() {
 	list_asset_urls | grep -Ei '/(checksums(\.txt)?|SHA256SUMS(\.txt)?)$' | head -n 1 || true
+}
+
+# asset_digest prints the bare sha256 hex GitHub recorded for the asset whose
+# download URL is $1, read from the release JSON on stdin, or nothing when
+# there is none.
+#
+# The releases API reports a "digest" per asset -- GitHub's own record of what
+# it stored, written as "sha256:<hex>". That needs no extra request and needs
+# nobody to have published a checksum manifest, which is why it is tried
+# first: it is what lets a quiver.desktop release verify at all, since this
+# repository's release workflow publishes no manifest.
+#
+# Parsed without jq for the same reason list_asset_urls is: jq is not installed
+# by default on any of the distributions this has to work on. The API pretty-
+# prints, so the document is flattened first and then reduced to just the two
+# fields that matter, in document order; awk pairs each browser_download_url
+# with the digest of the same asset and answers for the one URL asked about.
+#
+# Splitting the document on "{" would be shorter and is what an earlier draft
+# did, but an asset object contains a nested "uploader" object, so the split
+# cuts assets in half and only happens to work while the field order holds.
+# This does not care about field order, only that each asset carries both keys
+# -- which GitHub does, writing "digest":null for an asset it has no digest
+# for. That null is what resets the pairing, so an asset without a digest can
+# never inherit the previous asset's.
+#
+# A digest that is not sha256, or not 64 hex characters, prints nothing:
+# quiver.core's fetch step compares bare sha256 hex and nothing else, so
+# anything it could not use must read as "no digest" rather than as a checksum
+# that then fails to match for the wrong reason.
+asset_digest() {
+	local url digest hex
+	url=$1
+
+	digest=$(
+		tr -d '\n\r' |
+			grep -oE '"(digest|browser_download_url)"[[:space:]]*:[[:space:]]*("[^"]*"|null)' |
+			sed -e 's/"[[:space:]]*:[[:space:]]*/ /' -e 's/"//g' |
+			awk -v want="$url" '
+				$1 == "digest" { d = $2 }
+				$1 == "browser_download_url" { u = $2 }
+				(u != "" && d != "") {
+					if (u == want) { print d; exit }
+					u = ""; d = ""
+				}
+			'
+	)
+
+	case "$digest" in
+	sha256:*) hex=${digest#sha256:} ;;
+	*) return 0 ;;
+	esac
+
+	if [ "${#hex}" -ne 64 ]; then
+		return 0
+	fi
+	printf '%s' "$hex" | grep -qE '^[0-9a-fA-F]+$' || return 0
+
+	printf '%s\n' "$hex" | tr 'A-F' 'a-f'
 }
 
 # --- verification -----------------------------------------------------------
@@ -256,26 +316,40 @@ expected_sum() {
 	'
 }
 
-# verify_checksum checks the downloaded file $1 against the manifest at URL $2.
-# A missing manifest, or a manifest with no line for this file, is reported and
-# accepted: the download still came from GitHub over TLS. A digest that is
-# present and does not match is fatal, and takes the file with it.
+# verify_checksum checks the downloaded file $1 against the digest GitHub
+# recorded for it ($3, when there is one) or, failing that, the manifest at URL
+# $2. Nothing published anywhere, or a manifest with no line for this file, is
+# reported and accepted: the download still came from GitHub over TLS. A digest
+# that is present and does not match is fatal, and takes the file with it.
+#
+# Quiver's in-app Update button reads the same two sources in the same order
+# and then parts company deliberately: it REFUSES an asset it cannot verify,
+# because the fetch step it hands the checksum to cannot be told to skip
+# verification, and because refusing an update leaves a working app on screen
+# where refusing a first install would leave nothing. Same inputs, different
+# stakes.
 verify_checksum() {
-	local file sums_url name sums want got
+	local file sums_url digest name sums want got
 	file=$1
 	sums_url=$2
+	# Defaulted so a two-argument call is still legal under `set -u`: the
+	# digest is the newest of the three sources and the least surprising thing
+	# for a caller to leave off.
+	digest=${3:-}
 	name=$(basename "$file")
 
-	if [ -z "$sums_url" ]; then
-		warn "this release publishes no checksum manifest, so the download could not be verified beyond TLS"
+	if [ -n "$digest" ]; then
+		want=$digest
+	elif [ -z "$sums_url" ]; then
+		warn "this release publishes no checksum for ${name}, so the download could not be verified beyond TLS"
 		return 0
-	fi
-
-	sums=$(http_get "$sums_url")
-	want=$(expected_sum "$sums" "$name")
-	if [ -z "$want" ]; then
-		warn "the checksum manifest has no entry for ${name}; skipping verification"
-		return 0
+	else
+		sums=$(http_get "$sums_url")
+		want=$(expected_sum "$sums" "$name")
+		if [ -z "$want" ]; then
+			warn "the checksum manifest has no entry for ${name}; skipping verification"
+			return 0
+		fi
 	fi
 
 	got=$(sha256_of "$file")
@@ -371,7 +445,7 @@ main() {
 	need_cmd uname
 	need_cmd mktemp
 
-	local platform arch json url sums_url file
+	local platform arch json url sums_url digest file
 	platform=$(detect_platform)
 	arch=$(detect_arch)
 
@@ -385,6 +459,7 @@ main() {
 
 	url=$(printf '%s' "$json" | select_asset_url "$platform" "$arch")
 	sums_url=$(printf '%s' "$json" | select_checksums_url)
+	digest=$(printf '%s' "$json" | asset_digest "$url")
 
 	QUIVER_TMPDIR=$(mktemp -d)
 	trap cleanup EXIT
@@ -393,7 +468,7 @@ main() {
 	say "Downloading $(basename "$url")..."
 	http_download "$url" "$file" || err "download failed: ${url}"
 
-	verify_checksum "$file" "$sums_url"
+	verify_checksum "$file" "$sums_url" "$digest"
 
 	case "$platform" in
 	linux) install_linux "$file" ;;

@@ -47,13 +47,19 @@ Endpoints, matched on the Host header:
   api.github.com
     GET /repos/{user}/{repo}/releases/latest
     GET /repos/{user}/{repo}/releases/tags/{tag}
-        The releases API shape install.sh selects assets from.
+        The releases API shape install.sh selects assets from, and that the
+        app's own resolver (src-tauri/src/release/mod.rs) reads when the user
+        clicks Update on Quiver's own tile. Pretty-printed, with a nested
+        uploader object and a real per-asset "digest", because that is what
+        api.github.com sends -- and because the digest is the only checksum a
+        quiver.desktop release publishes, so the update verifies against it.
 
 Every request is logged as one line of JSON to the results directory, so a
 scenario can prove after the fact that a download really was served from here
 rather than skipped, cached or short-circuited.
 """
 
+import hashlib
 import http.server
 import json
 import os
@@ -92,6 +98,14 @@ def latest_tag(user, repo):
 
 def asset_path(user, repo, tag, asset):
     return STATE / "releases" / user / repo / tag / asset
+
+
+def sha256_of(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -212,11 +226,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     continue
                 assets.append({
                     "name": item.name,
+                    # Nested, exactly as the real document nests it. Not
+                    # decoration: install.sh parses this without jq, and a
+                    # nested object is what breaks a naive split on "{".
+                    "uploader": {"login": "github-actions[bot]", "type": "Bot"},
                     "size": item.stat().st_size,
+                    # GitHub's own record of what it stored, reported per asset
+                    # since 2025 and populated for everything uploaded since.
+                    # This is what quiver.desktop's Update button verifies
+                    # against: this repository's release workflow publishes no
+                    # checksum manifest, so without it there is nothing to
+                    # check and the app refuses the update rather than
+                    # installing something it cannot verify.
+                    "digest": "sha256:" + sha256_of(item),
                     "browser_download_url":
                         f"https://github.com/{user}/{repo}/releases/download/{tag}/{item.name}",
                 })
-        body = json.dumps({"tag_name": tag, "name": tag, "assets": assets}).encode()
+        # Pretty-printed, because api.github.com pretty-prints. A fixture that
+        # answered on one line would hide every line-oriented parsing bug the
+        # real document can provoke.
+        body = json.dumps(
+            {"tag_name": tag, "name": tag, "assets": assets}, indent=2
+        ).encode()
         self.send_bytes(200, body, "application/json")
 
     def route_github(self, method, parsed):

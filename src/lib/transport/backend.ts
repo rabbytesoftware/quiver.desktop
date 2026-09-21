@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import type { ConnectionConfig, ConnectionStatus } from '@/domain/connection';
+import type { ResolvedReleaseAsset } from '@/domain/release';
 
 import { QuiverWebSocket } from './quiver-socket';
 
@@ -35,6 +36,16 @@ export interface Backend {
 	 * `src-tauri/src/commands/build_info.rs`.
 	 */
 	getBuildTag(): Promise<string | null>;
+	/**
+	 * This app's own newest release asset, for the machine it is running on.
+	 *
+	 * Native-side for the same reason `getBuildTag` is: selecting an asset
+	 * needs the real OS and CPU architecture, and the webview cannot report
+	 * either honestly (`navigator.platform` answers `MacIntel` on Apple
+	 * Silicon). Rejects with a `ReleaseResolveError` -- see
+	 * `src-tauri/src/release/mod.rs`.
+	 */
+	resolveReleaseAsset(): Promise<ResolvedReleaseAsset>;
 	getConnections(): Promise<ConnectionsSnapshot>;
 	onCoreStatus(cb: (status: ConnectionStatus) => void): Promise<() => void>;
 	onConnectionsChanged(cb: (snapshot: ConnectionsSnapshot) => void): Promise<() => void>;
@@ -61,6 +72,10 @@ export const realBackend: Backend = {
 
 	getBuildTag() {
 		return invoke<string | null>('get_build_tag');
+	},
+
+	resolveReleaseAsset() {
+		return invoke<ResolvedReleaseAsset>('resolve_release_asset');
 	},
 
 	getConnections() {

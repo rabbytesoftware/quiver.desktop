@@ -3,6 +3,7 @@ pub mod connection;
 pub mod fdlimit;
 #[cfg(target_os = "macos")]
 pub mod menu;
+pub mod release;
 
 /// Serialises every test in this crate that opens a socket.
 ///
@@ -230,6 +231,7 @@ pub fn run() {
 		})
 		.invoke_handler(tauri::generate_handler![
 			commands::build_info::get_build_tag,
+			commands::release::resolve_release_asset,
 			commands::connection::get_connections,
 			commands::connection::check_remote_health,
 			commands::connection::add_connection,

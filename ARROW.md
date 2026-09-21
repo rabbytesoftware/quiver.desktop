@@ -104,12 +104,22 @@ variables:
   # does) and hands both values in. Same contract, same names, as
   # quiver.core's own self-manifest, so one resolver serves both self-arrows.
   #
-  # Both are declared without a default, which the engine reads as "required on
-  # every execution of this arrow", not just on the lifecycles that reference
-  # them (ResolveVariables validates the declared set, not the step list). A
-  # caller running uninstall therefore has to pass placeholders. That is the
-  # engine's rule rather than a choice made here, and quiver.core's self-arrow
-  # lives with the same one.
+  # Both are declared without a default, which the engine reads as "the caller
+  # must name this on every execution that reads it" -- scoped to the steps the
+  # method being run will actually expand, so uninstall, which expands only a
+  # defaulted path, needs neither and passes nothing. A previous execution's
+  # answer is not inherited either: layer 5 deliberately does not carry a
+  # no-default variable forward, so a bare re-update fails by name rather than
+  # quietly re-fetching the asset from the update before it.
+  #
+  # Inside the app, the caller is quiver.desktop itself: clicking Update (or
+  # Install) on Quiver's own tile resolves the asset through
+  # src-tauri/src/release/mod.rs first and sends both values with the request.
+  # The checksum is read from the releases API's own per-asset digest, falling
+  # back to a published checksum manifest; if a release publishes neither, the
+  # app says so and does not start the update, because a fetch step cannot be
+  # told to skip verification and would fail after the running app had already
+  # been killed.
   - name: "QUIVER_RELEASE_ASSET_URL"
     description: "Download URL for the resolved quiver.desktop release asset for this platform: the .AppImage on Linux, the .dmg on macOS, the NSIS *-setup.exe on Windows."
   - name: "QUIVER_RELEASE_CHECKSUM"

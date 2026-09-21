@@ -178,9 +178,144 @@ describe("install.sh: checksum handling", () => {
   });
 
   it("warns rather than pretending a download was verified", () => {
-    const r = sourced(`verify_checksum /dev/null ""`);
+    const r = sourced(`verify_checksum /dev/null "" ""`);
     expect(r.status).toBe(0);
-    expect(r.stderr).toMatch(/no checksum manifest/);
+    expect(r.stderr).toMatch(/could not be verified beyond TLS/);
+  });
+
+  // GitHub records a sha256 per asset on the releases API itself. That is
+  // what verifies a quiver.desktop download today: stable-release.yml
+  // publishes no checksum manifest, so without this there is nothing to check
+  // against at all.
+  it("reads the digest GitHub recorded for the asset it picked", () => {
+    const sum = "a".repeat(64);
+    const withDigest = JSON.stringify({
+      assets: [
+        {
+          name: "Quiver_0.1.0_amd64.AppImage",
+          browser_download_url: "https://example.invalid/a.AppImage",
+          digest: `sha256:${sum}`,
+        },
+        {
+          name: "Quiver_0.1.0_aarch64.AppImage",
+          browser_download_url: "https://example.invalid/b.AppImage",
+          digest: `sha256:${"b".repeat(64)}`,
+        },
+      ],
+    });
+    const r = sourced(`printf '%s' "$RELEASE_JSON" | asset_digest https://example.invalid/a.AppImage`, {
+      RELEASE_JSON: withDigest,
+    });
+    expect(r.stdout.trim()).toBe(sum);
+  });
+
+  it("reports no digest for an asset that predates GitHub recording one", () => {
+    const noDigest = JSON.stringify({
+      assets: [
+        {
+          name: "Quiver_0.1.0_amd64.AppImage",
+          browser_download_url: "https://example.invalid/a.AppImage",
+          digest: null,
+        },
+      ],
+    });
+    const r = sourced(`printf '%s' "$RELEASE_JSON" | asset_digest https://example.invalid/a.AppImage`, {
+      RELEASE_JSON: noDigest,
+    });
+    expect(r.stdout.trim()).toBe("");
+  });
+
+  // The real api.github.com PRETTY-PRINTS, and every asset object carries a
+  // nested "uploader" object. An earlier draft split the document on "{",
+  // which cuts an asset in half at that nested brace and only worked while
+  // the field order happened to cooperate. This is the real shape, pretty
+  // printed, with an asset that has no digest sitting between two that do --
+  // the arrangement that catches a pairing that slides by one.
+  it("reads the right digest out of the document shape GitHub actually sends", () => {
+    const uploader = { login: "github-actions[bot]", id: 41898282, type: "Bot" };
+    const realShape = JSON.stringify(
+      {
+        tag_name: "stable-26.5.1",
+        assets: [
+          {
+            name: "a.AppImage",
+            uploader,
+            content_type: "application/octet-stream",
+            size: 10,
+            digest: `sha256:${"1".repeat(64)}`,
+            browser_download_url: "https://example.invalid/a.AppImage",
+          },
+          {
+            name: "b.AppImage",
+            uploader,
+            content_type: "application/octet-stream",
+            size: 20,
+            digest: null,
+            browser_download_url: "https://example.invalid/b.AppImage",
+          },
+          {
+            name: "c.AppImage",
+            uploader,
+            content_type: "application/octet-stream",
+            size: 30,
+            digest: `sha256:${"3".repeat(64)}`,
+            browser_download_url: "https://example.invalid/c.AppImage",
+          },
+        ],
+      },
+      null,
+      2
+    );
+
+    const digestOf = (url) =>
+      sourced(`printf '%s' "$RELEASE_JSON" | asset_digest ${url}`, { RELEASE_JSON: realShape }).stdout.trim();
+
+    expect(digestOf("https://example.invalid/a.AppImage")).toBe("1".repeat(64));
+    // Must be empty, not a.AppImage's digest slid forward by one.
+    expect(digestOf("https://example.invalid/b.AppImage")).toBe("");
+    expect(digestOf("https://example.invalid/c.AppImage")).toBe("3".repeat(64));
+  });
+
+  it("ignores a digest under an algorithm the fetch step cannot check", () => {
+    const sha512 = JSON.stringify({
+      assets: [
+        {
+          name: "Quiver_0.1.0_amd64.AppImage",
+          browser_download_url: "https://example.invalid/a.AppImage",
+          digest: "sha512:" + "c".repeat(128),
+        },
+      ],
+    });
+    const r = sourced(`printf '%s' "$RELEASE_JSON" | asset_digest https://example.invalid/a.AppImage`, {
+      RELEASE_JSON: sha512,
+    });
+    expect(r.stdout.trim()).toBe("");
+  });
+
+  it("verifies against the digest without reading any manifest", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "quiver-digest-test-"));
+    const file = path.join(dir, "Quiver.AppImage");
+    writeFileSync(file, "payload\n");
+    const digest = createHash("sha256").update(readFileSync(file)).digest("hex");
+
+    // An empty manifest URL: if the digest were not being used, this would
+    // warn instead of verifying.
+    const r = sourced(`verify_checksum "$FILE" "" "$DIGEST"`, { FILE: file, DIGEST: digest });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toMatch(/Checksum verified/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("refuses a file whose digest does not match, and removes it", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "quiver-digest-test-"));
+    const file = path.join(dir, "Quiver.AppImage");
+    writeFileSync(file, "payload\n");
+
+    const r = sourced(`verify_checksum "$FILE" "" "$DIGEST"`, { FILE: file, DIGEST: "0".repeat(64) });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/checksum mismatch/);
+    expect(existsSync(file)).toBe(false);
+    rmSync(dir, { recursive: true, force: true });
   });
 });
 
@@ -352,7 +487,41 @@ http_download() { cp "$FIXTURE_ASSET" "$2"; }
     });
 
     expect(r.status).toBe(0);
-    expect(r.stderr).toMatch(/no checksum manifest/);
+    expect(r.stderr).toMatch(/could not be verified beyond TLS/);
+    expect(existsSync(path.join(home, ".local/share/Quiver/Quiver.AppImage"))).toBe(true);
+    rmSync(f.dir, { recursive: true, force: true });
+  });
+
+  // The path a real release takes today: no manifest, but a digest on the
+  // asset itself, and no request for a manifest that is not there.
+  it("verifies off the asset digest when the release publishes no manifest", () => {
+    const f = fixtures("this is not really an AppImage\n");
+    const digest = createHash("sha256").update(readFileSync(f.asset)).digest("hex");
+    writeFileSync(
+      f.json,
+      JSON.stringify({
+        assets: [
+          {
+            name: "Quiver_0.1.0_amd64.AppImage",
+            browser_download_url: "https://example.invalid/Quiver_0.1.0_amd64.AppImage",
+            digest: `sha256:${digest}`,
+          },
+        ],
+      })
+    );
+    const home = path.join(f.dir, "home");
+
+    const r = sourced(`${stubs}\nmain`, {
+      HOME: home,
+      XDG_DATA_HOME: "",
+      FIXTURE_JSON: f.json,
+      FIXTURE_SUMS: f.sums,
+      FIXTURE_ASSET: f.asset,
+    });
+
+    expect(r.stderr).toMatch(/Checksum verified/);
+    expect(r.stderr).not.toMatch(/could not be verified/);
+    expect(r.status).toBe(0);
     expect(existsSync(path.join(home, ".local/share/Quiver/Quiver.AppImage"))).toBe(true);
     rmSync(f.dir, { recursive: true, force: true });
   });

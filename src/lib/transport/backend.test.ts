@@ -33,6 +33,7 @@ function stubBackend(over: Partial<Backend> = {}): Backend {
 		fetch: vi.fn().mockResolvedValue(new Response('{}')),
 		openSocket: vi.fn(stubSocket),
 		getBuildTag: vi.fn().mockResolvedValue(null),
+		resolveReleaseAsset: vi.fn().mockRejectedValue({ kind: 'offline', detail: 'stub' }),
 		getConnections: vi.fn().mockResolvedValue({ connections: [], active_id: 'stub' }),
 		onCoreStatus: vi.fn().mockResolvedValue(() => {}),
 		onConnectionsChanged: vi.fn().mockResolvedValue(() => {}),
@@ -111,6 +112,33 @@ describe('realBackend.getBuildTag', () => {
 		mockInvoke.mockRejectedValue(new Error('command get_build_tag not found'));
 
 		await expect(realBackend.getBuildTag()).rejects.toThrow(/get_build_tag/);
+	});
+});
+
+describe('realBackend.resolveReleaseAsset', () => {
+	it('hands back the asset the native side resolved, untouched', async () => {
+		const asset = {
+			tag: 'stable-26.9',
+			name: 'quiver-desktop_0.1.0_amd64.AppImage',
+			url: 'https://github.com/rabbytesoftware/quiver.desktop/releases/download/stable-26.9/quiver-desktop_0.1.0_amd64.AppImage',
+			checksum: 'a'.repeat(64),
+		};
+		mockInvoke.mockResolvedValue(asset);
+
+		await expect(realBackend.resolveReleaseAsset()).resolves.toEqual(asset);
+		expect(mockInvoke).toHaveBeenCalledWith('resolve_release_asset');
+	});
+
+	// The typed failure is the whole point of the command returning a
+	// `Result`: the caller branches on `kind` to pick a sentence, so this
+	// layer must pass it through rather than flattening it into an Error.
+	it('passes the native side’s typed failure through as it arrived', async () => {
+		mockInvoke.mockRejectedValue({ kind: 'rate_limited', detail: 'GitHub answered 403' });
+
+		await expect(realBackend.resolveReleaseAsset()).rejects.toEqual({
+			kind: 'rate_limited',
+			detail: 'GitHub answered 403',
+		});
 	});
 });
 

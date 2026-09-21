@@ -92,13 +92,44 @@ function Select-QuiverAssetUrl {
 
 <#
 .SYNOPSIS
+    Reads the sha256 GitHub recorded for an asset, or $null when it has none.
+.DESCRIPTION
+    The releases API reports a "digest" per asset -- GitHub's own record of
+    what it stored, written as "sha256:<hex>". It needs no extra request and
+    needs nobody to have published a checksum manifest, which is why the
+    caller tries it first: it is what lets a quiver.desktop release verify at
+    all, since this repository's release workflow publishes no manifest.
+
+    An asset from before GitHub recorded digests carries $null here, which is
+    what the manifest lookup below is still for. Anything that is not a
+    64-character sha256 hex is discarded rather than passed on as something
+    that would then fail to match for the wrong reason.
+#>
+function Get-QuiverAssetDigest {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)] $Release,
+        [Parameter(Mandatory = $true)] [string] $AssetUrl
+    )
+
+    $asset = @($Release.assets | Where-Object { $_.browser_download_url -eq $AssetUrl })
+    if ($asset.Count -eq 0) { return $null }
+
+    $digest = $asset[0].digest
+    if ([string]::IsNullOrWhiteSpace($digest)) { return $null }
+    if ($digest -notmatch '^sha256:([0-9a-fA-F]{64})$') { return $null }
+    return $Matches[1].ToLowerInvariant()
+}
+
+<#
+.SYNOPSIS
     Finds the release's checksum manifest, or returns $null when there is none.
 .DESCRIPTION
-    HONEST GAP: .github/workflows/stable-release.yml uploads the bundle files
-    and nothing else, so no release publishes a checksum manifest today and
-    this always returns $null. The lookup is here so that publishing one later
-    turns verification on with no change to this script, and the caller says
-    out loud when it found nothing rather than implying a check happened.
+    .github/workflows/stable-release.yml uploads the bundle files and nothing
+    else, so no release publishes a checksum manifest today and this returns
+    $null. It stays because publishing one later turns this route on with no
+    change here, and because it is the only route for an asset that predates
+    GitHub recording digests of its own.
 #>
 function Select-QuiverChecksumsUrl {
     [CmdletBinding()]
@@ -200,23 +231,35 @@ function Install-QuiverDesktop {
             throw "Download failed ($assetUrl): $($_.Exception.Message)"
         }
 
-        $checksumsUrl = Select-QuiverChecksumsUrl -Release $release
-        if ($null -eq $checksumsUrl) {
-            Write-Warning "This release publishes no checksum manifest, so the download could not be verified beyond TLS."
-        }
-        else {
-            $manifest = (Invoke-WebRequest -Uri $checksumsUrl -UseBasicParsing).Content
-            $expected = Get-QuiverExpectedSum -Manifest $manifest -FileName $fileName
-            if ($null -eq $expected) {
-                Write-Warning "The checksum manifest has no entry for $fileName; skipping verification."
+        # GitHub's own digest first, a published manifest second. Nothing
+        # published anywhere is reported and accepted: the download still came
+        # from GitHub over TLS, and refusing here would leave the user with no
+        # app at all. Quiver's in-app Update button reads the same two sources
+        # in the same order and then REFUSES what it cannot verify, because a
+        # fetch step cannot be told to skip verification and because refusing
+        # an update leaves a working app on screen. Same inputs, different
+        # stakes.
+        $expected = Get-QuiverAssetDigest -Release $release -AssetUrl $assetUrl
+        if ($null -eq $expected) {
+            $checksumsUrl = Select-QuiverChecksumsUrl -Release $release
+            if ($null -eq $checksumsUrl) {
+                Write-Warning "This release publishes no checksum for $fileName, so the download could not be verified beyond TLS."
             }
             else {
-                $actual = (Get-FileHash -Path $installer -Algorithm SHA256).Hash
-                if ($actual -ne $expected.ToUpperInvariant()) {
-                    throw "Checksum mismatch for ${fileName}: expected $expected, got $actual"
+                $manifest = (Invoke-WebRequest -Uri $checksumsUrl -UseBasicParsing).Content
+                $expected = Get-QuiverExpectedSum -Manifest $manifest -FileName $fileName
+                if ($null -eq $expected) {
+                    Write-Warning "The checksum manifest has no entry for $fileName; skipping verification."
                 }
-                Write-Host "Checksum verified."
             }
+        }
+
+        if ($null -ne $expected) {
+            $actual = (Get-FileHash -Path $installer -Algorithm SHA256).Hash
+            if ($actual -ne $expected.ToUpperInvariant()) {
+                throw "Checksum mismatch for ${fileName}: expected $expected, got $actual"
+            }
+            Write-Host "Checksum verified."
         }
 
         Write-Host "Running the installer..."

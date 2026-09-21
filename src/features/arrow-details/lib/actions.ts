@@ -1,5 +1,6 @@
 import type { ArrowDetail, ArrowStepDefinition } from '@/domain/arrow';
 import { targetForPlatform } from '@/domain/arrow';
+import { isSelfArrow, RELEASE_VARIABLE_NAMES } from '@/features/arrow-details/lib/release-variables';
 import type { MessageKey } from '@/lib/i18n';
 
 /**
@@ -49,8 +50,21 @@ export interface ArrowAction {
 	forceDisabled: boolean;
 }
 
+/**
+ * The variables this arrow's configure form should ask for.
+ *
+ * Every declared variable, except on Quiver's own row: there,
+ * `QUIVER_RELEASE_ASSET_URL` and `QUIVER_RELEASE_CHECKSUM` are resolved from
+ * the releases API at the moment the button is clicked (see
+ * `release-variables.ts`), so asking a person to paste a download URL and a
+ * sha256 into a form would be asking for something the app is about to
+ * overwrite. They stay editable in the Settings panel, which is a generic
+ * view of an arrow's variables and does not claim to be part of an action.
+ */
 function allVariableNames(detail: ArrowDetail): string[] {
-	return detail.variables.map((v) => v.name);
+	const names = detail.variables.map((v) => v.name);
+	if (!isSelfArrow(detail.namespace)) return names;
+	return names.filter((name) => !RELEASE_VARIABLE_NAMES.includes(name));
 }
 
 /**

@@ -207,6 +207,20 @@ export const en = {
 	'arrow.action.reinstall': 'Reinstall',
 	'arrow.action.info': 'What this does',
 
+	// Resolving Quiver's own release asset, which happens the moment Update or
+	// Install is clicked on Quiver's own tile. Every one of these says what
+	// went wrong and what the person can do, and none of them names a URL, an
+	// HTTP status or a checksum -- the wire text goes in the dialog body.
+	'arrow.release.title': "Couldn't start the update",
+	'arrow.release.offline': "Quiver couldn't reach GitHub to find the download. Check your connection and try again.",
+	'arrow.release.rateLimited': 'GitHub is temporarily refusing requests from this network. Try again in an hour.',
+	'arrow.release.noRelease': 'There is no published Quiver release to download yet.',
+	'arrow.release.noAsset': "The latest Quiver release doesn't include a download for this computer.",
+	'arrow.release.unsupportedPlatform': 'Quiver does not publish a download for this kind of computer.',
+	'arrow.release.unverifiable':
+		"The latest Quiver release doesn't publish a checksum, so the download can't be verified. Quiver won't replace itself with a file it can't check.",
+	'arrow.release.unavailable': "Quiver couldn't work out which file to download. Try again later.",
+
 	'arrow.problem.label': 'Issue',
 	'arrow.problem.detachedNote':
 		'Quiver lost track of this process. It may still be running outside Quiver’s supervision — use Stop if you want to kill it.',

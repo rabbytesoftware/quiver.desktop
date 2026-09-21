@@ -3,11 +3,15 @@ import { createElement } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
 
 import { runStep, signalStep } from '@/__mocks__/arrow-steps';
 import type { ArrowDetail, ArrowLifecycle, ArrowTarget } from '@/domain/arrow';
+import type { ResolvedReleaseAsset } from '@/domain/release';
+import { QUIVER_DESKTOP_NAMESPACE } from '@/domain/release';
 import { apiFetch } from '@/lib/transport/api';
+import type { Backend } from '@/lib/transport/backend';
+import { installBackend, resetBackend } from '@/lib/transport/backend';
 
 import { Hero } from './hero';
 
@@ -85,9 +89,53 @@ function renderHero(props: Partial<React.ComponentProps<typeof Hero>> = {}) {
 	return { onValueChange, onVersionChange };
 }
 
+/** The last `apiFetch` call, so a test can read what was actually sent. */
+function lastCall(): [string, RequestInit] {
+	const calls = mockApiFetch.mock.calls;
+	return calls[calls.length - 1] as unknown as [string, RequestInit];
+}
+
+function bodyOf([, init]: [string, RequestInit]): unknown {
+	return JSON.parse(String(init.body));
+}
+
+/** Quiver's own row, at the ref an update would be started FROM. */
+function selfDetail(overrides: Partial<ArrowDetail> = {}): ArrowDetail {
+	return detail({
+		namespace: `${QUIVER_DESKTOP_NAMESPACE}@stable-1.0`,
+		name: 'Quiver',
+		variables: [
+			{ name: 'QUIVER_RELEASE_ASSET_URL', description: 'Download URL.', type: 'string', default: '' },
+			{ name: 'QUIVER_RELEASE_CHECKSUM', description: 'SHA-256.', type: 'string', default: '' },
+		],
+		installed_ref: 'stable-1.0',
+		versions: [{ ref: 'stable-1.0', version: '1.0', state: 'ready' }],
+		...overrides,
+	});
+}
+
+const RESOLVED: ResolvedReleaseAsset = {
+	tag: 'stable-1.1',
+	name: 'quiver-desktop_0.1.0_amd64.AppImage',
+	url: 'https://github.com/rabbytesoftware/quiver.desktop/releases/download/stable-1.1/quiver-desktop_0.1.0_amd64.AppImage',
+	checksum: 'c'.repeat(64),
+};
+
+/** Stands in for the native resolver behind `backend()`. */
+function resolverAnswering(result: ResolvedReleaseAsset | { reject: unknown }) {
+	const resolveReleaseAsset =
+		'reject' in result ? vi.fn().mockRejectedValue(result.reject) : vi.fn().mockResolvedValue(result);
+	installBackend({ resolveReleaseAsset } as unknown as Backend);
+	return resolveReleaseAsset;
+}
+
 beforeEach(() => {
 	mockApiFetch.mockReset();
 	mockApiFetch.mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+	resetBackend();
 });
 
 describe('Hero', () => {
@@ -365,6 +413,18 @@ describe('Hero', () => {
 		);
 	});
 
+	it('sends no release variables when updating an ordinary arrow', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ state: 'outdated' }) });
+
+		await user.click(screen.getByRole('button', { name: 'Update' }));
+		await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+		// core requires only the variables the method's own steps expand, and
+		// a third-party arrow's update expands none of Quiver's. Sending them
+		// anyway would be handing an unrelated arrow this app's download URL.
+		expect(bodyOf(lastCall())).toEqual({ variables: {} });
+	});
+
 	it('invokes stop when Stop is clicked', async () => {
 		const user = userEvent.setup();
 		renderHero({ detail: detail({ state: 'running' }) });
@@ -474,5 +534,182 @@ describe('Hero', () => {
 		await user.click(screen.getByRole('combobox', { name: 'Version' }));
 		await user.click(await screen.findByRole('option', { name: 'v1.20.1' }));
 		expect(onVersionChange).toHaveBeenCalledWith('v1.20.1');
+	});
+});
+
+/**
+ * Quiver updating itself, driven the way a person drives it: by clicking the
+ * button on Quiver's own tile.
+ *
+ * `ARROW.md`'s update lifecycle fetches `${QUIVER_RELEASE_ASSET_URL}` and
+ * verifies `${QUIVER_RELEASE_CHECKSUM}`, neither of which has a default, so
+ * core rejects the execution outright unless the caller resolves both. This
+ * suite is the proof that the real button does.
+ */
+describe('Hero, updating Quiver itself', () => {
+	it('resolves the release asset and sends both variables core requires', async () => {
+		const user = userEvent.setup();
+		const resolve = resolverAnswering(RESOLVED);
+		renderHero({ detail: selfDetail({ state: 'outdated' }) });
+
+		await user.click(screen.getByRole('button', { name: 'Update' }));
+
+		await waitFor(() =>
+			expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/update'), expect.anything())
+		);
+		expect(resolve).toHaveBeenCalledTimes(1);
+		expect(bodyOf(lastCall())).toEqual({
+			variables: {
+				QUIVER_RELEASE_ASSET_URL: RESOLVED.url,
+				QUIVER_RELEASE_CHECKSUM: RESOLVED.checksum,
+			},
+		});
+	});
+
+	// The ref the row sits at is the one being updated FROM. The asset has to
+	// come from the newest release, not from this ref -- which is exactly why
+	// it cannot be templated inside the manifest.
+	it('sends the asset of the release being updated TO, not of the installed ref', async () => {
+		const user = userEvent.setup();
+		resolverAnswering(RESOLVED);
+		renderHero({ detail: selfDetail({ state: 'outdated' }) });
+
+		await user.click(screen.getByRole('button', { name: 'Update' }));
+
+		await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+		const body = bodyOf(lastCall()) as { variables: Record<string, string> };
+		expect(body.variables.QUIVER_RELEASE_ASSET_URL).toContain('stable-1.1');
+		expect(body.variables.QUIVER_RELEASE_ASSET_URL).not.toContain('stable-1.0');
+	});
+
+	// THE STALE-VALUE GUARD at the click site: a second update must resolve
+	// again rather than ride on whatever the first one left behind, in this
+	// component or inside core.
+	it('re-resolves on a second click rather than reusing the first answer', async () => {
+		const user = userEvent.setup();
+		const resolve = resolverAnswering(RESOLVED);
+		renderHero({ detail: selfDetail({ state: 'outdated' }) });
+
+		await user.click(screen.getByRole('button', { name: 'Update' }));
+		await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+		await user.click(screen.getByRole('button', { name: 'Update' }));
+		await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(2));
+
+		expect(resolve).toHaveBeenCalledTimes(2);
+	});
+
+	it('resolves for install too, which is the same fetch step', async () => {
+		const user = userEvent.setup();
+		const resolve = resolverAnswering(RESOLVED);
+		renderHero({ detail: selfDetail({ state: 'absent' }) });
+
+		await user.click(screen.getByRole('button', { name: 'Install' }));
+
+		await waitFor(() =>
+			expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/install'), expect.anything())
+		);
+		expect(resolve).toHaveBeenCalledTimes(1);
+		expect(bodyOf(lastCall())).toEqual({
+			variables: {
+				QUIVER_RELEASE_ASSET_URL: RESOLVED.url,
+				QUIVER_RELEASE_CHECKSUM: RESOLVED.checksum,
+			},
+		});
+	});
+
+	// uninstall's steps expand nothing but a defaulted path, so core requires
+	// nothing -- and resolving would put a pointless network request in front
+	// of removing an app the user may be removing BECAUSE they are offline.
+	it('does not reach for the network to uninstall', async () => {
+		const user = userEvent.setup();
+		const resolve = resolverAnswering(RESOLVED);
+		renderHero({ detail: selfDetail({ state: 'ready' }) });
+
+		await user.click(screen.getByRole('button', { name: 'Uninstall' }));
+
+		await waitFor(() =>
+			expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/uninstall'), expect.anything())
+		);
+		expect(resolve).not.toHaveBeenCalled();
+	});
+
+	describe('when the asset cannot be resolved', () => {
+		it('does not start an execution that core would refuse', async () => {
+			const user = userEvent.setup();
+			resolverAnswering({ reject: { kind: 'offline', detail: 'dns error' } });
+			renderHero({ detail: selfDetail({ state: 'outdated' }) });
+
+			await user.click(screen.getByRole('button', { name: 'Update' }));
+
+			await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+			expect(apiFetch).not.toHaveBeenCalled();
+		});
+
+		it('says so in plain words, with the technical text underneath', async () => {
+			const user = userEvent.setup();
+			resolverAnswering({ reject: { kind: 'offline', detail: 'dns error: api.github.com' } });
+			renderHero({ detail: selfDetail({ state: 'outdated' }) });
+
+			await user.click(screen.getByRole('button', { name: 'Update' }));
+
+			expect(await screen.findByText(/Check your connection and try again/)).toBeInTheDocument();
+			expect(screen.getByText(/dns error: api\.github\.com/)).toBeInTheDocument();
+		});
+
+		it('tells a rate-limited user to wait rather than blaming their connection', async () => {
+			const user = userEvent.setup();
+			resolverAnswering({ reject: { kind: 'rate_limited', detail: 'GitHub answered 403' } });
+			renderHero({ detail: selfDetail({ state: 'outdated' }) });
+
+			await user.click(screen.getByRole('button', { name: 'Update' }));
+
+			expect(await screen.findByText(/Try again in an hour/)).toBeInTheDocument();
+		});
+
+		it('names the real problem when this release has no bundle for this machine', async () => {
+			const user = userEvent.setup();
+			resolverAnswering({ reject: { kind: 'no_asset', detail: 'no *.AppImage asset' } });
+			renderHero({ detail: selfDetail({ state: 'outdated' }) });
+
+			await user.click(screen.getByRole('button', { name: 'Update' }));
+
+			expect(await screen.findByText(/doesn't include a download for this computer/)).toBeInTheDocument();
+		});
+
+		// The policy, at the surface a person actually sees: an unverifiable
+		// asset stops the update rather than being installed with a warning.
+		it('refuses an unverifiable download and explains why', async () => {
+			const user = userEvent.setup();
+			resolverAnswering({ ...RESOLVED, checksum: null });
+			renderHero({ detail: selfDetail({ state: 'outdated' }) });
+
+			await user.click(screen.getByRole('button', { name: 'Update' }));
+
+			expect(await screen.findByText(/can't be verified/)).toBeInTheDocument();
+			expect(apiFetch).not.toHaveBeenCalled();
+		});
+
+		// A failed resolution must not leave the button spinning forever: the
+		// user has to be able to try again once they are back online.
+		it('lets the user try again', async () => {
+			const user = userEvent.setup();
+			const resolve = vi
+				.fn()
+				.mockRejectedValueOnce({ kind: 'offline', detail: 'dns error' })
+				.mockResolvedValueOnce(RESOLVED);
+			installBackend({ resolveReleaseAsset: resolve } as unknown as Backend);
+			renderHero({ detail: selfDetail({ state: 'outdated' }) });
+
+			await user.click(screen.getByRole('button', { name: 'Update' }));
+			expect(await screen.findByRole('dialog')).toBeInTheDocument();
+
+			await user.keyboard('{Escape}');
+			await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+			await user.click(screen.getByRole('button', { name: 'Update' }));
+			await waitFor(() =>
+				expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/update'), expect.anything())
+			);
+		});
 	});
 });

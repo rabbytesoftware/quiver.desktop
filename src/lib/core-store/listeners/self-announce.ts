@@ -1,7 +1,6 @@
+import { QUIVER_DESKTOP_NAMESPACE } from '@/domain/release';
 import { apiFetch } from '@/lib/transport/api';
 import { backend } from '@/lib/transport/backend';
-
-const SELF_NAMESPACE = 'github.com/rabbytesoftware/quiver.desktop';
 
 /**
  * Announces quiver.desktop to the connected daemon on every successful
@@ -72,7 +71,7 @@ export async function announceSelf(): Promise<void> {
 /** This app's namespace, at its build tag when it has one. */
 async function selfNamespace(): Promise<string> {
 	const tag = await buildTag();
-	return tag ? `${SELF_NAMESPACE}@${tag}` : SELF_NAMESPACE;
+	return tag ? `${QUIVER_DESKTOP_NAMESPACE}@${tag}` : QUIVER_DESKTOP_NAMESPACE;
 }
 
 /**
