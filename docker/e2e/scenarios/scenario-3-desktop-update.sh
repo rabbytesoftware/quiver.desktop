@@ -277,37 +277,6 @@ say "C. The daemon running the update must survive losing its log reader"
 assert_daemon_count 1
 assert_daemon_alive "right after the app it belongs to was killed"
 
-say "C. The update lifecycle itself must have run to completion"
-# The runtime aggregate carries the whole execution: every step, and the
-# outcome. This is the real "core executed desktop's update" assertion --
-# stronger than any state name, because it names the four steps that ran.
-UPDATE_RETURN="$(api_body GET "/v0/runtime/$(ns_enc "$DESK_ARROW_V1")" | jq -c '.data.last_return')"
-printf '%s\n' "$UPDATE_RETURN" | jq '.' >"$SCENARIO_DIR/update-execution.json"
-assert_eq "_update" "$(printf '%s' "$UPDATE_RETURN" | jq -r '.method')" \
-	"the lifecycle method that ran"
-assert_eq "success" "$(printf '%s' "$UPDATE_RETURN" | jq -r '.outcome')" \
-	"the update execution's outcome"
-assert_eq "completed,completed,completed,completed" \
-	"$(printf '%s' "$UPDATE_RETURN" | jq -r '[.steps[].status] | join(",")')" \
-	"every update step's status (fetch, stop, install, relaunch)"
-
-# WHAT THE BUTTON ACTUALLY SENT. The execution's own recorded variables, read
-# back off the runtime aggregate: nothing in this harness put them there.
-# They can only have come from the app resolving its own release against the
-# releases API at the moment the pointer went down, which is the claim the
-# whole click is here to make.
-assert_eq "$DESK_URL" \
-	"$(printf '%s' "$UPDATE_RETURN" | jq -r '.variables.QUIVER_RELEASE_ASSET_URL')" \
-	"the asset URL the app resolved and sent"
-assert_eq "$DESK_SUM_V2" \
-	"$(printf '%s' "$UPDATE_RETURN" | jq -r '.variables.QUIVER_RELEASE_CHECKSUM')" \
-	"the checksum the app read off the releases API's own per-asset digest"
-# And it is the NEW release, not the one the row sits at -- the distinction
-# that makes a caller-side resolver necessary in the first place.
-assert_ne "$DESK_SUM_V1" \
-	"$(printf '%s' "$UPDATE_RETURN" | jq -r '.variables.QUIVER_RELEASE_CHECKSUM')" \
-	"the checksum the app sent (must not be the installed version's)"
-
 assert_eq "$DESK_SUM_V2" "$(sha256_of "$INSTALL_PATH")" \
 	"the installed file's sha256 after the update"
 
@@ -385,5 +354,42 @@ fi
 ok "the old stable-1.0 row is gone from the catalog"
 assert_eq "false" "$(arrow_field "$DESK_ARROW_V2" '.data.outdated')" \
 	"the current row's outdated flag now that it is the only installed version"
+
+say "C. The update lifecycle itself must have run to completion"
+# The runtime aggregate carries the whole execution: every step, and the
+# outcome. This is the real "core executed desktop's update" assertion --
+# stronger than any state name, because it names the four steps that ran.
+#
+# Read off the NEW row (stable-1.1), not the old one: the old row's own
+# runtime aggregate is gone by now, removed as part of the same swap that put
+# this execution's outcome here in the first place (onArrowUpgraded carries
+# LastReturn through MarkReady precisely so this detail survives the swap;
+# see usecases/runtime.go).
+UPDATE_RETURN="$(api_body GET "/v0/runtime/$(ns_enc "$DESK_ARROW_V2")" | jq -c '.data.last_return')"
+printf '%s\n' "$UPDATE_RETURN" | jq '.' >"$SCENARIO_DIR/update-execution.json"
+assert_eq "_update" "$(printf '%s' "$UPDATE_RETURN" | jq -r '.method')" \
+	"the lifecycle method that ran"
+assert_eq "success" "$(printf '%s' "$UPDATE_RETURN" | jq -r '.outcome')" \
+	"the update execution's outcome"
+assert_eq "completed,completed,completed,completed" \
+	"$(printf '%s' "$UPDATE_RETURN" | jq -r '[.steps[].status] | join(",")')" \
+	"every update step's status (fetch, stop, install, relaunch)"
+
+# WHAT THE BUTTON ACTUALLY SENT. The execution's own recorded variables, read
+# back off the runtime aggregate: nothing in this harness put them there.
+# They can only have come from the app resolving its own release against the
+# releases API at the moment the pointer went down, which is the claim the
+# whole click is here to make.
+assert_eq "$DESK_URL" \
+	"$(printf '%s' "$UPDATE_RETURN" | jq -r '.variables.QUIVER_RELEASE_ASSET_URL')" \
+	"the asset URL the app resolved and sent"
+assert_eq "$DESK_SUM_V2" \
+	"$(printf '%s' "$UPDATE_RETURN" | jq -r '.variables.QUIVER_RELEASE_CHECKSUM')" \
+	"the checksum the app read off the releases API's own per-asset digest"
+# And it is the NEW release, not the one the row sits at -- the distinction
+# that makes a caller-side resolver necessary in the first place.
+assert_ne "$DESK_SUM_V1" \
+	"$(printf '%s' "$UPDATE_RETURN" | jq -r '.variables.QUIVER_RELEASE_CHECKSUM')" \
+	"the checksum the app sent (must not be the installed version's)"
 
 scenario_end
