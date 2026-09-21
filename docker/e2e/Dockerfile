@@ -7,6 +7,11 @@
 # Base: ubuntu:24.04, matching GitHub Actions' ubuntu-latest so apt package
 # versions (webkit2gtk-4.1, etc.) line up with what both repos' own CI
 # already proves builds.
+#
+# The build context is THIS directory, not the repo root. The repo itself is
+# bind-mounted at run time (see docker-compose.yml), and a repo-root context
+# would hand the daemon a 5 GB tarball (node_modules + src-tauri/target) on
+# every image build for the sake of one shell script.
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -23,16 +28,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     x11vnc \
     x11-utils \
+    x11-xserver-utils \
+    xauth \
     xdotool \
     wmctrl \
     scrot \
     dbus-x11 \
     python3-websockify \
+    fonts-dejavu-core \
+    fonts-liberation \
     git \
     curl \
     wget \
     unzip \
     jq \
+    procps \
+    psmisc \
+    lsof \
+    openssl \
+    python3 \
+    python3-venv \
     ca-certificates \
     sudo \
     && rm -rf /var/lib/apt/lists/*
@@ -72,9 +87,21 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 
+# webkit2gtk's own sandbox needs privileges a default container does not have,
+# and its GPU/DMA-BUF paths need a GPU a container does not have either. Set
+# here rather than per-scenario so every process that ever launches the app --
+# a scenario driver, an arrow's own relaunch step, a human poking around over
+# VNC -- gets identical treatment.
+ENV WEBKIT_DISABLE_COMPOSITING_MODE=1 \
+    WEBKIT_DISABLE_DMABUF_RENDERER=1 \
+    WEBKIT_FORCE_SANDBOX=0 \
+    GDK_BACKEND=x11 \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    NO_AT_BRIDGE=1
+
 WORKDIR /workspace
 
-COPY docker/e2e/start.sh /usr/local/bin/start.sh
+COPY start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 
 EXPOSE 6080

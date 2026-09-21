@@ -1,0 +1,5 @@
+# What a run leaves behind: logs, API snapshots, screenshots. Kept on the host
+# so a run can be inspected afterwards, never committed -- they are evidence
+# from one machine at one moment, not source.
+*
+!.gitignore

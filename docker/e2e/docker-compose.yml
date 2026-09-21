@@ -1,14 +1,15 @@
 # E2E verification box for the 3 hard core<->desktop install/update/sideload
 # scenarios. Bring up with:
-#   docker compose -f docker/e2e/docker-compose.yml run --rm e2e ./scenarios/run-all.sh
+#   docker compose -f docker/e2e/docker-compose.yml run --rm e2e scenarios/run-all.sh
 # or, to just poke around with a real desktop visible in a browser:
 #   docker compose -f docker/e2e/docker-compose.yml up --build
 # then open http://localhost:6080/vnc.html
 services:
   e2e:
     build:
-      context: ../..
-      dockerfile: docker/e2e/Dockerfile
+      # This directory, not the repo root: see the Dockerfile's own header.
+      context: .
+      dockerfile: Dockerfile
     image: quiver-e2e:latest
     ports:
       - "127.0.0.1:6080:6080"
@@ -19,11 +20,28 @@ services:
       # on the host at the path the sibling-repo dev convention already uses
       # (see quiver.desktop's own Makefile QUIVER_CORE_DEV_PATH).
       - ${QUIVER_CORE_DEV_PATH:-../../../quiver.core-self-update}:/workspace/quiver.core
+      # Everything a run produces, on the host, surviving the container.
+      - ./results:/workspace/results
+      # Build outputs live in named volumes rather than in the bind mounts:
+      # the host checkouts are macOS ones, and a Linux target/ or bin/ written
+      # into them would collide with (and be collided with by) whatever the
+      # host's own toolchain has already built there.
       - quiver-e2e-cargo:/usr/local/cargo/registry
       - quiver-e2e-go:/root/go/pkg/mod
+      - quiver-e2e-gocache:/root/.cache/go-build
+      - quiver-e2e-target:/workspace/build
     shm_size: "1gb"
-    working_dir: /workspace/quiver.desktop
+    # webkit2gtk's own bubblewrap sandbox cannot start under the default
+    # seccomp profile; WEBKIT_FORCE_SANDBOX=0 (see the Dockerfile) covers the
+    # normal case, and these cover the paths that still reach for it.
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_ADMIN
+    working_dir: /workspace/quiver.desktop/docker/e2e
 
 volumes:
   quiver-e2e-cargo:
   quiver-e2e-go:
+  quiver-e2e-gocache:
+  quiver-e2e-target:
