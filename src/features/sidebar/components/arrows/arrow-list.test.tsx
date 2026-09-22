@@ -12,6 +12,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ArrowEntry } from '@/domain/arrow';
+import { QUIVER_CORE_NAMESPACE, QUIVER_DESKTOP_NAMESPACE } from '@/domain/release';
+import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import { ROW_BASE } from '@/features/sidebar/lib/row-base';
 import { useArrowStore } from '@/lib/core-store';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
@@ -128,6 +130,7 @@ beforeEach(() => {
 	useArrowStore.getState().reset();
 	useLocaleStore.setState({ preference: 'system', detected: 'en' });
 	localStorage.removeItem(LOCALE_STORAGE_KEY);
+	useCatalogVisibilityStore.setState({ showSelfComponents: true });
 });
 
 describe('ArrowList', () => {
@@ -189,6 +192,27 @@ describe('ArrowList', () => {
 		await screen.findByRole('navigation', { name: 'Arrows' });
 		expect(rows().map(nameOf)).toEqual(['Minecraft']);
 		expect(screen.queryByRole('status')).toBeNull();
+	});
+
+	it('lists Quiver’s own rows by default', async () => {
+		seed(entry(`${QUIVER_DESKTOP_NAMESPACE}@stable-1.0`, 'Quiver', null));
+		renderList('/');
+
+		await screen.findByRole('navigation', { name: 'Arrows' });
+		expect(rows().map(nameOf)).toEqual(['Quiver']);
+	});
+
+	it('excludes both of Quiver’s own self-registered rows once the setting is off', async () => {
+		useCatalogVisibilityStore.getState().setShowSelfComponents(false);
+		seed(
+			entry(`${QUIVER_DESKTOP_NAMESPACE}@stable-1.0`, 'Quiver Desktop', null),
+			entry(`${QUIVER_CORE_NAMESPACE}@stable-1.0`, 'Quiver Core', null),
+			entry(MINECRAFT, 'Minecraft', null)
+		);
+		renderList('/');
+
+		await screen.findByRole('navigation', { name: 'Arrows' });
+		expect(rows().map(nameOf)).toEqual(['Minecraft']);
 	});
 });
 

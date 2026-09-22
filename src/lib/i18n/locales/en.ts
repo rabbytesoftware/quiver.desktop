@@ -110,6 +110,11 @@ export const en = {
 		'Forced to {language} by VITE_QUIVER_LOCALE for this run. Restart without it to get the picker back.',
 	'settings.general.language.system': 'System ({language})',
 
+	'settings.general.library.title': 'Library',
+	'settings.general.library.label': "Show Quiver's own components",
+	'settings.general.library.description':
+		"Include quiver.core and quiver.desktop's own rows in Home, Library, Search, and the sidebar",
+
 	'settings.developer.mock.title': 'Mock server',
 	'settings.developer.mock.toggle': 'Use the mock server',
 	'settings.developer.mock.forced':

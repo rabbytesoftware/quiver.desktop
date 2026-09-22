@@ -1,5 +1,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 
+import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import { useThemeStore, type ThemePreference } from '@/features/shell';
 import type { SidebarSide } from '@/features/shell/lib/geometry';
 import { useShellStore } from '@/features/shell/stores/shell-store';
@@ -26,6 +28,9 @@ export function GeneralSettings() {
 	const detected = useLocaleStore((s) => s.detected);
 	const setPreference = useLocaleStore((s) => s.setPreference);
 	const forced = localeForcedByEnv();
+
+	const showSelfComponents = useCatalogVisibilityStore((s) => s.showSelfComponents);
+	const setShowSelfComponents = useCatalogVisibilityStore((s) => s.setShowSelfComponents);
 
 	const themes: { value: ThemePreference; label: string }[] = [
 		{ value: 'system', label: t('settings.general.theme.system') },
@@ -115,6 +120,21 @@ export function GeneralSettings() {
 							))}
 						</SelectContent>
 					</Select>
+				</SettingRow>
+			</Section>
+
+			<Section title={t('settings.general.library.title')}>
+				<SettingRow
+					label={t('settings.general.library.label')}
+					description={t('settings.general.library.description')}
+					onReset={() => setShowSelfComponents(true)}
+					canReset={!showSelfComponents}
+				>
+					<Switch
+						checked={showSelfComponents}
+						onCheckedChange={setShowSelfComponents}
+						aria-label={t('settings.general.library.label')}
+					/>
 				</SettingRow>
 			</Section>
 		</div>

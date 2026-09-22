@@ -2,6 +2,8 @@ import { useMemo, type JSX } from 'react';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+import { isQuiverOwnComponent } from '@/domain/release';
+import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import { useArrowStore } from '@/lib/core-store';
 import { useTranslation } from '@/lib/i18n';
 
@@ -13,10 +15,14 @@ export function ArrowList(): JSX.Element {
 	const { t, locale } = useTranslation();
 	const arrows = useArrowStore((state) => state.arrows);
 	const catalog = useArrowStore((state) => state.catalog);
+	const showSelfComponents = useCatalogVisibilityStore((s) => s.showSelfComponents);
 
 	const sorted = useMemo(
-		() => [...arrows.values()].sort((a, b) => a.name.localeCompare(b.name, locale)),
-		[arrows, locale]
+		() =>
+			[...arrows.values()]
+				.filter((a) => showSelfComponents || !isQuiverOwnComponent(a.namespace))
+				.sort((a, b) => a.name.localeCompare(b.name, locale)),
+		[arrows, locale, showSelfComponents]
 	);
 
 	return (

@@ -14,6 +14,24 @@ export const QUIVER_DESKTOP_NAMESPACE = 'github.com/rabbytesoftware/quiver.deskt
 export const QUIVER_CORE_NAMESPACE = 'github.com/rabbytesoftware/quiver.core';
 
 /**
+ * Whether `namespace` is one of Quiver's own two self-registered components --
+ * quiver.desktop itself, or the quiver.core daemon it talks to. Refs are
+ * stripped since a catalog entry's namespace carries one (`ArrowEntry.namespace`)
+ * while a search result's doesn't (`SearchEntry.namespace`) -- stripping
+ * handles both uniformly.
+ *
+ * Deliberately separate from `isSelfArrow` (`features/arrow-details/lib/release-variables.ts`):
+ * that one is scoped specifically to quiver.desktop's own self-update release
+ * resolution (which variables get filled, which get reserved) and must never
+ * also match quiver.core, since core has no such mechanism here. This is for
+ * the unrelated "hide Quiver's own rows from arrow listings" preference.
+ */
+export function isQuiverOwnComponent(namespace: string): boolean {
+	const bare = namespace.split('@')[0];
+	return bare === QUIVER_DESKTOP_NAMESPACE || bare === QUIVER_CORE_NAMESPACE;
+}
+
+/**
  * This app's own release asset, as `src-tauri/src/release/mod.rs` resolves it
  * from the GitHub releases API.
  *

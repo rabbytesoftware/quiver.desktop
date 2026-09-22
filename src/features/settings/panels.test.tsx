@@ -11,6 +11,7 @@ vi.mock('@tanstack/react-router-devtools', () => ({ TanStackRouterDevtools: () =
 import { MockIndicator } from '@/components/mock-indicator';
 
 import { QUIVER_CORE_NAMESPACE } from '@/domain/release';
+import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import { useThemeStore } from '@/features/shell';
 import { useShellStore } from '@/features/shell/stores/shell-store';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
@@ -41,6 +42,7 @@ beforeEach(() => {
 	localStorage.removeItem(LOCALE_STORAGE_KEY);
 	useThemeStore.setState({ preference: 'system' });
 	useShellStore.setState({ sidebarSide: 'left' });
+	useCatalogVisibilityStore.setState({ showSelfComponents: true });
 });
 
 afterEach(() => {
@@ -374,6 +376,34 @@ describe('the General panel', () => {
 		expect(reset).toBeEnabled();
 		await user.click(reset);
 		expect(useThemeStore.getState().preference).toBe('system');
+	});
+
+	it('shows Quiver’s own components by default -- opt-out, not opt-in', () => {
+		render(<GeneralSettings />);
+		expect(screen.getByRole('switch', { name: "Show Quiver's own components" })).toBeChecked();
+		expect(screen.getByRole('button', { name: "Reset Show Quiver's own components" })).toBeDisabled();
+	});
+
+	it('turns off Quiver’s own components in listings', async () => {
+		const user = userEvent.setup();
+		render(<GeneralSettings />);
+
+		await user.click(screen.getByRole('switch', { name: "Show Quiver's own components" }));
+
+		expect(useCatalogVisibilityStore.getState().showSelfComponents).toBe(false);
+		expect(screen.getByRole('switch', { name: "Show Quiver's own components" })).not.toBeChecked();
+	});
+
+	it('resets the self-components toggle back to shown', async () => {
+		const user = userEvent.setup();
+		useCatalogVisibilityStore.setState({ showSelfComponents: false });
+		render(<GeneralSettings />);
+
+		const reset = screen.getByRole('button', { name: "Reset Show Quiver's own components" });
+		expect(reset).toBeEnabled();
+		await user.click(reset);
+
+		expect(useCatalogVisibilityStore.getState().showSelfComponents).toBe(true);
 	});
 });
 

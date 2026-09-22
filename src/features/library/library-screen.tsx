@@ -3,7 +3,9 @@ import { useMemo, type JSX } from 'react';
 import { ArrowLeftIcon } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 
+import { isQuiverOwnComponent } from '@/domain/release';
 import { columnRule } from '@/features/search/lib/columns';
+import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import { ArrowTile } from '@/features/sidebar/components/arrows/arrow-tile';
 import { arrowTileStatus } from '@/features/sidebar/components/arrows/arrow-tile-status';
 import { useArrowStore, useStop } from '@/lib/core-store';
@@ -18,8 +20,12 @@ export function LibraryScreen(): JSX.Element {
 	const { t } = useTranslation();
 	const arrows = useArrowStore((s) => s.arrows);
 	const stop = useStop();
+	const showSelfComponents = useCatalogVisibilityStore((s) => s.showSelfComponents);
 
-	const sorted = useMemo(() => [...arrows.values()].sort(byName), [arrows]);
+	const sorted = useMemo(
+		() => [...arrows.values()].filter((a) => showSelfComponents || !isQuiverOwnComponent(a.namespace)).sort(byName),
+		[arrows, showSelfComponents]
+	);
 
 	return (
 		<div className="mx-auto w-full max-w-[1280px] px-6 pt-2 pb-6">

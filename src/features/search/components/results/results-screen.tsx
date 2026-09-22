@@ -1,11 +1,13 @@
 import { type JSX, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import { isQuiverOwnComponent } from '@/domain/release';
 import { SearchInspector } from '@/features/search/components/search-inspector';
 import { useSearch } from '@/features/search/hooks/use-search';
 import type { FacetKind } from '@/features/search/lib/narrow';
 import { NO_SELECTION, applySelection, toggle } from '@/features/search/lib/narrow';
 import type { SortKey } from '@/features/search/lib/sort';
 import { DEFAULT_SORT, sortEntries } from '@/features/search/lib/sort';
+import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import { useSearchStore } from '@/lib/core-store/store/search';
 import { useTranslation } from '@/lib/i18n';
 
@@ -36,6 +38,7 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 	const summary = useSearchStore((s) => s.summary);
 	const localError = useSearchStore((s) => s.localError);
 	const passFailed = useSearchStore((s) => s.passFailed);
+	const showSelfComponents = useCatalogVisibilityStore((s) => s.showSelfComponents);
 
 	const [inspecting, setInspecting] = useState(false);
 	const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
@@ -54,7 +57,10 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 		setSort(DEFAULT_SORT);
 	}
 
-	const answer = useMemo(() => [...local, ...streamed], [local, streamed]);
+	const answer = useMemo(
+		() => [...local, ...streamed].filter((e) => showSelfComponents || !isQuiverOwnComponent(e.namespace)),
+		[local, streamed, showSelfComponents]
+	);
 	const shown = useMemo(
 		() => sortEntries(applySelection(answer, selection), sort, locale),
 		[answer, selection, sort, locale]
