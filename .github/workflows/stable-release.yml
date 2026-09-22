@@ -59,7 +59,14 @@ jobs:
     - name: Install dependencies
       run: bun install --frozen-lockfile
 
-    # package.json's coreChannels holds a CHANNEL NAME, not a tag. Resolving
+    # package.json's coreChannels holds a CHANNEL NAME, not a tag. A beta/*
+    # merge resolves it fresh here, same as before. A hotfix/* merge does
+    # NOT: prerelease.yml already pinned the hotfix's disposable prerelease
+    # to whatever core version desktop's own latest stable release
+    # recorded, so it never silently drifts to a different core version
+    # than what it's patching — that guarantee has to hold for the real,
+    # shipped stable release too, not just the throwaway prerelease, so
+    # mirror the same pin here on promotion to stable. Resolving/pinning
     # it here — once — is what makes every downstream `gh` call work: this
     # job's own existence check, and the `gh release download` that
     # .github/actions/build-tauri runs on all three platforms with the
@@ -68,18 +75,32 @@ jobs:
       id: version
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        BRANCH: ${{ github.event.pull_request.head.ref }}
       run: |
-        CORE_CHANNEL=$(node -p "require('./package.json').quiver.coreChannels.stable")
-        if [ -z "$CORE_CHANNEL" ]; then
-          echo "❌ quiver.coreChannels.stable missing from package.json"
-          exit 1
-        fi
-        echo "Resolving quiver.core channel: ${CORE_CHANNEL}"
-
-        CORE_VERSION=$(node scripts/resolve-core-version.mjs "$CORE_CHANNEL")
-        if [ -z "$CORE_VERSION" ]; then
-          echo "❌ could not resolve a quiver.core release on channel ${CORE_CHANNEL}"
-          exit 1
+        if [[ "$BRANCH" == hotfix/* ]]; then
+          LATEST_STABLE=$(git tag -l "stable-*" | sort -V | tail -1)
+          if [ -z "$LATEST_STABLE" ]; then
+            echo "❌ No stable baseline found. A hotfix requires an existing stable release."
+            exit 1
+          fi
+          echo "Hotfix pins to whatever core version ${LATEST_STABLE} recorded"
+          CORE_VERSION=$(node scripts/extract-core-version.mjs "$LATEST_STABLE")
+          if [ -z "$CORE_VERSION" ]; then
+            echo "❌ could not extract a core version from ${LATEST_STABLE}'s release notes"
+            exit 1
+          fi
+        else
+          CORE_CHANNEL=$(node -p "require('./package.json').quiver.coreChannels.stable")
+          if [ -z "$CORE_CHANNEL" ]; then
+            echo "❌ quiver.coreChannels.stable missing from package.json"
+            exit 1
+          fi
+          echo "Resolving quiver.core channel: ${CORE_CHANNEL}"
+          CORE_VERSION=$(node scripts/resolve-core-version.mjs "$CORE_CHANNEL")
+          if [ -z "$CORE_VERSION" ]; then
+            echo "❌ could not resolve a quiver.core release on channel ${CORE_CHANNEL}"
+            exit 1
+          fi
         fi
         echo "Resolved to: ${CORE_VERSION}"
 
