@@ -39,7 +39,7 @@
     "zustand": "^5.0.13"
   },
   "quiver": {
-    "_comment": "Maps each desktop build channel to the quiver.core channel it tracks. CI always resolves to whatever is CURRENTLY newest on that channel — never a pinned version (see docs/spec/2026-09-21-core-version-channels.md). There is no `hotfix` key: a hotfix pins to whatever quiver.core version desktop's own latest stable release recorded, not a channel — see prerelease.yml's hotfix path.",
+    "_comment": "Maps each desktop build channel to the quiver.core channel it tracks. CI always resolves to whatever is CURRENTLY newest on that channel — never a pinned version. There is no `hotfix` key: a hotfix pins to whatever quiver.core version desktop's own latest stable release recorded, not a channel — see prerelease.yml's hotfix path.",
     "coreChannels": {
       "stable": "stable",
       "beta": "beta",

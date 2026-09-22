@@ -63,8 +63,7 @@ jobs:
     # hotfix/* is NOT a channel: it pins to whatever core version desktop's
     # own latest stable release already recorded, via
     # scripts/extract-core-version.mjs, so a hotfix never silently picks up
-    # an unrelated newer core release while patching an older one. See
-    # docs/spec/2026-09-21-core-version-channels.md.
+    # an unrelated newer core release while patching an older one.
     - name: Resolve and validate CORE_VERSION
       id: version
       env:

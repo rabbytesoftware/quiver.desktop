@@ -6,9 +6,8 @@ const CHANNEL_PREFIXES = { stable: "stable-", beta: "beta-" };
 /**
  * Picks the highest release tag on a quiver.core channel. `stable` and
  * `beta` are open ranges — no compatibility constraint restricts them any
- * more, only "whatever the channel currently calls newest" (see
- * docs/spec/2026-09-21-core-version-channels.md). `nightly` isn't a range
- * at all, just a single rolling pointer tag.
+ * more, only "whatever the channel currently calls newest". `nightly`
+ * isn't a range at all, just a single rolling pointer tag.
  */
 export function resolveChannel(tags, channel) {
   if (channel === "nightly") {

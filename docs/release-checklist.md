@@ -74,8 +74,7 @@ passed.
 `quiver.desktop`'s `package.json` maps each build channel to the
 quiver.core channel it tracks — `"quiver": { "coreChannels": { "stable":
 "stable", "beta": "beta", "nightly": "nightly" } }` — never a pinned
-version (see `docs/spec/2026-09-21-core-version-channels.md`).
-`scripts/resolve-core-version.mjs` resolves a channel name against
+version. `scripts/resolve-core-version.mjs` resolves a channel name against
 `quiver.core`'s real published releases on that channel (via
 `gh release list --repo rabbytesoftware/quiver.core`), always picking the
 highest one currently published. There is no compatibility range to update
