@@ -53,3 +53,7 @@ coverage/
 # every edit — 3MB and ~75k lines of diff per touch, unreviewable in a PR.
 # Kept on disk, shared out of band.
 *.pen
+
+# Local pin for `make fetch-sidecar` — never read by CI, seeded from
+# core-version.local.example on first use.
+core-version.local
