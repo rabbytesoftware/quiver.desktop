@@ -59,9 +59,9 @@ jobs:
     - name: Install dependencies
       run: bun install --frozen-lockfile
 
-    # package.json pins a semver CONSTRAINT ("^26.5"), not a tag. Resolving it
-    # here — once — is what makes every downstream `gh` call work: this job's
-    # own existence check, and the `gh release download` that
+    # package.json's coreChannels holds a CHANNEL NAME, not a tag. Resolving
+    # it here — once — is what makes every downstream `gh` call work: this
+    # job's own existence check, and the `gh release download` that
     # .github/actions/build-tauri runs on all three platforms with the
     # core_version output below as its `quiver-version` input.
     - name: Resolve and validate CORE_VERSION
@@ -69,16 +69,16 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        CORE_CONSTRAINT=$(node -p "require('./package.json').quiver.coreVersion")
-        if [ -z "$CORE_CONSTRAINT" ]; then
-          echo "❌ quiver.coreVersion missing from package.json"
+        CORE_CHANNEL=$(node -p "require('./package.json').quiver.coreChannels.stable")
+        if [ -z "$CORE_CHANNEL" ]; then
+          echo "❌ quiver.coreChannels.stable missing from package.json"
           exit 1
         fi
-        echo "Resolving quiver.core constraint: ${CORE_CONSTRAINT}"
+        echo "Resolving quiver.core channel: ${CORE_CHANNEL}"
 
-        CORE_VERSION=$(node scripts/resolve-core-version.mjs "$CORE_CONSTRAINT")
+        CORE_VERSION=$(node scripts/resolve-core-version.mjs "$CORE_CHANNEL")
         if [ -z "$CORE_VERSION" ]; then
-          echo "❌ could not resolve a quiver.core release matching ${CORE_CONSTRAINT}"
+          echo "❌ could not resolve a quiver.core release on channel ${CORE_CHANNEL}"
           exit 1
         fi
         echo "Resolved to: ${CORE_VERSION}"
@@ -88,10 +88,8 @@ jobs:
           exit 1
         }
 
-        # The RESOLVED tag, deliberately: every consumer of this output feeds
-        # it to `gh` as a literal tag, never as a constraint.
         echo "CORE_VERSION=${CORE_VERSION}" >> "$GITHUB_OUTPUT"
-        echo "✅ quiver.core release ${CORE_VERSION} exists and satisfies ${CORE_CONSTRAINT}"
+        echo "✅ quiver.core release ${CORE_VERSION} exists"
 
     - name: Derive stable tag
       id: tag
@@ -234,6 +232,8 @@ jobs:
         path: artifacts/
 
     - name: Generate changelog
+      env:
+        CORE_VERSION: ${{ needs.prepare.outputs.core_version }}
       run: |
         PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
         if [ -n "$PREV_TAG" ]; then
@@ -242,6 +242,13 @@ jobs:
         else
           echo "## Initial Release" > CHANGELOG.md
         fi
+        # A hotfix build (see prerelease.yml's hotfix path and
+        # scripts/extract-core-version.mjs) reads this exact line back out of
+        # this release's notes to pin to the same core version, rather than
+        # floating to whatever quiver.core currently calls stable. Keep the
+        # phrasing in sync with that extraction regex if it ever changes.
+        echo "" >> CHANGELOG.md
+        echo "Built against quiver.core \`${CORE_VERSION}\`." >> CHANGELOG.md
 
     - name: Publish stable release
       env:
