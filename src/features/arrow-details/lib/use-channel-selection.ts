@@ -51,11 +51,20 @@ export function useChannelSelection(detail: ArrowDetail): ChannelSelection {
 	// nothing. Not re-derived from `detail` on every render: once the user (or
 	// a successful switch) has picked something, that choice stays authoritative
 	// until a different arrow is shown.
+	//
+	// `detail.channels` now arrives from its own slower query (`GET /v0/arrow/:ns/channels`,
+	// arrow-details-screen.tsx) and can still be `[]` (not yet loaded) on the
+	// very first seed for THIS SAME namespace -- the seed key folds in whether
+	// the list has anything yet, so the moment it resolves (still the same
+	// arrow, `detail.namespace` unchanged) this re-seeds exactly once more and
+	// picks up the real default channel, rather than being stuck on whatever
+	// `undefined`/`[]` produced before the fetch landed.
 	const [seededFor, setSeededFor] = useState<string | null>(null);
 	const [selectedChannel, setSelectedChannel] = useState<string | undefined>(undefined);
 	const [selectedVersion, setSelectedVersion] = useState<string | undefined>(undefined);
-	if (seededFor !== detail.namespace) {
-		setSeededFor(detail.namespace);
+	const seedKey = `${detail.namespace}#${detail.channels.length > 0}`;
+	if (seededFor !== seedKey) {
+		setSeededFor(seedKey);
 		const initialChannel = detail.channel || detail.channels[0]?.name;
 		setSelectedChannel(initialChannel);
 		setSelectedVersion(defaultVersionOf(detail.channels.find((c) => c.name === initialChannel)));

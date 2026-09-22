@@ -42,6 +42,8 @@ interface HeroProps {
 	platform: string;
 	values: Record<string, string>;
 	onValueChange: (name: string, value: string) => void;
+	/** True while `GET /v0/arrow/:ns/channels` is still in flight -- the Channel/Version selects show their own loading state on this rather than waiting on it to render at all. Optional (defaults to `false`) so a caller with nothing to report about channels loading doesn't have to think about this. */
+	channelsLoading?: boolean;
 }
 
 /**
@@ -50,7 +52,7 @@ interface HeroProps {
  * existing hero pattern (banner + identity block) with everything specific
  * to a single arrow's lifecycle.
  */
-export function Hero({ detail, platform, values, onValueChange }: HeroProps): JSX.Element {
+export function Hero({ detail, platform, values, onValueChange, channelsLoading = false }: HeroProps): JSX.Element {
 	const { t } = useTranslation();
 	const [problemOpen, setProblemOpen] = useState(false);
 	const [pendingKind, setPendingKind] = useState<ArrowActionKind | null>(null);
@@ -253,10 +255,14 @@ export function Hero({ detail, platform, values, onValueChange }: HeroProps): JS
 					<p className="mt-3 line-clamp-2 max-w-2xl text-sm text-muted-foreground">{detail.description}</p>
 
 					<div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-						<ChannelVersionSelects channels={detail.channels} selection={channelSelection} />
+						<ChannelVersionSelects
+							channels={detail.channels}
+							channelsLoading={channelsLoading}
+							selection={channelSelection}
+						/>
 						{detail.license && (
 							<>
-								{detail.channels.length > 0 && <span aria-hidden="true">–</span>}
+								{(channelsLoading || detail.channels.length > 0) && <span aria-hidden="true">–</span>}
 								<span>{detail.license}</span>
 							</>
 						)}

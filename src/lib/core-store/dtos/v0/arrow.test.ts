@@ -3,7 +3,13 @@ import { describe, it, expect } from 'vitest';
 import { runStep, signalStep } from '@/__mocks__/arrow-steps';
 
 import type { ArrowDetailDTO, ArrowManifestDTO, ChannelListDTO } from './arrow';
-import { toArrowCatalogRecords, toArrowChannels, toArrowDetail, toInitialRuntimeUpdates } from './arrow';
+import {
+	toArrowCatalogRecords,
+	toArrowChannels,
+	toArrowDependencies,
+	toArrowDetail,
+	toInitialRuntimeUpdates,
+} from './arrow';
 
 describe('toArrowCatalogRecords', () => {
 	it('reads icon and banner from the nested media object', () => {
@@ -167,6 +173,28 @@ const MANIFEST: ArrowManifestDTO = {
 		netbridge: [{ name: 'game', protocol: 'tcp', default: 25565, required: true }],
 	},
 };
+
+describe('toArrowDependencies', () => {
+	it('casts type through and maps each entry', () => {
+		expect(
+			toArrowDependencies([
+				{ namespace: 'github.com/rabbyte/nats@v2.10.0', type: 'tool' },
+				{ namespace: 'github.com/rabbyte/postgres@v17.2', type: 'service' },
+			])
+		).toEqual([
+			{ namespace: 'github.com/rabbyte/nats@v2.10.0', type: 'tool' },
+			{ namespace: 'github.com/rabbyte/postgres@v17.2', type: 'service' },
+		]);
+	});
+
+	it('returns an empty list for an empty input', () => {
+		expect(toArrowDependencies([])).toEqual([]);
+	});
+
+	it('defaults a null input to an empty list, same as the wire can send', () => {
+		expect(toArrowDependencies(null as unknown as [])).toEqual([]);
+	});
+});
 
 describe('toArrowChannels', () => {
 	it('maps an ordered channel through with its count and members intact', () => {

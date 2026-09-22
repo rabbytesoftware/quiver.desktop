@@ -592,6 +592,121 @@ describe('ArrowDetailsScreen', () => {
 	});
 });
 
+/**
+ * `useArrowDetail` only fetches `detail` + `manifest` now -- channels, readme,
+ * and the dependency graph are each their own query, each with its own
+ * loading state, never gating the fast content above them. These tests hold
+ * one or more of the slow endpoints open with a deferred promise to prove
+ * the fast content genuinely renders without waiting on them, and that each
+ * slow section's own placeholder is scoped to just that section.
+ */
+describe('ArrowDetailsScreen, progressive loading', () => {
+	function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+		let resolve!: (value: T) => void;
+		const promise = new Promise<T>((res) => {
+			resolve = res;
+		});
+		return { promise, resolve };
+	}
+
+	it('renders the hero and action row before readme/dependencies/dependents/channels ever resolve', async () => {
+		mockApiFetch.mockImplementation((path: string) => {
+			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/readme')) return new Promise(() => {});
+			if (path.endsWith('/dependencies')) return new Promise(() => {});
+			if (path.endsWith('/dependents')) return new Promise(() => {});
+			if (path.endsWith('/channels')) return new Promise(() => {});
+			return Promise.resolve(DETAIL);
+		});
+
+		renderScreen(NS);
+
+		expect(await screen.findByRole('heading', { name: 'Minecraft Server' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Start' })).toBeInTheDocument();
+		// The page-level "still loading" gate is specifically about detail +
+		// manifest -- it must already be gone despite none of the four slow
+		// endpoints ever answering.
+		expect(screen.queryByText('Loading…', { selector: 'div.p-6' })).not.toBeInTheDocument();
+	});
+
+	it("shows the Overview tab's own loading placeholder while readme/dependencies/dependents are in flight, independent of the rest of the page", async () => {
+		const dependencies = deferred<unknown>();
+		mockApiFetch.mockImplementation((path: string) => {
+			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/readme')) return Promise.reject(new ApiError('not found', 404));
+			if (path.endsWith('/dependencies')) return dependencies.promise;
+			if (path.endsWith('/dependents')) return Promise.resolve({ namespace: NS, dependents: [] });
+			if (path.endsWith('/channels')) return Promise.resolve({ channels: [] });
+			return Promise.resolve(DETAIL);
+		});
+
+		renderScreen(NS);
+		await screen.findByRole('heading', { name: 'Minecraft Server' });
+
+		// The rest of the page is already interactive -- Methods included --
+		// while Overview is still waiting on its own data.
+		expect(screen.getByRole('status', { name: 'Loading…' })).toBeInTheDocument();
+		expect(screen.getByRole('tab', { name: 'Methods' })).toBeInTheDocument();
+		expect(screen.queryByText('Requirements')).not.toBeInTheDocument();
+
+		dependencies.resolve({ namespace: NS, dependencies: [] });
+
+		await waitFor(() => expect(screen.queryByRole('status', { name: 'Loading…' })).not.toBeInTheDocument());
+		expect(screen.getByText('Requirements')).toBeInTheDocument();
+	});
+
+	it('keeps the Details rail out of the layout until readme resolves, rather than guessing', async () => {
+		const readme = deferred<unknown>();
+		mockApiFetch.mockImplementation((path: string) => {
+			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/readme')) return readme.promise;
+			if (path.endsWith('/dependencies')) return Promise.resolve({ namespace: NS, dependencies: [] });
+			if (path.endsWith('/dependents')) return Promise.resolve({ namespace: NS, dependents: [] });
+			if (path.endsWith('/channels')) return Promise.resolve({ channels: [] });
+			return Promise.resolve(DETAIL);
+		});
+
+		renderScreen(NS);
+		await screen.findByRole('heading', { name: 'Minecraft Server' });
+		expect(screen.getByRole('status', { name: 'Loading…' })).toBeInTheDocument();
+		expect(screen.queryByTestId('arrow-detail-layout')).not.toHaveClass('grid-cols-[minmax(0,1fr)_340px]');
+
+		readme.resolve({ namespace: 'github.com/rabbyte/minecraft', readme: '## About\n\nA server.' });
+
+		await screen.findByRole('heading', { name: 'About' });
+		expect(screen.getByText('Requirements')).toBeInTheDocument();
+	});
+
+	it("shows the Channel select's own loading state while channels is in flight, without affecting the rest of the Hero", async () => {
+		const channels = deferred<unknown>();
+		mockApiFetch.mockImplementation((path: string) => {
+			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/readme')) return Promise.reject(new ApiError('not found', 404));
+			if (path.endsWith('/dependencies')) return Promise.resolve({ namespace: NS, dependencies: [] });
+			if (path.endsWith('/dependents')) return Promise.resolve({ namespace: NS, dependents: [] });
+			if (path.endsWith('/channels')) return channels.promise;
+			return Promise.resolve(DETAIL);
+		});
+
+		renderScreen(NS);
+		await screen.findByRole('heading', { name: 'Minecraft Server' });
+
+		const channelSelect = screen.getByRole('combobox', { name: 'Channel' });
+		expect(channelSelect).toBeDisabled();
+		expect(channelSelect).toHaveTextContent('Loading…');
+		// The rest of the Hero (the action row) is unaffected by channels
+		// still being in flight.
+		expect(screen.getByRole('button', { name: 'Start' })).not.toBeDisabled();
+
+		channels.resolve({
+			channels: [{ name: 'stable', kind: 'ordered', latest: 'v1.21.4', count: 1, members: ['v1.21.4'] }],
+		});
+
+		await waitFor(() => expect(screen.getByRole('combobox', { name: 'Channel' })).not.toBeDisabled());
+		expect(screen.getByRole('combobox', { name: 'Channel' })).toHaveTextContent('stable');
+	});
+});
+
 describe('wide-screen tab grouping', () => {
 	let restoreResizeObserver: () => void;
 

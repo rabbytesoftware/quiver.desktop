@@ -74,9 +74,19 @@ function wrapper(
 
 function renderHero(props: Partial<React.ComponentProps<typeof Hero>> = {}) {
 	const onValueChange = vi.fn();
-	render(<Hero detail={detail()} onValueChange={onValueChange} platform={PLATFORM} values={{}} {...props} />, {
-		wrapper: wrapper(),
-	});
+	render(
+		<Hero
+			channelsLoading={false}
+			detail={detail()}
+			onValueChange={onValueChange}
+			platform={PLATFORM}
+			values={{}}
+			{...props}
+		/>,
+		{
+			wrapper: wrapper(),
+		}
+	);
 	return { onValueChange };
 }
 
@@ -157,7 +167,13 @@ describe('Hero', () => {
 		const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 		const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
 		render(
-			<Hero detail={detail({ user_installed: false })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />,
+			<Hero
+				channelsLoading={false}
+				detail={detail({ user_installed: false })}
+				onValueChange={vi.fn()}
+				platform={PLATFORM}
+				values={{}}
+			/>,
 			{ wrapper: wrapper(qc) }
 		);
 
@@ -170,9 +186,18 @@ describe('Hero', () => {
 		const user = userEvent.setup();
 		const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 		const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
-		render(<Hero detail={detail({ state: 'absent' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />, {
-			wrapper: wrapper(qc),
-		});
+		render(
+			<Hero
+				channelsLoading={false}
+				detail={detail({ state: 'absent' })}
+				onValueChange={vi.fn()}
+				platform={PLATFORM}
+				values={{}}
+			/>,
+			{
+				wrapper: wrapper(qc),
+			}
+		);
 
 		await user.click(screen.getByRole('button', { name: 'Remove from Library' }));
 
@@ -313,9 +338,12 @@ describe('Hero', () => {
 	it('sequences Restart as stop then, once the live state reaches ready, execute -- not immediately after stop resolves', async () => {
 		const user = userEvent.setup();
 		const running = detail({ state: 'running' });
-		const { rerender } = render(<Hero detail={running} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />, {
-			wrapper: wrapper(),
-		});
+		const { rerender } = render(
+			<Hero channelsLoading={false} detail={running} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />,
+			{
+				wrapper: wrapper(),
+			}
+		);
 
 		await user.click(screen.getByRole('button', { name: 'Restart' }));
 		await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/stop'), expect.anything()));
@@ -324,7 +352,15 @@ describe('Hero', () => {
 		// re-renders Hero with the live state actually at `ready`.
 		expect(apiFetch).not.toHaveBeenCalledWith(expect.stringContaining('/execute'), expect.anything());
 
-		rerender(<Hero detail={detail({ state: 'ready' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />);
+		rerender(
+			<Hero
+				channelsLoading={false}
+				detail={detail({ state: 'ready' })}
+				onValueChange={vi.fn()}
+				platform={PLATFORM}
+				values={{}}
+			/>
+		);
 
 		await waitFor(() =>
 			expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/execute'), expect.anything())
@@ -333,10 +369,24 @@ describe('Hero', () => {
 
 	it('does not fire the restart follow-up when the arrow reaches ready without a restart in flight', async () => {
 		const { rerender } = render(
-			<Hero detail={detail({ state: 'running' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />,
+			<Hero
+				channelsLoading={false}
+				detail={detail({ state: 'running' })}
+				onValueChange={vi.fn()}
+				platform={PLATFORM}
+				values={{}}
+			/>,
 			{ wrapper: wrapper() }
 		);
-		rerender(<Hero detail={detail({ state: 'ready' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />);
+		rerender(
+			<Hero
+				channelsLoading={false}
+				detail={detail({ state: 'ready' })}
+				onValueChange={vi.fn()}
+				platform={PLATFORM}
+				values={{}}
+			/>
+		);
 		expect(apiFetch).not.toHaveBeenCalled();
 	});
 
@@ -416,7 +466,13 @@ describe('Hero', () => {
 		mockApiFetch.mockRejectedValueOnce(new Error('offline'));
 		const user = userEvent.setup();
 		const { rerender } = render(
-			<Hero detail={detail({ state: 'running' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />,
+			<Hero
+				channelsLoading={false}
+				detail={detail({ state: 'running' })}
+				onValueChange={vi.fn()}
+				platform={PLATFORM}
+				values={{}}
+			/>,
 			{ wrapper: wrapper() }
 		);
 
@@ -426,14 +482,28 @@ describe('Hero', () => {
 		// If the failed restart's flag were left set, this transition to ready
 		// would wrongly fire `execute` on its own.
 		mockApiFetch.mockClear();
-		rerender(<Hero detail={detail({ state: 'ready' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />);
+		rerender(
+			<Hero
+				channelsLoading={false}
+				detail={detail({ state: 'ready' })}
+				onValueChange={vi.fn()}
+				platform={PLATFORM}
+				values={{}}
+			/>
+		);
 		expect(apiFetch).not.toHaveBeenCalled();
 	});
 
 	it('clears pendingKind even when restart’s second leg (execute, once ready) itself rejects', async () => {
 		const user = userEvent.setup();
 		const { rerender } = render(
-			<Hero detail={detail({ state: 'running' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />,
+			<Hero
+				channelsLoading={false}
+				detail={detail({ state: 'running' })}
+				onValueChange={vi.fn()}
+				platform={PLATFORM}
+				values={{}}
+			/>,
 			{ wrapper: wrapper() }
 		);
 
@@ -446,7 +516,15 @@ describe('Hero', () => {
 		// assertion is that pendingKind was still cleared despite the
 		// rejection: the newly-shown "Start" action must not be stuck disabled.
 		mockApiFetch.mockRejectedValueOnce(new Error('offline'));
-		rerender(<Hero detail={detail({ state: 'ready' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />);
+		rerender(
+			<Hero
+				channelsLoading={false}
+				detail={detail({ state: 'ready' })}
+				onValueChange={vi.fn()}
+				platform={PLATFORM}
+				values={{}}
+			/>
+		);
 
 		await waitFor(() => expect(screen.getByRole('button', { name: 'Start' })).not.toBeDisabled());
 	});
@@ -589,6 +667,7 @@ describe('Hero, the Channel and Version switchers', () => {
 			const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
 			render(
 				<Hero
+					channelsLoading={false}
 					detail={detail({ user_installed: true, channel: 'stable', channels: [STABLE, BETA] })}
 					onValueChange={vi.fn()}
 					platform={PLATFORM}

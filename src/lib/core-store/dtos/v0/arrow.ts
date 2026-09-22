@@ -271,6 +271,11 @@ function toDependency(dto: ArrowDependencyDTO): ArrowDependency {
 	return { namespace: dto.namespace, type: dto.type as DependencyType };
 }
 
+/** Exported (unlike `toDependency` above) so `queries/arrow.ts`'s own `useArrowDependencies` can map the raw fetch result without reaching into this file's private helpers. */
+export function toArrowDependencies(dtos: ArrowDependencyDTO[]): ArrowDependency[] {
+	return (dtos ?? []).map(toDependency);
+}
+
 // `StepDTO` is `ArrowStepDefinition` verbatim (see its declaration above), so
 // the lifecycle/method step lists need no per-step mapping -- unlike every
 // other DTO here, there's nothing to rename or reshape.
@@ -359,7 +364,7 @@ export function toArrowDetail(
 		channel: detail.channel,
 		channels,
 		readme,
-		dependencies: (dependencies ?? []).map(toDependency),
+		dependencies: toArrowDependencies(dependencies),
 		dependents: dependents ?? [],
 	};
 }

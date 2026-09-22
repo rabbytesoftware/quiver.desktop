@@ -10,6 +10,8 @@ import { useTranslation } from '@/lib/i18n';
 interface ChannelVersionSelectsProps {
 	channels: ArrowChannel[];
 	selection: ChannelSelection;
+	/** True while `GET /v0/arrow/:ns/channels` is still in flight -- shows a disabled, "Loading…" Channel select instead of rendering nothing (which would be indistinguishable from an arrow that genuinely has none). */
+	channelsLoading: boolean;
 }
 
 /**
@@ -19,7 +21,11 @@ interface ChannelVersionSelectsProps {
  * concern. `channels` is the arrow's full published list; the rest of the
  * current selection lives in `selection`, already resolved by `useChannelSelection`.
  */
-export function ChannelVersionSelects({ channels, selection }: ChannelVersionSelectsProps): JSX.Element {
+export function ChannelVersionSelects({
+	channels,
+	selection,
+	channelsLoading,
+}: ChannelVersionSelectsProps): JSX.Element {
 	const { t } = useTranslation();
 	const { selectedChannelEntry } = selection;
 
@@ -40,14 +46,20 @@ export function ChannelVersionSelects({ channels, selection }: ChannelVersionSel
 
 	return (
 		<>
-			{channels.length > 0 && (
+			{(channelsLoading || channels.length > 0) && (
 				<Select
-					disabled={selection.isPending}
+					disabled={channelsLoading || selection.isPending}
 					onValueChange={(name) => name && selection.selectChannel(name)}
-					value={selection.selectedChannel}
+					// `??` keeps this a controlled component from the very first render
+					// (`selectedChannel` starts `undefined` while channels are still
+					// loading, then becomes a real value once they resolve): base-ui's
+					// `Select` warns -- and visibly loses the value -- if a `Select`
+					// switches from uncontrolled (`undefined`) to controlled across
+					// renders, which this progressive load would otherwise trigger.
+					value={selection.selectedChannel ?? ''}
 				>
 					<SelectTrigger aria-label={t('arrow.channel.label')} className="h-6 w-auto font-mono text-xs">
-						<SelectValue />
+						<SelectValue placeholder={channelsLoading ? t('arrow.loading') : undefined} />
 					</SelectTrigger>
 					<SelectContent>
 						{channels.map((c) => (

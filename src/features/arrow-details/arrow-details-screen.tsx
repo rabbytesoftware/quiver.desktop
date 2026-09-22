@@ -1,9 +1,8 @@
 import { useMemo, useState, type JSX, type ReactNode } from 'react';
 
+import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import { useArrowStore } from '@/lib/core-store';
-import { useArrowDetail } from '@/lib/core-store/queries/arrow';
 import { useTranslation } from '@/lib/i18n';
 import { currentPlatform } from '@/lib/platform';
 
@@ -16,6 +15,7 @@ import { StepsTimeline } from './components/steps-timeline';
 import { buildDependencyRows } from './lib/dependency-rows';
 import { CONTENT_MAX_WIDTH, CONTENT_PADDING_X } from './lib/layout';
 import { groupTabs } from './lib/tab-groups';
+import { useAssembledArrowDetail } from './lib/use-assembled-arrow-detail';
 import { useContainerWidthAtLeast } from './lib/use-container-width';
 
 type ArrowTab = 'overview' | 'activity' | 'methods';
@@ -47,43 +47,13 @@ interface ArrowDetailsScreenProps {
 
 export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.Element {
 	const { t } = useTranslation();
-	const { data, isLoading, isError } = useArrowDetail(namespace);
-
-	// The reactive store only ever holds arrows the user has added
-	// (listeners/index.ts seeds it from `user_installed=true` only) -- for a
-	// Discovered arrow, `liveEntry` stays undefined and `data`'s own
-	// one-time-fetched state/active_run/last_return are used as-is, which is
-	// correct: there is nothing live to overlay.
-	const liveEntry = useArrowStore((state) => state.arrows.get(namespace));
-	const allEntries = useArrowStore((state) => state.arrows);
-
-	const detail = useMemo(() => {
-		if (!data) return data;
-		// The live overlay's `last_return` (from the WS runtime-update frame)
-		// deliberately carries no `steps` -- core omits them there to avoid
-		// pushing full step history on every transition (see LastReturnDetail's
-		// own comment in src/domain/arrow.ts). Reuse the richer, one-time-fetched
-		// `steps`/`variables` only when they're actually describing the same
-		// run; a live push reporting a genuinely new outcome falls back to an
-		// empty step list rather than showing stale, mismatched detail.
-		const liveLastReturn = liveEntry?.last_return;
-		const sameRun =
-			liveLastReturn &&
-			data.last_return?.method === liveLastReturn.method &&
-			data.last_return?.outcome === liveLastReturn.outcome;
-		return {
-			...data,
-			state: liveEntry?.state ?? data.state,
-			active_run: liveEntry?.active_run ?? data.active_run,
-			last_return: liveLastReturn
-				? {
-						...liveLastReturn,
-						variables: sameRun ? data.last_return!.variables : {},
-						steps: sameRun ? data.last_return!.steps : [],
-					}
-				: data.last_return,
-		};
-	}, [data, liveEntry]);
+	// Fast `detail`+`manifest` merged with the four slower secondary queries
+	// (channels, readme, dependencies, dependents) and the reactive store's
+	// live overlay -- see `useAssembledArrowDetail`'s own docstring for why
+	// `isLoading`/`isError` below reflect only the fast query, and what
+	// `overviewLoading`/`channelsLoading` are each scoped to.
+	const { detail, isLoading, isError, overviewLoading, channelsLoading, allEntries } =
+		useAssembledArrowDetail(namespace);
 
 	const platform = useMemo(() => currentPlatform(), []);
 
@@ -101,10 +71,10 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 	// Adjusted during render rather than in an effect (React's documented
 	// "adjusting state when a prop changes" pattern) so the very first paint
 	// for a newly-loaded arrow already shows its defaults.
-	if (data && seededFor !== data.namespace) {
-		setSeededFor(data.namespace);
+	if (detail && seededFor !== detail.namespace) {
+		setSeededFor(detail.namespace);
 		const defaults: Record<string, string> = {};
-		for (const variable of data.variables) {
+		for (const variable of detail.variables) {
 			if (variable.default !== undefined) defaults[variable.name] = variable.default;
 		}
 		setValues(defaults);
@@ -147,7 +117,11 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 	// tab, so there is exactly one copy of each on screen. Details covers for
 	// Overview when Overview is spending its own slot on the README; Settings
 	// shows whenever the arrow declares variables, independent of that.
-	const hasDetailsRail = !!detail.readme;
+	// `!overviewLoading` guards this the same way `detail.readme` does on its
+	// own: while readme is still unknown, showing a Details panel here would
+	// either duplicate Overview's own eventual content or need tearing back
+	// down the moment readme resolves -- wait for the real answer instead.
+	const hasDetailsRail = !overviewLoading && !!detail.readme;
 	const hasSettingsRail = detail.user_installed && detail.variables.length > 0;
 	const hasRail = hasDetailsRail || hasSettingsRail;
 
@@ -160,24 +134,40 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 	);
 	const requiredByRows = buildDependencyRows(detail.dependents, allEntries);
 
+	// Overview needs its own answer to "readme or MetaPanel fallback" before
+	// it can render anything meaningful -- shown as this tab's own loading
+	// placeholder, independent of the rest of the page (Hero, Methods,
+	// Settings rail are all already interactive by the time this resolves).
+	const overviewContent = overviewLoading ? (
+		<div
+			aria-busy="true"
+			aria-label={t('arrow.loading')}
+			role="status"
+			className="flex items-center justify-center gap-2 py-10 text-xs text-muted-foreground"
+		>
+			<Spinner aria-hidden="true" className="size-4" />
+			{t('arrow.loading')}
+		</div>
+	) : detail.readme ? (
+		<ReadmePanel readme={detail.readme} />
+	) : (
+		<MetaPanel
+			credits={detail.credits}
+			dependsOn={dependsOnRows}
+			maintainers={detail.maintainers}
+			netbridge={detail.netbridge}
+			requirement={target?.requirement}
+			requiredBy={requiredByRows}
+			url={detail.url}
+		/>
+	);
+
 	const entries: TabEntry[] = [
 		{
 			value: 'overview',
 			label: t('arrow.tab.overview'),
 			groupable: false,
-			content: detail.readme ? (
-				<ReadmePanel readme={detail.readme} />
-			) : (
-				<MetaPanel
-					credits={detail.credits}
-					dependsOn={dependsOnRows}
-					maintainers={detail.maintainers}
-					netbridge={detail.netbridge}
-					requirement={target?.requirement}
-					requiredBy={requiredByRows}
-					url={detail.url}
-				/>
-			),
+			content: overviewContent,
 		},
 		...(detail.user_installed
 			? [
@@ -217,7 +207,13 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 
 	return (
 		<div className="flex flex-col">
-			<Hero detail={detail} onValueChange={handleValueChange} platform={platform} values={values} />
+			<Hero
+				channelsLoading={channelsLoading}
+				detail={detail}
+				onValueChange={handleValueChange}
+				platform={platform}
+				values={values}
+			/>
 
 			<div
 				className={`${CONTENT_PADDING_X} ${CONTENT_MAX_WIDTH} pb-12`}
