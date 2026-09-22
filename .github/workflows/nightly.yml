@@ -64,26 +64,28 @@ jobs:
     - name: Install dependencies
       run: bun install --frozen-lockfile
 
-    # package.json pins a semver CONSTRAINT ("^26.5"), not a tag. Resolving it
-    # here — once — is what makes every downstream `gh` call work: this job's
-    # own existence check, the `gh release download` that
+    # package.json's coreChannels holds a CHANNEL NAME, not a tag. Resolving
+    # it here — once — is what makes every downstream `gh` call work: this
+    # job's own existence check, the `gh release download` that
     # .github/actions/build-tauri runs on all three platforms, and the release
-    # note below, all of which read the core_version output.
+    # note below, all of which read the core_version output. Nightly always
+    # tracks quiver.core's own rolling nightly tag — that is the entire point
+    # of this pipeline, unlike ci.yml/stable-release.yml's stable channel.
     - name: Resolve and validate CORE_VERSION
       id: version
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        CORE_CONSTRAINT=$(node -p "require('./package.json').quiver.coreVersion")
-        if [ -z "$CORE_CONSTRAINT" ]; then
-          echo "❌ quiver.coreVersion missing from package.json"
+        CORE_CHANNEL=$(node -p "require('./package.json').quiver.coreChannels.nightly")
+        if [ -z "$CORE_CHANNEL" ]; then
+          echo "❌ quiver.coreChannels.nightly missing from package.json"
           exit 1
         fi
-        echo "Resolving quiver.core constraint: ${CORE_CONSTRAINT}"
+        echo "Resolving quiver.core channel: ${CORE_CHANNEL}"
 
-        CORE_VERSION=$(node scripts/resolve-core-version.mjs "$CORE_CONSTRAINT")
+        CORE_VERSION=$(node scripts/resolve-core-version.mjs "$CORE_CHANNEL")
         if [ -z "$CORE_VERSION" ]; then
-          echo "❌ could not resolve a quiver.core release matching ${CORE_CONSTRAINT}"
+          echo "❌ could not resolve a quiver.core release on channel ${CORE_CHANNEL}"
           exit 1
         fi
         echo "Resolved to: ${CORE_VERSION}"
@@ -93,10 +95,8 @@ jobs:
           exit 1
         }
 
-        # The RESOLVED tag, deliberately: every consumer of this output feeds
-        # it to `gh` as a literal tag, never as a constraint.
         echo "CORE_VERSION=${CORE_VERSION}" >> "$GITHUB_OUTPUT"
-        echo "✅ quiver.core release ${CORE_VERSION} exists and satisfies ${CORE_CONSTRAINT}"
+        echo "✅ quiver.core release ${CORE_VERSION} exists"
 
   build:
     name: Build (${{ matrix.os }})

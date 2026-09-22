@@ -162,34 +162,30 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # package.json pins a semver CONSTRAINT ("^26.5"), not a tag, so it
+        # package.json's coreChannels holds a CHANNEL NAME, not a tag, so it
         # cannot be handed to `gh` as-is. Resolve it exactly the way
-        # `make pr-checks` does, then check what it resolved to.
-        CORE_CONSTRAINT=$(node -p "require('./package.json').quiver.coreVersion")
-        if [ -z "$CORE_CONSTRAINT" ]; then
-          echo "❌ quiver.coreVersion missing from package.json"
+        # `make pr-checks` does, then check what it resolved to. This gate
+        # always tracks the CURRENT newest stable release — there is no
+        # compatibility range any more; this build/test run is the gate.
+        CORE_CHANNEL=$(node -p "require('./package.json').quiver.coreChannels.stable")
+        if [ -z "$CORE_CHANNEL" ]; then
+          echo "❌ quiver.coreChannels.stable missing from package.json"
           exit 1
         fi
-        echo "Resolving quiver.core constraint: ${CORE_CONSTRAINT}"
+        echo "Resolving quiver.core channel: ${CORE_CHANNEL}"
 
-        # No rolling-tag guard is needed here any more. The resolver only ever
-        # emits `stable-<semver>` (it filters the tag list on that prefix), and
-        # a rolling tag used as the constraint itself is not a valid semver
-        # range, so it fails in the resolver with "no stable release found
-        # satisfying ..." before any `gh` call. Immutability is a property of
-        # what the resolver can return, not something to re-check by hand.
-        CORE_VERSION=$(node scripts/resolve-core-version.mjs "$CORE_CONSTRAINT")
+        CORE_VERSION=$(node scripts/resolve-core-version.mjs "$CORE_CHANNEL")
         if [ -z "$CORE_VERSION" ]; then
-          echo "❌ could not resolve a quiver.core release matching ${CORE_CONSTRAINT}"
+          echo "❌ could not resolve a quiver.core release on channel ${CORE_CHANNEL}"
           exit 1
         fi
         echo "Resolved to: ${CORE_VERSION}"
 
         gh release view "$CORE_VERSION" --repo rabbytesoftware/quiver.core || {
-          echo "❌ quiver.core release ${CORE_VERSION} not found. Update quiver.coreVersion to a constraint matching a published release before merging."
+          echo "❌ quiver.core release ${CORE_VERSION} not found."
           exit 1
         }
-        echo "✅ quiver.core release ${CORE_VERSION} exists, is immutable, and satisfies ${CORE_CONSTRAINT}"
+        echo "✅ quiver.core release ${CORE_VERSION} exists"
 
   code-quality-frontend:
     name: Code Quality - Frontend

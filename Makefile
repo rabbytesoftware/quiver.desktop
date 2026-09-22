@@ -29,7 +29,15 @@ RUSTC        := $(shell command -v rustc 2>/dev/null || ls $(HOME)/.rustup/toolc
 # some dependency refuses to build with it.
 export PATH  := $(HOME)/.bun/bin:$(HOME)/.cargo/bin:$(dir $(CARGO)):$(PATH)
 TARGET_TRIPLE := $(shell $(RUSTC) -vV 2>/dev/null | grep '^host:' | awk '{print $$2}')
-_CORE_VERSION := $(shell node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]')
+
+CORE_VERSION_LOCAL_FILE    := core-version.local
+CORE_VERSION_LOCAL_EXAMPLE := core-version.local.example
+# Seeds core-version.local from the tracked example on first use (any `make`
+# invocation, not just fetch-sidecar — consistent with the other eager
+# top-level $(shell ...) calls in this file), then reads its first
+# non-comment, non-blank line, if any.
+_CORE_VERSION_PIN := $(shell [ -f $(CORE_VERSION_LOCAL_FILE) ] || cp $(CORE_VERSION_LOCAL_EXAMPLE) $(CORE_VERSION_LOCAL_FILE); grep -vE '^\s*\#|^\s*$$' $(CORE_VERSION_LOCAL_FILE) 2>/dev/null | head -1)
+_CORE_CHANNEL := $(shell node -p "require('./package.json').quiver.coreChannels.stable" 2>/dev/null | tr -d '[:space:]')
 
 # Map target triple → quiver.core release binary name
 ifeq ($(TARGET_TRIPLE),aarch64-apple-darwin)
@@ -247,10 +255,15 @@ build: build-frontend build-rust
 # as dirname(current_exe)/<name>, so an unbundled run looks for it right there.
 # `tauri build` needs no such help: the bundler copies from src-tauri/binaries.
 fetch-sidecar:
-	@if [ -z "$(_CORE_VERSION)" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi
-	$(eval RESOLVED_CORE_VERSION := $(shell node scripts/resolve-core-version.mjs "$(_CORE_VERSION)"))
-	@if [ -z "$(RESOLVED_CORE_VERSION)" ]; then echo "❌ could not resolve a release matching $(_CORE_VERSION)" && exit 1; fi
-	@echo "📥 Fetching quiver.core sidecar ($(RESOLVED_CORE_VERSION), matched $(_CORE_VERSION)) for $(TARGET_TRIPLE)..."
+ifneq ($(_CORE_VERSION_PIN),)
+	@echo "📌 Using locally pinned quiver.core version: $(_CORE_VERSION_PIN) (from $(CORE_VERSION_LOCAL_FILE))"
+	$(eval RESOLVED_CORE_VERSION := $(_CORE_VERSION_PIN))
+else
+	@if [ -z "$(_CORE_CHANNEL)" ]; then echo "❌ quiver.coreChannels.stable missing from package.json" && exit 1; fi
+	$(eval RESOLVED_CORE_VERSION := $(shell node scripts/resolve-core-version.mjs "$(_CORE_CHANNEL)"))
+	@if [ -z "$(RESOLVED_CORE_VERSION)" ]; then echo "❌ could not resolve a release on channel $(_CORE_CHANNEL)" && exit 1; fi
+endif
+	@echo "📥 Fetching quiver.core sidecar ($(RESOLVED_CORE_VERSION)) for $(TARGET_TRIPLE)..."
 	@mkdir -p src-tauri/binaries
 	@gh release download "$(RESOLVED_CORE_VERSION)" \
 		--repo rabbytesoftware/quiver.core \
@@ -434,15 +447,15 @@ pr-checks:
 	@echo ""
 	@echo "Step 1/6: CORE_VERSION Validation"
 	@echo "=============================="
-	@CORE_VERSION=$$(node -p "require('./package.json').quiver.coreVersion" 2>/dev/null | tr -d '[:space:]'); \
-	if [ -z "$$CORE_VERSION" ]; then echo "❌ quiver.coreVersion missing from package.json" && exit 1; fi; \
-	echo "Resolving constraint: $$CORE_VERSION"; \
-	RESOLVED_VERSION=$$(node scripts/resolve-core-version.mjs "$$CORE_VERSION" 2>/dev/null); \
-	if [ -z "$$RESOLVED_VERSION" ]; then echo "❌ could not resolve a release matching $$CORE_VERSION" && exit 1; fi; \
+	@CORE_CHANNEL=$$(node -p "require('./package.json').quiver.coreChannels.stable" 2>/dev/null | tr -d '[:space:]'); \
+	if [ -z "$$CORE_CHANNEL" ]; then echo "❌ quiver.coreChannels.stable missing from package.json" && exit 1; fi; \
+	echo "Resolving channel: $$CORE_CHANNEL"; \
+	RESOLVED_VERSION=$$(node scripts/resolve-core-version.mjs "$$CORE_CHANNEL" 2>/dev/null); \
+	if [ -z "$$RESOLVED_VERSION" ]; then echo "❌ could not resolve a release on channel $$CORE_CHANNEL" && exit 1; fi; \
 	echo "Resolved to: $$RESOLVED_VERSION"; \
 	gh release view "$$RESOLVED_VERSION" --repo rabbytesoftware/quiver.core --json tagName --jq '.tagName' >/dev/null || \
 	  (echo "❌ quiver.core release $$RESOLVED_VERSION not found" && exit 1); \
-	echo "✅ quiver.core release $$RESOLVED_VERSION exists and matches constraint $$CORE_VERSION"
+	echo "✅ quiver.core release $$RESOLVED_VERSION exists"
 	@echo ""
 	@echo "Step 2/6: Code Quality Checks"
 	@echo "=============================="

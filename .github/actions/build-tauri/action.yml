@@ -5,9 +5,9 @@ inputs:
   quiver-version:
     description: >-
       Resolved quiver.core release TAG to fetch the sidecar from (e.g.
-      stable-26.5.1) — never package.json's `quiver.coreVersion` constraint.
-      Callers resolve that through scripts/resolve-core-version.mjs first; see
-      the `prepare` job in nightly/prerelease/stable-release.yml.
+      stable-26.5.1, nightly-latest) — never a package.json `coreChannels`
+      key. Callers resolve that through scripts/resolve-core-version.mjs
+      first; see the `prepare` job in nightly/prerelease/stable-release.yml.
     required: true
   release-tag:
     description: >-
@@ -32,12 +32,13 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    # A guard, not ceremony. package.json pins a semver CONSTRAINT ("^26.5"),
-    # and resolving it to a real tag is the caller's job. When that was missed,
-    # every `gh release download` below ran with a literal "^26.5" and every
-    # platform of every release build failed at sidecar fetch — three jobs deep,
-    # with an error naming the symptom rather than the cause. Fail here, where
-    # the cause is, and before an hour of toolchain setup.
+    # A guard, not ceremony. package.json's coreChannels holds a CHANNEL NAME
+    # ("stable"), and resolving it to a real tag is the caller's job. When
+    # that was missed, every `gh release download` below ran with a literal
+    # channel name and every platform of every release build failed at
+    # sidecar fetch — three jobs deep, with an error naming the symptom
+    # rather than the cause. Fail here, where the cause is, and before an
+    # hour of toolchain setup.
     - name: Validate the resolved quiver.core tag
       shell: bash
       env:
@@ -48,10 +49,10 @@ runs:
           exit 1
         fi
         case "$QUIVER_VERSION" in
-          stable-*|beta-*|hotfix-*) ;;
+          stable-*|beta-*|hotfix-*|nightly-latest) ;;
           *)
-            echo "❌ quiver-version must be a resolved quiver.core tag (stable-*/beta-*/hotfix-*), got '${QUIVER_VERSION}'."
-            echo "   Resolve package.json's quiver.coreVersion constraint with scripts/resolve-core-version.mjs before calling this action."
+            echo "❌ quiver-version must be a resolved quiver.core tag (stable-*/beta-*/hotfix-*/nightly-latest), got '${QUIVER_VERSION}'."
+            echo "   Resolve package.json's quiver.coreChannels entry with scripts/resolve-core-version.mjs before calling this action."
             exit 1
             ;;
         esac

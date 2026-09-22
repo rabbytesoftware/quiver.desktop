@@ -39,8 +39,12 @@
     "zustand": "^5.0.13"
   },
   "quiver": {
-    "_comment": "A semver constraint resolved at build time to the highest matching stable-* release. Never use rolling tags (nightly-latest, beta-*) — they are not immutable and make builds non-reproducible.",
-    "coreVersion": "^26.5"
+    "_comment": "Maps each desktop build channel to the quiver.core channel it tracks. CI always resolves to whatever is CURRENTLY newest on that channel — never a pinned version. There is no `hotfix` key: a hotfix pins to whatever quiver.core version desktop's own latest stable release recorded, not a channel — see prerelease.yml's hotfix path.",
+    "coreChannels": {
+      "stable": "stable",
+      "beta": "beta",
+      "nightly": "nightly"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
