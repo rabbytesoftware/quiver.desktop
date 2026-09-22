@@ -205,6 +205,20 @@ export interface ArrowTarget {
 /** quiver.core's `domain.DepType` (internal/domain/dep_edge.go) -- a tool is a one-shot dependency, a service is one this arrow needs running. */
 export type DependencyType = 'tool' | 'service';
 
+/**
+ * One published release channel -- `GET /v0/arrow/:ns/channels`. `ordered`
+ * carries ranked tags (`members`, highest-precedence first, `members[0]`
+ * equal to `latest`); `pointer` is an unversioned branch/ref with nothing to
+ * rank, so `count`/`members` are absent and `latest` is its only version.
+ */
+export interface ArrowChannel {
+	name: string;
+	kind: 'ordered' | 'pointer';
+	latest: string;
+	count?: number;
+	members?: string[];
+}
+
 /** One resolved entry from `GET /v0/arrow/:ns/dependencies` -- an arrow this one needs, namespace and ref already resolved. */
 export interface ArrowDependency {
 	namespace: string;
@@ -237,8 +251,20 @@ export interface ArrowDetail {
 	installed_constraint?: string;
 	active_run: ActiveRun | null;
 	last_return: LastReturnDetail | null;
-	/** Every installed ref sharing this namespace, for the version switcher -- sourced from the catalog, not this detail call. */
-	versions: InstalledVersion[];
+	/**
+	 * The channel THIS installed/resolved arrow is currently tracking -- e.g.
+	 * `"beta"`. Genuinely optional: empty/absent for an arrow pinned to an
+	 * exact ref with no tracked channel. Answers "what is it on", not "what
+	 * could it be on" -- see `channels` for that.
+	 */
+	channel?: string;
+	/**
+	 * Every channel this arrow's repo publishes -- `GET /v0/arrow/:ns/channels`.
+	 * Always an array, empty when there is nothing to show: unlike `channel`,
+	 * this comes from its own dedicated fetch, which always resolves to
+	 * *something*. Answers "what could it be on", not "what is it on".
+	 */
+	channels: ArrowChannel[];
 	/**
 	 * The arrow's ARROW.md, raw -- full markdown, whatever an archer put there.
 	 * `null` when `GET /v0/arrow/:ns/readme` 404s (quiver.core #219): the
@@ -250,12 +276,6 @@ export interface ArrowDetail {
 	dependencies: ArrowDependency[];
 	/** `GET /v0/arrow/:ns/dependents` (quiver.core #220) -- namespace@ref of every installed arrow that declares a dependency on this one. */
 	dependents: string[];
-}
-
-export interface InstalledVersion {
-	ref: string;
-	version: string;
-	state: ArrowState;
 }
 
 /** The target whose platform matches this machine, or the first target when none matches (e.g. a package with no host-specific build). */

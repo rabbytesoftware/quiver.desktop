@@ -1,14 +1,10 @@
 import { useMemo, useState, type JSX, type ReactNode } from 'react';
 
-import { useNavigate } from '@tanstack/react-router';
-
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import type { InstalledVersion } from '@/domain/arrow';
 import { useArrowStore } from '@/lib/core-store';
 import { useArrowDetail } from '@/lib/core-store/queries/arrow';
 import { useTranslation } from '@/lib/i18n';
-import { splitNamespace } from '@/lib/namespace';
 import { currentPlatform } from '@/lib/platform';
 
 import { Hero } from './components/hero';
@@ -89,17 +85,6 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 		};
 	}, [data, liveEntry]);
 
-	const versions = useMemo<InstalledVersion[]>(() => {
-		if (!detail) return [];
-		const { head: base } = splitNamespace(detail.namespace);
-		const matches: InstalledVersion[] = [];
-		for (const entry of allEntries.values()) {
-			const { head, tail } = splitNamespace(entry.namespace);
-			if (head === base && tail) matches.push({ ref: tail.slice(1), version: entry.version, state: entry.state });
-		}
-		return matches;
-	}, [allEntries, detail]);
-
 	const platform = useMemo(() => currentPlatform(), []);
 
 	const [tab, setTab] = useState<ArrowTab>('overview');
@@ -107,7 +92,6 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 	const [seededFor, setSeededFor] = useState<string | null>(null);
 	const [initialTabSetFor, setInitialTabSetFor] = useState<string | null>(null);
 	const [wasRunning, setWasRunning] = useState(false);
-	const navigate = useNavigate();
 	const [isWide, tabsContainerRef] = useContainerWidthAtLeast(GROUP_MIN_WIDTH);
 	const [isRailWide, railContainerRef] = useContainerWidthAtLeast(RAIL_MIN_WIDTH);
 
@@ -148,15 +132,6 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 
 	function handleValueChange(name: string, value: string): void {
 		setValues((current) => ({ ...current, [name]: value }));
-	}
-
-	function handleVersionChange(ref: string): void {
-		// Only ever reachable via the Hero, which itself only renders after the
-		// `!detail` guard below has already passed -- `detail!` reflects that
-		// real invariant rather than adding a branch TypeScript needs but no
-		// test can actually reach through this component's own render tree.
-		const { head: base } = splitNamespace(detail!.namespace);
-		void navigate({ to: '/arrow/$', params: { _splat: `${base}@${ref}` } });
 	}
 
 	if (isLoading) {
@@ -242,13 +217,7 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 
 	return (
 		<div className="flex flex-col">
-			<Hero
-				detail={{ ...detail, versions }}
-				onValueChange={handleValueChange}
-				onVersionChange={handleVersionChange}
-				platform={platform}
-				values={values}
-			/>
+			<Hero detail={detail} onValueChange={handleValueChange} platform={platform} values={values} />
 
 			<div
 				className={`${CONTENT_PADDING_X} ${CONTENT_MAX_WIDTH} pb-12`}

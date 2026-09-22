@@ -118,6 +118,88 @@ describe('library membership', () => {
 		expect(status).toBe(200);
 		expect(mock.world.arrows.get(`${bare}@v11.6.2`)!.user_installed).toBe(true);
 	});
+
+	it('stores the channel a registration pins, when one is given', async () => {
+		const bare = `${NS}/mariadb`;
+		await call('POST', `/v0/arrow/${enc(bare)}`, { channel: 'beta' });
+		expect(mock.world.arrows.get(`${bare}@v11.6.2`)!.channel).toBe('beta');
+	});
+});
+
+describe('channels', () => {
+	it('lists the ordered and pointer channels a fixture publishes', async () => {
+		const { status, body } = await call('GET', `/v0/arrow/${enc(MINECRAFT)}/channels`);
+		expect(status).toBe(200);
+		const { channels } = body!.data as {
+			channels: Array<{ name: string; kind: string; latest: string; count?: number; members?: string[] }>;
+		};
+		expect(channels).toEqual([
+			{
+				name: 'stable',
+				kind: 'ordered',
+				latest: 'v1.21.4',
+				count: 3,
+				members: ['v1.21.4', 'v1.21.1', 'v1.20.6'],
+			},
+			{ name: 'nightly', kind: 'pointer', latest: 'nightly-latest' },
+		]);
+	});
+
+	it('reports an empty list for an arrow that publishes none', async () => {
+		const { status, body } = await call('GET', `/v0/arrow/${enc(POSTGRES)}/channels`);
+		expect(status).toBe(200);
+		expect(body!.data).toEqual({ channels: [] });
+	});
+
+	it('404s for an arrow the world has never heard of', async () => {
+		expect((await call('GET', `/v0/arrow/${enc('nope/nope@v1')}/channels`)).status).toBe(404);
+	});
+
+	it('switches the tracked channel and pins the given ref, re-keying the world entry', async () => {
+		const { status } = await call('PATCH', `/v0/arrow/${enc(MINECRAFT)}`, {
+			channel: 'nightly',
+			ref: 'nightly-latest',
+		});
+		expect(status).toBe(200);
+		expect(mock.world.arrows.get(MINECRAFT)).toBeUndefined();
+		const moved = mock.world.arrows.get(`${NS}/minecraft@nightly-latest`);
+		expect(moved?.channel).toBe('nightly');
+		expect(moved?.ref).toBe('nightly-latest');
+	});
+
+	it("resolves an omitted ref to the channel's own latest", async () => {
+		await call('PATCH', `/v0/arrow/${enc(MINECRAFT)}`, { channel: 'nightly' });
+		const moved = mock.world.arrows.get(`${NS}/minecraft@nightly-latest`);
+		expect(moved?.ref).toBe('nightly-latest');
+	});
+
+	it('keeps the current ref when the named channel matches no published entry and no ref is given', async () => {
+		const { status } = await call('PATCH', `/v0/arrow/${enc(MINECRAFT)}`, { channel: 'made-up' });
+		expect(status).toBe(200);
+		const arrow = mock.world.arrows.get(MINECRAFT);
+		expect(arrow?.channel).toBe('made-up');
+		expect(arrow?.ref).toBe('v1.21.4');
+	});
+
+	it('400s a PATCH with no channel', async () => {
+		expect((await call('PATCH', `/v0/arrow/${enc(MINECRAFT)}`, {})).status).toBe(400);
+	});
+
+	it('400s a PATCH sent with no body at all', async () => {
+		expect((await call('PATCH', `/v0/arrow/${enc(MINECRAFT)}`)).status).toBe(400);
+	});
+
+	it('falls back through to the current ref for an arrow that publishes no channels at all', async () => {
+		const { status } = await call('PATCH', `/v0/arrow/${enc(POSTGRES)}`, { channel: 'stable' });
+		expect(status).toBe(200);
+		const arrow = mock.world.arrows.get(POSTGRES);
+		expect(arrow?.channel).toBe('stable');
+		expect(arrow?.ref).toBe('v17.2');
+	});
+
+	it('404s a PATCH for an arrow the world has never heard of', async () => {
+		expect((await call('PATCH', `/v0/arrow/${enc('nope/nope@v1')}`, { channel: 'beta' })).status).toBe(404);
+	});
 });
 
 describe('runtime refusals', () => {

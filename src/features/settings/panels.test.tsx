@@ -10,12 +10,14 @@ vi.mock('@tanstack/react-router-devtools', () => ({ TanStackRouterDevtools: () =
 
 import { MockIndicator } from '@/components/mock-indicator';
 
+import { QUIVER_CORE_NAMESPACE } from '@/domain/release';
 import { useThemeStore } from '@/features/shell';
 import { useShellStore } from '@/features/shell/stores/shell-store';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
 import { createMockBackend, currentMock, disposeMock, installMock } from '@/lib/mock';
 import { setMockCorrected } from '@/lib/mock/server/handlers/config';
 import { FAULT_KEYS, useMockStore } from '@/lib/mock/store';
+import { arrow } from '@/lib/mock/world/scenarios/kit';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 import { routeTree } from '@/routeTree.gen';
 
@@ -633,5 +635,83 @@ describe('the Engine panel', () => {
 
 		expect(useEngineStore.getState().view?.configured.logger.level).toBe('warning');
 		expect(screen.getByRole('combobox', { name: 'Level' })).toHaveTextContent('Warn');
+	});
+});
+
+describe("the Engine panel's self-update channel row", () => {
+	beforeEach(() => {
+		installMock('normal');
+		useEngineStore.setState({ view: null, rejected: [], loading: true, error: null, patchError: null });
+	});
+
+	it('disables the picker and explains why when quiver.core has not self-registered yet', async () => {
+		render(<EngineSettings />);
+		await screen.findByDisplayValue('49152');
+
+		expect(await screen.findByText("Couldn't load quiver.core's channels")).toBeInTheDocument();
+		expect(screen.getByRole('combobox', { name: 'Update channel' })).toBeDisabled();
+	});
+
+	it('offers quiver.core’s own published channels once its self-registration exists', async () => {
+		const user = userEvent.setup();
+		currentMock()!.world.arrows.set(
+			`${QUIVER_CORE_NAMESPACE}@stable-1.0`,
+			arrow({
+				namespace: QUIVER_CORE_NAMESPACE,
+				name: 'Quiver Core',
+				state: 'ready',
+				ref: 'stable-1.0',
+				version: '1.0',
+				channels: [
+					{
+						name: 'stable',
+						kind: 'ordered',
+						latest: 'stable-1.1',
+						count: 2,
+						members: ['stable-1.1', 'stable-1.0'],
+					},
+					{ name: 'nightly', kind: 'pointer', latest: 'nightly-latest' },
+				],
+			})
+		);
+
+		render(<EngineSettings />);
+		await screen.findByDisplayValue('49152');
+
+		const select = await screen.findByRole('combobox', { name: 'Update channel' });
+		expect(select).toBeEnabled();
+		await user.click(select);
+		expect(await screen.findByRole('option', { name: 'stable' })).toBeInTheDocument();
+		expect(screen.getByRole('option', { name: 'nightly' })).toBeInTheDocument();
+	});
+
+	it('patches arrows.self_update_channel when a channel is picked, and resets it back', async () => {
+		const user = userEvent.setup();
+		currentMock()!.world.arrows.set(
+			`${QUIVER_CORE_NAMESPACE}@stable-1.0`,
+			arrow({
+				namespace: QUIVER_CORE_NAMESPACE,
+				name: 'Quiver Core',
+				state: 'ready',
+				ref: 'stable-1.0',
+				version: '1.0',
+				channels: [{ name: 'beta', kind: 'ordered', latest: 'beta-1.1', count: 1, members: ['beta-1.1'] }],
+			})
+		);
+
+		render(<EngineSettings />);
+		await screen.findByDisplayValue('49152');
+
+		const select = await screen.findByRole('combobox', { name: 'Update channel' });
+		await user.click(select);
+		await user.click(await screen.findByRole('option', { name: 'beta' }));
+
+		await waitFor(() =>
+			expect(useEngineStore.getState().view?.configured.arrows?.self_update_channel).toBe('beta')
+		);
+		expect(await screen.findByRole('button', { name: 'Reset Update channel' })).toBeEnabled();
+
+		await user.click(screen.getByRole('button', { name: 'Reset Update channel' }));
+		await waitFor(() => expect(useEngineStore.getState().view?.configured.arrows?.self_update_channel).toBe(''));
 	});
 });

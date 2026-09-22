@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { Badge } from '@/components/ui/badge';
 import { FlickerSpinner } from '@/components/ui/flicker-spinner';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import type { ArrowDetail } from '@/domain/arrow';
 import { computeActions, type ArrowActionKind } from '@/features/arrow-details/lib/actions';
@@ -16,6 +15,7 @@ import {
 	type ReleaseMessageKey,
 } from '@/features/arrow-details/lib/release-variables';
 import { problemMessage, computeStatus, STATUS_BADGE_VARIANT, STATUS_ICONS } from '@/features/arrow-details/lib/status';
+import { useChannelSelection } from '@/features/arrow-details/lib/use-channel-selection';
 import { ArrowIcon } from '@/features/sidebar/components/arrows/arrow-icon';
 import { cn } from '@/lib/cn';
 import {
@@ -34,6 +34,7 @@ import { useTranslation } from '@/lib/i18n';
 import { TriangleAlertIcon } from 'lucide-react';
 
 import { ActionButton } from './action-button';
+import { ChannelVersionSelects } from './channel-version-selects';
 import { MessageModal } from './message-modal';
 
 interface HeroProps {
@@ -41,16 +42,15 @@ interface HeroProps {
 	platform: string;
 	values: Record<string, string>;
 	onValueChange: (name: string, value: string) => void;
-	onVersionChange?: (ref: string) => void;
 }
 
 /**
- * The arrow-details hero -- identity, status, tags, description, version +
- * license, and the state-driven action row. Extends Collection's existing
- * hero pattern (banner + identity block) with everything specific to a
- * single arrow's lifecycle.
+ * The arrow-details hero -- identity, status, tags, description, channel +
+ * version + license, and the state-driven action row. Extends Collection's
+ * existing hero pattern (banner + identity block) with everything specific
+ * to a single arrow's lifecycle.
  */
-export function Hero({ detail, platform, values, onValueChange, onVersionChange }: HeroProps): JSX.Element {
+export function Hero({ detail, platform, values, onValueChange }: HeroProps): JSX.Element {
 	const { t } = useTranslation();
 	const [problemOpen, setProblemOpen] = useState(false);
 	const [pendingKind, setPendingKind] = useState<ArrowActionKind | null>(null);
@@ -81,6 +81,7 @@ export function Hero({ detail, platform, values, onValueChange, onVersionChange 
 	const stop = useStop();
 	const update = useUpdate();
 	const execute = useExecuteArrow();
+	const channelSelection = useChannelSelection(detail);
 
 	const status = computeStatus(detail);
 	const problem = problemMessage(detail);
@@ -121,7 +122,10 @@ export function Hero({ detail, platform, values, onValueChange, onVersionChange 
 		try {
 			switch (kind) {
 				case 'addToLibrary':
-					await registerArrow.mutateAsync({ namespace: detail.namespace });
+					await registerArrow.mutateAsync({
+						namespace: detail.namespace,
+						...(channelSelection.selectedChannel ? { channel: channelSelection.selectedChannel } : {}),
+					});
 					// `user_installed` isn't part of the live WS-driven overlay (only
 					// state/active_run/last_return are) -- the one-time detail fetch
 					// needs an explicit refetch to pick up the new library membership.
@@ -249,26 +253,10 @@ export function Hero({ detail, platform, values, onValueChange, onVersionChange 
 					<p className="mt-3 line-clamp-2 max-w-2xl text-sm text-muted-foreground">{detail.description}</p>
 
 					<div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-						{detail.versions.length > 0 && (
-							<Select onValueChange={(ref) => ref && onVersionChange?.(ref)} value={detail.installed_ref}>
-								<SelectTrigger
-									aria-label={t('arrow.version.label')}
-									className="h-6 w-auto font-mono text-xs"
-								>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{detail.versions.map((v) => (
-										<SelectItem key={v.ref} value={v.ref}>
-											{v.ref}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						)}
+						<ChannelVersionSelects channels={detail.channels} selection={channelSelection} />
 						{detail.license && (
 							<>
-								{detail.versions.length > 0 && <span aria-hidden="true">–</span>}
+								{detail.channels.length > 0 && <span aria-hidden="true">–</span>}
 								<span>{detail.license}</span>
 							</>
 						)}

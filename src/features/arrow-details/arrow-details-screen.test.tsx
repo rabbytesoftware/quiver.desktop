@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockedFunction } 
 import { runStep, signalStep } from '@/__mocks__/arrow-steps';
 import { installMockResizeObserver, MockResizeObserver } from '@/__mocks__/mock-resize-observer';
 import { useArrowStore } from '@/lib/core-store';
-import type { ArrowDetailDTO, ArrowManifestDTO } from '@/lib/core-store/dtos/v0/arrow';
+import type { ArrowDetailDTO, ArrowManifestDTO, ChannelDTO } from '@/lib/core-store/dtos/v0/arrow';
 import { apiFetch, ApiError } from '@/lib/transport/api';
 
 import { ArrowDetailsScreen } from './arrow-details-screen';
@@ -101,7 +101,8 @@ function mockDetailAndManifest(
 	manifest: ArrowManifestDTO = MANIFEST,
 	readme: string | null = null,
 	dependencies: { namespace: string; type: 'tool' | 'service' }[] = [],
-	dependents: string[] = []
+	dependents: string[] = [],
+	channels: ChannelDTO[] = []
 ) {
 	mockApiFetch.mockImplementation((path: string) => {
 		if (path.endsWith('/readme')) {
@@ -112,6 +113,7 @@ function mockDetailAndManifest(
 		if (path.endsWith('/manifest')) return Promise.resolve(manifest);
 		if (path.endsWith('/dependencies')) return Promise.resolve({ namespace: NS, dependencies });
 		if (path.endsWith('/dependents')) return Promise.resolve({ namespace: NS, dependents });
+		if (path.endsWith('/channels')) return Promise.resolve({ channels });
 		return Promise.resolve(detail);
 	});
 }
@@ -286,6 +288,7 @@ describe('ArrowDetailsScreen', () => {
 		mockApiFetch.mockImplementation((path: string) => {
 			if (path.endsWith('/readme')) return Promise.reject(new ApiError('not found', 404));
 			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/channels')) return Promise.resolve({ channels: [] });
 			if (path.endsWith('/dependencies')) return Promise.resolve({ namespace: NS, dependencies: [] });
 			if (path.endsWith('/dependents')) return Promise.resolve({ namespace: NS, dependents: [] });
 			if (path.includes(encodeURIComponent(OTHER_NS)))
@@ -521,32 +524,6 @@ describe('ArrowDetailsScreen', () => {
 		expect(await screen.findByText('checksum mismatch')).toBeInTheDocument();
 	});
 
-	it('does not count a bare (unversioned) store entry sharing the base namespace as an installed version', async () => {
-		mockDetailAndManifest();
-		useArrowStore.setState({
-			arrows: new Map([
-				[
-					'github.com/rabbyte/minecraft',
-					{
-						namespace: 'github.com/rabbyte/minecraft',
-						name: 'Minecraft Server',
-						description: '',
-						tags: [],
-						icon: null,
-						banner: null,
-						version: '',
-						state: 'absent',
-						active_run: null,
-						last_return: null,
-					},
-				],
-			]),
-		});
-		renderScreen(NS);
-		await screen.findByRole('heading', { name: 'Minecraft Server' });
-		expect(screen.queryByRole('combobox', { name: 'Version' })).not.toBeInTheDocument();
-	});
-
 	it('renders with no methods when the arrow declares no targets at all', async () => {
 		mockDetailAndManifest(DETAIL, { ...MANIFEST, targets: {} });
 		const user = userEvent.setup();
@@ -598,51 +575,20 @@ describe('ArrowDetailsScreen', () => {
 		await waitFor(() => expect(screen.queryByText(/Issue/)).not.toBeInTheDocument());
 	});
 
-	it('navigates to the sibling version when a different one is picked from the Hero switcher', async () => {
-		const user = userEvent.setup();
-		mockDetailAndManifest();
-		useArrowStore.setState({
-			arrows: new Map([
-				[
-					NS,
-					{
-						namespace: NS,
-						name: 'Minecraft Server',
-						description: '',
-						tags: [],
-						icon: null,
-						banner: null,
-						version: '1.21.4',
-						state: 'ready',
-						active_run: null,
-						last_return: null,
-					},
-				],
-				[
-					'github.com/rabbyte/minecraft@v1.20.1',
-					{
-						namespace: 'github.com/rabbyte/minecraft@v1.20.1',
-						name: 'Minecraft Server',
-						description: '',
-						tags: [],
-						icon: null,
-						banner: null,
-						version: '1.20.1',
-						state: 'outdated',
-						active_run: null,
-						last_return: null,
-					},
-				],
-			]),
-		});
-		const { router } = renderScreen(NS);
-
-		await user.click(await screen.findByRole('combobox', { name: 'Version' }));
-		await user.click(await screen.findByRole('option', { name: 'v1.20.1' }));
-
-		await waitFor(() =>
-			expect(router.state.location.pathname).toBe('/arrow/github.com/rabbyte/minecraft%40v1.20.1')
+	it('renders the channel and version switchers fed end to end by the channels endpoint', async () => {
+		mockDetailAndManifest(
+			DETAIL,
+			MANIFEST,
+			null,
+			[],
+			[],
+			[{ name: 'stable', kind: 'ordered', latest: 'v1.21.4', count: 2, members: ['v1.21.4', 'v1.21.0'] }]
 		);
+		renderScreen(NS);
+
+		await screen.findByRole('heading', { name: 'Minecraft Server' });
+		expect(screen.getByRole('combobox', { name: 'Channel' })).toHaveTextContent('stable');
+		expect(screen.getByRole('combobox', { name: 'Version' })).toHaveTextContent('v1.21.4');
 	});
 });
 

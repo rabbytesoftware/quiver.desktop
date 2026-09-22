@@ -9,9 +9,11 @@ export interface Rejection {
 export interface DaemonConfig {
 	netbridge: { enabled: boolean; ephemeral_port_start: number; ephemeral_port_end: number };
 	logger: { enabled: boolean; level: string };
-	// Core's config is wider than this tab renders — `search`, `vault`,
-	// `manifold`, `arrows`. They are never read here, but they must survive a
-	// round trip, so the type stays open rather than exhaustive.
+	// The one `arrows.*` setting this tab reads/writes -- the rest of the
+	// section (and every other section: `search`, `vault`, `manifold`) is
+	// never read here, but must still survive a round trip, so the type
+	// stays open below rather than exhaustive.
+	arrows?: { self_update_channel?: string };
 	[section: string]: unknown;
 }
 

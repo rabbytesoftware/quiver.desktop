@@ -1,6 +1,7 @@
-import { findArrow } from '../../world/types';
+import { findArrow, versioned } from '../../world/types';
 import { fail, ok } from '../envelope';
 import {
+	toArrowChannelsDTO,
 	toArrowDependenciesDTO,
 	toArrowDependentsDTO,
 	toArrowDetailDTO,
@@ -60,6 +61,16 @@ export const arrowRoutes: Route[] = [
 	},
 	{
 		method: 'GET',
+		pattern: '/v0/arrow/:ns/channels',
+		fault: 'arrow-detail',
+		handler: (req, world) => {
+			const arrow = findArrow(world.arrows, req.params.ns);
+			if (!arrow) return fail(`arrow ${req.params.ns} not found`, 404);
+			return ok(toArrowChannelsDTO(arrow));
+		},
+	},
+	{
+		method: 'GET',
 		pattern: '/v0/arrow/:ns/dependencies',
 		fault: 'arrow-detail',
 		handler: (req, world) => {
@@ -87,7 +98,41 @@ export const arrowRoutes: Route[] = [
 			if (!arrow) return fail(`arrow ${req.params.ns} not found`, 404);
 			if (arrow.user_installed) return fail(`arrow ${req.params.ns} is already in the library`, 500);
 
+			const body = (req.body ?? {}) as { channel?: string };
 			arrow.user_installed = true;
+			if (body.channel) arrow.channel = body.channel;
+			world.emitter.emit(ARROW_ENDPOINT, toArrowFrame(arrow, 'upserted'));
+			return ok(null);
+		},
+	},
+	{
+		method: 'PATCH',
+		pattern: '/v0/arrow/:ns',
+		fault: 'arrows',
+		handler: (req, world) => {
+			const arrow = findArrow(world.arrows, req.params.ns);
+			if (!arrow) return fail(`arrow ${req.params.ns} not found`, 404);
+
+			const body = (req.body ?? {}) as { channel?: string; ref?: string };
+			if (!body.channel) return fail('channel is required', 400);
+
+			// Real quiver.core resolves an omitted `ref` to the channel's own
+			// `latest` -- mirror that here rather than leaving the ref untouched.
+			const entry = (arrow.channels ?? []).find((c) => c.name === body.channel);
+			const nextRef = body.ref ?? entry?.latest ?? arrow.ref;
+
+			// `world.arrows` is keyed by `namespace@ref` (see `findArrow`'s own
+			// comment) -- changing `ref` in place without re-keying would strand
+			// this entry under its old key, so any future exact-key lookup for
+			// the new ref would miss it.
+			const oldKey = versioned(arrow);
+			arrow.channel = body.channel;
+			arrow.ref = nextRef;
+			if (versioned(arrow) !== oldKey) {
+				world.arrows.delete(oldKey);
+				world.arrows.set(versioned(arrow), arrow);
+			}
+
 			world.emitter.emit(ARROW_ENDPOINT, toArrowFrame(arrow, 'upserted'));
 			return ok(null);
 		},

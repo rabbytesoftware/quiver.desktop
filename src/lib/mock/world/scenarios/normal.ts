@@ -63,6 +63,20 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		ref: 'v1.21.4',
 		version: '1.21.4',
 		state: 'running',
+		// Exercises both channel kinds on one fixture: an ordered `stable`
+		// (ranked tags, this arrow's own `ref` as its current `latest`) and a
+		// `nightly` pointer (an unversioned branch, nothing to rank).
+		channel: 'stable',
+		channels: [
+			{
+				name: 'stable',
+				kind: 'ordered',
+				latest: 'v1.21.4',
+				count: 3,
+				members: ['v1.21.4', 'v1.21.1', 'v1.20.6'],
+			},
+			{ name: 'nightly', kind: 'pointer', latest: 'nightly-latest' },
+		],
 		// Most-recently-used of the three Recents fixtures below.
 		last_used_at: '2026-07-20T18:42:00Z',
 		tags: ['game', 'server', 'java'],

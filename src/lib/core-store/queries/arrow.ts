@@ -11,8 +11,9 @@ import type {
 	ArrowDetailDTO,
 	ArrowManifestDTO,
 	ArrowReadmeDTO,
+	ChannelListDTO,
 } from '../dtos/v0/arrow';
-import { toArrowDetail } from '../dtos/v0/arrow';
+import { toArrowChannels, toArrowDetail } from '../dtos/v0/arrow';
 
 export const arrowDetailQueryKeyPrefix = ['arrow'] as const;
 
@@ -32,6 +33,22 @@ async function fetchReadme(bareNamespace: string): Promise<string | null> {
 		return dto.readme;
 	} catch (err) {
 		if (isNotFoundError(err)) return null;
+		throw err;
+	}
+}
+
+/**
+ * `GET /v0/arrow/:ns/channels` -- like `/manifest` and `/readme`, this is a
+ * repo-level property, not a per-ref one, so it takes the bare namespace.
+ * 404 means the arrow itself doesn't resolve (or hasn't published any
+ * channels), which is a fine "nothing to show" outcome here, not a failure
+ * of the whole detail fetch -- same treatment as readme/dependencies/dependents.
+ */
+async function fetchChannels(bareNamespace: string): Promise<ChannelListDTO> {
+	try {
+		return await apiFetch<ChannelListDTO>(`/v0/arrow/${encodeURIComponent(bareNamespace)}/channels`);
+	} catch (err) {
+		if (isNotFoundError(err)) return { channels: [] };
 		throw err;
 	}
 }
@@ -65,38 +82,35 @@ async function fetchDependents(namespace: string): Promise<string[]> {
 }
 
 /**
- * Combines the five real endpoints quiver.core exposes for a single arrow --
- * `GET /v0/arrow/:ns` (state/active_run/last_return), `GET /v0/arrow/:ns/manifest`
+ * Combines the six real endpoints quiver.core exposes for a single arrow --
+ * `GET /v0/arrow/:ns` (state/active_run/last_return/channel), `GET /v0/arrow/:ns/manifest`
  * (media, maintainers, credits, url, requirements, netbridge, variables,
- * methods), `GET /v0/arrow/:ns/readme` (ARROW.md prose), and
- * `GET /v0/arrow/:ns/dependencies` + `GET /v0/arrow/:ns/dependents`
- * (the dependency graph, quiver.core #220). There is no single endpoint that
- * returns all five; don't add one to the mock as a shortcut, since that
- * would stop the mock from catching a client that assumes there is.
+ * methods), `GET /v0/arrow/:ns/readme` (ARROW.md prose), `GET /v0/arrow/:ns/channels`
+ * (published release channels), and `GET /v0/arrow/:ns/dependencies` +
+ * `GET /v0/arrow/:ns/dependents` (the dependency graph, quiver.core #220).
+ * There is no single endpoint that returns all six; don't add one to the
+ * mock as a shortcut, since that would stop the mock from catching a client
+ * that assumes there is.
  *
- * Both readme and manifest take the bare namespace -- core rejects a
- * `namespace@ref` path on either (`ErrInvalidNamespace`, 400), confirmed
- * live against the real daemon. The two dependency calls take the full
- * `namespace@ref`, since the resolved plan is version-specific.
- *
- * `versions` (the version-switcher's list) intentionally comes back empty --
- * it belongs to the catalog, not any of these calls, and the calling screen
- * should derive it from the already-loaded `useArrowStore` instead of a
- * sixth fetch.
+ * Readme, manifest and channels all take the bare namespace -- core rejects a
+ * `namespace@ref` path on any of them (`ErrInvalidNamespace`, 400), confirmed
+ * live against the real daemon for readme/manifest. The two dependency calls
+ * take the full `namespace@ref`, since the resolved plan is version-specific.
  */
 export function useArrowDetail(namespace: string) {
 	return useQuery<ArrowDetail>({
 		queryKey: arrowDetailQueryKey(namespace),
 		queryFn: async () => {
 			const bareNamespace = splitNamespace(namespace).head;
-			const [detail, manifest, readme, dependencies, dependents] = await Promise.all([
+			const [detail, manifest, channels, readme, dependencies, dependents] = await Promise.all([
 				apiFetch<ArrowDetailDTO>(`/v0/arrow/${encodeURIComponent(namespace)}`),
 				apiFetch<ArrowManifestDTO>(`/v0/arrow/${encodeURIComponent(bareNamespace)}/manifest`),
+				fetchChannels(bareNamespace),
 				fetchReadme(bareNamespace),
 				fetchDependencies(namespace),
 				fetchDependents(namespace),
 			]);
-			return toArrowDetail(detail, manifest, [], readme, dependencies, dependents);
+			return toArrowDetail(detail, manifest, toArrowChannels(channels), readme, dependencies, dependents);
 		},
 		enabled: namespace.length > 0,
 	});

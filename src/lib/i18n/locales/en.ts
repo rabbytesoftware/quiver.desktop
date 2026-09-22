@@ -166,6 +166,13 @@ export const en = {
 	'settings.engine.logs.level.warn': 'Warn',
 	'settings.engine.logs.level.error': 'Error',
 
+	'settings.engine.selfUpdate.title': 'Updates',
+	'settings.engine.selfUpdate.channel': 'Update channel',
+	'settings.engine.selfUpdate.channelDescription': 'Which release channel quiver.core tracks for its own updates',
+	'settings.engine.selfUpdate.loading': 'Loading channels…',
+	'settings.engine.selfUpdate.unset': 'Not set',
+	'settings.engine.selfUpdate.unavailable': "Couldn't load quiver.core's channels",
+
 	'mock.badge': 'Mock',
 	'mock.status': '{scenario} · no daemon is being contacted',
 	'mock.turnOff': 'Turn off',
@@ -279,6 +286,9 @@ export const en = {
 	},
 
 	'arrow.version.label': 'Version',
+	'arrow.channel.label': 'Channel',
+	/** Suffix shown next to a pointer channel's name in the Channel picker, e.g. "nightly (rolling)". */
+	'arrow.channel.pointer': 'rolling',
 
 	'home.recents': 'Recents',
 	'home.library': 'Library',

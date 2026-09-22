@@ -7,6 +7,13 @@
 export const QUIVER_DESKTOP_NAMESPACE = 'github.com/rabbytesoftware/quiver.desktop';
 
 /**
+ * quiver.core's own arrow namespace, refless -- the daemon self-registers
+ * under this exactly like any other catalogued arrow, which is what lets its
+ * own self-update channel be read via the ordinary `GET /v0/arrow/:ns/channels`.
+ */
+export const QUIVER_CORE_NAMESPACE = 'github.com/rabbytesoftware/quiver.core';
+
+/**
  * This app's own release asset, as `src-tauri/src/release/mod.rs` resolves it
  * from the GitHub releases API.
  *

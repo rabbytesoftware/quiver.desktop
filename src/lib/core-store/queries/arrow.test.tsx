@@ -48,6 +48,7 @@ function mockEndpoints(readme: unknown) {
 			return Promise.resolve({ namespace: BARE_NS, readme });
 		}
 		if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+		if (path.endsWith('/channels')) return Promise.resolve({ channels: [] });
 		if (path.endsWith('/dependencies')) return Promise.resolve({ namespace: BARE_NS, dependencies: [] });
 		if (path.endsWith('/dependents')) return Promise.resolve({ namespace: BARE_NS, dependents: [] });
 		return Promise.resolve(DETAIL);
@@ -117,6 +118,7 @@ describe('useArrowDetail', () => {
 		mockApiFetch.mockImplementation((path: string) => {
 			if (path.endsWith('/readme')) return Promise.reject(new ApiError('not found', 404));
 			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/channels')) return Promise.resolve({ channels: [] });
 			if (path.endsWith('/dependencies')) {
 				return Promise.resolve({
 					namespace: BARE_NS,
@@ -142,6 +144,7 @@ describe('useArrowDetail', () => {
 		mockApiFetch.mockImplementation((path: string) => {
 			if (path.endsWith('/readme')) return Promise.reject(new ApiError('not found', 404));
 			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/channels')) return Promise.resolve({ channels: [] });
 			if (path.endsWith('/dependencies')) return Promise.reject(new ApiError('not found', 404));
 			if (path.endsWith('/dependents')) return Promise.reject(new ApiError('not found', 404));
 			return Promise.resolve(DETAIL);
@@ -152,6 +155,79 @@ describe('useArrowDetail', () => {
 		await waitFor(() => expect(result.current.isSuccess).toBe(true));
 		expect(result.current.data?.dependencies).toEqual([]);
 		expect(result.current.data?.dependents).toEqual([]);
+	});
+});
+
+describe('useArrowDetail, channels', () => {
+	beforeEach(() => {
+		mockApiFetch.mockReset();
+	});
+
+	it('fetches channels from the bare namespace, like readme and manifest', async () => {
+		mockEndpoints(null);
+
+		renderHook(() => useArrowDetail(NS), { wrapper });
+
+		await waitFor(() =>
+			expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(BARE_NS)}/channels`)
+		);
+	});
+
+	it('merges the fetched channels into the assembled detail', async () => {
+		mockApiFetch.mockImplementation((path: string) => {
+			if (path.endsWith('/readme')) return Promise.reject(new ApiError('not found', 404));
+			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/channels')) {
+				return Promise.resolve({
+					channels: [
+						{ name: 'stable', kind: 'ordered', latest: 'v1.21.4', count: 1, members: ['v1.21.4'] },
+						{ name: 'nightly', kind: 'pointer', latest: 'nightly-latest' },
+					],
+				});
+			}
+			if (path.endsWith('/dependencies')) return Promise.resolve({ namespace: BARE_NS, dependencies: [] });
+			if (path.endsWith('/dependents')) return Promise.resolve({ namespace: BARE_NS, dependents: [] });
+			return Promise.resolve(DETAIL);
+		});
+
+		const { result } = renderHook(() => useArrowDetail(NS), { wrapper });
+
+		await waitFor(() => expect(result.current.isSuccess).toBe(true));
+		expect(result.current.data?.channels).toEqual([
+			{ name: 'stable', kind: 'ordered', latest: 'v1.21.4', count: 1, members: ['v1.21.4'] },
+			{ name: 'nightly', kind: 'pointer', latest: 'nightly-latest' },
+		]);
+	});
+
+	it('resolves channels to an empty list when the channels endpoint 404s, without failing the whole query', async () => {
+		mockApiFetch.mockImplementation((path: string) => {
+			if (path.endsWith('/readme')) return Promise.reject(new ApiError('not found', 404));
+			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/channels')) return Promise.reject(new ApiError('not found', 404));
+			if (path.endsWith('/dependencies')) return Promise.resolve({ namespace: BARE_NS, dependencies: [] });
+			if (path.endsWith('/dependents')) return Promise.resolve({ namespace: BARE_NS, dependents: [] });
+			return Promise.resolve(DETAIL);
+		});
+
+		const { result } = renderHook(() => useArrowDetail(NS), { wrapper });
+
+		await waitFor(() => expect(result.current.isSuccess).toBe(true));
+		expect(result.current.data?.channels).toEqual([]);
+	});
+
+	it('fails the whole query when the channels endpoint fails for a reason other than 404, matching readme/dependencies', async () => {
+		mockApiFetch.mockImplementation((path: string) => {
+			if (path.endsWith('/readme')) return Promise.reject(new ApiError('not found', 404));
+			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/channels')) return Promise.reject(new ApiError('internal error', 500));
+			if (path.endsWith('/dependencies')) return Promise.resolve({ namespace: BARE_NS, dependencies: [] });
+			if (path.endsWith('/dependents')) return Promise.resolve({ namespace: BARE_NS, dependents: [] });
+			return Promise.resolve(DETAIL);
+		});
+
+		const { result } = renderHook(() => useArrowDetail(NS), { wrapper });
+
+		await waitFor(() => expect(result.current.isError).toBe(true));
 	});
 });
 

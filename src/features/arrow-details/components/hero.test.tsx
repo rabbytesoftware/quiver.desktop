@@ -54,7 +54,7 @@ function detail(overrides: Partial<ArrowDetail> = {}): ArrowDetail {
 		installed_ref: 'v1.21.4',
 		active_run: null,
 		last_return: null,
-		versions: [{ ref: 'v1.21.4', version: '1.21.4', state: 'ready' }],
+		channels: [],
 		readme: null,
 		dependencies: [],
 		dependents: [],
@@ -74,19 +74,10 @@ function wrapper(
 
 function renderHero(props: Partial<React.ComponentProps<typeof Hero>> = {}) {
 	const onValueChange = vi.fn();
-	const onVersionChange = vi.fn();
-	render(
-		<Hero
-			detail={detail()}
-			onValueChange={onValueChange}
-			onVersionChange={onVersionChange}
-			platform={PLATFORM}
-			values={{}}
-			{...props}
-		/>,
-		{ wrapper: wrapper() }
-	);
-	return { onValueChange, onVersionChange };
+	render(<Hero detail={detail()} onValueChange={onValueChange} platform={PLATFORM} values={{}} {...props} />, {
+		wrapper: wrapper(),
+	});
+	return { onValueChange };
 }
 
 /** The last `apiFetch` call, so a test can read what was actually sent. */
@@ -109,7 +100,6 @@ function selfDetail(overrides: Partial<ArrowDetail> = {}): ArrowDetail {
 			{ name: 'QUIVER_RELEASE_CHECKSUM', description: 'SHA-256.', type: 'string', default: '' },
 		],
 		installed_ref: 'stable-1.0',
-		versions: [{ ref: 'stable-1.0', version: '1.0', state: 'ready' }],
 		...overrides,
 	});
 }
@@ -167,13 +157,7 @@ describe('Hero', () => {
 		const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 		const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
 		render(
-			<Hero
-				detail={detail({ user_installed: false })}
-				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
-				platform={PLATFORM}
-				values={{}}
-			/>,
+			<Hero detail={detail({ user_installed: false })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />,
 			{ wrapper: wrapper(qc) }
 		);
 
@@ -186,16 +170,9 @@ describe('Hero', () => {
 		const user = userEvent.setup();
 		const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 		const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
-		render(
-			<Hero
-				detail={detail({ state: 'absent' })}
-				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
-				platform={PLATFORM}
-				values={{}}
-			/>,
-			{ wrapper: wrapper(qc) }
-		);
+		render(<Hero detail={detail({ state: 'absent' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />, {
+			wrapper: wrapper(qc),
+		});
 
 		await user.click(screen.getByRole('button', { name: 'Remove from Library' }));
 
@@ -218,14 +195,10 @@ describe('Hero', () => {
 		expect(screen.getByText('A vanilla Minecraft Java Edition server.')).toBeInTheDocument();
 	});
 
-	it('renders the license, and the version switcher when versions are present', () => {
+	it('renders the license, with no channel or version switcher when there are no channels to show', () => {
 		renderHero();
 		expect(screen.getByText('MIT')).toBeInTheDocument();
-		expect(screen.getByRole('combobox', { name: 'Version' })).toBeInTheDocument();
-	});
-
-	it('omits the version switcher entirely when there are no versions to switch between', () => {
-		renderHero({ detail: detail({ versions: [] }) });
+		expect(screen.queryByRole('combobox', { name: 'Channel' })).not.toBeInTheDocument();
 		expect(screen.queryByRole('combobox', { name: 'Version' })).not.toBeInTheDocument();
 	});
 
@@ -328,13 +301,21 @@ describe('Hero', () => {
 		);
 	});
 
+	it('registers with no JSON body at all when the arrow has no channels to choose from', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ user_installed: false, channels: [] }) });
+
+		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+		await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+		expect(lastCall()[1]).toEqual({ method: 'POST' });
+	});
+
 	it('sequences Restart as stop then, once the live state reaches ready, execute -- not immediately after stop resolves', async () => {
 		const user = userEvent.setup();
 		const running = detail({ state: 'running' });
-		const { rerender } = render(
-			<Hero detail={running} onValueChange={vi.fn()} onVersionChange={vi.fn()} platform={PLATFORM} values={{}} />,
-			{ wrapper: wrapper() }
-		);
+		const { rerender } = render(<Hero detail={running} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />, {
+			wrapper: wrapper(),
+		});
 
 		await user.click(screen.getByRole('button', { name: 'Restart' }));
 		await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/stop'), expect.anything()));
@@ -343,15 +324,7 @@ describe('Hero', () => {
 		// re-renders Hero with the live state actually at `ready`.
 		expect(apiFetch).not.toHaveBeenCalledWith(expect.stringContaining('/execute'), expect.anything());
 
-		rerender(
-			<Hero
-				detail={detail({ state: 'ready' })}
-				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
-				platform={PLATFORM}
-				values={{}}
-			/>
-		);
+		rerender(<Hero detail={detail({ state: 'ready' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />);
 
 		await waitFor(() =>
 			expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/execute'), expect.anything())
@@ -360,24 +333,10 @@ describe('Hero', () => {
 
 	it('does not fire the restart follow-up when the arrow reaches ready without a restart in flight', async () => {
 		const { rerender } = render(
-			<Hero
-				detail={detail({ state: 'running' })}
-				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
-				platform={PLATFORM}
-				values={{}}
-			/>,
+			<Hero detail={detail({ state: 'running' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />,
 			{ wrapper: wrapper() }
 		);
-		rerender(
-			<Hero
-				detail={detail({ state: 'ready' })}
-				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
-				platform={PLATFORM}
-				values={{}}
-			/>
-		);
+		rerender(<Hero detail={detail({ state: 'ready' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />);
 		expect(apiFetch).not.toHaveBeenCalled();
 	});
 
@@ -457,13 +416,7 @@ describe('Hero', () => {
 		mockApiFetch.mockRejectedValueOnce(new Error('offline'));
 		const user = userEvent.setup();
 		const { rerender } = render(
-			<Hero
-				detail={detail({ state: 'running' })}
-				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
-				platform={PLATFORM}
-				values={{}}
-			/>,
+			<Hero detail={detail({ state: 'running' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />,
 			{ wrapper: wrapper() }
 		);
 
@@ -473,28 +426,14 @@ describe('Hero', () => {
 		// If the failed restart's flag were left set, this transition to ready
 		// would wrongly fire `execute` on its own.
 		mockApiFetch.mockClear();
-		rerender(
-			<Hero
-				detail={detail({ state: 'ready' })}
-				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
-				platform={PLATFORM}
-				values={{}}
-			/>
-		);
+		rerender(<Hero detail={detail({ state: 'ready' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />);
 		expect(apiFetch).not.toHaveBeenCalled();
 	});
 
 	it('clears pendingKind even when restart’s second leg (execute, once ready) itself rejects', async () => {
 		const user = userEvent.setup();
 		const { rerender } = render(
-			<Hero
-				detail={detail({ state: 'running' })}
-				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
-				platform={PLATFORM}
-				values={{}}
-			/>,
+			<Hero detail={detail({ state: 'running' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />,
 			{ wrapper: wrapper() }
 		);
 
@@ -507,33 +446,226 @@ describe('Hero', () => {
 		// assertion is that pendingKind was still cleared despite the
 		// rejection: the newly-shown "Start" action must not be stuck disabled.
 		mockApiFetch.mockRejectedValueOnce(new Error('offline'));
-		rerender(
-			<Hero
-				detail={detail({ state: 'ready' })}
-				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
-				platform={PLATFORM}
-				values={{}}
-			/>
-		);
+		rerender(<Hero detail={detail({ state: 'ready' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />);
 
 		await waitFor(() => expect(screen.getByRole('button', { name: 'Start' })).not.toBeDisabled());
 	});
+});
 
-	it('calls onVersionChange when a different version is picked', async () => {
+/**
+ * The Channel/Version pair replaces the old "installed versions" switcher
+ * entirely (see CLAUDE.md-adjacent design notes for the sibling-version
+ * navigation this used to do): it answers "what channel is THIS install
+ * tracking, and what's available inside it", scoped to `detail.channels`
+ * only -- never the reactive store's other installed copies of the arrow.
+ */
+describe('Hero, the Channel and Version switchers', () => {
+	const STABLE = {
+		name: 'stable',
+		kind: 'ordered' as const,
+		latest: 'v1.21.4',
+		count: 2,
+		members: ['v1.21.4', 'v1.21.0'],
+	};
+	const BETA = {
+		name: 'beta',
+		kind: 'ordered' as const,
+		latest: 'v1.22.0-beta.2',
+		count: 2,
+		members: ['v1.22.0-beta.2', 'v1.22.0-beta.1'],
+	};
+	const NIGHTLY = { name: 'nightly', kind: 'pointer' as const, latest: 'nightly-latest' };
+
+	it('renders channel options from detail.channels, defaulting to the currently tracked one', async () => {
 		const user = userEvent.setup();
-		const { onVersionChange } = renderHero({
-			detail: detail({
-				versions: [
-					{ ref: 'v1.21.4', version: '1.21.4', state: 'ready' },
-					{ ref: 'v1.20.1', version: '1.20.1', state: 'ready' },
-				],
-			}),
+		renderHero({ detail: detail({ channel: 'stable', channels: [STABLE, BETA] }) });
+
+		expect(screen.getByRole('combobox', { name: 'Channel' })).toHaveTextContent('stable');
+		await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+		expect(await screen.findByRole('option', { name: 'stable' })).toBeInTheDocument();
+		expect(screen.getByRole('option', { name: 'beta' })).toBeInTheDocument();
+	});
+
+	it('defaults to the first published channel when the arrow tracks none yet', () => {
+		renderHero({ detail: detail({ channel: undefined, channels: [BETA, STABLE], user_installed: false }) });
+		expect(screen.getByRole('combobox', { name: 'Channel' })).toHaveTextContent('beta');
+	});
+
+	it('renders the ordered channel’s members as version options, highest precedence pre-selected', () => {
+		renderHero({ detail: detail({ channel: 'stable', channels: [STABLE] }) });
+		expect(screen.getByRole('combobox', { name: 'Version' })).toHaveTextContent('v1.21.4');
+	});
+
+	it('renders no version options, without crashing, for an ordered channel that carries no members', async () => {
+		const user = userEvent.setup();
+		const noMembers = { name: 'edge', kind: 'ordered' as const, latest: 'edge-1' };
+		renderHero({ detail: detail({ channel: 'edge', channels: [noMembers] }) });
+
+		const versionSelect = screen.getByRole('combobox', { name: 'Version' });
+		await user.click(versionSelect);
+		expect(screen.queryAllByRole('option')).toHaveLength(0);
+	});
+
+	it('marks a pointer channel in the picker and disables the version select, since latest is its only version', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ channel: 'nightly', channels: [STABLE, NIGHTLY] }) });
+
+		await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+		expect(await screen.findByRole('option', { name: 'nightly (rolling)' })).toBeInTheDocument();
+
+		const versionSelect = screen.getByRole('combobox', { name: 'Version' });
+		expect(versionSelect).toHaveTextContent('nightly-latest');
+		expect(versionSelect).toBeDisabled();
+	});
+
+	it('selecting a different channel swaps in that channel’s own version options', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ channel: 'stable', channels: [STABLE, BETA] }) });
+
+		await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+		await user.click(await screen.findByRole('option', { name: 'beta' }));
+
+		expect(screen.getByRole('combobox', { name: 'Version' })).toHaveTextContent('v1.22.0-beta.2');
+		await user.click(screen.getByRole('combobox', { name: 'Version' }));
+		expect(await screen.findByRole('option', { name: 'v1.22.0-beta.2' })).toBeInTheDocument();
+		expect(screen.getByRole('option', { name: 'v1.22.0-beta.1' })).toBeInTheDocument();
+	});
+
+	it('renders neither switcher, without crashing, when the arrow has no channels at all', () => {
+		renderHero({ detail: detail({ channel: undefined, channels: [] }) });
+		expect(screen.queryByRole('combobox', { name: 'Channel' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('combobox', { name: 'Version' })).not.toBeInTheDocument();
+	});
+
+	describe('not yet installed', () => {
+		it('keeps a channel pick purely local -- no network call is made', async () => {
+			const user = userEvent.setup();
+			renderHero({
+				detail: detail({ user_installed: false, state: 'absent', channel: 'stable', channels: [STABLE, BETA] }),
+			});
+
+			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+			await user.click(await screen.findByRole('option', { name: 'beta' }));
+
+			expect(apiFetch).not.toHaveBeenCalled();
+			expect(screen.getByRole('combobox', { name: 'Channel' })).toHaveTextContent('beta');
 		});
 
-		await user.click(screen.getByRole('combobox', { name: 'Version' }));
-		await user.click(await screen.findByRole('option', { name: 'v1.20.1' }));
-		expect(onVersionChange).toHaveBeenCalledWith('v1.20.1');
+		it('keeps a version pick purely local too -- only the channel is threaded into Add to Library, never a pinned ref', async () => {
+			const user = userEvent.setup();
+			renderHero({
+				detail: detail({ user_installed: false, state: 'absent', channel: 'stable', channels: [STABLE] }),
+			});
+
+			await user.click(screen.getByRole('combobox', { name: 'Version' }));
+			await user.click(await screen.findByRole('option', { name: 'v1.21.0' }));
+
+			expect(apiFetch).not.toHaveBeenCalled();
+			expect(screen.getByRole('combobox', { name: 'Version' })).toHaveTextContent('v1.21.0');
+		});
+
+		it('threads the picked channel into the Add to Library call', async () => {
+			const user = userEvent.setup();
+			renderHero({
+				detail: detail({ user_installed: false, state: 'absent', channel: 'stable', channels: [STABLE, BETA] }),
+			});
+
+			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+			await user.click(await screen.findByRole('option', { name: 'beta' }));
+
+			await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+			await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+			expect(bodyOf(lastCall())).toEqual({ channel: 'beta' });
+		});
+	});
+
+	describe('already installed', () => {
+		it('calls the switch-channel mutation and invalidates the arrow-detail query when a different channel is picked', async () => {
+			const user = userEvent.setup();
+			const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+			const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+			render(
+				<Hero
+					detail={detail({ user_installed: true, channel: 'stable', channels: [STABLE, BETA] })}
+					onValueChange={vi.fn()}
+					platform={PLATFORM}
+					values={{}}
+				/>,
+				{ wrapper: wrapper(qc) }
+			);
+
+			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+			await user.click(await screen.findByRole('option', { name: 'beta' }));
+
+			await waitFor(() =>
+				expect(apiFetch).toHaveBeenCalledWith(
+					expect.stringContaining(encodeURIComponent(detail().namespace)),
+					expect.objectContaining({ method: 'PATCH' })
+				)
+			);
+			expect(bodyOf(lastCall())).toEqual({ channel: 'beta', ref: 'v1.22.0-beta.2' });
+			await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['arrow'] }));
+		});
+
+		it('calls the switch-channel mutation when only the version changes, keeping the same channel', async () => {
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'stable', channels: [STABLE] }) });
+
+			await user.click(screen.getByRole('combobox', { name: 'Version' }));
+			await user.click(await screen.findByRole('option', { name: 'v1.21.0' }));
+
+			await waitFor(() =>
+				expect(apiFetch).toHaveBeenCalledWith(
+					expect.stringContaining(encodeURIComponent(detail().namespace)),
+					expect.objectContaining({ method: 'PATCH' })
+				)
+			);
+			expect(bodyOf(lastCall())).toEqual({ channel: 'stable', ref: 'v1.21.0' });
+		});
+
+		it('sends the pointer channel’s own latest as ref, since it is the only version there is to pin', async () => {
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'stable', channels: [STABLE, NIGHTLY] }) });
+
+			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+			await user.click(await screen.findByRole('option', { name: 'nightly (rolling)' }));
+
+			await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+			expect(bodyOf(lastCall())).toEqual({ channel: 'nightly', ref: 'nightly-latest' });
+		});
+
+		it('does not crash and leaves the selects usable again when the channel switch is rejected', async () => {
+			mockApiFetch.mockRejectedValueOnce(new Error('offline'));
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'stable', channels: [STABLE, BETA] }) });
+
+			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+			await user.click(await screen.findByRole('option', { name: 'beta' }));
+
+			await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+			await waitFor(() => expect(screen.getByRole('combobox', { name: 'Channel' })).not.toBeDisabled());
+		});
+
+		it('disables both selects while a channel switch is in flight', async () => {
+			let resolveSwitch: (value: undefined) => void = () => {};
+			mockApiFetch.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						resolveSwitch = resolve;
+					})
+			);
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'stable', channels: [STABLE, BETA] }) });
+
+			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+			await user.click(await screen.findByRole('option', { name: 'beta' }));
+
+			await waitFor(() => expect(screen.getByRole('combobox', { name: 'Channel' })).toBeDisabled());
+			expect(screen.getByRole('combobox', { name: 'Version' })).toBeDisabled();
+
+			resolveSwitch(undefined);
+			await waitFor(() => expect(screen.getByRole('combobox', { name: 'Channel' })).not.toBeDisabled());
+		});
 	});
 });
 

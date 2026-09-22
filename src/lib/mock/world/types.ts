@@ -50,6 +50,15 @@ export interface MockLastReturn {
 	steps: StepProgress[];
 }
 
+/** Mirrors `ArrowChannel`/`ChannelDTO` -- one published release channel, as `GET /v0/arrow/:ns/channels` reports it. */
+export interface MockChannel {
+	name: string;
+	kind: 'ordered' | 'pointer';
+	latest: string;
+	count?: number;
+	members?: string[];
+}
+
 export interface MockArrow {
 	namespace: string;
 	ref: string;
@@ -75,6 +84,10 @@ export interface MockArrow {
 	targets: MockTarget[];
 	active_run: ActiveRun | null;
 	last_return: MockLastReturn | null;
+	/** The channel this arrow is currently tracking, e.g. `"stable"`. Undefined for one pinned to an exact ref with no tracked channel. */
+	channel?: string;
+	/** Every channel this arrow's repo publishes -- `GET /v0/arrow/:ns/channels`. Undefined (not `[]`) for a fixture that publishes none, same convention as `dependencies` below. */
+	channels?: MockChannel[];
 	/** Reported by both lanes; core takes it from the vault index. */
 	stars?: number;
 	/** The host that served the manifest, e.g. github.com. */
@@ -173,7 +186,7 @@ export const CONFIG_DEFAULTS: MockConfigDoc = {
 	logger: { enabled: true, level: 'info' },
 	manifold: { fetch_timeout: '30s' },
 	vault: { sweep_interval: '5m', ttl: '24h', index_ttl: '24h' },
-	arrows: { auto_retry: { enabled: true, retries: 3 } },
+	arrows: { auto_retry: { enabled: true, retries: 3 }, self_update_channel: '' },
 	search: { per_provider_limit: 25, fetch_concurrency: 4, provider_timeout: '10s' },
 };
 
