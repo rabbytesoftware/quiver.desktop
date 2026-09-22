@@ -69,33 +69,38 @@ passed.
    catches a corrupted upload before any Desktop build or self-update fetch
    ever depends on it.
 
-## 2. Confirm quiver.desktop's `coreVersion` constraint resolves to the intended tag
+## 2. Confirm quiver.desktop's stable channel resolves to the intended tag
 
-`quiver.desktop`'s `package.json` pins a semver range, not an exact tag —
-currently `"quiver": { "coreVersion": "^26.5" }`. `scripts/resolve-core-version.mjs`
-resolves that range against `quiver.core`'s real published `stable-*` releases
-(via `gh release list --repo rabbytesoftware/quiver.core`), picking the
-highest matching one.
+`quiver.desktop`'s `package.json` maps each build channel to the
+quiver.core channel it tracks — `"quiver": { "coreChannels": { "stable":
+"stable", "beta": "beta", "nightly": "nightly" } }` — never a pinned
+version (see `docs/spec/2026-09-21-core-version-channels.md`).
+`scripts/resolve-core-version.mjs` resolves a channel name against
+`quiver.core`'s real published releases on that channel (via
+`gh release list --repo rabbytesoftware/quiver.core`), always picking the
+highest one currently published. There is no compatibility range to update
+any more — a stable release always bundles whatever quiver.core currently
+calls its newest stable release; this checklist's later steps (E2E, manual
+smoke tests) are what catch an incompatible combination, not config.
 
-1. If the new tag from step 1 falls outside the current range (e.g. a new
-   major/minor series), update `quiver.coreVersion` in `package.json` first
-   and commit that change through the normal PR process.
-2. Confirm resolution using the real Makefile invocation — `make fetch-sidecar`
+1. Confirm resolution using the real Makefile invocation — `make fetch-sidecar`
    (the same target the dev loop and CI both use to pull the sidecar) prints
-   both the constraint and what it resolved to:
+   what it resolved to:
    ```bash
+   rm -f core-version.local   # make sure no local dev pin (see Makefile) is masking the real channel resolution
    make fetch-sidecar
    ```
-   Expect a line like `📥 Fetching quiver.core sidecar (stable-26.5.1, matched ^26.5) for <target-triple>...`
+   Expect a line like `📥 Fetching quiver.core sidecar (stable-26.5.1) for <target-triple>...`
    followed by `✅ Sidecar ready: src-tauri/binaries/quiver-<target-triple>`.
-   If it fails with `no stable release found satisfying "..."`, the tag from
-   step 1 either isn't published yet or genuinely doesn't satisfy the range —
-   fix the constraint or wait, don't proceed.
-3. `make pr-checks`'s own "Step 1/6: CORE_VERSION Validation" performs the
+   Confirm the resolved tag matches the one just cut in step 1 — if
+   quiver.core has more than one `stable-*` release and the newest isn't the
+   one intended for this desktop release, that is a real sequencing problem
+   to resolve before continuing, not something to route around locally.
+2. `make pr-checks`'s own "Step 1/6: CORE_VERSION Validation" performs the
    same resolution plus a remote existence check
    (`gh release view "$RESOLVED_VERSION" ...`) — this already runs in CI on
    every PR, so a merged `quiver.desktop` PR has implicitly re-confirmed this;
-   step 2 above is the pre-release-specific confirmation against the tag just
+   step 1 above is the pre-release-specific confirmation against the tag just
    cut.
 
 ## 3. macOS notarization
