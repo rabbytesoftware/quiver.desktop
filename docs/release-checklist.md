@@ -295,7 +295,10 @@ end-to-end.
 1. Take (or build) a `quiver.desktop` install whose self-installed
    `quiver.core` is pinned to an **older** `stable-*` tag than the one just
    published in step 1 — e.g. a build from before this release, or one built
-   with `quiver.coreVersion` temporarily narrowed to the previous series.
+   by pinning `core-version.local` (gitignored local dev override — see
+   `core-version.local.example` and the Makefile's `fetch-sidecar` target)
+   to an older `stable-*` tag and running `make fetch-sidecar` to fetch that
+   specific version instead of resolving the current channel.
 2. Launch it and let it reach the normal UI (`waitForAppReady` in the E2E
    harness is the same condition to wait for by eye: the app window is up and
    the sidebar/library have loaded).
