@@ -1,5 +1,6 @@
-import type { JSX } from 'react';
+import { useState, type JSX } from 'react';
 
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import type { ArrowChannel } from '@/domain/arrow';
@@ -22,6 +23,21 @@ export function ChannelVersionSelects({ channels, selection }: ChannelVersionSel
 	const { t } = useTranslation();
 	const { selectedChannelEntry } = selection;
 
+	// Bumped to force the pointer-channel input below to remount -- and so
+	// re-read `defaultValue` -- when a typed value must be thrown away instead
+	// of kept on screen (left blank on blur/Enter). Same convention as the
+	// port fields in settings/components/tabs/engine.tsx.
+	const [revertNonce, setRevertNonce] = useState(0);
+
+	function commitPointerVersion(raw: string): void {
+		const value = raw.trim();
+		if (!value || !selectedChannelEntry) {
+			setRevertNonce((n) => n + 1);
+			return;
+		}
+		selection.selectVersion(selectedChannelEntry.name, value);
+	}
+
 	return (
 		<>
 			{channels.length > 0 && (
@@ -42,13 +58,9 @@ export function ChannelVersionSelects({ channels, selection }: ChannelVersionSel
 					</SelectContent>
 				</Select>
 			)}
-			{selectedChannelEntry && (
-				// A pointer channel has nothing to rank -- its own `latest` is the
-				// only version, so the select stays visible (for the same visual
-				// rhythm as the ordered case) but disabled rather than offering a
-				// choice of one.
+			{selectedChannelEntry?.kind === 'ordered' && (
 				<Select
-					disabled={selection.isPending || selectedChannelEntry.kind === 'pointer'}
+					disabled={selection.isPending}
 					onValueChange={(ref) => ref && selection.selectVersion(selectedChannelEntry.name, ref)}
 					value={selection.selectedVersion}
 				>
@@ -56,16 +68,31 @@ export function ChannelVersionSelects({ channels, selection }: ChannelVersionSel
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						{(selectedChannelEntry.kind === 'ordered'
-							? (selectedChannelEntry.members ?? [])
-							: [selectedChannelEntry.latest]
-						).map((ref) => (
+						{(selectedChannelEntry.members ?? []).map((ref) => (
 							<SelectItem key={ref} value={ref}>
 								{ref}
 							</SelectItem>
 						))}
 					</SelectContent>
 				</Select>
+			)}
+			{selectedChannelEntry?.kind === 'pointer' && (
+				// A pointer channel (a branch, a rolling tag) is open-ended -- there
+				// is no fixed list to rank, so this pins an arbitrary ref (a commit,
+				// a differently-named tag) rather than offering a closed choice of
+				// one. Uncontrolled + keyed so typing isn't fought by a round trip;
+				// commits on blur or Enter, never on every keystroke.
+				<Input
+					key={`${selectedChannelEntry.name}-${selection.selectedVersion}-${revertNonce}`}
+					defaultValue={selection.selectedVersion ?? selectedChannelEntry.latest}
+					disabled={selection.isPending}
+					aria-label={t('arrow.version.label')}
+					className="h-6 w-24 font-mono text-xs"
+					onBlur={(e) => commitPointerVersion(e.target.value)}
+					onKeyDown={(e) => {
+						if (e.key === 'Enter') e.currentTarget.blur();
+					}}
+				/>
 			)}
 		</>
 	);

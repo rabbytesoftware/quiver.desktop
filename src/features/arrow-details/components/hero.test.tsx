@@ -506,16 +506,19 @@ describe('Hero, the Channel and Version switchers', () => {
 		expect(screen.queryAllByRole('option')).toHaveLength(0);
 	});
 
-	it('marks a pointer channel in the picker and disables the version select, since latest is its only version', async () => {
+	it('marks a pointer channel in the picker and renders an editable version field, pre-filled with latest', async () => {
 		const user = userEvent.setup();
 		renderHero({ detail: detail({ channel: 'nightly', channels: [STABLE, NIGHTLY] }) });
 
 		await user.click(screen.getByRole('combobox', { name: 'Channel' }));
 		expect(await screen.findByRole('option', { name: 'nightly (rolling)' })).toBeInTheDocument();
 
-		const versionSelect = screen.getByRole('combobox', { name: 'Version' });
-		expect(versionSelect).toHaveTextContent('nightly-latest');
-		expect(versionSelect).toBeDisabled();
+		// A pointer channel (a branch, a rolling tag) is open-ended -- any ref
+		// under it should be pinnable, not just whatever `latest` resolves to
+		// right now -- so this is a free-text field, not a closed dropdown.
+		const versionField = screen.getByRole('textbox', { name: 'Version' });
+		expect(versionField).toHaveValue('nightly-latest');
+		expect(versionField).not.toBeDisabled();
 	});
 
 	it('selecting a different channel swaps in that channel’s own version options', async () => {
@@ -633,6 +636,53 @@ describe('Hero, the Channel and Version switchers', () => {
 			await waitFor(() => expect(apiFetch).toHaveBeenCalled());
 			expect(bodyOf(lastCall())).toEqual({ channel: 'nightly', ref: 'nightly-latest' });
 		});
+
+		it('commits a typed pointer-channel ref on blur', async () => {
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'nightly', channels: [STABLE, NIGHTLY] }) });
+
+			const versionField = screen.getByRole('textbox', { name: 'Version' });
+			await user.clear(versionField);
+			await user.type(versionField, 'a1b2c3d');
+			await user.tab();
+
+			await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+			expect(bodyOf(lastCall())).toEqual({ channel: 'nightly', ref: 'a1b2c3d' });
+		});
+
+		it('commits a typed pointer-channel ref on Enter, not on every keystroke', async () => {
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'nightly', channels: [STABLE, NIGHTLY] }) });
+
+			const versionField = screen.getByRole('textbox', { name: 'Version' });
+			await user.clear(versionField);
+			await user.type(versionField, 'feature-branch');
+			expect(apiFetch).not.toHaveBeenCalled();
+
+			await user.keyboard('{Enter}');
+			await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+			expect(bodyOf(lastCall())).toEqual({ channel: 'nightly', ref: 'feature-branch' });
+		});
+
+		it('reverts to the last real value instead of committing a blank pointer-channel field', async () => {
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'nightly', channels: [STABLE, NIGHTLY] }) });
+
+			const versionField = screen.getByRole('textbox', { name: 'Version' });
+			await user.clear(versionField);
+			await user.tab();
+
+			expect(apiFetch).not.toHaveBeenCalled();
+			expect(screen.getByRole('textbox', { name: 'Version' })).toHaveValue('nightly-latest');
+		});
+
+		// The exact synchronous-double-click regression (both handlers firing
+		// before `isPending` ever reaches a render) is covered at the hook
+		// level in `use-channel-selection.test.ts` -- `user.click` here always
+		// flushes React's render in between, so by the time a second `click`
+		// could fire, the first one's `isPending` has already disabled the
+		// other select for real (see "disables both selects while a channel
+		// switch is in flight" below).
 
 		it('does not crash and leaves the selects usable again when the channel switch is rejected', async () => {
 			mockApiFetch.mockRejectedValueOnce(new Error('offline'));

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -62,15 +62,41 @@ export function useChannelSelection(detail: ArrowDetail): ChannelSelection {
 	}
 	const selectedChannelEntry = detail.channels.find((c) => c.name === selectedChannel);
 
+	// `useMutation`'s own `isPending` only flips on React's NEXT render, not
+	// synchronously within the click handler that started it -- leaving a gap
+	// where two near-simultaneous clicks (e.g. the Channel select then the
+	// Version select) can both read it as still `false` and both start a
+	// switch before the first one's re-render ever lands. Confirmed live: a
+	// genuine concurrent double-click on quiver.desktop's own Channel and
+	// Version selects sent two overlapping PATCHes against the same starting
+	// namespace -- the first's ref upgrade moved the server-side aggregate's
+	// identity and forgot the old one, so the second (racing against a
+	// namespace that had just stopped existing) came back a genuine 404. A
+	// ref mutates immediately, with no such gap, so it -- not `isPending` --
+	// is the actual concurrency guard; `isPending` remains a fine UX signal
+	// for disabling the selects visually.
+	const inFlight = useRef(false);
+
 	function switchOnCore(channel: string, ref: string | undefined): void {
 		if (!detail.user_installed) return;
+		// Skip a switch the latest fetched `detail` already reflects -- a
+		// harmless no-op guard, independent of the race above.
+		if (channel === detail.channel && ref === detail.installed_ref) return;
+		inFlight.current = true;
 		switchChannel
 			.mutateAsync({ namespace: detail.namespace, channel, ref })
 			.then(() => queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix }))
-			.catch(() => {});
+			.catch(() => {})
+			.finally(() => {
+				inFlight.current = false;
+			});
 	}
 
 	function selectChannel(name: string): void {
+		// Checked before touching any local state: a pick that loses the race
+		// must not partially land (neither its own core call nor its UI state)
+		// alongside the switch already underway.
+		if (inFlight.current) return;
 		const entry = detail.channels.find((c) => c.name === name);
 		const version = defaultVersionOf(entry);
 		setSelectedChannel(name);
@@ -84,6 +110,7 @@ export function useChannelSelection(detail: ArrowDetail): ChannelSelection {
 	// state here -- avoids a redundant "what if there's no channel" branch
 	// this could otherwise never actually be reached without.
 	function selectVersion(channel: string, ref: string): void {
+		if (inFlight.current) return;
 		setSelectedVersion(ref);
 		switchOnCore(channel, ref);
 	}
