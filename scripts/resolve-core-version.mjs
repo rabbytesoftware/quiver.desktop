@@ -33,6 +33,9 @@ export function resolveChannel(tags, channel) {
       .map((t) => t.slice(prefix.length))
       .filter((v) => semver.valid(semver.coerce(v)))
       .sort((a, b) => semver.compare(semver.coerce(a), semver.coerce(b)));
+    if (versions.length === 0) {
+      throw new Error(`no ${channel} release found`);
+    }
     return `${prefix}${versions[versions.length - 1]}`;
   }
 

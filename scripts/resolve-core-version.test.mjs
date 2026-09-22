@@ -12,6 +12,11 @@ describe("resolveChannel", () => {
       const tags = ["beta-26.5-4", "hotfix-25.9.3-1"];
       expect(() => resolveChannel(tags, "stable")).toThrow(/no stable release found/);
     });
+
+    it("throws when stable- tags exist but none are valid semver", () => {
+      const tags = ["stable-not-a-version", "beta-26.5-1"];
+      expect(() => resolveChannel(tags, "stable")).toThrow(/no stable release found/);
+    });
   });
 
   describe("beta", () => {
