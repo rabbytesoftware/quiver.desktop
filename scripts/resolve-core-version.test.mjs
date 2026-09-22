@@ -34,6 +34,21 @@ describe("resolveChannel", () => {
       const tags = ["stable-26.5.1"];
       expect(() => resolveChannel(tags, "beta")).toThrow(/no beta release found/);
     });
+
+    it("throws a clear error for a malformed beta tag instead of silently sorting it in", () => {
+      const tags = ["beta-26.5-4", "beta-abc", "beta-26.4"];
+      expect(() => resolveChannel(tags, "beta")).toThrow(/malformed beta tag "beta-abc"/);
+    });
+
+    it("compares series numerically, not lexicographically", () => {
+      const tags = ["beta-26.9", "beta-26.10"];
+      expect(resolveChannel(tags, "beta")).toBe("beta-26.10");
+    });
+
+    it("compares counts numerically, not lexicographically", () => {
+      const tags = ["beta-26.5-9", "beta-26.5-10"];
+      expect(resolveChannel(tags, "beta")).toBe("beta-26.5-10");
+    });
   });
 
   describe("nightly", () => {

@@ -41,9 +41,16 @@ export function resolveChannel(tags, channel) {
 
   // beta tags are `beta-<series>[-<count>]` (e.g. "beta-26.5", "beta-26.5-4")
   // — not valid semver on their own, so series and count are compared
-  // separately rather than parsed as one semver string.
+  // separately rather than parsed as one semver string. Validate the shape
+  // up front: an unvalidated tag (e.g. "beta-abc") would parse to NaN
+  // components, and Array.prototype.sort treats a NaN comparator result as
+  // "unordered", silently corrupting the sort instead of erroring.
+  const BETA_TAG_SHAPE = /^\d+(\.\d+)*(-\d+)?$/;
   const parsed = candidates.map((tag) => {
     const rest = tag.slice(prefix.length);
+    if (!BETA_TAG_SHAPE.test(rest)) {
+      throw new Error(`malformed beta tag "${tag}"`);
+    }
     const [series, count] = rest.split("-");
     return { tag, series: series.split(".").map(Number), count: count ? Number(count) : 0 };
   });
