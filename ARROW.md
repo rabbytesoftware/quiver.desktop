@@ -20,7 +20,7 @@ metadata:
   license: "GPL-3.0"
   url: "https://github.com/rabbytesoftware/quiver.desktop"
   media:
-    icon: "https://raw.githubusercontent.com/rabbytesoftware/quiver.desktop/develop/.github/quiver.svg"
+    icon: "https://raw.githubusercontent.com/rabbytesoftware/quiver.desktop/develop/docs/quiver-icon.png"
   maintainers:
     - name: "Rabbyte Software"
       url: "https://char2cs.net"
