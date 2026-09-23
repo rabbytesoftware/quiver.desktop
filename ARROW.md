@@ -14,7 +14,7 @@ If you're reading this inside the app, there's nothing to do: you already have i
 schema: "arrow@v0"
 
 metadata:
-  name: "quiver.desktop"
+  name: "Quiver Desktop"
   description: "The Quiver desktop application."
   version: "0.1"
   license: "GPL-3.0"
