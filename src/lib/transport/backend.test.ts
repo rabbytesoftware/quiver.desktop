@@ -33,6 +33,7 @@ function stubBackend(over: Partial<Backend> = {}): Backend {
 		fetch: vi.fn().mockResolvedValue(new Response('{}')),
 		openSocket: vi.fn(stubSocket),
 		getBuildTag: vi.fn().mockResolvedValue(null),
+		getPlatform: vi.fn().mockResolvedValue('linux/amd64'),
 		resolveReleaseAsset: vi.fn().mockRejectedValue({ kind: 'offline', detail: 'stub' }),
 		getConnections: vi.fn().mockResolvedValue({ connections: [], active_id: 'stub' }),
 		onCoreStatus: vi.fn().mockResolvedValue(() => {}),
@@ -115,6 +116,15 @@ describe('realBackend.getBuildTag', () => {
 	});
 });
 
+describe('realBackend.getPlatform', () => {
+	it('hands back the native side’s real "os/arch" key', async () => {
+		mockInvoke.mockResolvedValue('darwin/arm64');
+
+		await expect(realBackend.getPlatform()).resolves.toBe('darwin/arm64');
+		expect(mockInvoke).toHaveBeenCalledWith('get_platform');
+	});
+});
+
 describe('realBackend.resolveReleaseAsset', () => {
 	it('hands back the asset the native side resolved, untouched', async () => {
 		const asset = {
@@ -164,6 +174,7 @@ describe('the interface', () => {
 
 		await expect(backend().getConnections()).resolves.toEqual(snapshot);
 		await expect(backend().getBuildTag()).resolves.toBeNull();
+		await expect(backend().getPlatform()).resolves.toBe('linux/amd64');
 		await expect(backend().onCoreStatus(() => {})).resolves.toBeTypeOf('function');
 		await expect(backend().onConnectionsChanged(() => {})).resolves.toBeTypeOf('function');
 		expect(backend().openSocket('/v0/arrow').readyState).toBe(SOCKET_OPEN);

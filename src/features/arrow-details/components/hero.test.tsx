@@ -863,6 +863,73 @@ describe('Hero, the Channel and Version switchers', () => {
 });
 
 /**
+ * `isPlatformSupported` (an exact match, no fallback) is what both of these
+ * are driven by -- `TARGET.platform` is `PLATFORM` by default, so every test
+ * that overrides `platform` to something else exercises the "genuinely
+ * unsupported" path, and every other test in this file (rendered with the
+ * default matching platform) is itself proof the indicator/warning stay
+ * silent on a supported arrow.
+ */
+describe('Hero, platform support', () => {
+	it('shows no platform-unsupported badge when the target matches the detected platform', () => {
+		renderHero();
+		expect(screen.queryByText(/Not available for/)).not.toBeInTheDocument();
+	});
+
+	it('shows a platform-unsupported badge naming the detected platform, when nothing matches', () => {
+		renderHero({ platform: 'linux/amd64' });
+		expect(screen.getByText('Not available for linux/amd64')).toBeInTheDocument();
+	});
+
+	it('adds a platform-supported arrow to the library immediately, with no warning', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ user_installed: false }) });
+
+		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+
+		await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+		expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+	});
+
+	it('warns before adding an unsupported-platform arrow, instead of registering right away', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ user_installed: false }), platform: 'linux/amd64' });
+
+		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+
+		expect(await screen.findByRole('dialog')).toHaveTextContent("isn't available for your platform");
+		expect(apiFetch).not.toHaveBeenCalled();
+	});
+
+	it('cancelling the platform warning leaves the arrow out of the library', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ user_installed: false }), platform: 'linux/amd64' });
+
+		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+		await user.click(await screen.findByRole('button', { name: 'Cancel' }));
+
+		await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+		expect(apiFetch).not.toHaveBeenCalled();
+	});
+
+	it('"Add anyway" proceeds with the exact same registerArrow call an ordinary add makes', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ user_installed: false }), platform: 'linux/amd64' });
+
+		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+		await user.click(await screen.findByRole('button', { name: 'Add anyway' }));
+
+		await waitFor(() =>
+			expect(apiFetch).toHaveBeenCalledWith(
+				expect.stringContaining(encodeURIComponent(detail().namespace)),
+				expect.objectContaining({ method: 'POST' })
+			)
+		);
+		await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+	});
+});
+
+/**
  * Quiver updating itself, driven the way a person drives it: by clicking the
  * button on Quiver's own tile.
  *

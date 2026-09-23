@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { FlickerSpinner } from '@/components/ui/flicker-spinner';
 
 import type { ArrowDetail } from '@/domain/arrow';
+import { isPlatformSupported } from '@/domain/arrow';
 import { computeActions, type ArrowActionKind } from '@/features/arrow-details/lib/actions';
 import { CONTENT_MAX_WIDTH, CONTENT_PADDING_X } from '@/features/arrow-details/lib/layout';
 import {
@@ -67,6 +68,11 @@ export function Hero({ detail, platform, values, onValueChange, channelsLoading 
 	// only the busy-state bookkeeping below. Shown through the same
 	// MessageModal the problem chip and releaseError above use.
 	const [actionError, setActionError] = useState<string | null>(null);
+	// Gates the "Add to Library" click for an arrow with no build for this
+	// platform -- opened instead of registering right away; confirming re-runs
+	// `invoke('addToLibrary', true)`, the `true` bypassing this same check so
+	// the confirmed click isn't warned about a second time.
+	const [platformWarningOpen, setPlatformWarningOpen] = useState(false);
 	const restarting = useRef(false);
 	// Restart's second leg reads the namespace/values current as of the
 	// moment `detail.state` actually reaches 'ready', not whatever the
@@ -94,6 +100,10 @@ export function Hero({ detail, platform, values, onValueChange, channelsLoading 
 	const status = computeStatus(detail);
 	const problem = problemMessage(detail);
 	const actions = computeActions(detail, platform);
+	// Always-visible, no click required to discover it -- unlike `problem`,
+	// which needs an active run or a detached process, this can be true for an
+	// arrow that has never been touched at all (the moment it's discovered).
+	const platformUnsupported = !isPlatformSupported(detail.targets, platform);
 
 	/**
 	 * The variables an action has to carry beyond whatever the user typed.
@@ -115,7 +125,12 @@ export function Hero({ detail, platform, values, onValueChange, channelsLoading 
 		return releaseVariables();
 	}
 
-	async function invoke(kind: ArrowActionKind) {
+	async function invoke(kind: ArrowActionKind, skipPlatformWarning = false) {
+		if (kind === 'addToLibrary' && !skipPlatformWarning && !isPlatformSupported(detail.targets, platform)) {
+			setPlatformWarningOpen(true);
+			return;
+		}
+
 		setPendingKind(kind);
 		let release: Record<string, string>;
 		try {
@@ -233,6 +248,12 @@ export function Hero({ detail, platform, values, onValueChange, channelsLoading 
 									)}
 									{t(status.labelKey)}
 								</Badge>
+								{platformUnsupported && (
+									<Badge className="shrink-0 gap-1" variant="error">
+										<TriangleAlertIcon aria-hidden="true" className="size-3" />
+										{t('arrow.platform.unsupported', { platform })}
+									</Badge>
+								)}
 							</div>
 							<p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
 								{detail.namespace}
@@ -326,6 +347,21 @@ export function Hero({ detail, platform, values, onValueChange, channelsLoading 
 					onOpenChange={(open) => !open && setActionError(null)}
 					open
 					title={t('arrow.action.error.title')}
+				/>
+			)}
+
+			{platformWarningOpen && (
+				<MessageModal
+					cancelLabel={t('arrow.platform.warning.cancel')}
+					confirmLabel={t('arrow.platform.warning.confirm')}
+					message={t('arrow.platform.warning.message', { platform })}
+					onConfirm={() => {
+						setPlatformWarningOpen(false);
+						void invoke('addToLibrary', true);
+					}}
+					onOpenChange={(open) => !open && setPlatformWarningOpen(false)}
+					open
+					title={t('arrow.platform.warning.title')}
 				/>
 			)}
 		</div>

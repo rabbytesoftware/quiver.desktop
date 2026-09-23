@@ -234,6 +234,17 @@ export const en = {
 		"The latest Quiver release doesn't publish a checksum, so the download can't be verified. Quiver won't replace itself with a file it can't check.",
 	'arrow.release.unavailable': "Quiver couldn't work out which file to download. Try again later.",
 
+	// The persistent "not compatible" indicator (always visible, no click
+	// needed) and the confirm-to-proceed warning shown at Add-to-Library time,
+	// both driven by `isPlatformSupported` -- an exact match against the real
+	// native platform, never `targetForPlatform`'s single-target fallback.
+	'arrow.platform.unsupported': 'Not available for {platform}',
+	'arrow.platform.warning.title': "This isn't available for your platform",
+	'arrow.platform.warning.message':
+		"Quiver detected this computer as {platform}. This arrow doesn't publish a build for it, so Install will likely fail. Adding it to your library won't install anything yet.",
+	'arrow.platform.warning.confirm': 'Add anyway',
+	'arrow.platform.warning.cancel': 'Cancel',
+
 	'arrow.problem.label': 'Issue',
 	'arrow.problem.detachedNote':
 		'Quiver lost track of this process. It may still be running outside Quiver’s supervision — use Stop if you want to kill it.',

@@ -1,10 +1,9 @@
-import { useMemo, useState, type JSX, type ReactNode } from 'react';
+import { useState, type JSX, type ReactNode } from 'react';
 
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { useTranslation } from '@/lib/i18n';
-import { currentPlatform } from '@/lib/platform';
 
 import { Hero } from './components/hero';
 import { MetaPanel } from './components/meta-panel';
@@ -17,6 +16,7 @@ import { CONTENT_MAX_WIDTH, CONTENT_PADDING_X } from './lib/layout';
 import { groupTabs } from './lib/tab-groups';
 import { useAssembledArrowDetail } from './lib/use-assembled-arrow-detail';
 import { useContainerWidthAtLeast } from './lib/use-container-width';
+import { useRealPlatform } from './lib/use-real-platform';
 
 type ArrowTab = 'overview' | 'activity' | 'methods';
 
@@ -55,7 +55,7 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 	const { detail, isLoading, isError, overviewLoading, channelsLoading, allEntries } =
 		useAssembledArrowDetail(namespace);
 
-	const platform = useMemo(() => currentPlatform(), []);
+	const platform = useRealPlatform();
 
 	const [tab, setTab] = useState<ArrowTab>('overview');
 	const [values, setValues] = useState<Record<string, string>>({});

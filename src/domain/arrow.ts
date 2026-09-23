@@ -282,3 +282,16 @@ export interface ArrowDetail {
 export function targetForPlatform(targets: ArrowTarget[], platform: string): ArrowTarget | undefined {
 	return targets.find((t) => t.platform === platform) ?? targets[0];
 }
+
+/**
+ * Whether this arrow genuinely publishes a build for `platform` -- an exact
+ * match, no fallback. Deliberately separate from `targetForPlatform`: that
+ * one's fallback to `targets[0]` exists for manifests with a single universal
+ * target and must keep returning something for its own callers (the Methods
+ * rail, `computeActions`). This is the only place that can tell "no match"
+ * from "one universal target", which is exactly what a not-supported warning
+ * needs to know.
+ */
+export function isPlatformSupported(targets: ArrowTarget[], platform: string): boolean {
+	return targets.some((t) => t.platform === platform);
+}
