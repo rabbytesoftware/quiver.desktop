@@ -1,8 +1,11 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+
+import { useQueryClient } from '@tanstack/react-query';
 
 import type { ArrowDetail, ArrowEntry } from '@/domain/arrow';
 import { useArrowStore } from '@/lib/core-store';
 import {
+	arrowDetailQueryKeyPrefix,
 	useArrowChannels,
 	useArrowDependencies,
 	useArrowDependents,
@@ -38,6 +41,7 @@ export interface AssembledArrowDetail {
  * for that, never the merged `detail` fields themselves.
  */
 export function useAssembledArrowDetail(namespace: string): AssembledArrowDetail {
+	const queryClient = useQueryClient();
 	const { data, isLoading, isError } = useArrowDetail(namespace);
 	const channelsQuery = useArrowChannels(namespace);
 	const readmeQuery = useArrowReadme(namespace);
@@ -52,6 +56,16 @@ export function useAssembledArrowDetail(namespace: string): AssembledArrowDetail
 	// correct: there is nothing live to overlay.
 	const liveEntry = useArrowStore((state) => state.arrows.get(namespace));
 	const allEntries = useArrowStore((state) => state.arrows);
+
+	const previousRunState = useRef<{ namespace: string; active: boolean }>({ namespace, active: false });
+	useEffect(() => {
+		const isActive = liveEntry?.active_run !== null && liveEntry?.active_run !== undefined;
+		const previous = previousRunState.current;
+		if (previous.namespace === namespace && previous.active && !isActive) {
+			void queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
+		}
+		previousRunState.current = { namespace, active: isActive };
+	}, [namespace, liveEntry?.active_run, queryClient]);
 
 	const detail = useMemo(() => {
 		if (!data) return data;
