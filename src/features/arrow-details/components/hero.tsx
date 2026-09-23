@@ -196,7 +196,9 @@ export function Hero({ detail, platform, values, onValueChange, channelsLoading 
 		restarting.current = false;
 		execute
 			.mutateAsync({ namespace: latest.current.namespace, variables: latest.current.values })
-			.catch(() => {})
+			.catch((err) => {
+				setActionError(err instanceof Error ? err.message : String(err));
+			})
 			.finally(() => setPendingKind(null));
 	}, [detail.state, execute]);
 

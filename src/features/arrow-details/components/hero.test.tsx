@@ -551,7 +551,7 @@ describe('Hero', () => {
 		expect(apiFetch).not.toHaveBeenCalled();
 	});
 
-	it('clears pendingKind even when restart’s second leg (execute, once ready) itself rejects', async () => {
+	it('clears pendingKind and surfaces an error dialog when restart’s second leg (execute, once ready) itself rejects', async () => {
 		const user = userEvent.setup();
 		const { rerender } = render(
 			<Hero
@@ -572,7 +572,11 @@ describe('Hero', () => {
 		// button (only `running`/`stopping`/`draining` do), so the real
 		// assertion is that pendingKind was still cleared despite the
 		// rejection: the newly-shown "Start" action must not be stuck disabled.
-		mockApiFetch.mockRejectedValueOnce(new Error('offline'));
+		// This is the same class of bug the action-error dialog exists to
+		// close -- restart's second leg has its own separate catch, so it
+		// must be asserted here too, not assumed covered by the first leg's
+		// own test.
+		mockApiFetch.mockRejectedValueOnce(new ApiError('no target for the current platform', 422));
 		rerender(
 			<Hero
 				channelsLoading={false}
@@ -584,6 +588,9 @@ describe('Hero', () => {
 		);
 
 		await waitFor(() => expect(screen.getByRole('button', { name: 'Start' })).not.toBeDisabled());
+		expect(await screen.findByRole('dialog')).toHaveTextContent('no target for the current platform');
+		await user.keyboard('{Escape}');
+		await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 	});
 });
 
