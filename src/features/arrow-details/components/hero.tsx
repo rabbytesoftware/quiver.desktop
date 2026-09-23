@@ -17,6 +17,7 @@ import {
 } from '@/features/arrow-details/lib/release-variables';
 import { problemMessage, computeStatus, STATUS_BADGE_VARIANT, STATUS_ICONS } from '@/features/arrow-details/lib/status';
 import { useChannelSelection } from '@/features/arrow-details/lib/use-channel-selection';
+import { resolveRealPlatform } from '@/features/arrow-details/lib/use-real-platform';
 import { ArrowIcon } from '@/features/sidebar/components/arrows/arrow-icon';
 import { cn } from '@/lib/cn';
 import {
@@ -45,6 +46,16 @@ interface HeroProps {
 	onValueChange: (name: string, value: string) => void;
 	/** True while `GET /v0/arrow/:ns/channels` is still in flight -- the Channel/Version selects show their own loading state on this rather than waiting on it to render at all. Optional (defaults to `false`) so a caller with nothing to report about channels loading doesn't have to think about this. */
 	channelsLoading?: boolean;
+	/**
+	 * True once `platform` is `useRealPlatform`'s resolved, authoritative
+	 * value rather than its zero-latency UA guess. The not-supported
+	 * indicator waits on this: rendering it off the guess risks a flicker at
+	 * best and a false negative at worst on exactly the hardware (Apple
+	 * Silicon Macs) this feature exists to get right for. Optional, default
+	 * `true`, so a caller with no resolution concept of its own (a test, a
+	 * future non-platform-aware host) sees today's behavior.
+	 */
+	platformResolved?: boolean;
 }
 
 /**
@@ -53,7 +64,14 @@ interface HeroProps {
  * existing hero pattern (banner + identity block) with everything specific
  * to a single arrow's lifecycle.
  */
-export function Hero({ detail, platform, values, onValueChange, channelsLoading = false }: HeroProps): JSX.Element {
+export function Hero({
+	detail,
+	platform,
+	values,
+	onValueChange,
+	channelsLoading = false,
+	platformResolved = true,
+}: HeroProps): JSX.Element {
 	const { t } = useTranslation();
 	const [problemOpen, setProblemOpen] = useState(false);
 	const [pendingKind, setPendingKind] = useState<ArrowActionKind | null>(null);
@@ -71,8 +89,11 @@ export function Hero({ detail, platform, values, onValueChange, channelsLoading 
 	// Gates the "Add to Library" click for an arrow with no build for this
 	// platform -- opened instead of registering right away; confirming re-runs
 	// `invoke('addToLibrary', true)`, the `true` bypassing this same check so
-	// the confirmed click isn't warned about a second time.
-	const [platformWarningOpen, setPlatformWarningOpen] = useState(false);
+	// the confirmed click isn't warned about a second time. Carries the exact
+	// platform resolveRealPlatform() decided against, not the (possibly still
+	// stale) platform prop, so the modal's own text can never disagree with
+	// the decision that opened it.
+	const [platformWarning, setPlatformWarning] = useState<string | null>(null);
 	const restarting = useRef(false);
 	// Restart's second leg reads the namespace/values current as of the
 	// moment `detail.state` actually reaches 'ready', not whatever the
@@ -103,7 +124,11 @@ export function Hero({ detail, platform, values, onValueChange, channelsLoading 
 	// Always-visible, no click required to discover it -- unlike `problem`,
 	// which needs an active run or a detached process, this can be true for an
 	// arrow that has never been touched at all (the moment it's discovered).
-	const platformUnsupported = !isPlatformSupported(detail.targets, platform);
+	// Gated on platformResolved: rendering this off the UA guess risks a
+	// flicker at best (the platform string changes mid-view once the real
+	// value lands) and a false negative at worst (briefly claiming support
+	// an arrow doesn't have) -- see use-real-platform.ts.
+	const platformUnsupported = platformResolved && !isPlatformSupported(detail.targets, platform);
 
 	/**
 	 * The variables an action has to carry beyond whatever the user typed.
@@ -126,12 +151,27 @@ export function Hero({ detail, platform, values, onValueChange, channelsLoading 
 	}
 
 	async function invoke(kind: ArrowActionKind, skipPlatformWarning = false) {
-		if (kind === 'addToLibrary' && !skipPlatformWarning && !isPlatformSupported(detail.targets, platform)) {
-			setPlatformWarningOpen(true);
-			return;
+		// Set before the (possibly async) platform check below, not after: the
+		// button's own disabled-while-busy render is what stops a second click
+		// from re-entering invoke() during that gap, the same guarantee every
+		// other kind here already has by setting this synchronously up front.
+		setPendingKind(kind);
+
+		if (kind === 'addToLibrary' && !skipPlatformWarning) {
+			// A fresh, authoritative read, not the platform prop: gating this
+			// click on the reactive value risks the UA guess if the click lands
+			// before useRealPlatform's effect has resolved, which would silently
+			// skip the warning for a genuinely unsupported arrow rather than
+			// merely mis-rendering a badge -- see resolveRealPlatform's own doc
+			// comment.
+			const real = await resolveRealPlatform();
+			if (!isPlatformSupported(detail.targets, real)) {
+				setPendingKind(null);
+				setPlatformWarning(real);
+				return;
+			}
 		}
 
-		setPendingKind(kind);
 		let release: Record<string, string>;
 		try {
 			release = await extraVariables(kind);
@@ -350,16 +390,16 @@ export function Hero({ detail, platform, values, onValueChange, channelsLoading 
 				/>
 			)}
 
-			{platformWarningOpen && (
+			{platformWarning !== null && (
 				<MessageModal
 					cancelLabel={t('arrow.platform.warning.cancel')}
 					confirmLabel={t('arrow.platform.warning.confirm')}
-					message={t('arrow.platform.warning.message', { platform })}
+					message={t('arrow.platform.warning.message', { platform: platformWarning })}
 					onConfirm={() => {
-						setPlatformWarningOpen(false);
+						setPlatformWarning(null);
 						void invoke('addToLibrary', true);
 					}}
-					onOpenChange={(open) => !open && setPlatformWarningOpen(false)}
+					onOpenChange={(open) => !open && setPlatformWarning(null)}
 					open
 					title={t('arrow.platform.warning.title')}
 				/>

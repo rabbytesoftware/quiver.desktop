@@ -128,13 +128,27 @@ const RESOLVED: ResolvedReleaseAsset = {
 function resolverAnswering(result: ResolvedReleaseAsset | { reject: unknown }) {
 	const resolveReleaseAsset =
 		'reject' in result ? vi.fn().mockRejectedValue(result.reject) : vi.fn().mockResolvedValue(result);
-	installBackend({ resolveReleaseAsset } as unknown as Backend);
+	installBackend({ resolveReleaseAsset, getPlatform: () => Promise.resolve(PLATFORM) } as unknown as Backend);
 	return resolveReleaseAsset;
+}
+
+/**
+ * The real `backend()` is a Tauri `invoke` bridge with nothing to answer it
+ * in jsdom, so `hero.tsx`'s `resolveRealPlatform()` (used to gate an
+ * add-to-library click) falls back to the UA guess -- an unmocked value this
+ * environment doesn't control. Every test installs this default so that
+ * gate resolves to the same `PLATFORM` the `platform` prop already defaults
+ * to; a test asserting the "genuinely unsupported" path overrides it (or the
+ * `platform` prop, or both) explicitly instead of relying on that fallback.
+ */
+function platformBackend(platform: string = PLATFORM) {
+	installBackend({ getPlatform: () => Promise.resolve(platform) } as unknown as Backend);
 }
 
 beforeEach(() => {
 	mockApiFetch.mockReset();
 	mockApiFetch.mockResolvedValue(undefined);
+	platformBackend();
 });
 
 afterEach(() => {
@@ -893,6 +907,7 @@ describe('Hero, platform support', () => {
 
 	it('warns before adding an unsupported-platform arrow, instead of registering right away', async () => {
 		const user = userEvent.setup();
+		platformBackend('linux/amd64');
 		renderHero({ detail: detail({ user_installed: false }), platform: 'linux/amd64' });
 
 		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
@@ -903,6 +918,7 @@ describe('Hero, platform support', () => {
 
 	it('cancelling the platform warning leaves the arrow out of the library', async () => {
 		const user = userEvent.setup();
+		platformBackend('linux/amd64');
 		renderHero({ detail: detail({ user_installed: false }), platform: 'linux/amd64' });
 
 		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
@@ -914,6 +930,7 @@ describe('Hero, platform support', () => {
 
 	it('"Add anyway" proceeds with the exact same registerArrow call an ordinary add makes', async () => {
 		const user = userEvent.setup();
+		platformBackend('linux/amd64');
 		renderHero({ detail: detail({ user_installed: false }), platform: 'linux/amd64' });
 
 		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
@@ -926,6 +943,25 @@ describe('Hero, platform support', () => {
 			)
 		);
 		await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+	});
+
+	// Guards the regression a review caught: the add-to-library gate used to
+	// read the `platform` prop directly, which can still be `useRealPlatform`'s
+	// zero-latency UA guess if the click lands before its effect resolves --
+	// silently skipping the warning for a genuinely unsupported arrow instead
+	// of merely mis-rendering a badge. The `platform` prop here still says the
+	// arrow is supported (matching `TARGET.platform`), but the backend --
+	// standing in for `useRealPlatform`'s eventual, authoritative answer --
+	// disagrees; the gate must trust the backend, not the prop.
+	it('warns even when the platform prop still shows a match, if the real platform disagrees', async () => {
+		const user = userEvent.setup();
+		platformBackend('linux/amd64');
+		renderHero({ detail: detail({ user_installed: false }) });
+
+		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+
+		expect(await screen.findByRole('dialog')).toHaveTextContent('linux/amd64');
+		expect(apiFetch).not.toHaveBeenCalled();
 	});
 });
 

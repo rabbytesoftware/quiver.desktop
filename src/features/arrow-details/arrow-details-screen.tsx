@@ -55,7 +55,7 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 	const { detail, isLoading, isError, overviewLoading, channelsLoading, allEntries } =
 		useAssembledArrowDetail(namespace);
 
-	const platform = useRealPlatform();
+	const { platform, resolved: platformResolved } = useRealPlatform();
 
 	const [tab, setTab] = useState<ArrowTab>('overview');
 	const [values, setValues] = useState<Record<string, string>>({});
@@ -212,6 +212,7 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 				detail={detail}
 				onValueChange={handleValueChange}
 				platform={platform}
+				platformResolved={platformResolved}
 				values={values}
 			/>
 
