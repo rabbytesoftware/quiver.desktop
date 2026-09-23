@@ -138,6 +138,48 @@ describe('applyRuntimeUpdate', () => {
 			.applyRuntimeUpdate({ namespace: 'ghost@1', state: 'running', active_run: null, last_return: null });
 		expect(useArrowStore.getState().arrows.size).toBe(0);
 	});
+
+	it('buffers a runtime update that arrives before its catalog entry, applying it once the entry appears', () => {
+		useArrowStore
+			.getState()
+			.applyRuntimeUpdate({ namespace: 'a@1', state: 'ready', active_run: null, last_return: null });
+		expect(useArrowStore.getState().arrows.size).toBe(0);
+		useArrowStore.getState().setCatalog([catalogRecord('a@1')]);
+		expect(useArrowStore.getState().arrows.get('a@1')?.state).toBe('ready');
+	});
+
+	it('buffers a full runtime overlay -- active_run and last_return, not just state', () => {
+		useArrowStore.getState().applyRuntimeUpdate({
+			namespace: 'a@1',
+			state: 'running',
+			active_run: { method: 'execute', variables: { KEY: 'val' }, steps: [] },
+			last_return: { method: 'install', outcome: 'success' },
+		});
+		useArrowStore.getState().setCatalog([catalogRecord('a@1')]);
+		const entry = useArrowStore.getState().arrows.get('a@1');
+		expect(entry?.active_run).toEqual({ method: 'execute', variables: { KEY: 'val' }, steps: [] });
+		expect(entry?.last_return).toEqual({ method: 'install', outcome: 'success' });
+	});
+
+	it('treats a drained buffered update as live, so a same-batch seedInitialState cannot clobber it', () => {
+		useArrowStore
+			.getState()
+			.applyRuntimeUpdate({ namespace: 'a@1', state: 'running', active_run: null, last_return: null });
+		useArrowStore.getState().setCatalog([catalogRecord('a@1')]);
+		useArrowStore
+			.getState()
+			.seedInitialState({ namespace: 'a@1', state: 'ready', active_run: null, last_return: null });
+		expect(useArrowStore.getState().arrows.get('a@1')?.state).toBe('running');
+	});
+
+	it('drops a buffered update on reset so it cannot leak into a later connection', () => {
+		useArrowStore
+			.getState()
+			.applyRuntimeUpdate({ namespace: 'a@1', state: 'running', active_run: null, last_return: null });
+		useArrowStore.getState().reset();
+		useArrowStore.getState().setCatalog([catalogRecord('a@1')]);
+		expect(useArrowStore.getState().arrows.get('a@1')?.state).toBe('absent');
+	});
 });
 
 describe('seedInitialState', () => {
