@@ -180,6 +180,25 @@ describe('applyRuntimeUpdate', () => {
 		useArrowStore.getState().setCatalog([catalogRecord('a@1')]);
 		expect(useArrowStore.getState().arrows.get('a@1')?.state).toBe('absent');
 	});
+
+	// The runtime WS endpoint is unfiltered server-side (every arrow the
+	// daemon manages, not just this catalog's own user-installed rows), so a
+	// pure dependency's runtime updates buffer here forever -- it never
+	// appears in a setCatalog batch to drain them. Without a cap this grows
+	// without bound for the life of the connection.
+	it('caps the pending-runtime buffer so updates for arrows that never surface in the catalog cannot grow it without bound', () => {
+		for (let i = 0; i < 300; i++) {
+			useArrowStore
+				.getState()
+				.applyRuntimeUpdate({ namespace: `dep@${i}`, state: 'ready', active_run: null, last_return: null });
+		}
+		// The most recently buffered entry must still be there...
+		useArrowStore.getState().setCatalog([catalogRecord('dep@299')]);
+		expect(useArrowStore.getState().arrows.get('dep@299')?.state).toBe('ready');
+		// ...but the oldest, evicted to make room, must not be.
+		useArrowStore.getState().setCatalog([catalogRecord('dep@299'), catalogRecord('dep@0')]);
+		expect(useArrowStore.getState().arrows.get('dep@0')?.state).toBe('absent');
+	});
 });
 
 describe('seedInitialState', () => {

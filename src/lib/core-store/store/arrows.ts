@@ -5,6 +5,16 @@ import type { ArrowCatalogRecord } from '@/lib/persistence/schemas';
 
 const NEUTRAL_STATE: ArrowState = 'absent';
 
+// The runtime endpoint broadcasts every arrow the daemon manages, not just
+// this catalog's own (user-installed) rows -- a dependency pulled in by an
+// install transitions through its own states on the same stream, and since
+// a pure dependency never appears in `records` (the catalog seed is always
+// filtered to user-installed arrows), its buffered update would otherwise
+// sit in `pendingRuntime` for the rest of the session. This cap keeps that
+// bounded: once exceeded, the oldest buffered entry (a Map iterates in
+// insertion order) is dropped to make room for the newest.
+const MAX_PENDING_RUNTIME = 256;
+
 export type CatalogStatus = 'loading' | 'ready' | 'error';
 
 interface ArrowStore {
@@ -99,7 +109,14 @@ export const useArrowStore = create<ArrowStore>((set, get) => {
 		applyRuntimeUpdate: (update) => {
 			const existing = get().arrows.get(update.namespace);
 			if (!existing) {
-				pendingRuntime = new Map(pendingRuntime).set(update.namespace, update);
+				const next = new Map(pendingRuntime);
+				next.delete(update.namespace);
+				if (next.size >= MAX_PENDING_RUNTIME) {
+					const oldest = next.keys().next().value;
+					if (oldest !== undefined) next.delete(oldest);
+				}
+				next.set(update.namespace, update);
+				pendingRuntime = next;
 				return;
 			}
 			const resolved = resolveOverlay(existing, update);
