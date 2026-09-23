@@ -9,13 +9,16 @@ import { runStep, signalStep } from '@/__mocks__/arrow-steps';
 import type { ArrowDetail, ArrowLifecycle, ArrowTarget } from '@/domain/arrow';
 import type { ResolvedReleaseAsset } from '@/domain/release';
 import { QUIVER_DESKTOP_NAMESPACE } from '@/domain/release';
-import { apiFetch } from '@/lib/transport/api';
+import { apiFetch, ApiError } from '@/lib/transport/api';
 import type { Backend } from '@/lib/transport/backend';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 
 import { Hero } from './hero';
 
-vi.mock('@/lib/transport/api', () => ({ apiFetch: vi.fn() }));
+vi.mock('@/lib/transport/api', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('@/lib/transport/api')>();
+	return { ...actual, apiFetch: vi.fn() };
+});
 const mockApiFetch = apiFetch as MockedFunction<typeof apiFetch>;
 
 const PLATFORM = 'darwin/arm64';
@@ -462,6 +465,54 @@ describe('Hero', () => {
 		await waitFor(() => expect(main).not.toBeDisabled());
 	});
 
+	// The bug this guards against: the backend already computes a precise,
+	// structured reason for a failed action (here, the real shape core sends
+	// back for `ErrPlatformNotSupported`) and the click handler used to throw
+	// it away with a bare `catch { ... }`, leaving the button silently revert
+	// to normal with no indication anything went wrong.
+	it('surfaces the backend error message in a dialog when install rejects with an ApiError', async () => {
+		mockApiFetch.mockRejectedValueOnce(new ApiError('no target for the current platform', 422));
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ state: 'absent' }) });
+
+		await user.click(screen.getByRole('button', { name: 'Install' }));
+
+		expect(await screen.findByRole('dialog')).toBeInTheDocument();
+		expect(screen.getByText('no target for the current platform')).toBeInTheDocument();
+	});
+
+	// Not install-specific: every action that goes through this same catch
+	// block must surface its own mutation's failure the same way.
+	it('surfaces the backend error message for other action kinds too, e.g. Uninstall', async () => {
+		mockApiFetch.mockRejectedValueOnce(new ApiError('arrow has dependents', 409));
+		const user = userEvent.setup();
+		renderHero();
+
+		await user.click(screen.getByRole('button', { name: 'Uninstall' }));
+
+		expect(await screen.findByRole('dialog')).toBeInTheDocument();
+		expect(screen.getByText('arrow has dependents')).toBeInTheDocument();
+	});
+
+	it('dismisses the action-error dialog and allows retrying', async () => {
+		mockApiFetch.mockRejectedValueOnce(new ApiError('no target for the current platform', 422));
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ state: 'absent' }) });
+
+		await user.click(screen.getByRole('button', { name: 'Install' }));
+		expect(await screen.findByRole('dialog')).toBeInTheDocument();
+
+		await user.keyboard('{Escape}');
+		await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+		mockApiFetch.mockResolvedValueOnce(undefined);
+		await user.click(screen.getByRole('button', { name: 'Install' }));
+		await waitFor(() =>
+			expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/install'), expect.anything())
+		);
+		expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+	});
+
 	it('clears the restart-in-flight flag (not just pendingKind) when the stop leg of a restart itself rejects', async () => {
 		mockApiFetch.mockRejectedValueOnce(new Error('offline'));
 		const user = userEvent.setup();
@@ -477,6 +528,12 @@ describe('Hero', () => {
 		);
 
 		await user.click(screen.getByRole('button', { name: 'Restart' }));
+		// The rejection now also opens the action-error dialog, which marks the
+		// rest of the page inert while it's up -- dismiss it to get back to a
+		// state where the Restart button is reachable again, same as a real user
+		// would after reading the message.
+		expect(await screen.findByRole('dialog')).toBeInTheDocument();
+		await user.keyboard('{Escape}');
 		await waitFor(() => expect(screen.getByRole('button', { name: 'Restart' })).not.toBeDisabled());
 
 		// If the failed restart's flag were left set, this transition to ready

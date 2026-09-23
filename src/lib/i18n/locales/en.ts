@@ -218,6 +218,7 @@ export const en = {
 	'arrow.action.restart': 'Restart',
 	'arrow.action.reinstall': 'Reinstall',
 	'arrow.action.info': 'What this does',
+	'arrow.action.error.title': "Couldn't complete the action",
 
 	// Resolving Quiver's own release asset, which happens the moment Update or
 	// Install is clicked on Quiver's own tile. Every one of these says what

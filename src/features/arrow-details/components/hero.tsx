@@ -61,6 +61,12 @@ export function Hero({ detail, platform, values, onValueChange, channelsLoading 
 	// generic problem chip to read, and nothing would otherwise appear on
 	// screen. Shown through the same MessageModal the problem chip opens.
 	const [releaseError, setReleaseError] = useState<{ messageKey: ReleaseMessageKey; detail: string } | null>(null);
+	// Set when a mutation itself rejects -- `ApiError` from a non-2xx core
+	// response carries the backend's own precise reason in `.message`, and it
+	// used to be dropped on the floor by a bare `catch { ... }` that reset
+	// only the busy-state bookkeeping below. Shown through the same
+	// MessageModal the problem chip and releaseError above use.
+	const [actionError, setActionError] = useState<string | null>(null);
 	const restarting = useRef(false);
 	// Restart's second leg reads the namespace/values current as of the
 	// moment `detail.state` actually reaches 'ready', not whatever the
@@ -172,9 +178,10 @@ export function Hero({ detail, platform, values, onValueChange, channelsLoading 
 					await stop.mutateAsync({ namespace: detail.namespace });
 					return;
 			}
-		} catch {
+		} catch (err) {
 			restarting.current = false;
 			setPendingKind(null);
+			setActionError(err instanceof Error ? err.message : String(err));
 			return;
 		}
 		setPendingKind(null);
@@ -308,6 +315,15 @@ export function Hero({ detail, platform, values, onValueChange, channelsLoading 
 					onOpenChange={(open) => !open && setReleaseError(null)}
 					open
 					title={t('arrow.release.title')}
+				/>
+			)}
+
+			{actionError && (
+				<MessageModal
+					message={actionError}
+					onOpenChange={(open) => !open && setActionError(null)}
+					open
+					title={t('arrow.action.error.title')}
 				/>
 			)}
 		</div>
