@@ -114,10 +114,7 @@ describe('useAssembledArrowDetail', () => {
 
 	it('does not refetch on a genuinely different namespace after a prior one had an active run', async () => {
 		const other = 'github.com/user/other@v1';
-		useArrowStore.getState().setCatalog([
-			catalogRecord(),
-			{ ...catalogRecord(), namespace: other, name: 'Other' },
-		]);
+		useArrowStore.getState().setCatalog([catalogRecord(), { ...catalogRecord(), namespace: other, name: 'Other' }]);
 		mockApiFetch.mockImplementation((path: string) => {
 			if (path.endsWith('/manifest')) return Promise.resolve({ ...MANIFEST, name: 'Other' });
 			if (path.endsWith('/channels')) return Promise.resolve([]);
