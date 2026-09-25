@@ -1,35 +1,17 @@
-import { useEffect, useRef, useState, type JSX } from 'react';
-
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, type JSX } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { FlickerSpinner } from '@/components/ui/flicker-spinner';
 
 import type { ArrowDetail } from '@/domain/arrow';
 import { isPlatformSupported } from '@/domain/arrow';
-import { computeActions, type ArrowActionKind } from '@/features/arrow-details/lib/actions';
+import { computeActions } from '@/features/arrow-details/lib/actions';
 import { CONTENT_MAX_WIDTH, CONTENT_PADDING_X } from '@/features/arrow-details/lib/layout';
-import {
-	isSelfArrow,
-	releaseErrorMessageKey,
-	releaseVariables,
-	type ReleaseMessageKey,
-} from '@/features/arrow-details/lib/release-variables';
 import { problemMessage, computeStatus, STATUS_BADGE_VARIANT, STATUS_ICONS } from '@/features/arrow-details/lib/status';
 import { useChannelSelection } from '@/features/arrow-details/lib/use-channel-selection';
-import { resolveRealPlatform } from '@/features/arrow-details/lib/use-real-platform';
+import { useHeroActions } from '@/features/arrow-details/lib/use-hero-actions';
 import { ArrowIcon } from '@/features/sidebar/components/arrows/arrow-icon';
 import { cn } from '@/lib/cn';
-import {
-	useExecuteArrow,
-	useInstall,
-	useRegisterArrow,
-	useRemoveArrow,
-	useStop,
-	useUninstall,
-	useUpdate,
-} from '@/lib/core-store';
-import { arrowDetailQueryKeyPrefix } from '@/lib/core-store/queries/arrow';
 import { cssUrl } from '@/lib/css';
 import { useTranslation } from '@/lib/i18n';
 
@@ -74,49 +56,17 @@ export function Hero({
 }: HeroProps): JSX.Element {
 	const { t } = useTranslation();
 	const [problemOpen, setProblemOpen] = useState(false);
-	const [pendingKind, setPendingKind] = useState<ArrowActionKind | null>(null);
-	// Set when resolving Quiver's own release asset fails, which happens
-	// before any core call is made -- so there is no `last_return` for the
-	// generic problem chip to read, and nothing would otherwise appear on
-	// screen. Shown through the same MessageModal the problem chip opens.
-	const [releaseError, setReleaseError] = useState<{ messageKey: ReleaseMessageKey; detail: string } | null>(null);
-	// Set when a mutation itself rejects -- `ApiError` from a non-2xx core
-	// response carries the backend's own precise reason in `.message`, and it
-	// used to be dropped on the floor by a bare `catch { ... }` that reset
-	// only the busy-state bookkeeping below. Shown through the same
-	// MessageModal the problem chip and releaseError above use.
-	const [actionError, setActionError] = useState<string | null>(null);
-	// Gates the "Add to Library" click for an arrow with no build for this
-	// platform -- opened instead of registering right away; confirming re-runs
-	// `invoke('addToLibrary', true)`, the `true` bypassing this same check so
-	// the confirmed click isn't warned about a second time. Carries the exact
-	// platform resolveRealPlatform() decided against, not the (possibly still
-	// stale) platform prop, so the modal's own text can never disagree with
-	// the decision that opened it.
-	const [platformWarning, setPlatformWarning] = useState<string | null>(null);
-	const restarting = useRef(false);
-	// Restart's second leg reads the namespace/values current as of the
-	// moment `detail.state` actually reaches 'ready', not whatever the
-	// effect closure captured when the request was first fired -- a ref
-	// (stable identity, no re-render) keeps that read fresh without pulling
-	// `detail.namespace`/`values` into the effect's own dependency array.
-	// Updated in an effect (not during render) so the ref write stays out of
-	// render's own purity contract; no dependency array is deliberate -- this
-	// must resync after every render, not just when React decides to diff it.
-	const latest = useRef({ namespace: detail.namespace, values });
-	useEffect(() => {
-		latest.current = { namespace: detail.namespace, values };
-	});
-
-	const queryClient = useQueryClient();
-	const registerArrow = useRegisterArrow();
-	const removeArrow = useRemoveArrow();
-	const install = useInstall();
-	const uninstall = useUninstall();
-	const stop = useStop();
-	const update = useUpdate();
-	const execute = useExecuteArrow();
 	const channelSelection = useChannelSelection(detail);
+	const {
+		pendingKind,
+		releaseError,
+		actionError,
+		platformWarning,
+		invoke,
+		dismissReleaseError,
+		dismissActionError,
+		dismissPlatformWarning,
+	} = useHeroActions(detail, values, channelSelection.selectedChannel);
 
 	const status = computeStatus(detail);
 	const problem = problemMessage(detail);
@@ -129,133 +79,6 @@ export function Hero({
 	// value lands) and a false negative at worst (briefly claiming support
 	// an arrow doesn't have) -- see use-real-platform.ts.
 	const platformUnsupported = platformResolved && !isPlatformSupported(detail.targets, platform);
-
-	/**
-	 * The variables an action has to carry beyond whatever the user typed.
-	 *
-	 * For every arrow but Quiver's own this is nothing at all. For Quiver's
-	 * own, `install`, `reinstall` and `update` fetch a release asset that
-	 * `ARROW.md` cannot name (release filenames carry a static product
-	 * version, and `${REF}` at update time is the version being left, not the
-	 * one being installed), so the caller has to resolve it -- which is
-	 * exactly what `install.sh` does against the same releases API, and what
-	 * this does at the moment the button is clicked.
-	 *
-	 * Resolved on EVERY click, never remembered. Nothing here may depend on a
-	 * previous execution's values still being around inside core.
-	 */
-	async function extraVariables(kind: ArrowActionKind): Promise<Record<string, string>> {
-		const needsRelease = kind === 'install' || kind === 'reinstall' || kind === 'update';
-		if (!needsRelease || !isSelfArrow(detail.namespace)) return {};
-		return releaseVariables();
-	}
-
-	async function invoke(kind: ArrowActionKind, skipPlatformWarning = false) {
-		// Set before the (possibly async) platform check below, not after: the
-		// button's own disabled-while-busy render is what stops a second click
-		// from re-entering invoke() during that gap, the same guarantee every
-		// other kind here already has by setting this synchronously up front.
-		setPendingKind(kind);
-
-		if (kind === 'addToLibrary' && !skipPlatformWarning) {
-			// A fresh, authoritative read, not the platform prop: gating this
-			// click on the reactive value risks the UA guess if the click lands
-			// before useRealPlatform's effect has resolved, which would silently
-			// skip the warning for a genuinely unsupported arrow rather than
-			// merely mis-rendering a badge -- see resolveRealPlatform's own doc
-			// comment.
-			const real = await resolveRealPlatform();
-			if (!isPlatformSupported(detail.targets, real)) {
-				setPendingKind(null);
-				setPlatformWarning(real);
-				return;
-			}
-		}
-
-		let release: Record<string, string>;
-		try {
-			release = await extraVariables(kind);
-		} catch (err) {
-			const { kind: errKind, detail: errDetail } = err as { kind: string; detail: string };
-			setReleaseError({ messageKey: releaseErrorMessageKey(errKind), detail: errDetail });
-			setPendingKind(null);
-			return;
-		}
-
-		try {
-			switch (kind) {
-				case 'addToLibrary':
-					await registerArrow.mutateAsync({
-						namespace: detail.namespace,
-						...(channelSelection.selectedChannel ? { channel: channelSelection.selectedChannel } : {}),
-					});
-					// `user_installed` isn't part of the live WS-driven overlay (only
-					// state/active_run/last_return are) -- the one-time detail fetch
-					// needs an explicit refetch to pick up the new library membership.
-					// Keyed by prefix, not the exact namespace: the mounted query may
-					// be running under a bare namespace (Search's own links carry no
-					// ref), which differs from this ref-qualified `detail.namespace`.
-					await queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
-					break;
-				case 'removeFromLibrary':
-					await removeArrow.mutateAsync({ namespace: detail.namespace });
-					await queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
-					break;
-				case 'install':
-				case 'reinstall':
-					await install.mutateAsync({
-						namespace: detail.namespace,
-						variables: { ...values, ...release },
-					});
-					break;
-				case 'uninstall':
-					await uninstall.mutateAsync({ namespace: detail.namespace });
-					break;
-				case 'update':
-					// `release` is empty for every arrow but Quiver's own, which
-					// is the whole point: core requires only the variables the
-					// method's own steps expand, and an ordinary arrow's update
-					// expands none of these.
-					await update.mutateAsync({ namespace: detail.namespace, variables: release });
-					break;
-				case 'execute':
-					await execute.mutateAsync({ namespace: detail.namespace, variables: values });
-					break;
-				case 'stop':
-					await stop.mutateAsync({ namespace: detail.namespace });
-					break;
-				case 'restart':
-					// Client-side sequencing, not a single core call. `pendingKind`
-					// stays 'restart' through both legs -- cleared only by the effect
-					// below, once `execute` itself has resolved (or the whole thing
-					// has failed).
-					restarting.current = true;
-					await stop.mutateAsync({ namespace: detail.namespace });
-					return;
-			}
-		} catch (err) {
-			restarting.current = false;
-			setPendingKind(null);
-			setActionError(err instanceof Error ? err.message : String(err));
-			return;
-		}
-		setPendingKind(null);
-	}
-
-	// Restart's second leg: core only accepts `execute` once the arrow has
-	// genuinely reached `ready` (not merely once the `stop` request was
-	// accepted), so this waits for that live state transition rather than
-	// firing immediately after `stop` resolves.
-	useEffect(() => {
-		if (!restarting.current || detail.state !== 'ready') return;
-		restarting.current = false;
-		execute
-			.mutateAsync({ namespace: latest.current.namespace, variables: latest.current.values })
-			.catch((err) => {
-				setActionError(err instanceof Error ? err.message : String(err));
-			})
-			.finally(() => setPendingKind(null));
-	}, [detail.state, execute]);
 
 	const StatusIcon = STATUS_ICONS[status.iconKind];
 	const banner = detail.media.banner;
@@ -375,7 +198,7 @@ export function Hero({
 					// reporting the issue has the specifics without having to
 					// find a log.
 					message={`${t(releaseError.messageKey)}\n\n${releaseError.detail}`}
-					onOpenChange={(open) => !open && setReleaseError(null)}
+					onOpenChange={(open) => !open && dismissReleaseError()}
 					open
 					title={t('arrow.release.title')}
 				/>
@@ -384,7 +207,7 @@ export function Hero({
 			{actionError && (
 				<MessageModal
 					message={actionError}
-					onOpenChange={(open) => !open && setActionError(null)}
+					onOpenChange={(open) => !open && dismissActionError()}
 					open
 					title={t('arrow.action.error.title')}
 				/>
@@ -396,10 +219,10 @@ export function Hero({
 					confirmLabel={t('arrow.platform.warning.confirm')}
 					message={t('arrow.platform.warning.message', { platform: platformWarning })}
 					onConfirm={() => {
-						setPlatformWarning(null);
+						dismissPlatformWarning();
 						void invoke('addToLibrary', true);
 					}}
-					onOpenChange={(open) => !open && setPlatformWarning(null)}
+					onOpenChange={(open) => !open && dismissPlatformWarning()}
 					open
 					title={t('arrow.platform.warning.title')}
 				/>
