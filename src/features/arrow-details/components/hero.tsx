@@ -1,39 +1,24 @@
-import { useEffect, useRef, useState, type JSX } from 'react';
-
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, type JSX } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { FlickerSpinner } from '@/components/ui/flicker-spinner';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import type { ArrowDetail } from '@/domain/arrow';
-import { computeActions, type ArrowActionKind } from '@/features/arrow-details/lib/actions';
+import { isPlatformSupported } from '@/domain/arrow';
+import { computeActions } from '@/features/arrow-details/lib/actions';
 import { CONTENT_MAX_WIDTH, CONTENT_PADDING_X } from '@/features/arrow-details/lib/layout';
-import {
-	isSelfArrow,
-	releaseErrorMessageKey,
-	releaseVariables,
-	type ReleaseMessageKey,
-} from '@/features/arrow-details/lib/release-variables';
 import { problemMessage, computeStatus, STATUS_BADGE_VARIANT, STATUS_ICONS } from '@/features/arrow-details/lib/status';
+import { useChannelSelection } from '@/features/arrow-details/lib/use-channel-selection';
+import { useHeroActions } from '@/features/arrow-details/lib/use-hero-actions';
 import { ArrowIcon } from '@/features/sidebar/components/arrows/arrow-icon';
 import { cn } from '@/lib/cn';
-import {
-	useExecuteArrow,
-	useInstall,
-	useRegisterArrow,
-	useRemoveArrow,
-	useStop,
-	useUninstall,
-	useUpdate,
-} from '@/lib/core-store';
-import { arrowDetailQueryKeyPrefix } from '@/lib/core-store/queries/arrow';
 import { cssUrl } from '@/lib/css';
 import { useTranslation } from '@/lib/i18n';
 
 import { TriangleAlertIcon } from 'lucide-react';
 
 import { ActionButton } from './action-button';
+import { ChannelVersionSelects } from './channel-version-selects';
 import { MessageModal } from './message-modal';
 
 interface HeroProps {
@@ -41,151 +26,59 @@ interface HeroProps {
 	platform: string;
 	values: Record<string, string>;
 	onValueChange: (name: string, value: string) => void;
-	onVersionChange?: (ref: string) => void;
+	/** True while `GET /v0/arrow/:ns/channels` is still in flight -- the Channel/Version selects show their own loading state on this rather than waiting on it to render at all. Optional (defaults to `false`) so a caller with nothing to report about channels loading doesn't have to think about this. */
+	channelsLoading?: boolean;
+	/**
+	 * True once `platform` is `useRealPlatform`'s resolved, authoritative
+	 * value rather than its zero-latency UA guess. The not-supported
+	 * indicator waits on this: rendering it off the guess risks a flicker at
+	 * best and a false negative at worst on exactly the hardware (Apple
+	 * Silicon Macs) this feature exists to get right for. Optional, default
+	 * `true`, so a caller with no resolution concept of its own (a test, a
+	 * future non-platform-aware host) sees today's behavior.
+	 */
+	platformResolved?: boolean;
 }
 
 /**
- * The arrow-details hero -- identity, status, tags, description, version +
- * license, and the state-driven action row. Extends Collection's existing
- * hero pattern (banner + identity block) with everything specific to a
- * single arrow's lifecycle.
+ * The arrow-details hero -- identity, status, tags, description, channel +
+ * version + license, and the state-driven action row. Extends Collection's
+ * existing hero pattern (banner + identity block) with everything specific
+ * to a single arrow's lifecycle.
  */
-export function Hero({ detail, platform, values, onValueChange, onVersionChange }: HeroProps): JSX.Element {
+export function Hero({
+	detail,
+	platform,
+	values,
+	onValueChange,
+	channelsLoading = false,
+	platformResolved = true,
+}: HeroProps): JSX.Element {
 	const { t } = useTranslation();
 	const [problemOpen, setProblemOpen] = useState(false);
-	const [pendingKind, setPendingKind] = useState<ArrowActionKind | null>(null);
-	// Set when resolving Quiver's own release asset fails, which happens
-	// before any core call is made -- so there is no `last_return` for the
-	// generic problem chip to read, and nothing would otherwise appear on
-	// screen. Shown through the same MessageModal the problem chip opens.
-	const [releaseError, setReleaseError] = useState<{ messageKey: ReleaseMessageKey; detail: string } | null>(null);
-	const restarting = useRef(false);
-	// Restart's second leg reads the namespace/values current as of the
-	// moment `detail.state` actually reaches 'ready', not whatever the
-	// effect closure captured when the request was first fired -- a ref
-	// (stable identity, no re-render) keeps that read fresh without pulling
-	// `detail.namespace`/`values` into the effect's own dependency array.
-	// Updated in an effect (not during render) so the ref write stays out of
-	// render's own purity contract; no dependency array is deliberate -- this
-	// must resync after every render, not just when React decides to diff it.
-	const latest = useRef({ namespace: detail.namespace, values });
-	useEffect(() => {
-		latest.current = { namespace: detail.namespace, values };
-	});
-
-	const queryClient = useQueryClient();
-	const registerArrow = useRegisterArrow();
-	const removeArrow = useRemoveArrow();
-	const install = useInstall();
-	const uninstall = useUninstall();
-	const stop = useStop();
-	const update = useUpdate();
-	const execute = useExecuteArrow();
+	const channelSelection = useChannelSelection(detail);
+	const {
+		pendingKind,
+		releaseError,
+		actionError,
+		platformWarning,
+		invoke,
+		dismissReleaseError,
+		dismissActionError,
+		dismissPlatformWarning,
+	} = useHeroActions(detail, values, channelSelection.selectedChannel);
 
 	const status = computeStatus(detail);
 	const problem = problemMessage(detail);
 	const actions = computeActions(detail, platform);
-
-	/**
-	 * The variables an action has to carry beyond whatever the user typed.
-	 *
-	 * For every arrow but Quiver's own this is nothing at all. For Quiver's
-	 * own, `install`, `reinstall` and `update` fetch a release asset that
-	 * `ARROW.md` cannot name (release filenames carry a static product
-	 * version, and `${REF}` at update time is the version being left, not the
-	 * one being installed), so the caller has to resolve it -- which is
-	 * exactly what `install.sh` does against the same releases API, and what
-	 * this does at the moment the button is clicked.
-	 *
-	 * Resolved on EVERY click, never remembered. Nothing here may depend on a
-	 * previous execution's values still being around inside core.
-	 */
-	async function extraVariables(kind: ArrowActionKind): Promise<Record<string, string>> {
-		const needsRelease = kind === 'install' || kind === 'reinstall' || kind === 'update';
-		if (!needsRelease || !isSelfArrow(detail.namespace)) return {};
-		return releaseVariables();
-	}
-
-	async function invoke(kind: ArrowActionKind) {
-		setPendingKind(kind);
-		let release: Record<string, string>;
-		try {
-			release = await extraVariables(kind);
-		} catch (err) {
-			const { kind: errKind, detail: errDetail } = err as { kind: string; detail: string };
-			setReleaseError({ messageKey: releaseErrorMessageKey(errKind), detail: errDetail });
-			setPendingKind(null);
-			return;
-		}
-
-		try {
-			switch (kind) {
-				case 'addToLibrary':
-					await registerArrow.mutateAsync({ namespace: detail.namespace });
-					// `user_installed` isn't part of the live WS-driven overlay (only
-					// state/active_run/last_return are) -- the one-time detail fetch
-					// needs an explicit refetch to pick up the new library membership.
-					// Keyed by prefix, not the exact namespace: the mounted query may
-					// be running under a bare namespace (Search's own links carry no
-					// ref), which differs from this ref-qualified `detail.namespace`.
-					await queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
-					break;
-				case 'removeFromLibrary':
-					await removeArrow.mutateAsync({ namespace: detail.namespace });
-					await queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
-					break;
-				case 'install':
-				case 'reinstall':
-					await install.mutateAsync({
-						namespace: detail.namespace,
-						variables: { ...values, ...release },
-					});
-					break;
-				case 'uninstall':
-					await uninstall.mutateAsync({ namespace: detail.namespace });
-					break;
-				case 'update':
-					// `release` is empty for every arrow but Quiver's own, which
-					// is the whole point: core requires only the variables the
-					// method's own steps expand, and an ordinary arrow's update
-					// expands none of these.
-					await update.mutateAsync({ namespace: detail.namespace, variables: release });
-					break;
-				case 'execute':
-					await execute.mutateAsync({ namespace: detail.namespace, variables: values });
-					break;
-				case 'stop':
-					await stop.mutateAsync({ namespace: detail.namespace });
-					break;
-				case 'restart':
-					// Client-side sequencing, not a single core call. `pendingKind`
-					// stays 'restart' through both legs -- cleared only by the effect
-					// below, once `execute` itself has resolved (or the whole thing
-					// has failed).
-					restarting.current = true;
-					await stop.mutateAsync({ namespace: detail.namespace });
-					return;
-			}
-		} catch {
-			restarting.current = false;
-			setPendingKind(null);
-			return;
-		}
-		setPendingKind(null);
-	}
-
-	// Restart's second leg: core only accepts `execute` once the arrow has
-	// genuinely reached `ready` (not merely once the `stop` request was
-	// accepted), so this waits for that live state transition rather than
-	// firing immediately after `stop` resolves.
-	useEffect(() => {
-		if (!restarting.current || detail.state !== 'ready') return;
-		restarting.current = false;
-		execute
-			.mutateAsync({ namespace: latest.current.namespace, variables: latest.current.values })
-			.catch(() => {})
-			.finally(() => setPendingKind(null));
-	}, [detail.state, execute]);
+	// Always-visible, no click required to discover it -- unlike `problem`,
+	// which needs an active run or a detached process, this can be true for an
+	// arrow that has never been touched at all (the moment it's discovered).
+	// Gated on platformResolved: rendering this off the UA guess risks a
+	// flicker at best (the platform string changes mid-view once the real
+	// value lands) and a false negative at worst (briefly claiming support
+	// an arrow doesn't have) -- see use-real-platform.ts.
+	const platformUnsupported = platformResolved && !isPlatformSupported(detail.targets, platform);
 
 	const StatusIcon = STATUS_ICONS[status.iconKind];
 	const banner = detail.media.banner;
@@ -218,6 +111,12 @@ export function Hero({ detail, platform, values, onValueChange, onVersionChange 
 									)}
 									{t(status.labelKey)}
 								</Badge>
+								{platformUnsupported && (
+									<Badge className="shrink-0 gap-1" variant="error">
+										<TriangleAlertIcon aria-hidden="true" className="size-3" />
+										{t('arrow.platform.unsupported', { platform })}
+									</Badge>
+								)}
 							</div>
 							<p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
 								{detail.namespace}
@@ -249,26 +148,14 @@ export function Hero({ detail, platform, values, onValueChange, onVersionChange 
 					<p className="mt-3 line-clamp-2 max-w-2xl text-sm text-muted-foreground">{detail.description}</p>
 
 					<div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-						{detail.versions.length > 0 && (
-							<Select onValueChange={(ref) => ref && onVersionChange?.(ref)} value={detail.installed_ref}>
-								<SelectTrigger
-									aria-label={t('arrow.version.label')}
-									className="h-6 w-auto font-mono text-xs"
-								>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{detail.versions.map((v) => (
-										<SelectItem key={v.ref} value={v.ref}>
-											{v.ref}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						)}
+						<ChannelVersionSelects
+							channels={detail.channels}
+							channelsLoading={channelsLoading}
+							selection={channelSelection}
+						/>
 						{detail.license && (
 							<>
-								{detail.versions.length > 0 && <span aria-hidden="true">–</span>}
+								{(channelsLoading || detail.channels.length > 0) && <span aria-hidden="true">–</span>}
 								<span>{detail.license}</span>
 							</>
 						)}
@@ -311,9 +198,33 @@ export function Hero({ detail, platform, values, onValueChange, onVersionChange 
 					// reporting the issue has the specifics without having to
 					// find a log.
 					message={`${t(releaseError.messageKey)}\n\n${releaseError.detail}`}
-					onOpenChange={(open) => !open && setReleaseError(null)}
+					onOpenChange={(open) => !open && dismissReleaseError()}
 					open
 					title={t('arrow.release.title')}
+				/>
+			)}
+
+			{actionError && (
+				<MessageModal
+					message={actionError}
+					onOpenChange={(open) => !open && dismissActionError()}
+					open
+					title={t('arrow.action.error.title')}
+				/>
+			)}
+
+			{platformWarning !== null && (
+				<MessageModal
+					cancelLabel={t('arrow.platform.warning.cancel')}
+					confirmLabel={t('arrow.platform.warning.confirm')}
+					message={t('arrow.platform.warning.message', { platform: platformWarning })}
+					onConfirm={() => {
+						dismissPlatformWarning();
+						void invoke('addToLibrary', true);
+					}}
+					onOpenChange={(open) => !open && dismissPlatformWarning()}
+					open
+					title={t('arrow.platform.warning.title')}
 				/>
 			)}
 		</div>

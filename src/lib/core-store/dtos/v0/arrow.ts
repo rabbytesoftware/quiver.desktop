@@ -1,5 +1,6 @@
 import type {
 	ActiveRun,
+	ArrowChannel,
 	ArrowCredit,
 	ArrowDependency,
 	ArrowDetail,
@@ -9,7 +10,6 @@ import type {
 	ArrowStepDefinition,
 	ArrowTarget,
 	DependencyType,
-	InstalledVersion,
 	RuntimeUpdate,
 	StepProgress,
 } from '@/domain/arrow';
@@ -72,6 +72,37 @@ export interface ArrowDetailDTO {
 	user_installed: boolean;
 	active_run?: ActiveRun | null;
 	last_return?: LastReturnDTO | null;
+	/** The channel this arrow is currently tracking. Absent for one pinned to an exact ref with no tracked channel. */
+	channel?: string;
+}
+
+/**
+ * `GET /v0/arrow/:ns/channels` -- every release channel this arrow's repo
+ * publishes. `kind` is `"ordered"` (ranked tags) or `"pointer"` (an
+ * unversioned branch/ref); `count`/`members` are `omitempty` on the Go side
+ * and present only for `kind: "ordered"`. `members` is already sorted
+ * highest-precedence first, `members[0]` equal to `latest`.
+ */
+export interface ChannelDTO {
+	name: string;
+	kind: 'ordered' | 'pointer';
+	latest: string;
+	count?: number;
+	members?: string[];
+}
+
+export interface ChannelListDTO {
+	channels: ChannelDTO[];
+}
+
+export function toArrowChannels(dto: ChannelListDTO): ArrowChannel[] {
+	return dto.channels.map((c) => ({
+		name: c.name,
+		kind: c.kind,
+		latest: c.latest,
+		count: c.count,
+		members: c.members,
+	}));
 }
 
 export function toArrowCatalogRecords(items: ArrowListResponseItemDTO[], connectionId: string): ArrowCatalogRecord[] {
@@ -240,6 +271,11 @@ function toDependency(dto: ArrowDependencyDTO): ArrowDependency {
 	return { namespace: dto.namespace, type: dto.type as DependencyType };
 }
 
+/** Exported (unlike `toDependency` above) so `queries/arrow.ts`'s own `useArrowDependencies` can map the raw fetch result without reaching into this file's private helpers. */
+export function toArrowDependencies(dtos: ArrowDependencyDTO[]): ArrowDependency[] {
+	return (dtos ?? []).map(toDependency);
+}
+
 // `StepDTO` is `ArrowStepDefinition` verbatim (see its declaration above), so
 // the lifecycle/method step lists need no per-step mapping -- unlike every
 // other DTO here, there's nothing to rename or reshape.
@@ -272,16 +308,19 @@ function toTargets(dto: ArrowManifestDTO['targets']): ArrowTarget[] {
 }
 
 /**
- * Merges the five real endpoints into the one shape the Arrow Details page
- * consumes. `versions` comes from the catalog, not any of the five; `readme`
- * comes from `GET /v0/arrow/:ns/readme` (a separate fetch -- see `ArrowReadmeDTO`),
- * `null` when that call 404s; `dependencies`/`dependents` come from the two
- * dependency-graph endpoints (quiver.core #220), empty when nothing 200s back.
+ * Merges the six real endpoints into the one shape the Arrow Details page
+ * consumes. `channels` comes from `GET /v0/arrow/:ns/channels` (a separate
+ * fetch -- see `ChannelListDTO`), already mapped to the domain shape;
+ * `channel` itself is the scalar field on `detail`, read straight through.
+ * `readme` comes from `GET /v0/arrow/:ns/readme` (a separate fetch -- see
+ * `ArrowReadmeDTO`), `null` when that call 404s; `dependencies`/`dependents`
+ * come from the two dependency-graph endpoints (quiver.core #220), empty when
+ * nothing 200s back.
  */
 export function toArrowDetail(
 	detail: ArrowDetailDTO,
 	manifest: ArrowManifestDTO,
-	versions: InstalledVersion[],
+	channels: ArrowChannel[],
 	readme: string | null,
 	dependencies: ArrowDependencyDTO[],
 	dependents: string[]
@@ -322,9 +361,10 @@ export function toArrowDetail(
 		installed_constraint: detail.installed_constraint,
 		active_run: detail.active_run ?? null,
 		last_return: detail.last_return ?? null,
-		versions,
+		channel: detail.channel,
+		channels,
 		readme,
-		dependencies: (dependencies ?? []).map(toDependency),
+		dependencies: toArrowDependencies(dependencies),
 		dependents: dependents ?? [],
 	};
 }

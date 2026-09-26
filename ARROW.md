@@ -14,11 +14,14 @@ If you're reading this inside the app, there's nothing to do: you already have i
 schema: "arrow@v0"
 
 metadata:
-  name: "Quiver"
+  name: "Quiver Desktop"
   description: "The Quiver desktop application."
   version: "0.1"
   license: "GPL-3.0"
   url: "https://github.com/rabbytesoftware/quiver.desktop"
+  media:
+    icon: "https://raw.githubusercontent.com/rabbytesoftware/quiver.desktop/develop/docs/quiver-icon.svg"
+    banner: "https://raw.githubusercontent.com/rabbytesoftware/quiver.desktop/develop/docs/quiver-banner.svg"
   maintainers:
     - name: "Rabbyte Software"
       url: "https://char2cs.net"

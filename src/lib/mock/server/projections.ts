@@ -6,6 +6,7 @@ import type {
 	ArrowListResponseItemDTO,
 	ArrowManifestDTO,
 	ArrowReadmeDTO,
+	ChannelListDTO,
 } from '@/lib/core-store/dtos/v0/arrow';
 import type { RuntimeUpdateDTO } from '@/lib/core-store/dtos/v0/runtime';
 import type { DiscoveryJobDTO, DiscoveryJobStartedDTO, SearchResultDTO } from '@/lib/core-store/dtos/v0/search';
@@ -126,6 +127,20 @@ export function toArrowDetailDTO(arrow: MockArrow): ArrowDetailDTO {
 		user_installed: arrow.user_installed,
 		active_run: arrow.active_run,
 		last_return: arrow.last_return,
+		...(arrow.channel ? { channel: arrow.channel } : {}),
+	};
+}
+
+/** `GET /v0/arrow/:ns/channels` -- matches quiver.core's real `ChannelListDTO`. `count`/`members` stay absent for a pointer channel, same `omitempty` shape as the wire. */
+export function toArrowChannelsDTO(arrow: MockArrow): ChannelListDTO {
+	return {
+		channels: (arrow.channels ?? []).map((c) => ({
+			name: c.name,
+			kind: c.kind,
+			latest: c.latest,
+			...(c.count !== undefined ? { count: c.count } : {}),
+			...(c.members ? { members: c.members } : {}),
+		})),
 	};
 }
 

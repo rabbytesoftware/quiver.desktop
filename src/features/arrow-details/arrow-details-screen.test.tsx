@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockedFunction } 
 import { runStep, signalStep } from '@/__mocks__/arrow-steps';
 import { installMockResizeObserver, MockResizeObserver } from '@/__mocks__/mock-resize-observer';
 import { useArrowStore } from '@/lib/core-store';
-import type { ArrowDetailDTO, ArrowManifestDTO } from '@/lib/core-store/dtos/v0/arrow';
+import type { ArrowDetailDTO, ArrowManifestDTO, ChannelDTO } from '@/lib/core-store/dtos/v0/arrow';
 import { apiFetch, ApiError } from '@/lib/transport/api';
 
 import { ArrowDetailsScreen } from './arrow-details-screen';
@@ -101,7 +101,8 @@ function mockDetailAndManifest(
 	manifest: ArrowManifestDTO = MANIFEST,
 	readme: string | null = null,
 	dependencies: { namespace: string; type: 'tool' | 'service' }[] = [],
-	dependents: string[] = []
+	dependents: string[] = [],
+	channels: ChannelDTO[] = []
 ) {
 	mockApiFetch.mockImplementation((path: string) => {
 		if (path.endsWith('/readme')) {
@@ -112,6 +113,7 @@ function mockDetailAndManifest(
 		if (path.endsWith('/manifest')) return Promise.resolve(manifest);
 		if (path.endsWith('/dependencies')) return Promise.resolve({ namespace: NS, dependencies });
 		if (path.endsWith('/dependents')) return Promise.resolve({ namespace: NS, dependents });
+		if (path.endsWith('/channels')) return Promise.resolve({ channels });
 		return Promise.resolve(detail);
 	});
 }
@@ -286,6 +288,7 @@ describe('ArrowDetailsScreen', () => {
 		mockApiFetch.mockImplementation((path: string) => {
 			if (path.endsWith('/readme')) return Promise.reject(new ApiError('not found', 404));
 			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/channels')) return Promise.resolve({ channels: [] });
 			if (path.endsWith('/dependencies')) return Promise.resolve({ namespace: NS, dependencies: [] });
 			if (path.endsWith('/dependents')) return Promise.resolve({ namespace: NS, dependents: [] });
 			if (path.includes(encodeURIComponent(OTHER_NS)))
@@ -521,32 +524,6 @@ describe('ArrowDetailsScreen', () => {
 		expect(await screen.findByText('checksum mismatch')).toBeInTheDocument();
 	});
 
-	it('does not count a bare (unversioned) store entry sharing the base namespace as an installed version', async () => {
-		mockDetailAndManifest();
-		useArrowStore.setState({
-			arrows: new Map([
-				[
-					'github.com/rabbyte/minecraft',
-					{
-						namespace: 'github.com/rabbyte/minecraft',
-						name: 'Minecraft Server',
-						description: '',
-						tags: [],
-						icon: null,
-						banner: null,
-						version: '',
-						state: 'absent',
-						active_run: null,
-						last_return: null,
-					},
-				],
-			]),
-		});
-		renderScreen(NS);
-		await screen.findByRole('heading', { name: 'Minecraft Server' });
-		expect(screen.queryByRole('combobox', { name: 'Version' })).not.toBeInTheDocument();
-	});
-
 	it('renders with no methods when the arrow declares no targets at all', async () => {
 		mockDetailAndManifest(DETAIL, { ...MANIFEST, targets: {} });
 		const user = userEvent.setup();
@@ -598,51 +575,135 @@ describe('ArrowDetailsScreen', () => {
 		await waitFor(() => expect(screen.queryByText(/Issue/)).not.toBeInTheDocument());
 	});
 
-	it('navigates to the sibling version when a different one is picked from the Hero switcher', async () => {
-		const user = userEvent.setup();
-		mockDetailAndManifest();
-		useArrowStore.setState({
-			arrows: new Map([
-				[
-					NS,
-					{
-						namespace: NS,
-						name: 'Minecraft Server',
-						description: '',
-						tags: [],
-						icon: null,
-						banner: null,
-						version: '1.21.4',
-						state: 'ready',
-						active_run: null,
-						last_return: null,
-					},
-				],
-				[
-					'github.com/rabbyte/minecraft@v1.20.1',
-					{
-						namespace: 'github.com/rabbyte/minecraft@v1.20.1',
-						name: 'Minecraft Server',
-						description: '',
-						tags: [],
-						icon: null,
-						banner: null,
-						version: '1.20.1',
-						state: 'outdated',
-						active_run: null,
-						last_return: null,
-					},
-				],
-			]),
-		});
-		const { router } = renderScreen(NS);
-
-		await user.click(await screen.findByRole('combobox', { name: 'Version' }));
-		await user.click(await screen.findByRole('option', { name: 'v1.20.1' }));
-
-		await waitFor(() =>
-			expect(router.state.location.pathname).toBe('/arrow/github.com/rabbyte/minecraft%40v1.20.1')
+	it('renders the channel and version switchers fed end to end by the channels endpoint', async () => {
+		mockDetailAndManifest(
+			DETAIL,
+			MANIFEST,
+			null,
+			[],
+			[],
+			[{ name: 'stable', kind: 'ordered', latest: 'v1.21.4', count: 2, members: ['v1.21.4', 'v1.21.0'] }]
 		);
+		renderScreen(NS);
+
+		await screen.findByRole('heading', { name: 'Minecraft Server' });
+		expect(screen.getByRole('combobox', { name: 'Channel' })).toHaveTextContent('stable');
+		expect(screen.getByRole('combobox', { name: 'Version' })).toHaveTextContent('v1.21.4');
+	});
+});
+
+/**
+ * `useArrowDetail` only fetches `detail` + `manifest` now -- channels, readme,
+ * and the dependency graph are each their own query, each with its own
+ * loading state, never gating the fast content above them. These tests hold
+ * one or more of the slow endpoints open with a deferred promise to prove
+ * the fast content genuinely renders without waiting on them, and that each
+ * slow section's own placeholder is scoped to just that section.
+ */
+describe('ArrowDetailsScreen, progressive loading', () => {
+	function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+		let resolve!: (value: T) => void;
+		const promise = new Promise<T>((res) => {
+			resolve = res;
+		});
+		return { promise, resolve };
+	}
+
+	it('renders the hero and action row before readme/dependencies/dependents/channels ever resolve', async () => {
+		mockApiFetch.mockImplementation((path: string) => {
+			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/readme')) return new Promise(() => {});
+			if (path.endsWith('/dependencies')) return new Promise(() => {});
+			if (path.endsWith('/dependents')) return new Promise(() => {});
+			if (path.endsWith('/channels')) return new Promise(() => {});
+			return Promise.resolve(DETAIL);
+		});
+
+		renderScreen(NS);
+
+		expect(await screen.findByRole('heading', { name: 'Minecraft Server' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Start' })).toBeInTheDocument();
+		// The page-level "still loading" gate is specifically about detail +
+		// manifest -- it must already be gone despite none of the four slow
+		// endpoints ever answering.
+		expect(screen.queryByText('Loading…', { selector: 'div.p-6' })).not.toBeInTheDocument();
+	});
+
+	it("shows the Overview tab's own loading placeholder while readme/dependencies/dependents are in flight, independent of the rest of the page", async () => {
+		const dependencies = deferred<unknown>();
+		mockApiFetch.mockImplementation((path: string) => {
+			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/readme')) return Promise.reject(new ApiError('not found', 404));
+			if (path.endsWith('/dependencies')) return dependencies.promise;
+			if (path.endsWith('/dependents')) return Promise.resolve({ namespace: NS, dependents: [] });
+			if (path.endsWith('/channels')) return Promise.resolve({ channels: [] });
+			return Promise.resolve(DETAIL);
+		});
+
+		renderScreen(NS);
+		await screen.findByRole('heading', { name: 'Minecraft Server' });
+
+		// The rest of the page is already interactive -- Methods included --
+		// while Overview is still waiting on its own data.
+		expect(screen.getByRole('status', { name: 'Loading…' })).toBeInTheDocument();
+		expect(screen.getByRole('tab', { name: 'Methods' })).toBeInTheDocument();
+		expect(screen.queryByText('Requirements')).not.toBeInTheDocument();
+
+		dependencies.resolve({ namespace: NS, dependencies: [] });
+
+		await waitFor(() => expect(screen.queryByRole('status', { name: 'Loading…' })).not.toBeInTheDocument());
+		expect(screen.getByText('Requirements')).toBeInTheDocument();
+	});
+
+	it('keeps the Details rail out of the layout until readme resolves, rather than guessing', async () => {
+		const readme = deferred<unknown>();
+		mockApiFetch.mockImplementation((path: string) => {
+			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/readme')) return readme.promise;
+			if (path.endsWith('/dependencies')) return Promise.resolve({ namespace: NS, dependencies: [] });
+			if (path.endsWith('/dependents')) return Promise.resolve({ namespace: NS, dependents: [] });
+			if (path.endsWith('/channels')) return Promise.resolve({ channels: [] });
+			return Promise.resolve(DETAIL);
+		});
+
+		renderScreen(NS);
+		await screen.findByRole('heading', { name: 'Minecraft Server' });
+		expect(screen.getByRole('status', { name: 'Loading…' })).toBeInTheDocument();
+		expect(screen.queryByTestId('arrow-detail-layout')).not.toHaveClass('grid-cols-[minmax(0,1fr)_340px]');
+
+		readme.resolve({ namespace: 'github.com/rabbyte/minecraft', readme: '## About\n\nA server.' });
+
+		await screen.findByRole('heading', { name: 'About' });
+		expect(screen.getByText('Requirements')).toBeInTheDocument();
+	});
+
+	it("shows the Channel select's own loading state while channels is in flight, without affecting the rest of the Hero", async () => {
+		const channels = deferred<unknown>();
+		mockApiFetch.mockImplementation((path: string) => {
+			if (path.endsWith('/manifest')) return Promise.resolve(MANIFEST);
+			if (path.endsWith('/readme')) return Promise.reject(new ApiError('not found', 404));
+			if (path.endsWith('/dependencies')) return Promise.resolve({ namespace: NS, dependencies: [] });
+			if (path.endsWith('/dependents')) return Promise.resolve({ namespace: NS, dependents: [] });
+			if (path.endsWith('/channels')) return channels.promise;
+			return Promise.resolve(DETAIL);
+		});
+
+		renderScreen(NS);
+		await screen.findByRole('heading', { name: 'Minecraft Server' });
+
+		const channelSelect = screen.getByRole('combobox', { name: 'Channel' });
+		expect(channelSelect).toBeDisabled();
+		expect(channelSelect).toHaveTextContent('Loading…');
+		// The rest of the Hero (the action row) is unaffected by channels
+		// still being in flight.
+		expect(screen.getByRole('button', { name: 'Start' })).not.toBeDisabled();
+
+		channels.resolve({
+			channels: [{ name: 'stable', kind: 'ordered', latest: 'v1.21.4', count: 1, members: ['v1.21.4'] }],
+		});
+
+		await waitFor(() => expect(screen.getByRole('combobox', { name: 'Channel' })).not.toBeDisabled());
+		expect(screen.getByRole('combobox', { name: 'Channel' })).toHaveTextContent('stable');
 	});
 });
 

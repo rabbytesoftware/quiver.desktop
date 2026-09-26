@@ -13,7 +13,10 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { QUIVER_CORE_NAMESPACE, QUIVER_DESKTOP_NAMESPACE } from '@/domain/release';
+import type { SearchEntry } from '@/domain/search';
 import { SearchBar } from '@/features/search/components/search-bar';
+import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import { IDLE_BEFORE_PASS_MS } from '@/lib/core-store/search/pass';
 import { useSearchStore } from '@/lib/core-store/store/search';
 import { createMockBackend, type MockRuntime } from '@/lib/mock';
@@ -21,12 +24,31 @@ import { installBackend, resetBackend } from '@/lib/transport/backend';
 
 import { ResultsScreen } from './results-screen';
 
+function selfEntry(namespace: string, name: string): SearchEntry {
+	return {
+		namespace,
+		name,
+		description: '',
+		tags: [],
+		icon: null,
+		banner: null,
+		versions: ['stable-1.0'],
+		compatible_os: [],
+		provenance: null,
+		installed: true,
+		known: true,
+		stars: 0,
+		source: null,
+	};
+}
+
 let mock: MockRuntime;
 
 beforeEach(() => {
 	mock = createMockBackend('normal');
 	installBackend(mock.backend);
 	useSearchStore.getState().reset();
+	useCatalogVisibilityStore.setState({ showSelfComponents: true });
 });
 
 afterEach(() => {
@@ -192,6 +214,42 @@ describe('ResultsScreen', () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it('shows Quiver’s own rows among results by default', async () => {
+		renderScreen('minecraft');
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0), ANSWER);
+
+		act(() => {
+			useSearchStore
+				.getState()
+				.setLocal([...useSearchStore.getState().local, selfEntry(QUIVER_DESKTOP_NAMESPACE, 'Quiver Desktop')]);
+		});
+
+		// The name legitimately renders twice per card (the drawn-banner
+		// fallback name, and the always-visible caption below it).
+		expect((await screen.findAllByText('Quiver Desktop')).length).toBeGreaterThan(0);
+	});
+
+	it('excludes both of Quiver’s own self-registered rows from results once the setting is off', async () => {
+		renderScreen('minecraft');
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0), ANSWER);
+		const before = screen.getAllByRole('link').length;
+
+		act(() => {
+			useCatalogVisibilityStore.getState().setShowSelfComponents(false);
+			useSearchStore
+				.getState()
+				.setLocal([
+					...useSearchStore.getState().local,
+					selfEntry(QUIVER_DESKTOP_NAMESPACE, 'Quiver Desktop'),
+					selfEntry(QUIVER_CORE_NAMESPACE, 'Quiver Core'),
+				]);
+		});
+
+		expect(screen.queryByText('Quiver Desktop')).not.toBeInTheDocument();
+		expect(screen.queryByText('Quiver Core')).not.toBeInTheDocument();
+		expect(screen.getAllByRole('link').length).toBe(before);
 	});
 });
 

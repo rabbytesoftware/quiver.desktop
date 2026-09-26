@@ -10,6 +10,8 @@ import {
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { QUIVER_CORE_NAMESPACE, QUIVER_DESKTOP_NAMESPACE } from '@/domain/release';
+import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import type { ArrowCatalogRecord } from '@/lib/persistence/schemas';
 import { apiFetch } from '@/lib/transport/api';
 
@@ -77,6 +79,7 @@ async function renderHome() {
 
 beforeEach(() => {
 	useArrowStore.getState().reset();
+	useCatalogVisibilityStore.setState({ showSelfComponents: true });
 	vi.mocked(apiFetch).mockReset();
 	mockCollectionsResponse([]);
 });
@@ -199,5 +202,39 @@ describe('HomeScreen', () => {
 		await waitFor(() =>
 			expect(apiFetch).toHaveBeenCalledWith('/v0/runtime/a%401/stop', expect.objectContaining({ method: 'POST' }))
 		);
+	});
+
+	it('shows Quiver’s own rows in the Library section by default', async () => {
+		useArrowStore
+			.getState()
+			.setCatalog([catalogRecord({ namespace: `${QUIVER_DESKTOP_NAMESPACE}@stable-1.0`, name: 'Quiver' })]);
+		await renderHome();
+
+		// "Quiver" legitimately renders twice per tile (the drawn-banner
+		// fallback name, and the always-visible caption below it) -- same
+		// reasoning as the "Frosthold Pack" collection assertion above.
+		expect((await screen.findAllByText('Quiver')).length).toBeGreaterThan(0);
+	});
+
+	it('excludes both of Quiver’s own self-registered rows from Library and Recents once the setting is off', async () => {
+		useCatalogVisibilityStore.getState().setShowSelfComponents(false);
+		useArrowStore.getState().setCatalog([
+			catalogRecord({
+				namespace: `${QUIVER_DESKTOP_NAMESPACE}@stable-1.0`,
+				name: 'Quiver Desktop',
+				last_used_at: '2026-07-01T00:00:00Z',
+			}),
+			catalogRecord({
+				namespace: `${QUIVER_CORE_NAMESPACE}@stable-1.0`,
+				name: 'Quiver Core',
+				last_used_at: '2026-07-02T00:00:00Z',
+			}),
+			catalogRecord({ namespace: 'a@1', name: 'Alpha' }),
+		]);
+		await renderHome();
+
+		await waitFor(() => expect(screen.getAllByText('Alpha').length).toBeGreaterThan(0));
+		expect(screen.queryByText('Quiver Desktop')).not.toBeInTheDocument();
+		expect(screen.queryByText('Quiver Core')).not.toBeInTheDocument();
 	});
 });

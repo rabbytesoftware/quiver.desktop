@@ -110,6 +110,11 @@ export const en = {
 		'Forced to {language} by VITE_QUIVER_LOCALE for this run. Restart without it to get the picker back.',
 	'settings.general.language.system': 'System ({language})',
 
+	'settings.general.library.title': 'Library',
+	'settings.general.library.label': "Show Quiver's own components",
+	'settings.general.library.description':
+		"Include quiver.core and quiver.desktop's own rows in Home, Library, Search, and the sidebar",
+
 	'settings.developer.mock.title': 'Mock server',
 	'settings.developer.mock.toggle': 'Use the mock server',
 	'settings.developer.mock.forced':
@@ -166,6 +171,13 @@ export const en = {
 	'settings.engine.logs.level.warn': 'Warn',
 	'settings.engine.logs.level.error': 'Error',
 
+	'settings.engine.selfUpdate.title': 'Updates',
+	'settings.engine.selfUpdate.channel': 'Update channel',
+	'settings.engine.selfUpdate.channelDescription': 'Which release channel quiver.core tracks for its own updates',
+	'settings.engine.selfUpdate.loading': 'Loading channels…',
+	'settings.engine.selfUpdate.unset': 'Not set',
+	'settings.engine.selfUpdate.unavailable': "Couldn't load quiver.core's channels",
+
 	'mock.badge': 'Mock',
 	'mock.status': '{scenario} · no daemon is being contacted',
 	'mock.turnOff': 'Turn off',
@@ -206,6 +218,7 @@ export const en = {
 	'arrow.action.restart': 'Restart',
 	'arrow.action.reinstall': 'Reinstall',
 	'arrow.action.info': 'What this does',
+	'arrow.action.error.title': "Couldn't complete the action",
 
 	// Resolving Quiver's own release asset, which happens the moment Update or
 	// Install is clicked on Quiver's own tile. Every one of these says what
@@ -220,6 +233,17 @@ export const en = {
 	'arrow.release.unverifiable':
 		"The latest Quiver release doesn't publish a checksum, so the download can't be verified. Quiver won't replace itself with a file it can't check.",
 	'arrow.release.unavailable': "Quiver couldn't work out which file to download. Try again later.",
+
+	// The persistent "not compatible" indicator (always visible, no click
+	// needed) and the confirm-to-proceed warning shown at Add-to-Library time,
+	// both driven by `isPlatformSupported` -- an exact match against the real
+	// native platform, never `targetForPlatform`'s single-target fallback.
+	'arrow.platform.unsupported': 'Not available for {platform}',
+	'arrow.platform.warning.title': "This isn't available for your platform",
+	'arrow.platform.warning.message':
+		"Quiver detected this computer as {platform}. This arrow doesn't publish a build for it, so Install will likely fail. Adding it to your library won't install anything yet.",
+	'arrow.platform.warning.confirm': 'Add anyway',
+	'arrow.platform.warning.cancel': 'Cancel',
 
 	'arrow.problem.label': 'Issue',
 	'arrow.problem.detachedNote':
@@ -279,6 +303,9 @@ export const en = {
 	},
 
 	'arrow.version.label': 'Version',
+	'arrow.channel.label': 'Channel',
+	/** Suffix shown next to a pointer channel's name in the Channel picker, e.g. "nightly (rolling)". */
+	'arrow.channel.pointer': 'rolling',
 
 	'home.recents': 'Recents',
 	'home.library': 'Library',

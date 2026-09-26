@@ -3,7 +3,9 @@ import { useMemo, type JSX, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 
 import type { ArrowEntry } from '@/domain/arrow';
+import { isQuiverOwnComponent } from '@/domain/release';
 import { columnRule } from '@/features/search/lib/columns';
+import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import { ArrowTile } from '@/features/sidebar/components/arrows/arrow-tile';
 import { arrowTileStatus } from '@/features/sidebar/components/arrows/arrow-tile-status';
 import { useArrowStore, useFollowedCollections, useStop } from '@/lib/core-store';
@@ -50,8 +52,12 @@ export function HomeScreen(): JSX.Element {
 	const catalogStatus = useArrowStore((s) => s.catalog);
 	const { data: collections = [], isLoading: collectionsLoading } = useFollowedCollections();
 	const stop = useStop();
+	const showSelfComponents = useCatalogVisibilityStore((s) => s.showSelfComponents);
 
-	const allArrows = useMemo(() => [...arrows.values()], [arrows]);
+	const allArrows = useMemo(
+		() => [...arrows.values()].filter((a) => showSelfComponents || !isQuiverOwnComponent(a.namespace)),
+		[arrows, showSelfComponents]
+	);
 
 	const recents = useMemo(
 		() =>

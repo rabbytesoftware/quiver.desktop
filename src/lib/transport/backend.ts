@@ -37,6 +37,17 @@ export interface Backend {
 	 */
 	getBuildTag(): Promise<string | null>;
 	/**
+	 * This machine's real `"os/arch"` platform key -- e.g. `"darwin/arm64"` --
+	 * the way quiver.core's manifest `targets` are keyed.
+	 *
+	 * Native-side, not `src/lib/platform.ts`'s `currentPlatform()` UA guess:
+	 * `std::env::consts::OS`/`ARCH` are the compiler's own honest answer for
+	 * the binary actually running, so this can't misdetect an Apple Silicon
+	 * Mac's architecture the way the webview guess can. See
+	 * `src-tauri/src/commands/platform.rs`.
+	 */
+	getPlatform(): Promise<string>;
+	/**
 	 * This app's own newest release asset, for the machine it is running on.
 	 *
 	 * Native-side for the same reason `getBuildTag` is: selecting an asset
@@ -72,6 +83,10 @@ export const realBackend: Backend = {
 
 	getBuildTag() {
 		return invoke<string | null>('get_build_tag');
+	},
+
+	getPlatform() {
+		return invoke<string>('get_platform');
 	},
 
 	resolveReleaseAsset() {

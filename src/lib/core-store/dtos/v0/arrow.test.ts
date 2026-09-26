@@ -2,8 +2,14 @@ import { describe, it, expect } from 'vitest';
 
 import { runStep, signalStep } from '@/__mocks__/arrow-steps';
 
-import type { ArrowDetailDTO, ArrowManifestDTO } from './arrow';
-import { toArrowCatalogRecords, toArrowDetail, toInitialRuntimeUpdates } from './arrow';
+import type { ArrowDetailDTO, ArrowManifestDTO, ChannelListDTO } from './arrow';
+import {
+	toArrowCatalogRecords,
+	toArrowChannels,
+	toArrowDependencies,
+	toArrowDetail,
+	toInitialRuntimeUpdates,
+} from './arrow';
 
 describe('toArrowCatalogRecords', () => {
 	it('reads icon and banner from the nested media object', () => {
@@ -168,6 +174,65 @@ const MANIFEST: ArrowManifestDTO = {
 	},
 };
 
+describe('toArrowDependencies', () => {
+	it('casts type through and maps each entry', () => {
+		expect(
+			toArrowDependencies([
+				{ namespace: 'github.com/rabbyte/nats@v2.10.0', type: 'tool' },
+				{ namespace: 'github.com/rabbyte/postgres@v17.2', type: 'service' },
+			])
+		).toEqual([
+			{ namespace: 'github.com/rabbyte/nats@v2.10.0', type: 'tool' },
+			{ namespace: 'github.com/rabbyte/postgres@v17.2', type: 'service' },
+		]);
+	});
+
+	it('returns an empty list for an empty input', () => {
+		expect(toArrowDependencies([])).toEqual([]);
+	});
+
+	it('defaults a null input to an empty list, same as the wire can send', () => {
+		expect(toArrowDependencies(null as unknown as [])).toEqual([]);
+	});
+});
+
+describe('toArrowChannels', () => {
+	it('maps an ordered channel through with its count and members intact', () => {
+		const dto: ChannelListDTO = {
+			channels: [
+				{
+					name: 'stable',
+					kind: 'ordered',
+					latest: 'stable-1.2.0',
+					count: 3,
+					members: ['stable-1.2.0', 'stable-1.1.0', 'stable-1.0.0'],
+				},
+			],
+		};
+		expect(toArrowChannels(dto)).toEqual([
+			{
+				name: 'stable',
+				kind: 'ordered',
+				latest: 'stable-1.2.0',
+				count: 3,
+				members: ['stable-1.2.0', 'stable-1.1.0', 'stable-1.0.0'],
+			},
+		]);
+	});
+
+	it('maps a pointer channel through with count/members left undefined, never fabricated', () => {
+		const dto: ChannelListDTO = { channels: [{ name: 'nightly', kind: 'pointer', latest: 'nightly-latest' }] };
+		const [result] = toArrowChannels(dto);
+		expect(result).toEqual({ name: 'nightly', kind: 'pointer', latest: 'nightly-latest' });
+		expect(result.count).toBeUndefined();
+		expect(result.members).toBeUndefined();
+	});
+
+	it('returns an empty list for an empty channels array', () => {
+		expect(toArrowChannels({ channels: [] })).toEqual([]);
+	});
+});
+
 describe('toArrowDetail', () => {
 	it('combines the bare namespace with installed_ref, since every downstream call needs the full identifier', () => {
 		const result = toArrowDetail(DETAIL, MANIFEST, [], null, [], []);
@@ -268,10 +333,22 @@ describe('toArrowDetail', () => {
 		expect(result.readme).toBe(readme);
 	});
 
-	it('takes versions from the third argument, not either DTO', () => {
-		const versions = [{ ref: 'v1.21.4', version: '1.21.4', state: 'ready' as const }];
-		const result = toArrowDetail(DETAIL, MANIFEST, versions, null, [], []);
-		expect(result.versions).toBe(versions);
+	it('takes channels from the third argument, not either DTO', () => {
+		const channels = [
+			{ name: 'stable', kind: 'ordered' as const, latest: 'v1.21.4', count: 1, members: ['v1.21.4'] },
+		];
+		const result = toArrowDetail(DETAIL, MANIFEST, channels, null, [], []);
+		expect(result.channels).toBe(channels);
+	});
+
+	it('reads the scalar channel field straight off the base detail', () => {
+		const result = toArrowDetail({ ...DETAIL, channel: 'beta' }, MANIFEST, [], null, [], []);
+		expect(result.channel).toBe('beta');
+	});
+
+	it('leaves channel undefined when the base detail omits it', () => {
+		const result = toArrowDetail(DETAIL, MANIFEST, [], null, [], []);
+		expect(result.channel).toBeUndefined();
 	});
 
 	it('carries the rest of the base detail fields straight through', () => {

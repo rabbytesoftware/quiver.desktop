@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 
+import { useCoreChannels } from '@/features/settings/hooks/use-core-channels';
 import { LEVELS, normaliseLevel } from '@/features/settings/lib/log-level';
 import { useEngineStore } from '@/features/settings/stores/engine-store';
 import { useTranslation } from '@/lib/i18n';
@@ -21,6 +22,7 @@ export function EngineSettings() {
 	const patchError = useEngineStore((s) => s.patchError);
 	const load = useEngineStore((s) => s.load);
 	const patch = useEngineStore((s) => s.patch);
+	const coreChannels = useCoreChannels();
 
 	// Bumped to force the uncontrolled port inputs below to remount — and so
 	// re-read `defaultValue` from `configured` — whenever a typed value must
@@ -190,6 +192,44 @@ export function EngineSettings() {
 								{LEVELS.map((l) => (
 									<SelectItem key={l} value={l}>
 										{t(`settings.engine.logs.level.${l}`)}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</SettingRow>
+				</Section>
+
+				<Section title={t('settings.engine.selfUpdate.title')}>
+					<SettingRow
+						label={t('settings.engine.selfUpdate.channel')}
+						description={
+							coreChannels.failed
+								? t('settings.engine.selfUpdate.unavailable')
+								: (why('arrows.self_update_channel') ??
+									t('settings.engine.selfUpdate.channelDescription'))
+						}
+						onReset={() => void patch({ arrows: { self_update_channel: null } })}
+						canReset={configured.arrows?.self_update_channel !== defaults.arrows?.self_update_channel}
+					>
+						<Select
+							disabled={coreChannels.loading || coreChannels.failed || coreChannels.channels.length === 0}
+							items={coreChannels.channels.map((c) => ({ value: c.name, label: c.name }))}
+							value={configured.arrows?.self_update_channel || undefined}
+							onValueChange={(next) => void patch({ arrows: { self_update_channel: next } })}
+						>
+							<SelectTrigger className="w-[140px]" aria-label={t('settings.engine.selfUpdate.channel')}>
+								<SelectValue
+									placeholder={
+										coreChannels.loading
+											? t('settings.engine.selfUpdate.loading')
+											: t('settings.engine.selfUpdate.unset')
+									}
+								/>
+							</SelectTrigger>
+							<SelectContent>
+								{coreChannels.channels.map((c) => (
+									<SelectItem key={c.name} value={c.name}>
+										{c.name}
 									</SelectItem>
 								))}
 							</SelectContent>

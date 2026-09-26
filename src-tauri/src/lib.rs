@@ -231,6 +231,7 @@ pub fn run() {
 		})
 		.invoke_handler(tauri::generate_handler![
 			commands::build_info::get_build_tag,
+			commands::platform::get_platform,
 			commands::release::resolve_release_asset,
 			commands::connection::get_connections,
 			commands::connection::check_remote_health,

@@ -34,4 +34,49 @@ describe('MessageModal', () => {
 		await user.click(screen.getByRole('button', { name: 'Close' }));
 		expect(onOpenChange).toHaveBeenCalledWith(false, expect.anything());
 	});
+
+	it('renders no footer when onConfirm is omitted', () => {
+		render(<MessageModal message="x" onOpenChange={vi.fn()} open title="Detached" />);
+		expect(screen.queryByRole('button', { name: /confirm|cancel|add anyway/i })).not.toBeInTheDocument();
+	});
+
+	it('renders a Cancel/Confirm footer when onConfirm is provided, and confirming calls it', async () => {
+		const user = userEvent.setup();
+		const onConfirm = vi.fn();
+		render(
+			<MessageModal
+				cancelLabel="Cancel"
+				confirmLabel="Add anyway"
+				message="x"
+				onConfirm={onConfirm}
+				onOpenChange={vi.fn()}
+				open
+				title="Not supported"
+			/>
+		);
+
+		await user.click(screen.getByRole('button', { name: 'Add anyway' }));
+		expect(onConfirm).toHaveBeenCalledOnce();
+	});
+
+	it('closes without calling onConfirm when Cancel is clicked', async () => {
+		const user = userEvent.setup();
+		const onConfirm = vi.fn();
+		const onOpenChange = vi.fn();
+		render(
+			<MessageModal
+				cancelLabel="Cancel"
+				confirmLabel="Add anyway"
+				message="x"
+				onConfirm={onConfirm}
+				onOpenChange={onOpenChange}
+				open
+				title="Not supported"
+			/>
+		);
+
+		await user.click(screen.getByRole('button', { name: 'Cancel' }));
+		expect(onConfirm).not.toHaveBeenCalled();
+		expect(onOpenChange).toHaveBeenCalledWith(false);
+	});
 });

@@ -1,5 +1,6 @@
 import type { ConnectionConfig, ConnectionStatus } from '@/domain/connection';
 import type { ReleaseResolveError } from '@/domain/release';
+import { currentPlatform } from '@/lib/platform';
 import type { Backend, ConnectionsSnapshot } from '@/lib/transport/backend';
 import { installBackend } from '@/lib/transport/backend';
 
@@ -64,6 +65,14 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 		// ref no mock scenario can make true.
 		getBuildTag() {
 			return Promise.resolve(null);
+		},
+
+		// The mock runs inside the same webview a real build would, so the UA
+		// guess is the honest answer here too -- there is no native side behind
+		// the mock to ask instead, and nothing in a mock scenario needs the
+		// Apple-Silicon-accurate answer the real command exists for.
+		getPlatform() {
+			return Promise.resolve(currentPlatform());
 		},
 
 		// Rejected, not answered with a plausible asset. The mock stands in

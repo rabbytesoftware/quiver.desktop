@@ -41,7 +41,7 @@ function detail(overrides: Partial<ArrowDetail> = {}): ArrowDetail {
 		installed_ref: 'v1.21.4',
 		active_run: null,
 		last_return: null,
-		versions: [],
+		channels: [],
 		readme: null,
 		dependencies: [],
 		dependents: [],

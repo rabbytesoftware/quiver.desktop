@@ -9,13 +9,16 @@ import { runStep, signalStep } from '@/__mocks__/arrow-steps';
 import type { ArrowDetail, ArrowLifecycle, ArrowTarget } from '@/domain/arrow';
 import type { ResolvedReleaseAsset } from '@/domain/release';
 import { QUIVER_DESKTOP_NAMESPACE } from '@/domain/release';
-import { apiFetch } from '@/lib/transport/api';
+import { apiFetch, ApiError } from '@/lib/transport/api';
 import type { Backend } from '@/lib/transport/backend';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 
 import { Hero } from './hero';
 
-vi.mock('@/lib/transport/api', () => ({ apiFetch: vi.fn() }));
+vi.mock('@/lib/transport/api', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('@/lib/transport/api')>();
+	return { ...actual, apiFetch: vi.fn() };
+});
 const mockApiFetch = apiFetch as MockedFunction<typeof apiFetch>;
 
 const PLATFORM = 'darwin/arm64';
@@ -54,7 +57,7 @@ function detail(overrides: Partial<ArrowDetail> = {}): ArrowDetail {
 		installed_ref: 'v1.21.4',
 		active_run: null,
 		last_return: null,
-		versions: [{ ref: 'v1.21.4', version: '1.21.4', state: 'ready' }],
+		channels: [],
 		readme: null,
 		dependencies: [],
 		dependents: [],
@@ -74,19 +77,20 @@ function wrapper(
 
 function renderHero(props: Partial<React.ComponentProps<typeof Hero>> = {}) {
 	const onValueChange = vi.fn();
-	const onVersionChange = vi.fn();
 	render(
 		<Hero
+			channelsLoading={false}
 			detail={detail()}
 			onValueChange={onValueChange}
-			onVersionChange={onVersionChange}
 			platform={PLATFORM}
 			values={{}}
 			{...props}
 		/>,
-		{ wrapper: wrapper() }
+		{
+			wrapper: wrapper(),
+		}
 	);
-	return { onValueChange, onVersionChange };
+	return { onValueChange };
 }
 
 /** The last `apiFetch` call, so a test can read what was actually sent. */
@@ -109,7 +113,6 @@ function selfDetail(overrides: Partial<ArrowDetail> = {}): ArrowDetail {
 			{ name: 'QUIVER_RELEASE_CHECKSUM', description: 'SHA-256.', type: 'string', default: '' },
 		],
 		installed_ref: 'stable-1.0',
-		versions: [{ ref: 'stable-1.0', version: '1.0', state: 'ready' }],
 		...overrides,
 	});
 }
@@ -125,13 +128,27 @@ const RESOLVED: ResolvedReleaseAsset = {
 function resolverAnswering(result: ResolvedReleaseAsset | { reject: unknown }) {
 	const resolveReleaseAsset =
 		'reject' in result ? vi.fn().mockRejectedValue(result.reject) : vi.fn().mockResolvedValue(result);
-	installBackend({ resolveReleaseAsset } as unknown as Backend);
+	installBackend({ resolveReleaseAsset, getPlatform: () => Promise.resolve(PLATFORM) } as unknown as Backend);
 	return resolveReleaseAsset;
+}
+
+/**
+ * The real `backend()` is a Tauri `invoke` bridge with nothing to answer it
+ * in jsdom, so `hero.tsx`'s `resolveRealPlatform()` (used to gate an
+ * add-to-library click) falls back to the UA guess -- an unmocked value this
+ * environment doesn't control. Every test installs this default so that
+ * gate resolves to the same `PLATFORM` the `platform` prop already defaults
+ * to; a test asserting the "genuinely unsupported" path overrides it (or the
+ * `platform` prop, or both) explicitly instead of relying on that fallback.
+ */
+function platformBackend(platform: string = PLATFORM) {
+	installBackend({ getPlatform: () => Promise.resolve(platform) } as unknown as Backend);
 }
 
 beforeEach(() => {
 	mockApiFetch.mockReset();
 	mockApiFetch.mockResolvedValue(undefined);
+	platformBackend();
 });
 
 afterEach(() => {
@@ -168,9 +185,9 @@ describe('Hero', () => {
 		const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
 		render(
 			<Hero
+				channelsLoading={false}
 				detail={detail({ user_installed: false })}
 				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
 				platform={PLATFORM}
 				values={{}}
 			/>,
@@ -188,13 +205,15 @@ describe('Hero', () => {
 		const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
 		render(
 			<Hero
+				channelsLoading={false}
 				detail={detail({ state: 'absent' })}
 				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
 				platform={PLATFORM}
 				values={{}}
 			/>,
-			{ wrapper: wrapper(qc) }
+			{
+				wrapper: wrapper(qc),
+			}
 		);
 
 		await user.click(screen.getByRole('button', { name: 'Remove from Library' }));
@@ -218,14 +237,10 @@ describe('Hero', () => {
 		expect(screen.getByText('A vanilla Minecraft Java Edition server.')).toBeInTheDocument();
 	});
 
-	it('renders the license, and the version switcher when versions are present', () => {
+	it('renders the license, with no channel or version switcher when there are no channels to show', () => {
 		renderHero();
 		expect(screen.getByText('MIT')).toBeInTheDocument();
-		expect(screen.getByRole('combobox', { name: 'Version' })).toBeInTheDocument();
-	});
-
-	it('omits the version switcher entirely when there are no versions to switch between', () => {
-		renderHero({ detail: detail({ versions: [] }) });
+		expect(screen.queryByRole('combobox', { name: 'Channel' })).not.toBeInTheDocument();
 		expect(screen.queryByRole('combobox', { name: 'Version' })).not.toBeInTheDocument();
 	});
 
@@ -328,12 +343,23 @@ describe('Hero', () => {
 		);
 	});
 
+	it('registers with no JSON body at all when the arrow has no channels to choose from', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ user_installed: false, channels: [] }) });
+
+		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+		await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+		expect(lastCall()[1]).toEqual({ method: 'POST' });
+	});
+
 	it('sequences Restart as stop then, once the live state reaches ready, execute -- not immediately after stop resolves', async () => {
 		const user = userEvent.setup();
 		const running = detail({ state: 'running' });
 		const { rerender } = render(
-			<Hero detail={running} onValueChange={vi.fn()} onVersionChange={vi.fn()} platform={PLATFORM} values={{}} />,
-			{ wrapper: wrapper() }
+			<Hero channelsLoading={false} detail={running} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />,
+			{
+				wrapper: wrapper(),
+			}
 		);
 
 		await user.click(screen.getByRole('button', { name: 'Restart' }));
@@ -345,9 +371,9 @@ describe('Hero', () => {
 
 		rerender(
 			<Hero
+				channelsLoading={false}
 				detail={detail({ state: 'ready' })}
 				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
 				platform={PLATFORM}
 				values={{}}
 			/>
@@ -361,9 +387,9 @@ describe('Hero', () => {
 	it('does not fire the restart follow-up when the arrow reaches ready without a restart in flight', async () => {
 		const { rerender } = render(
 			<Hero
+				channelsLoading={false}
 				detail={detail({ state: 'running' })}
 				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
 				platform={PLATFORM}
 				values={{}}
 			/>,
@@ -371,9 +397,9 @@ describe('Hero', () => {
 		);
 		rerender(
 			<Hero
+				channelsLoading={false}
 				detail={detail({ state: 'ready' })}
 				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
 				platform={PLATFORM}
 				values={{}}
 			/>
@@ -453,14 +479,62 @@ describe('Hero', () => {
 		await waitFor(() => expect(main).not.toBeDisabled());
 	});
 
+	// The bug this guards against: the backend already computes a precise,
+	// structured reason for a failed action (here, the real shape core sends
+	// back for `ErrPlatformNotSupported`) and the click handler used to throw
+	// it away with a bare `catch { ... }`, leaving the button silently revert
+	// to normal with no indication anything went wrong.
+	it('surfaces the backend error message in a dialog when install rejects with an ApiError', async () => {
+		mockApiFetch.mockRejectedValueOnce(new ApiError('no target for the current platform', 422));
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ state: 'absent' }) });
+
+		await user.click(screen.getByRole('button', { name: 'Install' }));
+
+		expect(await screen.findByRole('dialog')).toBeInTheDocument();
+		expect(screen.getByText('no target for the current platform')).toBeInTheDocument();
+	});
+
+	// Not install-specific: every action that goes through this same catch
+	// block must surface its own mutation's failure the same way.
+	it('surfaces the backend error message for other action kinds too, e.g. Uninstall', async () => {
+		mockApiFetch.mockRejectedValueOnce(new ApiError('arrow has dependents', 409));
+		const user = userEvent.setup();
+		renderHero();
+
+		await user.click(screen.getByRole('button', { name: 'Uninstall' }));
+
+		expect(await screen.findByRole('dialog')).toBeInTheDocument();
+		expect(screen.getByText('arrow has dependents')).toBeInTheDocument();
+	});
+
+	it('dismisses the action-error dialog and allows retrying', async () => {
+		mockApiFetch.mockRejectedValueOnce(new ApiError('no target for the current platform', 422));
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ state: 'absent' }) });
+
+		await user.click(screen.getByRole('button', { name: 'Install' }));
+		expect(await screen.findByRole('dialog')).toBeInTheDocument();
+
+		await user.keyboard('{Escape}');
+		await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+		mockApiFetch.mockResolvedValueOnce(undefined);
+		await user.click(screen.getByRole('button', { name: 'Install' }));
+		await waitFor(() =>
+			expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/install'), expect.anything())
+		);
+		expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+	});
+
 	it('clears the restart-in-flight flag (not just pendingKind) when the stop leg of a restart itself rejects', async () => {
 		mockApiFetch.mockRejectedValueOnce(new Error('offline'));
 		const user = userEvent.setup();
 		const { rerender } = render(
 			<Hero
+				channelsLoading={false}
 				detail={detail({ state: 'running' })}
 				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
 				platform={PLATFORM}
 				values={{}}
 			/>,
@@ -468,6 +542,12 @@ describe('Hero', () => {
 		);
 
 		await user.click(screen.getByRole('button', { name: 'Restart' }));
+		// The rejection now also opens the action-error dialog, which marks the
+		// rest of the page inert while it's up -- dismiss it to get back to a
+		// state where the Restart button is reachable again, same as a real user
+		// would after reading the message.
+		expect(await screen.findByRole('dialog')).toBeInTheDocument();
+		await user.keyboard('{Escape}');
 		await waitFor(() => expect(screen.getByRole('button', { name: 'Restart' })).not.toBeDisabled());
 
 		// If the failed restart's flag were left set, this transition to ready
@@ -475,9 +555,9 @@ describe('Hero', () => {
 		mockApiFetch.mockClear();
 		rerender(
 			<Hero
+				channelsLoading={false}
 				detail={detail({ state: 'ready' })}
 				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
 				platform={PLATFORM}
 				values={{}}
 			/>
@@ -485,13 +565,13 @@ describe('Hero', () => {
 		expect(apiFetch).not.toHaveBeenCalled();
 	});
 
-	it('clears pendingKind even when restart’s second leg (execute, once ready) itself rejects', async () => {
+	it('clears pendingKind and surfaces an error dialog when restart’s second leg (execute, once ready) itself rejects', async () => {
 		const user = userEvent.setup();
 		const { rerender } = render(
 			<Hero
+				channelsLoading={false}
 				detail={detail({ state: 'running' })}
 				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
 				platform={PLATFORM}
 				values={{}}
 			/>,
@@ -506,34 +586,382 @@ describe('Hero', () => {
 		// button (only `running`/`stopping`/`draining` do), so the real
 		// assertion is that pendingKind was still cleared despite the
 		// rejection: the newly-shown "Start" action must not be stuck disabled.
-		mockApiFetch.mockRejectedValueOnce(new Error('offline'));
+		// This is the same class of bug the action-error dialog exists to
+		// close -- restart's second leg has its own separate catch, so it
+		// must be asserted here too, not assumed covered by the first leg's
+		// own test.
+		mockApiFetch.mockRejectedValueOnce(new ApiError('no target for the current platform', 422));
 		rerender(
 			<Hero
+				channelsLoading={false}
 				detail={detail({ state: 'ready' })}
 				onValueChange={vi.fn()}
-				onVersionChange={vi.fn()}
 				platform={PLATFORM}
 				values={{}}
 			/>
 		);
 
 		await waitFor(() => expect(screen.getByRole('button', { name: 'Start' })).not.toBeDisabled());
+		expect(await screen.findByRole('dialog')).toHaveTextContent('no target for the current platform');
+		await user.keyboard('{Escape}');
+		await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+	});
+});
+
+/**
+ * The Channel/Version pair replaces the old "installed versions" switcher
+ * entirely (see CLAUDE.md-adjacent design notes for the sibling-version
+ * navigation this used to do): it answers "what channel is THIS install
+ * tracking, and what's available inside it", scoped to `detail.channels`
+ * only -- never the reactive store's other installed copies of the arrow.
+ */
+describe('Hero, the Channel and Version switchers', () => {
+	const STABLE = {
+		name: 'stable',
+		kind: 'ordered' as const,
+		latest: 'v1.21.4',
+		count: 2,
+		members: ['v1.21.4', 'v1.21.0'],
+	};
+	const BETA = {
+		name: 'beta',
+		kind: 'ordered' as const,
+		latest: 'v1.22.0-beta.2',
+		count: 2,
+		members: ['v1.22.0-beta.2', 'v1.22.0-beta.1'],
+	};
+	const NIGHTLY = { name: 'nightly', kind: 'pointer' as const, latest: 'nightly-latest' };
+
+	it('renders channel options from detail.channels, defaulting to the currently tracked one', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ channel: 'stable', channels: [STABLE, BETA] }) });
+
+		expect(screen.getByRole('combobox', { name: 'Channel' })).toHaveTextContent('stable');
+		await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+		expect(await screen.findByRole('option', { name: 'stable' })).toBeInTheDocument();
+		expect(screen.getByRole('option', { name: 'beta' })).toBeInTheDocument();
 	});
 
-	it('calls onVersionChange when a different version is picked', async () => {
+	it('defaults to the first published channel when the arrow tracks none yet', () => {
+		renderHero({ detail: detail({ channel: undefined, channels: [BETA, STABLE], user_installed: false }) });
+		expect(screen.getByRole('combobox', { name: 'Channel' })).toHaveTextContent('beta');
+	});
+
+	it('renders the ordered channel’s members as version options, highest precedence pre-selected', () => {
+		renderHero({ detail: detail({ channel: 'stable', channels: [STABLE] }) });
+		expect(screen.getByRole('combobox', { name: 'Version' })).toHaveTextContent('v1.21.4');
+	});
+
+	it('renders no version options, without crashing, for an ordered channel that carries no members', async () => {
 		const user = userEvent.setup();
-		const { onVersionChange } = renderHero({
-			detail: detail({
-				versions: [
-					{ ref: 'v1.21.4', version: '1.21.4', state: 'ready' },
-					{ ref: 'v1.20.1', version: '1.20.1', state: 'ready' },
-				],
-			}),
+		const noMembers = { name: 'edge', kind: 'ordered' as const, latest: 'edge-1' };
+		renderHero({ detail: detail({ channel: 'edge', channels: [noMembers] }) });
+
+		const versionSelect = screen.getByRole('combobox', { name: 'Version' });
+		await user.click(versionSelect);
+		expect(screen.queryAllByRole('option')).toHaveLength(0);
+	});
+
+	it('marks a pointer channel in the picker and renders an editable version field, pre-filled with latest', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ channel: 'nightly', channels: [STABLE, NIGHTLY] }) });
+
+		await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+		expect(await screen.findByRole('option', { name: 'nightly (rolling)' })).toBeInTheDocument();
+
+		// A pointer channel (a branch, a rolling tag) is open-ended -- any ref
+		// under it should be pinnable, not just whatever `latest` resolves to
+		// right now -- so this is a free-text field, not a closed dropdown.
+		const versionField = screen.getByRole('textbox', { name: 'Version' });
+		expect(versionField).toHaveValue('nightly-latest');
+		expect(versionField).not.toBeDisabled();
+	});
+
+	it('selecting a different channel swaps in that channel’s own version options', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ channel: 'stable', channels: [STABLE, BETA] }) });
+
+		await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+		await user.click(await screen.findByRole('option', { name: 'beta' }));
+
+		expect(screen.getByRole('combobox', { name: 'Version' })).toHaveTextContent('v1.22.0-beta.2');
+		await user.click(screen.getByRole('combobox', { name: 'Version' }));
+		expect(await screen.findByRole('option', { name: 'v1.22.0-beta.2' })).toBeInTheDocument();
+		expect(screen.getByRole('option', { name: 'v1.22.0-beta.1' })).toBeInTheDocument();
+	});
+
+	it('renders neither switcher, without crashing, when the arrow has no channels at all', () => {
+		renderHero({ detail: detail({ channel: undefined, channels: [] }) });
+		expect(screen.queryByRole('combobox', { name: 'Channel' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('combobox', { name: 'Version' })).not.toBeInTheDocument();
+	});
+
+	describe('not yet installed', () => {
+		it('keeps a channel pick purely local -- no network call is made', async () => {
+			const user = userEvent.setup();
+			renderHero({
+				detail: detail({ user_installed: false, state: 'absent', channel: 'stable', channels: [STABLE, BETA] }),
+			});
+
+			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+			await user.click(await screen.findByRole('option', { name: 'beta' }));
+
+			expect(apiFetch).not.toHaveBeenCalled();
+			expect(screen.getByRole('combobox', { name: 'Channel' })).toHaveTextContent('beta');
 		});
 
-		await user.click(screen.getByRole('combobox', { name: 'Version' }));
-		await user.click(await screen.findByRole('option', { name: 'v1.20.1' }));
-		expect(onVersionChange).toHaveBeenCalledWith('v1.20.1');
+		it('keeps a version pick purely local too -- only the channel is threaded into Add to Library, never a pinned ref', async () => {
+			const user = userEvent.setup();
+			renderHero({
+				detail: detail({ user_installed: false, state: 'absent', channel: 'stable', channels: [STABLE] }),
+			});
+
+			await user.click(screen.getByRole('combobox', { name: 'Version' }));
+			await user.click(await screen.findByRole('option', { name: 'v1.21.0' }));
+
+			expect(apiFetch).not.toHaveBeenCalled();
+			expect(screen.getByRole('combobox', { name: 'Version' })).toHaveTextContent('v1.21.0');
+		});
+
+		it('threads the picked channel into the Add to Library call', async () => {
+			const user = userEvent.setup();
+			renderHero({
+				detail: detail({ user_installed: false, state: 'absent', channel: 'stable', channels: [STABLE, BETA] }),
+			});
+
+			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+			await user.click(await screen.findByRole('option', { name: 'beta' }));
+
+			await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+			await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+			expect(bodyOf(lastCall())).toEqual({ channel: 'beta' });
+		});
+	});
+
+	describe('already installed', () => {
+		it('calls the switch-channel mutation and invalidates the arrow-detail query when a different channel is picked', async () => {
+			const user = userEvent.setup();
+			const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+			const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+			render(
+				<Hero
+					channelsLoading={false}
+					detail={detail({ user_installed: true, channel: 'stable', channels: [STABLE, BETA] })}
+					onValueChange={vi.fn()}
+					platform={PLATFORM}
+					values={{}}
+				/>,
+				{ wrapper: wrapper(qc) }
+			);
+
+			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+			await user.click(await screen.findByRole('option', { name: 'beta' }));
+
+			await waitFor(() =>
+				expect(apiFetch).toHaveBeenCalledWith(
+					expect.stringContaining(encodeURIComponent(detail().namespace)),
+					expect.objectContaining({ method: 'PATCH' })
+				)
+			);
+			expect(bodyOf(lastCall())).toEqual({ channel: 'beta', ref: 'v1.22.0-beta.2' });
+			await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['arrow'] }));
+		});
+
+		it('calls the switch-channel mutation when only the version changes, keeping the same channel', async () => {
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'stable', channels: [STABLE] }) });
+
+			await user.click(screen.getByRole('combobox', { name: 'Version' }));
+			await user.click(await screen.findByRole('option', { name: 'v1.21.0' }));
+
+			await waitFor(() =>
+				expect(apiFetch).toHaveBeenCalledWith(
+					expect.stringContaining(encodeURIComponent(detail().namespace)),
+					expect.objectContaining({ method: 'PATCH' })
+				)
+			);
+			expect(bodyOf(lastCall())).toEqual({ channel: 'stable', ref: 'v1.21.0' });
+		});
+
+		it('sends the pointer channel’s own latest as ref, since it is the only version there is to pin', async () => {
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'stable', channels: [STABLE, NIGHTLY] }) });
+
+			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+			await user.click(await screen.findByRole('option', { name: 'nightly (rolling)' }));
+
+			await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+			expect(bodyOf(lastCall())).toEqual({ channel: 'nightly', ref: 'nightly-latest' });
+		});
+
+		it('commits a typed pointer-channel ref on blur', async () => {
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'nightly', channels: [STABLE, NIGHTLY] }) });
+
+			const versionField = screen.getByRole('textbox', { name: 'Version' });
+			await user.clear(versionField);
+			await user.type(versionField, 'a1b2c3d');
+			await user.tab();
+
+			await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+			expect(bodyOf(lastCall())).toEqual({ channel: 'nightly', ref: 'a1b2c3d' });
+		});
+
+		it('commits a typed pointer-channel ref on Enter, not on every keystroke', async () => {
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'nightly', channels: [STABLE, NIGHTLY] }) });
+
+			const versionField = screen.getByRole('textbox', { name: 'Version' });
+			await user.clear(versionField);
+			await user.type(versionField, 'feature-branch');
+			expect(apiFetch).not.toHaveBeenCalled();
+
+			await user.keyboard('{Enter}');
+			await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+			expect(bodyOf(lastCall())).toEqual({ channel: 'nightly', ref: 'feature-branch' });
+		});
+
+		it('reverts to the last real value instead of committing a blank pointer-channel field', async () => {
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'nightly', channels: [STABLE, NIGHTLY] }) });
+
+			const versionField = screen.getByRole('textbox', { name: 'Version' });
+			await user.clear(versionField);
+			await user.tab();
+
+			expect(apiFetch).not.toHaveBeenCalled();
+			expect(screen.getByRole('textbox', { name: 'Version' })).toHaveValue('nightly-latest');
+		});
+
+		// The exact synchronous-double-click regression (both handlers firing
+		// before `isPending` ever reaches a render) is covered at the hook
+		// level in `use-channel-selection.test.ts` -- `user.click` here always
+		// flushes React's render in between, so by the time a second `click`
+		// could fire, the first one's `isPending` has already disabled the
+		// other select for real (see "disables both selects while a channel
+		// switch is in flight" below).
+
+		it('does not crash and leaves the selects usable again when the channel switch is rejected', async () => {
+			mockApiFetch.mockRejectedValueOnce(new Error('offline'));
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'stable', channels: [STABLE, BETA] }) });
+
+			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+			await user.click(await screen.findByRole('option', { name: 'beta' }));
+
+			await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+			await waitFor(() => expect(screen.getByRole('combobox', { name: 'Channel' })).not.toBeDisabled());
+		});
+
+		it('disables both selects while a channel switch is in flight', async () => {
+			let resolveSwitch: (value: undefined) => void = () => {};
+			mockApiFetch.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						resolveSwitch = resolve;
+					})
+			);
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ user_installed: true, channel: 'stable', channels: [STABLE, BETA] }) });
+
+			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+			await user.click(await screen.findByRole('option', { name: 'beta' }));
+
+			await waitFor(() => expect(screen.getByRole('combobox', { name: 'Channel' })).toBeDisabled());
+			expect(screen.getByRole('combobox', { name: 'Version' })).toBeDisabled();
+
+			resolveSwitch(undefined);
+			await waitFor(() => expect(screen.getByRole('combobox', { name: 'Channel' })).not.toBeDisabled());
+		});
+	});
+});
+
+/**
+ * `isPlatformSupported` (an exact match, no fallback) is what both of these
+ * are driven by -- `TARGET.platform` is `PLATFORM` by default, so every test
+ * that overrides `platform` to something else exercises the "genuinely
+ * unsupported" path, and every other test in this file (rendered with the
+ * default matching platform) is itself proof the indicator/warning stay
+ * silent on a supported arrow.
+ */
+describe('Hero, platform support', () => {
+	it('shows no platform-unsupported badge when the target matches the detected platform', () => {
+		renderHero();
+		expect(screen.queryByText(/Not available for/)).not.toBeInTheDocument();
+	});
+
+	it('shows a platform-unsupported badge naming the detected platform, when nothing matches', () => {
+		renderHero({ platform: 'linux/amd64' });
+		expect(screen.getByText('Not available for linux/amd64')).toBeInTheDocument();
+	});
+
+	it('adds a platform-supported arrow to the library immediately, with no warning', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ user_installed: false }) });
+
+		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+
+		await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+		expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+	});
+
+	it('warns before adding an unsupported-platform arrow, instead of registering right away', async () => {
+		const user = userEvent.setup();
+		platformBackend('linux/amd64');
+		renderHero({ detail: detail({ user_installed: false }), platform: 'linux/amd64' });
+
+		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+
+		expect(await screen.findByRole('dialog')).toHaveTextContent("isn't available for your platform");
+		expect(apiFetch).not.toHaveBeenCalled();
+	});
+
+	it('cancelling the platform warning leaves the arrow out of the library', async () => {
+		const user = userEvent.setup();
+		platformBackend('linux/amd64');
+		renderHero({ detail: detail({ user_installed: false }), platform: 'linux/amd64' });
+
+		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+		await user.click(await screen.findByRole('button', { name: 'Cancel' }));
+
+		await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+		expect(apiFetch).not.toHaveBeenCalled();
+	});
+
+	it('"Add anyway" proceeds with the exact same registerArrow call an ordinary add makes', async () => {
+		const user = userEvent.setup();
+		platformBackend('linux/amd64');
+		renderHero({ detail: detail({ user_installed: false }), platform: 'linux/amd64' });
+
+		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+		await user.click(await screen.findByRole('button', { name: 'Add anyway' }));
+
+		await waitFor(() =>
+			expect(apiFetch).toHaveBeenCalledWith(
+				expect.stringContaining(encodeURIComponent(detail().namespace)),
+				expect.objectContaining({ method: 'POST' })
+			)
+		);
+		await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+	});
+
+	// Guards the regression a review caught: the add-to-library gate used to
+	// read the `platform` prop directly, which can still be `useRealPlatform`'s
+	// zero-latency UA guess if the click lands before its effect resolves --
+	// silently skipping the warning for a genuinely unsupported arrow instead
+	// of merely mis-rendering a badge. The `platform` prop here still says the
+	// arrow is supported (matching `TARGET.platform`), but the backend --
+	// standing in for `useRealPlatform`'s eventual, authoritative answer --
+	// disagrees; the gate must trust the backend, not the prop.
+	it('warns even when the platform prop still shows a match, if the real platform disagrees', async () => {
+		const user = userEvent.setup();
+		platformBackend('linux/amd64');
+		renderHero({ detail: detail({ user_installed: false }) });
+
+		await user.click(screen.getByRole('button', { name: 'Add to Library' }));
+
+		expect(await screen.findByRole('dialog')).toHaveTextContent('linux/amd64');
+		expect(apiFetch).not.toHaveBeenCalled();
 	});
 });
 
