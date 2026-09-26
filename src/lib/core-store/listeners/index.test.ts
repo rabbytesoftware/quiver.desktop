@@ -165,7 +165,7 @@ describe('setupListeners', () => {
 		const handler = handlers.get('core://status')!;
 
 		const ready = handler({ payload: { status: 'ready' } });
-		await vi.waitFor(() => expect(useStatusStore.getState().status).toBe('ready'));
+		await vi.waitFor(() => expect(mockWipe).toHaveBeenCalled());
 		expect(subscribeArrowStream).not.toHaveBeenCalled();
 
 		wipeGate.resolve();
@@ -173,6 +173,56 @@ describe('setupListeners', () => {
 		await setup;
 
 		expect(subscribeArrowStream).toHaveBeenCalled();
+	});
+
+	// This is the regression test for the "install finished on the daemon but
+	// the UI never shows it" bug: a UI gated on useStatusStore's status (e.g.
+	// enabling an Install button) must not be able to go interactive before
+	// the runtime WebSocket subscription that is the ONLY channel confirming
+	// that action's progress actually exists. The daemon does not replay
+	// missed broadcasts, so an action fired into this gap is lost for the
+	// session until a full reload re-seeds from a REST GET.
+	it('does not report ready until the runtime stream is actually subscribed, so nothing can act before it can be told the result', async () => {
+		const wipeGate = deferred<void>();
+		mockWipe.mockReturnValueOnce(wipeGate.promise);
+
+		const setup = setupListeners();
+		await vi.waitFor(() => expect(handlers.has('core://status')).toBe(true));
+		const handler = handlers.get('core://status')!;
+
+		const ready = handler({ payload: { status: 'ready' } });
+		await vi.waitFor(() => expect(mockWipe).toHaveBeenCalled());
+		expect(wsManager.subscribe).not.toHaveBeenCalled();
+		expect(useStatusStore.getState().status).not.toBe('ready');
+
+		wipeGate.resolve();
+		await ready;
+		await setup;
+
+		expect(wsManager.subscribe).toHaveBeenCalledWith('/v0/runtime', expect.any(Function));
+		expect(useStatusStore.getState().status).toBe('ready');
+	});
+
+	// Same bug, the other entry point: adopting a core that was already
+	// running when the app booted (e.g. a plain reload) goes through
+	// adoptRunningCore, not the status-event handler, but it had the identical
+	// ready-before-subscribed ordering.
+	it('adopting an already-running core does not report ready until the runtime stream is subscribed either', async () => {
+		mockCoreIsReachable.mockResolvedValue(true);
+		const wipeGate = deferred<void>();
+		mockWipe.mockReturnValueOnce(wipeGate.promise);
+
+		const setup = setupListeners();
+		await vi.waitFor(() => expect(mockCoreIsReachable).toHaveBeenCalled());
+		await vi.waitFor(() => expect(mockWipe).toHaveBeenCalled());
+		expect(wsManager.subscribe).not.toHaveBeenCalled();
+		expect(useStatusStore.getState().status).not.toBe('ready');
+
+		wipeGate.resolve();
+		await setup;
+
+		expect(wsManager.subscribe).toHaveBeenCalledWith('/v0/runtime', expect.any(Function));
+		expect(useStatusStore.getState().status).toBe('ready');
 	});
 
 	it('starts the streams anyway when the boot ready was emitted before the listener existed', async () => {

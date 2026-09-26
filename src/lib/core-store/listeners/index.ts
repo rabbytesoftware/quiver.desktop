@@ -87,20 +87,19 @@ export async function setupListeners(): Promise<void> {
 		const myGeneration = generation;
 		if (!(await coreIsReachable())) return;
 		if (generation !== myGeneration || startPending > 0 || disposeArrowStream) return;
-		useStatusStore.getState().setStatus('ready');
 		void announceSelf();
 		await beginStreams(myGeneration).catch((err) => {
 			console.error('core-store: failed to adopt an already-running core', err);
 		});
+		// Only once the runtime stream this generation wanted is actually
+		// subscribed: see the ready branch below for why the store cannot say
+		// ready any earlier than that.
+		if (generation === myGeneration) {
+			useStatusStore.getState().setStatus('ready');
+		}
 	}
 
 	await backend().onCoreStatus(async (status) => {
-		useStatusStore.getState().setStatus(status);
-		if (status === 'starting') {
-			generation++;
-			stopStreams();
-			useArrowStore.getState().reset();
-		}
 		if (status === 'ready') {
 			// Captured before beginStreams's own awaits, not read afterwards: it
 			// must see the generation this ready belongs to, even if a later
@@ -110,6 +109,26 @@ export async function setupListeners(): Promise<void> {
 			const myGeneration = generation;
 			void announceSelf();
 			await beginStreams(myGeneration);
+			// The store must not claim ready before this: the runtime WS
+			// subscription beginStreams just opened is the ONLY channel that
+			// confirms an action's progress (see ActionButton's `pending` prop),
+			// and the daemon does not replay a broadcast fired before a
+			// subscriber existed. Reporting ready any earlier lets a UI gated on
+			// this status act before anything is listening for the result, and
+			// that action's outcome is then lost until a full reload re-seeds
+			// from a REST GET. Guarded on generation for the same reason
+			// beginStreams itself is: a `starting` that superseded this ready
+			// while it awaited must not resurrect it as ready afterwards.
+			if (generation !== myGeneration) return;
+			useStatusStore.getState().setStatus('ready');
+			return;
+		}
+
+		useStatusStore.getState().setStatus(status);
+		if (status === 'starting') {
+			generation++;
+			stopStreams();
+			useArrowStore.getState().reset();
 		}
 	});
 
