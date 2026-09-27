@@ -49,12 +49,26 @@ export function useAssembledArrowDetail(namespace: string): AssembledArrowDetail
 	const dependentsQuery = useArrowDependents(namespace);
 	const overviewLoading = readmeQuery.isLoading || dependenciesQuery.isLoading || dependentsQuery.isLoading;
 
-	// The reactive store only ever holds arrows the user has added
-	// (listeners/index.ts seeds it from `user_installed=true` only) -- for a
-	// Discovered arrow, `liveEntry` stays undefined and `data`'s own
-	// one-time-fetched state/active_run/last_return are used as-is, which is
-	// correct: there is nothing live to overlay.
-	const liveEntry = useArrowStore((state) => state.arrows.get(namespace));
+	// `namespace` is this hook's caller's own identifier, which for a
+	// Discovered arrow (found via search, not yet added) is bare -- its route
+	// has no ref to put on the URL yet (`src/routes/arrow.$.tsx` passes the
+	// raw splat through as-is). The live store, and every runtime broadcast
+	// that ever updates it, key by the resolved `namespace@ref` form instead
+	// (`toArrowDetail` stamps that same resolved form onto `data.namespace`
+	// once the fast query lands). Looking the live entry up under the bare
+	// `namespace` argument here would never find it: the entry is real and
+	// correctly updated in the store under its resolved key, but this hook
+	// would keep missing it forever, leaving the page frozen on `data`'s own
+	// one-time fetch no matter how many live updates the store receives --
+	// not delayed, permanently wrong, until an unrelated full reload
+	// re-fetches from scratch and happens to already show the settled state.
+	//
+	// Falling back to the bare `namespace` while `data` hasn't resolved yet is
+	// still correct and matches the comment this replaced: with no resolved
+	// key to look up, there is nothing live to overlay, so a lookup that
+	// misses is the right miss.
+	const liveKey = data?.namespace ?? namespace;
+	const liveEntry = useArrowStore((state) => state.arrows.get(liveKey));
 	const allEntries = useArrowStore((state) => state.arrows);
 
 	const previousRunState = useRef<{ namespace: string; active: boolean }>({ namespace, active: false });

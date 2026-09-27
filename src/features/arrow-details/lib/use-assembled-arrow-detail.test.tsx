@@ -102,6 +102,32 @@ describe('useAssembledArrowDetail', () => {
 		await waitFor(() => expect(mockApiFetch).toHaveBeenCalled());
 	});
 
+	// This is the regression test for "install finished on the daemon but the
+	// UI never shows it" on a first-time (Discovered) arrow: its route has no
+	// ref yet -- ArrowDetailsScreen passes the bare namespace straight from
+	// the URL splat (src/routes/arrow.$.tsx) -- but the live store, and every
+	// runtime broadcast, key by the full `namespace@ref` form the daemon's own
+	// detail response resolves to (`toArrowDetail`). If the live lookup uses
+	// the raw, unresolved route param instead of that resolved form, it can
+	// never find the entry the store is actually keyed under: every correct,
+	// live update updates the STORE, but this hook's own `arrows.get(...)`
+	// permanently misses it, and the page is stuck on its one-time fetch
+	// forever -- not delayed, not eventually consistent, just wrong until a
+	// full reload re-fetches from scratch.
+	it('reflects a live runtime update even when called with the bare namespace a Discovered arrow only has before it resolves', async () => {
+		const { result } = renderHook(() => useAssembledArrowDetail(BARE_NS), { wrapper });
+		await waitFor(() => expect(result.current.detail).toBeDefined());
+
+		useArrowStore.getState().applyRuntimeUpdate({
+			namespace: NS,
+			state: 'installing',
+			active_run: { method: '_install', variables: {}, steps: [] },
+			last_return: null,
+		});
+
+		await waitFor(() => expect(result.current.detail?.state).toBe('installing'));
+	});
+
 	it('does not refetch on mount when there is no active run to begin with', async () => {
 		const { result } = renderHook(() => useAssembledArrowDetail(NS), { wrapper });
 		await waitFor(() => expect(result.current.detail).toBeDefined());
