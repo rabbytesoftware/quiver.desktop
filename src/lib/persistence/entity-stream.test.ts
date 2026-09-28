@@ -136,8 +136,38 @@ describe('entity-stream', () => {
 				icon: 'icon.png',
 				banner: 'banner.png',
 				version: '2',
+				origin: 'declared',
+				confidence: null,
 			},
 		]);
+	});
+
+	it('carries origin and inference confidence from a live upsert frame', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({
+			event: 'upserted',
+			namespace: 'made@1',
+			name: 'Made',
+			origin: 'inferred',
+			inference: { generator: 'fletcher/1', confidence: 'medium' },
+		});
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
+		const [stored] = await getArrowsFor('local');
+		expect(stored.origin).toBe('inferred');
+		expect(stored.confidence).toBe('medium');
+	});
+
+	it('reads a live upsert frame with no origin as declared', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'plain@1', name: 'Plain' });
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
+		const [stored] = await getArrowsFor('local');
+		expect(stored.origin).toBe('declared');
+		expect(stored.confidence).toBeNull();
 	});
 
 	it('reads icon/banner from a nested media object on a live upsert frame', async () => {
@@ -164,6 +194,8 @@ describe('entity-stream', () => {
 					icon: 'nested-icon.png',
 					banner: 'nested-banner.png',
 					version: '1',
+					origin: 'declared',
+					confidence: null,
 				},
 			])
 		);
@@ -195,6 +227,8 @@ describe('entity-stream', () => {
 					icon: 'nested-icon.png',
 					banner: 'nested-banner.png',
 					version: '1',
+					origin: 'declared',
+					confidence: null,
 				},
 			])
 		);
@@ -216,6 +250,8 @@ describe('entity-stream', () => {
 					icon: null,
 					banner: null,
 					version: '',
+					origin: 'declared',
+					confidence: null,
 				},
 			])
 		);

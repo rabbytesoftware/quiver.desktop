@@ -55,6 +55,24 @@ describe('toSearchEntry', () => {
 	});
 });
 
+describe('toSearchEntry origin', () => {
+	it('carries an inferred result and its confidence', () => {
+		const entry = toSearchEntry({ ...DTO, origin: 'inferred', confidence: 'high' });
+		expect(entry.origin).toBe('inferred');
+		expect(entry.confidence).toBe('high');
+	});
+
+	it('reads a result with neither field, from an older daemon or a declared arrow, as declared', () => {
+		const entry = toSearchEntry(DTO);
+		expect(entry.origin).toBe('declared');
+		expect(entry.confidence).toBeNull();
+	});
+
+	it('reads an origin it does not know as declared', () => {
+		expect(toSearchEntry({ ...DTO, origin: 'mystery' }).origin).toBe('declared');
+	});
+});
+
 describe('toDiscoverySummary', () => {
 	it('maps counts and providers, normalising absent reason and retry to null', () => {
 		const job: DiscoveryJobDTO = {

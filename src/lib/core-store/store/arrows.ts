@@ -40,6 +40,8 @@ function toEntry(record: ArrowCatalogRecord, overlay: RuntimeUpdate | undefined)
 		active_run: overlay?.active_run ?? null,
 		last_return: overlay?.last_return ?? null,
 		last_used_at: record.last_used_at,
+		origin: record.origin,
+		confidence: record.confidence,
 	};
 }
 

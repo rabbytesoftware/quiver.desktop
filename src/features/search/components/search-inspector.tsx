@@ -14,6 +14,7 @@ import {
 
 import type { DiscoverySummary } from '@/domain/search';
 import { cn } from '@/lib/cn';
+import { toConfigDisplayRows } from '@/lib/core-store/dtos/v0/config';
 import type { SearchJob } from '@/lib/core-store/store/search';
 import { useTranslation } from '@/lib/i18n';
 import { apiFetch } from '@/lib/transport/api';
@@ -160,10 +161,10 @@ export function SearchInspector({ open, onOpenChange, query, job, summary }: Sea
 						</div>
 						{settings && (
 							<ul className="flex flex-col gap-1">
-								{Object.entries(settings).map(([key, value]) => (
+								{toConfigDisplayRows(settings).map(({ key, value }) => (
 									<li className="flex items-center justify-between gap-3" key={key}>
 										<span className="text-muted-foreground">{key}</span>
-										<span>{String(value)}</span>
+										<span>{value}</span>
 									</li>
 								))}
 							</ul>

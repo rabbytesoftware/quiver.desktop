@@ -92,6 +92,9 @@ export interface MockArrow {
 	stars?: number;
 	/** The host that served the manifest, e.g. github.com. */
 	source?: string;
+	/** Undefined for a declared arrow. `inferred` means Fletcher built the manifest, with `confidence` alongside. */
+	origin?: 'declared' | 'inferred';
+	confidence?: 'high' | 'medium' | 'low';
 	/** Raw markdown. Undefined for arrows without an ARROW.md -- Overview then falls back to Details. See `ArrowDetail.readme`'s own comment for the wire status. */
 	readme?: string;
 	/**
@@ -184,10 +187,15 @@ export const CONFIG_DEFAULTS: MockConfigDoc = {
 	netbridge: { enabled: true, ephemeral_port_start: 49152, ephemeral_port_end: 65535 },
 	api: { host: 'unix://' },
 	logger: { enabled: true, level: 'info' },
-	manifold: { fetch_timeout: '30s' },
+	manifold: { fetch_timeout: '30s', fletcher: { enabled: false } },
 	vault: { sweep_interval: '5m', ttl: '24h', index_ttl: '24h' },
 	arrows: { auto_retry: { enabled: true, retries: 3 }, self_update_channel: '' },
-	search: { per_provider_limit: 25, fetch_concurrency: 4, provider_timeout: '10s' },
+	search: {
+		per_provider_limit: 25,
+		fetch_concurrency: 4,
+		provider_timeout: '10s',
+		unmarked: { min_stars: 50, probe_limit: 10 },
+	},
 };
 
 export interface MockConfigState {

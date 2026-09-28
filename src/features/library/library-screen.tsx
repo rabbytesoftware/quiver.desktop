@@ -3,6 +3,7 @@ import { useMemo, type JSX } from 'react';
 import { ArrowLeftIcon } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 
+import { isInferred } from '@/domain/arrow';
 import { isQuiverOwnComponent } from '@/domain/release';
 import { columnRule } from '@/features/search/lib/columns';
 import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
@@ -48,7 +49,9 @@ export function LibraryScreen(): JSX.Element {
 				{sorted.map((arrow) => (
 					<ArrowTile
 						banner={arrow.banner}
+						confidence={arrow.confidence}
 						icon={arrow.icon}
+						inferred={isInferred(arrow)}
 						key={arrow.namespace}
 						metaText={arrow.version}
 						namespace={arrow.namespace}

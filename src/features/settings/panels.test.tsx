@@ -22,6 +22,7 @@ import { arrow } from '@/lib/mock/world/scenarios/kit';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 import { routeTree } from '@/routeTree.gen';
 
+import * as engineApi from './api/engine-api';
 import { DeveloperSettings } from './components/tabs/developer';
 import { EngineSettings } from './components/tabs/engine';
 import { GeneralSettings } from './components/tabs/general';
@@ -665,6 +666,101 @@ describe('the Engine panel', () => {
 
 		expect(useEngineStore.getState().view?.configured.logger.level).toBe('warning');
 		expect(screen.getByRole('combobox', { name: 'Level' })).toHaveTextContent('Warn');
+	});
+});
+
+describe("the Engine panel's auto-register row", () => {
+	const LABEL = 'Auto-register arrows from repositories without an ARROW.md';
+
+	beforeEach(() => {
+		installMock('normal');
+		useEngineStore.setState({ view: null, rejected: [], loading: true, error: null, patchError: null });
+	});
+
+	it('starts off, matching the daemon default', async () => {
+		render(<EngineSettings />);
+		expect(await screen.findByRole('switch', { name: LABEL })).not.toBeChecked();
+		expect(screen.getByRole('button', { name: `Reset ${LABEL}` })).toBeDisabled();
+	});
+
+	it('patches Fletcher on, leaves search alone, and says the daemon must restart', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		await user.click(await screen.findByRole('switch', { name: LABEL }));
+
+		await waitFor(() => expect(screen.getByRole('switch', { name: LABEL })).toBeChecked());
+		const { configured, running } = currentMock()!.world.config;
+		expect(configured.manifold.fletcher).toEqual({ enabled: true });
+		expect(configured.search).toEqual(running.search);
+		expect(running.manifold.fletcher).toEqual({ enabled: false });
+		expect(screen.getAllByText(/restart/i).length).toBeGreaterThan(0);
+		expect(screen.getByRole('button', { name: `Reset ${LABEL}` })).toBeEnabled();
+	});
+
+	it('patches Fletcher off again and drops the restart note', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		await user.click(await screen.findByRole('switch', { name: LABEL }));
+		await waitFor(() => expect(screen.getByRole('switch', { name: LABEL })).toBeChecked());
+
+		await user.click(screen.getByRole('switch', { name: LABEL }));
+		await waitFor(() => expect(screen.getByRole('switch', { name: LABEL })).not.toBeChecked());
+		const { configured } = currentMock()!.world.config;
+		expect(configured.manifold.fletcher).toEqual({ enabled: false });
+		expect(screen.queryByText(/restart/i)).not.toBeInTheDocument();
+	});
+
+	it('resets the switch to the daemon default', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		await user.click(await screen.findByRole('switch', { name: LABEL }));
+		await waitFor(() => expect(screen.getByRole('switch', { name: LABEL })).toBeChecked());
+
+		await user.click(screen.getByRole('button', { name: `Reset ${LABEL}` }));
+		await waitFor(() => expect(screen.getByRole('switch', { name: LABEL })).not.toBeChecked());
+	});
+
+	it('is on when Fletcher is already on in the daemon, with nothing pending', async () => {
+		const { configured, running } = currentMock()!.world.config;
+		for (const doc of [configured, running]) doc.manifold.fletcher = { enabled: true };
+		render(<EngineSettings />);
+		expect(await screen.findByRole('switch', { name: LABEL })).toBeChecked();
+		expect(screen.queryByText(/restart/i)).not.toBeInTheDocument();
+	});
+
+	it('reads as off, without crashing, on a daemon that predates the keys', async () => {
+		const { configured, running } = currentMock()!.world.config;
+		for (const doc of [configured, running]) delete doc.manifold.fletcher;
+		render(<EngineSettings />);
+		expect(await screen.findByRole('switch', { name: LABEL })).not.toBeChecked();
+		expect(screen.getByDisplayValue('49152')).toBeInTheDocument();
+	});
+
+	it('shows the daemon’s refusal on the row when it does not know the keys', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		const toggle = await screen.findByRole('switch', { name: LABEL });
+		vi.spyOn(engineApi, 'patchConfig').mockResolvedValueOnce({
+			applied: [],
+			rejected: [{ key: 'manifold', message: 'unknown setting "manifold.fletcher"' }],
+		});
+
+		await user.click(toggle);
+
+		expect(await screen.findByText('unknown setting "manifold.fletcher"')).toBeInTheDocument();
+		expect(screen.getByRole('switch', { name: LABEL })).not.toBeChecked();
+	});
+
+	it('reports a failed patch inline and keeps the panel', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		const toggle = await screen.findByRole('switch', { name: LABEL });
+		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 100 } });
+
+		await user.click(toggle);
+
+		expect(await screen.findByText(/mock fault: config/i)).toBeInTheDocument();
+		expect(screen.getByRole('switch', { name: LABEL })).toBeInTheDocument();
 	});
 });
 

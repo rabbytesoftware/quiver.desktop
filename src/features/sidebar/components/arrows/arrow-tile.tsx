@@ -2,9 +2,11 @@ import type { CSSProperties, JSX, KeyboardEvent, MouseEvent } from 'react';
 
 import { Link } from '@tanstack/react-router';
 
+import { InferredBadge } from '@/components/inferred-badge';
 import { badgeVariants } from '@/components/ui/badge';
 import { FlickerSpinner } from '@/components/ui/flicker-spinner';
 
+import type { InferenceConfidence } from '@/domain/arrow';
 import type { ArrowStatus } from '@/features/arrow-details/lib/status';
 import { STATUS_BADGE_VARIANT, STATUS_ICONS } from '@/features/arrow-details/lib/status';
 import { cn } from '@/lib/cn';
@@ -58,6 +60,9 @@ export interface ArrowTileProps {
 	status?: ArrowStatus | null;
 	/** Only called when `status.iconKind === 'problem'`; ignored otherwise. */
 	onResolve?: () => void;
+	/** The manifest was built by quiver.core rather than declared by the archer. Omit for the usual declared arrow -- no badge renders. */
+	inferred?: boolean;
+	confidence?: InferenceConfidence | null;
 }
 
 function bannerStyle(banner: string | null): CSSProperties | undefined {
@@ -74,6 +79,8 @@ export function ArrowTile({
 	metaText,
 	status,
 	onResolve,
+	inferred,
+	confidence,
 }: ArrowTileProps): JSX.Element {
 	const { t } = useTranslation();
 
@@ -128,6 +135,7 @@ export function ArrowTile({
 					<span className="min-w-0 flex-1 truncate text-[12.5px]/[15px] font-medium tracking-[-0.1px]">
 						{title}
 					</span>
+					{inferred && <InferredBadge confidence={confidence} />}
 					{status && StatusIcon && (
 						// A plain element on badgeVariants' own classes, not the <Badge>
 						// component -- Base UI's useRender special-cases role="button"

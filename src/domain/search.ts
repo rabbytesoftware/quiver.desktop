@@ -1,7 +1,9 @@
+import type { ArrowOriginFields } from './arrow';
+
 /** Null when the server cannot say, not when there is none. */
 export type SearchProvenance = 'installed' | 'dependency' | 'collection' | 'seen';
 
-export interface SearchEntry {
+export interface SearchEntry extends ArrowOriginFields {
 	/** Bare, without a ref, unlike `ArrowEntry.namespace`. `versions` carries the refs. */
 	namespace: string;
 	name: string;

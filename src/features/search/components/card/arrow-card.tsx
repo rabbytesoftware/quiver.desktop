@@ -2,6 +2,9 @@ import type { CSSProperties, JSX } from 'react';
 
 import { Link } from '@tanstack/react-router';
 
+import { InferredBadge } from '@/components/inferred-badge';
+
+import { isInferred } from '@/domain/arrow';
 import type { SearchEntry, SearchProvenance } from '@/domain/search';
 import { isHeld } from '@/domain/search';
 import { cn } from '@/lib/cn';
@@ -167,7 +170,12 @@ export function ArrowCard({ entry }: { entry: SearchEntry }): JSX.Element {
 			{/* Spec 8.7: identity stops depending on the pointer. Reading a screenful
 			    of results used to cost one hover per result. */}
 			<span className="block min-w-0 px-0.5 pt-[7px]">
-				<span className="block truncate text-[12.5px]/[15px] font-medium tracking-[-0.1px]">{entry.name}</span>
+				<span className="flex min-w-0 items-center gap-1.5">
+					<span className="min-w-0 flex-1 truncate text-[12.5px]/[15px] font-medium tracking-[-0.1px]">
+						{entry.name}
+					</span>
+					{isInferred(entry) && <InferredBadge confidence={entry.confidence} />}
+				</span>
 				<span className="mt-px block truncate text-[11px]/[14px] text-muted-foreground">{subtitle(entry)}</span>
 			</span>
 		</Link>

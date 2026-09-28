@@ -56,6 +56,46 @@ describe('the engine config store', () => {
 		expect(useEngineStore.getState().view?.configured.netbridge.ephemeral_port_start).toBe(30000);
 	});
 
+	it('patches a group nested inside a section and lists the changed leaves as needing a restart', async () => {
+		await useEngineStore.getState().load();
+		await useEngineStore.getState().patch({ manifold: { fletcher: { enabled: true } } });
+		const view = useEngineStore.getState().view;
+		expect(useEngineStore.getState().rejected).toEqual([]);
+		expect(view?.configured.manifold).toMatchObject({ fetch_timeout: '30s', fletcher: { enabled: true } });
+		expect(view?.restart_required).toEqual(['manifold.fletcher.enabled']);
+	});
+
+	it('leaves the sibling leaves of a nested group alone when one is patched', async () => {
+		await useEngineStore.getState().load();
+		await useEngineStore.getState().patch({ search: { unmarked: { min_stars: 100 } } });
+		expect(useEngineStore.getState().view?.configured.search).toMatchObject({
+			unmarked: { min_stars: 100, probe_limit: 10 },
+		});
+	});
+
+	it('restores a nested default when the patch sends null', async () => {
+		await useEngineStore.getState().load();
+		await useEngineStore.getState().patch({ search: { unmarked: { min_stars: 100 } } });
+		await useEngineStore.getState().patch({ search: { unmarked: { min_stars: null } } });
+		expect(useEngineStore.getState().view?.configured.search).toMatchObject({ unmarked: { min_stars: 50 } });
+		expect(useEngineStore.getState().view?.restart_required).toEqual([]);
+	});
+
+	it('rejects an unknown key inside a nested group per-key', async () => {
+		await useEngineStore.getState().load();
+		await useEngineStore.getState().patch({ manifold: { fletcher: { bogus: true } } });
+		expect(useEngineStore.getState().rejected).toEqual([
+			{ key: 'manifold.fletcher.bogus', message: 'unknown setting "manifold.fletcher.bogus"' },
+		]);
+	});
+
+	it('ignores an empty section in a patch', async () => {
+		await useEngineStore.getState().load();
+		await useEngineStore.getState().patch({ logger: {} });
+		expect(useEngineStore.getState().rejected).toEqual([]);
+		expect(useEngineStore.getState().view?.configured.logger).toEqual({ enabled: true, level: 'info' });
+	});
+
 	it('round-trips sections the UI never renders', async () => {
 		await useEngineStore.getState().load();
 		await useEngineStore.getState().patch({ logger: { level: 'warn' } });

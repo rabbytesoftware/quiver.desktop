@@ -1,3 +1,5 @@
+import { flattenConfig } from '@/lib/core-store/dtos/v0/config';
+
 import { CONFIG_DEFAULTS, type MockConfigDoc, type MockWorld } from '../../world/types';
 import { ok } from '../envelope';
 import type { Route } from '../router';
@@ -11,13 +13,34 @@ export function setMockCorrected(world: MockWorld, keys: string[]): void {
 	world.config.corrected = keys.map((key) => ({ key, message: 'unusable value, default applied' }));
 }
 
-function reject(section: string, name: string, value: unknown): string | null {
-	const key = `${section}.${name}`;
+function isEmptyObject(value: unknown): boolean {
+	return typeof value === 'object' && value !== null && !Array.isArray(value) && Object.keys(value).length === 0;
+}
+
+function valueAt(doc: unknown, path: string[]): unknown {
+	return path.reduce<unknown>((node, part) => {
+		if (typeof node !== 'object' || node === null || Array.isArray(node)) return undefined;
+		return (node as Record<string, unknown>)[part];
+	}, doc);
+}
+
+function withValueAt(node: unknown, path: string[], value: unknown): Record<string, unknown> {
+	const [head, ...rest] = path;
+	const base = typeof node === 'object' && node !== null && !Array.isArray(node) ? node : {};
+	return {
+		...base,
+		[head]: rest.length === 0 ? value : withValueAt((base as Record<string, unknown>)[head], rest, value),
+	};
+}
+
+// `key` is the dotted path from the section down, e.g. `manifold.fletcher`.
+function reject(key: string, value: unknown): string | null {
+	const path = key.split('.');
 	// Real daemon rejects keys it doesn't recognize, per-key, rather than
 	// silently ignoring or accepting them. `api.host` is NOT one of these —
 	// it round-trips fine against a real daemon, unlike the read-only
 	// treatment this mock used to give it.
-	if (!(name in (CONFIG_DEFAULTS[section] ?? {}))) return `unknown setting "${key}"`;
+	if (valueAt(CONFIG_DEFAULTS, path) === undefined) return `unknown setting "${key}"`;
 	if (value === null) return null;
 	if (key === 'logger.level' && !LEVELS.includes(String(value))) return 'unusable log level';
 	if (key.startsWith('netbridge.ephemeral_port')) {
@@ -28,13 +51,9 @@ function reject(section: string, name: string, value: unknown): string | null {
 }
 
 function differing(a: MockConfigDoc, b: MockConfigDoc): string[] {
-	const keys: string[] = [];
-	for (const section of Object.keys(b)) {
-		for (const [name, value] of Object.entries(b[section] ?? {})) {
-			if (JSON.stringify(a[section]?.[name]) !== JSON.stringify(value)) keys.push(`${section}.${name}`);
-		}
-	}
-	return keys;
+	return flattenConfig(b).flatMap(({ key, value }) =>
+		JSON.stringify(valueAt(a, key.split('.'))) === JSON.stringify(value) ? [] : [key]
+	);
 }
 
 function view(world: MockWorld) {
@@ -59,21 +78,23 @@ export const configRoutes: Route[] = [
 			const rejected: { key: string; message: string }[] = [];
 			const body = (req.body ?? {}) as MockConfigDoc;
 
-			for (const [section, settings] of Object.entries(body)) {
-				for (const [name, value] of Object.entries(settings ?? {})) {
-					const key = `${section}.${name}`;
-					const why = reject(section, name, value);
-					if (why) {
-						rejected.push({ key, message: why });
-						continue;
-					}
-					const fallback = CONFIG_DEFAULTS[section]?.[name];
-					world.config.configured[section] = {
-						...world.config.configured[section],
-						[name]: value === null ? fallback : value,
-					};
-					applied.push(key);
+			// A patch names leaves, however deep: `{ manifold: { fletcher: { enabled } } }`
+			// is the single key `manifold.fletcher.enabled`.
+			for (const { key, value } of flattenConfig(body)) {
+				if (isEmptyObject(value)) continue;
+				const why = reject(key, value);
+				if (why) {
+					rejected.push({ key, message: why });
+					continue;
 				}
+				const path = key.split('.');
+				const fallback = valueAt(CONFIG_DEFAULTS, path);
+				world.config.configured = withValueAt(
+					world.config.configured,
+					path,
+					value === null ? fallback : value
+				) as MockConfigDoc;
+				applied.push(key);
 			}
 
 			if (applied.length === 0 && rejected.length > 0) {

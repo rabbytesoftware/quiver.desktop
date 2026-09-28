@@ -88,6 +88,20 @@ describe('SearchInspector', () => {
 		}
 	});
 
+	it('spells a nested setting out as dotted rows, never as [object Object]', async () => {
+		const mock = createMockBackend('normal');
+		installBackend(mock.backend);
+		try {
+			render(<SearchInspector job={JOB} onOpenChange={NOOP} open query="server" summary={SUMMARY} />);
+			expect(await screen.findByText('unmarked.min_stars')).toBeInTheDocument();
+			expect(screen.getByText('unmarked.probe_limit')).toBeInTheDocument();
+			expect(screen.queryByText('unmarked')).not.toBeInTheDocument();
+			expect(screen.queryByText(/\[object Object\]/)).not.toBeInTheDocument();
+		} finally {
+			mock.dispose();
+		}
+	});
+
 	it('does not fetch config while closed', () => {
 		const mock = createMockBackend('normal');
 		const fetchSpy = vi.spyOn(mock.backend, 'fetch');

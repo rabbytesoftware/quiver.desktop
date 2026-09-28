@@ -1,6 +1,9 @@
 import type { DBSchema } from 'idb';
 
-export interface ArrowCatalogRecord {
+import type { ArrowOriginFields } from '@/domain/arrow';
+
+/** `origin`/`confidence` are absent on a row cached before quiver.core reported them, which reads as declared. */
+export interface ArrowCatalogRecord extends ArrowOriginFields {
 	connectionId: string;
 	namespace: string;
 	name: string;

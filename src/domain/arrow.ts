@@ -56,7 +56,47 @@ export interface LastReturn {
 	outcome: 'success' | 'failed' | 'cancelled';
 }
 
-export interface ArrowEntry {
+/**
+ * Where an arrow's manifest came from. `declared`: the repository ships an
+ * `ARROW.md` / `arrow.yaml`. `inferred`: quiver.core's Fletcher built one from
+ * the repository's release downloads.
+ */
+export type ArrowOrigin = 'declared' | 'inferred';
+
+/** How sure Fletcher was of an inferred manifest. Only ever set alongside `origin: 'inferred'`. */
+export type InferenceConfidence = 'high' | 'medium' | 'low';
+
+/**
+ * The two fields every arrow-shaped record carries once quiver.core reports
+ * how the manifest was made. Both are optional so a record built by hand (a
+ * fixture, an older cache row) reads as declared, which is what absent means.
+ */
+export interface ArrowOriginFields {
+	origin?: ArrowOrigin;
+	confidence?: InferenceConfidence | null;
+}
+
+/**
+ * Narrows quiver.core's `origin` string. An older daemon that sends none, or a
+ * newer one that sends a value this build does not know, reads as a declared
+ * arrow rather than a broken one.
+ */
+export function parseArrowOrigin(value: string | undefined | null): ArrowOrigin {
+	return value === 'inferred' ? 'inferred' : 'declared';
+}
+
+const CONFIDENCES: readonly InferenceConfidence[] = ['high', 'medium', 'low'];
+
+export function parseInferenceConfidence(value: string | undefined | null): InferenceConfidence | null {
+	return CONFIDENCES.find((confidence) => confidence === value) ?? null;
+}
+
+/** Only an explicit `inferred` counts: anything else, including absent, is a declared manifest. */
+export function isInferred(arrow: ArrowOriginFields): boolean {
+	return arrow.origin === 'inferred';
+}
+
+export interface ArrowEntry extends ArrowOriginFields {
 	namespace: string;
 	name: string;
 	description: string;
@@ -231,7 +271,7 @@ export interface ArrowDependency {
  * `user_installed` is the one authoritative signal for "in the library" --
  * check it, not whether an entry happens to exist somewhere else.
  */
-export interface ArrowDetail {
+export interface ArrowDetail extends ArrowOriginFields {
 	namespace: string;
 	name: string;
 	description: string;
