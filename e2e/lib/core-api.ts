@@ -8,9 +8,9 @@ import { socketPath } from './paths';
  *
  * The point of these assertions is that core really holds the rows, so they
  * must not be answered by anything inside the window they are meant to
- * corroborate. On unix that means speaking HTTP over core's own unix socket
- * (`{QUIVER_HOME}/quiver.sock`); on Windows core binds loopback 40257 instead
- * (`LOCAL_TCP_PORT`), since Rust's async stack has no AF_UNIX support there.
+ * corroborate. That means speaking HTTP over core's own local endpoint: the unix
+ * socket (`{QUIVER_HOME}/quiver.sock`), or on Windows the named pipe
+ * (`\\.\pipe\quiver`), which node's `socketPath` accepts unchanged.
  */
 export interface CoreClient {
 	get<T>(path: string): Promise<{ status: number; body: T | null }>;
@@ -63,10 +63,7 @@ function request<T>(
 ): Promise<{ status: number; body: T | null }> {
 	const data = payload === undefined ? undefined : JSON.stringify(payload);
 
-	const options: http.RequestOptions =
-		process.platform === 'win32'
-			? { host: '127.0.0.1', port: 40257, method, path: reqPath }
-			: { socketPath: socketPath(home), method, path: reqPath };
+	const options: http.RequestOptions = { socketPath: socketPath(home), method, path: reqPath };
 
 	return new Promise((resolve, reject) => {
 		const req = http.request(

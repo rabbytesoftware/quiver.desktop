@@ -62,12 +62,13 @@ export function quiverHome(home: string): string {
 }
 
 /**
- * The unix socket both sides settle on. Windows uses a fixed loopback port
- * (`LOCAL_TCP_PORT` = 40257) instead, because Rust's async stack has no
- * AF_UNIX support there.
+ * The endpoint both sides settle on: the unix socket under the spec's home, or
+ * on Windows the fixed named pipe (`LOCAL_PIPE_NAME`). A pipe lives in the
+ * machine-wide pipe namespace, not under any home, so specs cannot run
+ * alongside an installed app's daemon there.
  */
 export function socketPath(home: string): string {
-	return path.join(quiverHome(home), 'quiver.sock');
+	return process.platform === 'win32' ? '\\\\.\\pipe\\quiver' : path.join(quiverHome(home), 'quiver.sock');
 }
 
 /**

@@ -51,6 +51,9 @@ pub trait Transport: Send + Sync {
 }
 
 pub mod http;
+#[cfg(windows)]
+pub mod pipe;
+mod stream;
 #[cfg(unix)]
 pub mod unix;
 

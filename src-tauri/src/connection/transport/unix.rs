@@ -1,19 +1,15 @@
 //! The local transport on macOS and Linux: quiver.core over its unix socket.
 //!
-//! Windows has no equivalent — Rust's async stack cannot reach AF_UNIX there
-//! (see the design doc §2.2) — so this module is cfg-gated and Windows uses
-//! `super::http` against a loopback port instead.
+//! Windows reaches the same daemon over a named pipe instead (`super::pipe`);
+//! both hand their connected stream to `super::stream`, so the HTTP and
+//! WebSocket handling exists once.
 
 use async_trait::async_trait;
-use bytes::Bytes;
-use http_body_util::{BodyExt, Full};
-use hyper::Request as HyperRequest;
-use hyper_util::rt::TokioIo;
-use tauri::http::{self, Request, Response};
+use tauri::http::{Request, Response};
 use tokio::net::UnixStream;
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
-use super::{AsyncReadWrite, Transport, TransportError, WsStream};
+use super::stream::{open_ws_over, request_over};
+use super::{Transport, TransportError, WsStream};
 
 pub struct UnixTransport {
 	socket_path: String,
@@ -25,6 +21,12 @@ impl UnixTransport {
 			socket_path: socket_path.into(),
 		}
 	}
+
+	async fn connect(&self) -> Result<UnixStream, TransportError> {
+		UnixStream::connect(&self.socket_path)
+			.await
+			.map_err(|e| TransportError::Connect(e.to_string()))
+	}
 }
 
 #[async_trait]
@@ -33,87 +35,11 @@ impl Transport for UnixTransport {
 		&self,
 		req: Request<Vec<u8>>,
 	) -> Result<Response<Vec<u8>>, TransportError> {
-		// hyper only needs the path-and-query for the request line; the
-		// authority in `quiver://localhost/...` is meaningless over a socket.
-		let path_and_query = req
-			.uri()
-			.path_and_query()
-			.map(|pq| pq.as_str().to_string())
-			.unwrap_or_else(|| req.uri().path().to_string());
-
-		let stream = UnixStream::connect(&self.socket_path)
-			.await
-			.map_err(|e| TransportError::Connect(e.to_string()))?;
-		let (mut sender, conn) =
-			hyper::client::conn::http1::handshake(TokioIo::new(stream))
-				.await
-				.map_err(|e| TransportError::Protocol(e.to_string()))?;
-		tokio::spawn(async move {
-			let _ = conn.await;
-		});
-
-		let (parts, body) = req.into_parts();
-		let mut builder = HyperRequest::builder()
-			.method(parts.method)
-			.uri(path_and_query);
-
-		if let Some(headers) = builder.headers_mut() {
-			for (name, value) in parts.headers.iter() {
-				headers.insert(name, value.clone());
-			}
-			// HTTP/1.1 requires a Host; a unix socket has no meaningful one.
-			if !headers.contains_key(http::header::HOST) {
-				headers.insert(
-					http::header::HOST,
-					http::HeaderValue::from_static("localhost"),
-				);
-			}
-		}
-
-		let upstream = builder
-			.body(Full::<Bytes>::new(body.into()))
-			.map_err(|e| TransportError::Protocol(e.to_string()))?;
-
-		let resp = sender
-			.send_request(upstream)
-			.await
-			.map_err(|e| TransportError::Protocol(e.to_string()))?;
-		let (rp, rb) = resp.into_parts();
-		let collected = rb
-			.collect()
-			.await
-			.map_err(|e| TransportError::Protocol(e.to_string()))?
-			.to_bytes()
-			.to_vec();
-
-		let mut out = Response::builder().status(rp.status);
-		if let Some(headers) = out.headers_mut() {
-			for (name, value) in rp.headers.iter() {
-				headers.insert(name, value.clone());
-			}
-		}
-		out.body(collected)
-			.map_err(|e| TransportError::Protocol(e.to_string()))
+		request_over(self.connect().await?, req).await
 	}
 
 	async fn open_ws(&self, path: &str) -> Result<WsStream, TransportError> {
-		let stream = UnixStream::connect(&self.socket_path)
-			.await
-			.map_err(|e| TransportError::Connect(e.to_string()))?;
-		let request = format!("ws://localhost{path}")
-			.into_client_request()
-			.map_err(|e| TransportError::Protocol(e.to_string()))?;
-		let boxed: Box<dyn AsyncReadWrite> = Box::new(stream);
-		// The same door `http.rs` uses, so both transports resolve to one
-		// `WsStream` type. The request is always `ws://` here — a unix socket
-		// carries no TLS — so `uri_mode` picks `Mode::Plain` and this is
-		// `client_async` with an extra enum wrapper: no handshake, no
-		// certificate work, nothing on the wire that was not there before.
-		let (ws, _) =
-			tokio_tungstenite::client_async_tls_with_config(request, boxed, None, None)
-				.await
-				.map_err(|e| TransportError::Protocol(e.to_string()))?;
-		Ok(ws)
+		open_ws_over(self.connect().await?, path).await
 	}
 }
 

@@ -12,14 +12,17 @@ use self::sidecar::SidecarManager;
 
 /// How the local daemon is reachable on this platform.
 ///
-/// macOS and Linux use a unix socket. Windows cannot: Rust's async stack has no
-/// AF_UNIX support there (design doc §2.2), so the daemon is bound to a
-/// loopback port instead. That port is UNAUTHENTICATED — quiver.core has no
-/// local auth — which is why it is pinned to 127.0.0.1 and never 0.0.0.0.
+/// macOS and Linux use a unix socket. Windows uses a named pipe, which
+/// quiver.core creates with a DACL granting only the current user and binds
+/// with remote clients refused — the same "reachable by you and nobody else"
+/// guarantee the unix socket's file mode gives. (Windows used to bind an
+/// unauthenticated loopback port instead, reachable by every local user.)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LocalHost {
+	#[cfg(unix)]
 	Unix(String),
-	Tcp(u16),
+	#[cfg(windows)]
+	Pipe(String),
 }
 
 impl LocalHost {
@@ -28,8 +31,10 @@ impl LocalHost {
 	/// so the two paths this can take are both directly testable — `cargo
 	/// test` is itself a debug build, so a call with no parameter could never
 	/// exercise the production branch at all.
+	#[cfg_attr(windows, allow(unused_variables))]
 	pub fn host_arg(&self, dev_override_active: bool) -> String {
 		match self {
+			#[cfg(unix)]
 			Self::Unix(path) => {
 				if dev_override_active {
 					// In a dev build, core's own bare-`unix://` default now
@@ -47,37 +52,28 @@ impl LocalHost {
 					"unix://".into()
 				}
 			}
-			Self::Tcp(port) => format!("tcp://127.0.0.1:{port}"),
+			// Always explicit: the pipe namespace is machine-wide, so there is
+			// no per-home default for core to derive, and a dev build's own
+			// name (see `dev_pipe_name`) has to reach core as-is.
+			#[cfg(windows)]
+			Self::Pipe(name) => format!("npipe://{name}"),
 		}
 	}
 }
 
-/// The loopback port the local daemon binds on Windows. FIXED, not picked free
-/// per construction.
+/// The pipe quiver.core binds by default on Windows, and so the one a shipped
+/// build addresses. FIXED, never picked per construction.
 ///
 /// `LocalConnection::new()` runs at startup AND on every switch back to local,
-/// and the port used to come from a `bind(:0)` probe — a NEW port every time.
-/// Each construction therefore spawned a daemon that could bind, on a port
-/// nothing else knew about, while the previous one kept running: switch away
-/// and back four times and Windows is hosting five daemons, four of them
-/// orphaned for the life of the session. Unix escaped this only by accident —
-/// its socket path is fixed, so the second daemon's bind fails and it exits.
-///
-/// A fixed port makes Windows behave the way unix already did, deliberately:
-/// every construction addresses the same daemon, and a second spawn fails to
-/// bind and exits instead of forking the app's view of "local". It is also the
-/// only shape a "probe before spawning" check can take here — the daemon never
-/// reports the port it bound (its whole startup output is the gin route table
-/// and one `starting quiver daemon` line, verified against stable-26.5.1), so
-/// there is no port to probe unless the app fixes it in advance.
-///
-/// The trade is a collision with an unrelated process already on 40257. That is
-/// caught rather than papered over: `SidecarManager::ensure_running` decides on
-/// `/v0/health`, which a stranger cannot answer, so the app reports the local
-/// core as unreachable instead of silently proxying to it. 40257 is
-/// quiver.core's own documented example port.
+/// so an address that changed each time would spawn a daemon per construction
+/// and orphan the last. A fixed name makes every construction address the same
+/// daemon, and a second spawn fails to create the pipe (core creates it with
+/// `FILE_FLAG_FIRST_PIPE_INSTANCE`) and exits instead of forking the app's
+/// view of "local". A stranger squatting the name cannot answer `/v0/health`,
+/// which `SidecarManager::ensure_running` decides on, so the app reports the
+/// local core as unreachable instead of proxying to it.
 #[cfg(windows)]
-pub const LOCAL_TCP_PORT: u16 = 40257;
+pub const LOCAL_PIPE_NAME: &str = "quiver";
 
 /// The directory quiver.core should treat as its home in THIS build, when it
 /// must differ from the user's real one. `None` means "don't override" --
@@ -123,6 +119,22 @@ fn dev_socket_override(manifest_dir: &str, is_debug_build: bool) -> Option<std::
 	Some(std::env::temp_dir().join(format!("quiver-dev-{:016x}.sock", hasher.finish())))
 }
 
+/// A dev build's pipe name: unique per checkout and stable across reruns of
+/// the same one, so a debug build never adopts (or collides with) the
+/// installed app's daemon on `LOCAL_PIPE_NAME` — the same isolation
+/// `dev_socket_override` gives a unix dev build. `None` in a release build.
+#[cfg(windows)]
+fn dev_pipe_name(manifest_dir: &str, is_debug_build: bool) -> Option<String> {
+	use std::hash::{Hash, Hasher};
+
+	if !is_debug_build {
+		return None;
+	}
+	let mut hasher = std::collections::hash_map::DefaultHasher::new();
+	manifest_dir.hash(&mut hasher);
+	Some(format!("quiver-dev-{:016x}", hasher.finish()))
+}
+
 #[cfg(unix)]
 fn default_socket_path() -> String {
 	if let Some(path) = dev_socket_override(env!("CARGO_MANIFEST_DIR"), cfg!(debug_assertions))
@@ -140,7 +152,9 @@ fn local_host() -> LocalHost {
 
 #[cfg(windows)]
 fn local_host() -> LocalHost {
-	LocalHost::Tcp(LOCAL_TCP_PORT)
+	let name = dev_pipe_name(env!("CARGO_MANIFEST_DIR"), cfg!(debug_assertions))
+		.unwrap_or_else(|| LOCAL_PIPE_NAME.to_string());
+	LocalHost::Pipe(name)
 }
 
 #[cfg(unix)]
@@ -149,34 +163,15 @@ fn transport_for(host: &LocalHost) -> Arc<dyn Transport> {
 		LocalHost::Unix(path) => Arc::new(
 			crate::connection::transport::unix::UnixTransport::new(path.clone()),
 		),
-		LocalHost::Tcp(port) => {
-			Arc::new(crate::connection::transport::http::HttpTransport::new(
-				format!("http://127.0.0.1:{port}"),
-				None,
-			))
-		}
 	}
 }
 
 #[cfg(windows)]
 fn transport_for(host: &LocalHost) -> Arc<dyn Transport> {
 	match host {
-		LocalHost::Tcp(port) => {
-			Arc::new(crate::connection::transport::http::HttpTransport::new(
-				format!("http://127.0.0.1:{port}"),
-				None,
-			))
+		LocalHost::Pipe(name) => {
+			Arc::new(crate::connection::transport::pipe::PipeTransport::new(name))
 		}
-		// The match must be total, but this arm has no honest body: any
-		// transport built here would be a guess at where the daemon is, and a
-		// working-looking one pointed at a made-up port is worse than a crash —
-		// it would silently talk to the wrong process, or to nothing, and every
-		// symptom would surface far from the cause. Panic on the invariant
-		// instead, and say which one.
-		LocalHost::Unix(_) => unreachable!(
-			"local_host() only ever constructs LocalHost::Tcp on Windows: Rust's async \
-			 stack has no AF_UNIX support there (design doc §2.2)"
-		),
 	}
 }
 
@@ -219,7 +214,7 @@ impl QuiverConnection for LocalConnection {
 
 		// `ensure_running`, not `spawn` + `wait_for_ready`: `new()` runs again
 		// on every switch back to local, and an unconditional spawn is what
-		// left Windows hosting a daemon per switch. See `LOCAL_TCP_PORT`.
+		// left Windows hosting a daemon per switch. See `LOCAL_PIPE_NAME`.
 		if let Err(e) = self
 			.sidecar
 			.ensure_running(app, self.transport.as_ref())
@@ -289,6 +284,7 @@ mod tests {
 		);
 	}
 
+	#[cfg(unix)]
 	#[test]
 	fn unix_host_arg_is_the_bare_default_scheme_in_production() {
 		// `unix://` with no path means "quiver.core's default", which is
@@ -304,6 +300,7 @@ mod tests {
 	/// resolves under QUIVER_HOME (its own long checkout path) if left bare,
 	/// which is exactly what breaks the bind (see `dev_socket_override`). The
 	/// explicit path must be passed instead, not core's default.
+	#[cfg(unix)]
 	#[test]
 	fn unix_host_arg_is_the_explicit_short_override_in_a_dev_build() {
 		assert_eq!(
@@ -312,14 +309,48 @@ mod tests {
 		);
 	}
 
+	/// The name reaches core verbatim, as an `npipe://` URI: core has no
+	/// per-home pipe default to derive, and the dev name in particular must not
+	/// be replaced by core's own.
+	#[cfg(windows)]
 	#[test]
-	fn tcp_host_arg_pins_loopback_not_all_interfaces() {
-		let arg = LocalHost::Tcp(51234).host_arg(false);
-		assert_eq!(arg, "tcp://127.0.0.1:51234");
-		assert!(
-			!arg.contains("0.0.0.0"),
-			"binding all interfaces would expose an unauthenticated daemon to the network"
+	fn pipe_host_arg_names_the_pipe_explicitly() {
+		assert_eq!(
+			LocalHost::Pipe("quiver".into()).host_arg(false),
+			"npipe://quiver"
 		);
+		assert_eq!(
+			LocalHost::Pipe("quiver-dev-abc123".into()).host_arg(true),
+			"npipe://quiver-dev-abc123"
+		);
+	}
+
+	#[cfg(windows)]
+	#[test]
+	fn dev_pipe_name_is_none_in_a_release_build() {
+		assert_eq!(
+			dev_pipe_name("C:\\dev\\quiver.desktop\\src-tauri", false),
+			None
+		);
+	}
+
+	#[cfg(windows)]
+	#[test]
+	fn dev_pipe_name_is_stable_per_checkout_and_distinct_between_them() {
+		let a = "C:\\dev\\quiver.desktop-a\\src-tauri";
+		let b = "C:\\dev\\quiver.desktop-b\\src-tauri";
+		assert_eq!(dev_pipe_name(a, true), dev_pipe_name(a, true));
+		assert_ne!(dev_pipe_name(a, true), dev_pipe_name(b, true));
+	}
+
+	/// A dev build must never share the shipped build's pipe, or `tauri dev`
+	/// would adopt (and then fail to isolate from) the installed app's daemon.
+	#[cfg(windows)]
+	#[test]
+	fn dev_pipe_name_never_collides_with_the_shipped_name() {
+		let name = dev_pipe_name("C:\\dev\\quiver.desktop\\src-tauri", true).unwrap();
+		assert_ne!(name, LOCAL_PIPE_NAME);
+		assert!(name.starts_with("quiver-dev-"), "got {name:?}");
 	}
 
 	#[cfg(unix)]
@@ -334,8 +365,8 @@ mod tests {
 	/// The property that matters for `default_socket_path()`: the same
 	/// checkout must always get the same socket path, or every restart of
 	/// the same worktree would leave the previous run's daemon unreachable
-	/// and orphaned — the exact failure mode `LOCAL_TCP_PORT`'s own doc
-	/// describes for Windows before it was fixed there.
+	/// and orphaned — the orphaned-daemon failure `LOCAL_PIPE_NAME`'s
+	/// own doc describes.
 	#[cfg(unix)]
 	#[test]
 	fn dev_socket_override_is_the_same_path_for_the_same_checkout() {
@@ -408,9 +439,12 @@ mod tests {
 			matches!(&host, LocalHost::Unix(p) if p.contains("quiver-dev-") && p.ends_with(".sock")),
 			"unix addresses the dev-scoped override under test; got {host:?}"
 		);
-		// The literal, not `LOCAL_TCP_PORT`: comparing the constant to itself
+		// The literal, not `LOCAL_PIPE_NAME`: comparing the constant to itself
 		// would pass whatever it were changed to.
 		#[cfg(windows)]
-		assert_eq!(host, LocalHost::Tcp(40257), "got {host:?}");
+		assert!(
+			matches!(&host, LocalHost::Pipe(n) if n.starts_with("quiver-dev-")),
+			"windows addresses the dev-scoped pipe under test; got {host:?}"
+		);
 	}
 }
