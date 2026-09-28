@@ -1,4 +1,4 @@
-import { useState, type JSX, type ReactNode } from 'react';
+import { useState, type CSSProperties, type JSX, type ReactNode } from 'react';
 
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,6 +16,7 @@ import { CONTENT_MAX_WIDTH, CONTENT_PADDING_X } from './lib/layout';
 import { groupTabs } from './lib/tab-groups';
 import { useAssembledArrowDetail } from './lib/use-assembled-arrow-detail';
 import { useContainerWidthAtLeast } from './lib/use-container-width';
+import { useElementHeight } from './lib/use-element-height';
 import { useRealPlatform } from './lib/use-real-platform';
 
 type ArrowTab = 'overview' | 'activity' | 'methods';
@@ -41,6 +42,21 @@ const GROUP_MIN_WIDTH = 900;
 // number invented here.
 const RAIL_MIN_WIDTH = 860;
 
+// Beside the tabs, the rail holds its place while a long README scrolls past,
+// instead of scrolling away and leaving an empty column. `sticky` binds to the
+// shell's own scroll container (AppShell's `overflow-auto` div), not the
+// window, and the ChromeRow sits outside that container.
+//
+// `top` is the smaller of two offsets. A rail that fits pins 1.5rem below the
+// top edge. A rail taller than the viewport (Settings with many variables plus
+// Details) gets a negative offset instead -- the viewport's height minus its
+// own -- so it scrolls with the page until its BOTTOM edge reaches the
+// viewport's, and pins there. Every row stays reachable with the page's one
+// scrollbar: no inner scroll, and no `overflow` clipping the cards' own edges.
+// `var(--row)` is the ChromeRow's height, subtracted even on the platforms that
+// hide it -- 34px of slack there costs nothing.
+const STICKY_RAIL = 'sticky top-[min(1.5rem,calc(100vh-var(--row)-1.5rem-var(--rail-height)))]';
+
 interface ArrowDetailsScreenProps {
 	namespace: string;
 }
@@ -64,6 +80,7 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 	const [wasRunning, setWasRunning] = useState(false);
 	const [isWide, tabsContainerRef] = useContainerWidthAtLeast(GROUP_MIN_WIDTH);
 	const [isRailWide, railContainerRef] = useContainerWidthAtLeast(RAIL_MIN_WIDTH);
+	const [railHeight, railRef] = useElementHeight();
 
 	// Seed the local settings store from manifest defaults, once per arrow --
 	// there is no "current saved value" to read from core (§7.3): the only
@@ -269,7 +286,12 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 					</div>
 
 					{hasRail && (
-						<div className="flex flex-col gap-7">
+						<div
+							className={isRailWide ? `flex flex-col gap-7 ${STICKY_RAIL}` : 'flex flex-col gap-7'}
+							data-testid="arrow-detail-rail"
+							ref={railRef}
+							style={{ '--rail-height': `${railHeight}px` } as CSSProperties}
+						>
 							{hasSettingsRail && (
 								<SettingsPanel
 									onChange={handleValueChange}
