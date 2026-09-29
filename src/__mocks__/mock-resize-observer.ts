@@ -1,6 +1,6 @@
 /**
  * A controllable stand-in for jsdom's inert `ResizeObserver` -- call
- * `.fire(width)` on the instance to simulate a measurement. Other code in the
+ * `.fire(width, height?)` on the instance to simulate a measurement. Other code in the
  * tree (a popover, a select) may also construct a `ResizeObserver`, so pick
  * the right instance via `MockResizeObserver.for(element)` rather than
  * assuming yours is the only, first, or last one created.
@@ -25,9 +25,9 @@ export class MockResizeObserver {
 
 	disconnect(): void {}
 
-	fire(width: number): void {
+	fire(width: number, height = 0): void {
 		this.callback(
-			[{ contentRect: { width }, target: this.target } as ResizeObserverEntry],
+			[{ contentRect: { width, height }, target: this.target } as ResizeObserverEntry],
 			this as unknown as ResizeObserver
 		);
 	}

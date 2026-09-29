@@ -819,4 +819,40 @@ describe('wide-screen details rail', () => {
 
 		expect(screen.getByTestId('arrow-detail-layout')).toHaveClass('grid');
 	});
+
+	it('pins the rail beside the tabs without a scroll of its own -- the page keeps its one scrollbar', async () => {
+		mockDetailAndManifest();
+		renderScreen(NS);
+		await screen.findByRole('heading', { name: 'Minecraft Server' });
+		await fireWidth(1000);
+
+		const rail = await screen.findByTestId('arrow-detail-rail');
+		expect(rail).toHaveClass('sticky');
+		expect(rail.className).not.toMatch(/overflow/);
+	});
+
+	it('hands the rail its own measured height, which a rail taller than the viewport pins by', async () => {
+		mockDetailAndManifest();
+		renderScreen(NS);
+		await screen.findByRole('heading', { name: 'Minecraft Server' });
+		await fireWidth(1000);
+
+		const rail = await screen.findByTestId('arrow-detail-rail');
+		await waitFor(() => expect(MockResizeObserver.for(rail)).toBeDefined());
+		act(() => {
+			MockResizeObserver.for(rail)!.fire(340, 2000);
+		});
+
+		expect(rail.style.getPropertyValue('--rail-height')).toBe('2000px');
+	});
+
+	it('does not pin the rail once it stacks under the tabs -- there is no column beside it to hold', async () => {
+		mockDetailAndManifest();
+		renderScreen(NS);
+		await screen.findByRole('heading', { name: 'Minecraft Server' });
+		await fireWidth(600);
+
+		const rail = await screen.findByTestId('arrow-detail-rail');
+		expect(rail).not.toHaveClass('sticky');
+	});
 });
