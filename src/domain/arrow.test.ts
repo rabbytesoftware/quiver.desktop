@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ArrowLifecycle, ArrowTarget } from './arrow';
-import { isPlatformSupported, targetForPlatform } from './arrow';
+import {
+	isInferred,
+	isPlatformSupported,
+	parseArrowOrigin,
+	parseInferenceConfidence,
+	targetForPlatform,
+} from './arrow';
 
 const LIFECYCLE: ArrowLifecycle = {
 	install: [],
@@ -34,5 +40,40 @@ describe('isPlatformSupported', () => {
 	it('is true for a single universal target that happens to match', () => {
 		const targets = [target('linux/amd64')];
 		expect(isPlatformSupported(targets, 'linux/amd64')).toBe(true);
+	});
+});
+
+describe('parseArrowOrigin', () => {
+	it.each([
+		['inferred', 'inferred'],
+		['declared', 'declared'],
+		[undefined, 'declared'],
+		[null, 'declared'],
+		['', 'declared'],
+		['something-newer', 'declared'],
+	] as const)('reads %s as %s', (wire, expected) => {
+		expect(parseArrowOrigin(wire)).toBe(expected);
+	});
+});
+
+describe('parseInferenceConfidence', () => {
+	it.each([
+		['high', 'high'],
+		['medium', 'medium'],
+		['low', 'low'],
+		[undefined, null],
+		[null, null],
+		['', null],
+		['certain', null],
+	] as const)('reads %s as %s', (wire, expected) => {
+		expect(parseInferenceConfidence(wire)).toBe(expected);
+	});
+});
+
+describe('isInferred', () => {
+	it('is true only for an explicit inferred origin', () => {
+		expect(isInferred({ origin: 'inferred' })).toBe(true);
+		expect(isInferred({ origin: 'declared' })).toBe(false);
+		expect(isInferred({})).toBe(false);
 	});
 });

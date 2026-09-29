@@ -9,11 +9,14 @@ export interface Rejection {
 export interface DaemonConfig {
 	netbridge: { enabled: boolean; ephemeral_port_start: number; ephemeral_port_end: number };
 	logger: { enabled: boolean; level: string };
-	// The one `arrows.*` setting this tab reads/writes -- the rest of the
-	// section (and every other section: `search`, `vault`, `manifold`) is
-	// never read here, but must still survive a round trip, so the type
-	// stays open below rather than exhaustive.
+	// The `arrows.*` and `manifold.fletcher` settings this
+	// tab reads/writes -- the rest of each section (and every other section:
+	// `vault`, ...) is never read here, but must still survive a round trip,
+	// so the type stays open below rather than exhaustive.
 	arrows?: { self_update_channel?: string };
+	// The switch behind automatic arrow registration. Absent on a daemon that
+	// predates it, which is why it is optional.
+	manifold?: { fletcher?: { enabled?: boolean } };
 	[section: string]: unknown;
 }
 

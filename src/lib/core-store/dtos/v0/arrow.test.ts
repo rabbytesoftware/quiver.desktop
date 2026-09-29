@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import { runStep, signalStep } from '@/__mocks__/arrow-steps';
 
-import type { ArrowDetailDTO, ArrowManifestDTO, ChannelListDTO } from './arrow';
+import type { ArrowDetailDTO, ArrowListResponseItemDTO, ArrowManifestDTO, ChannelListDTO } from './arrow';
 import {
 	toArrowCatalogRecords,
 	toArrowChannels,
@@ -81,6 +81,46 @@ describe('toArrowCatalogRecords', () => {
 			'local'
 		);
 		expect(records.map((r) => r.namespace)).toEqual(['a@1', 'a@2']);
+	});
+});
+
+describe('origin on the arrow list', () => {
+	const item = (extra: Partial<ArrowListResponseItemDTO> = {}): ArrowListResponseItemDTO => ({
+		namespace: 'a',
+		name: 'a',
+		description: '',
+		tags: [],
+		versions: [
+			{ ref: '1', version: '1', state: 'ready' },
+			{ ref: '2', version: '2', state: 'ready' },
+		],
+		...extra,
+	});
+
+	it('carries an inferred arrow and its confidence onto every version record', () => {
+		const records = toArrowCatalogRecords([item({ origin: 'inferred', confidence: 'medium' })], 'local');
+		expect(records.map((r) => [r.origin, r.confidence])).toEqual([
+			['inferred', 'medium'],
+			['inferred', 'medium'],
+		]);
+	});
+
+	it('reads a declared arrow as declared with no confidence', () => {
+		const [record] = toArrowCatalogRecords([item({ origin: 'declared' })], 'local');
+		expect(record.origin).toBe('declared');
+		expect(record.confidence).toBeNull();
+	});
+
+	it('reads an older daemon that sends neither field as declared', () => {
+		const [record] = toArrowCatalogRecords([item()], 'local');
+		expect(record.origin).toBe('declared');
+		expect(record.confidence).toBeNull();
+	});
+
+	it('drops a confidence it does not know', () => {
+		const [record] = toArrowCatalogRecords([item({ origin: 'inferred', confidence: 'certain' })], 'local');
+		expect(record.origin).toBe('inferred');
+		expect(record.confidence).toBeNull();
 	});
 });
 
@@ -230,6 +270,34 @@ describe('toArrowChannels', () => {
 
 	it('returns an empty list for an empty channels array', () => {
 		expect(toArrowChannels({ channels: [] })).toEqual([]);
+	});
+});
+
+describe('toArrowDetail origin', () => {
+	it('reads an inferred arrow and the confidence of its inference', () => {
+		const result = toArrowDetail(
+			{ ...DETAIL, origin: 'inferred', inference: { generator: 'fletcher/1', confidence: 'low' } },
+			MANIFEST,
+			[],
+			null,
+			[],
+			[]
+		);
+		expect(result.origin).toBe('inferred');
+		expect(result.confidence).toBe('low');
+	});
+
+	it('reads an inferred arrow whose inference block is missing as inferred with no confidence', () => {
+		const result = toArrowDetail({ ...DETAIL, origin: 'inferred' }, MANIFEST, [], null, [], []);
+		expect(result.origin).toBe('inferred');
+		expect(result.confidence).toBeNull();
+	});
+
+	it('reads a declared arrow, and an older daemon that sends no origin, as declared', () => {
+		expect(toArrowDetail({ ...DETAIL, origin: 'declared' }, MANIFEST, [], null, [], []).origin).toBe('declared');
+		const older = toArrowDetail(DETAIL, MANIFEST, [], null, [], []);
+		expect(older.origin).toBe('declared');
+		expect(older.confidence).toBeNull();
 	});
 });
 

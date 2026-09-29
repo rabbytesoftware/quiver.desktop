@@ -3,6 +3,7 @@ import { useMemo, type JSX, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 
 import type { ArrowEntry } from '@/domain/arrow';
+import { isInferred } from '@/domain/arrow';
 import { isQuiverOwnComponent } from '@/domain/release';
 import { columnRule } from '@/features/search/lib/columns';
 import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
@@ -91,7 +92,9 @@ export function HomeScreen(): JSX.Element {
 						{recents.map((arrow) => (
 							<ArrowTile
 								banner={arrow.banner}
+								confidence={arrow.confidence}
 								icon={arrow.icon}
+								inferred={isInferred(arrow)}
 								key={arrow.namespace}
 								metaText={arrow.version}
 								namespace={arrow.namespace}
@@ -123,7 +126,9 @@ export function HomeScreen(): JSX.Element {
 						{libraryPreview.map((arrow) => (
 							<ArrowTile
 								banner={arrow.banner}
+								confidence={arrow.confidence}
 								icon={arrow.icon}
+								inferred={isInferred(arrow)}
 								key={arrow.namespace}
 								metaText={arrow.version}
 								namespace={arrow.namespace}

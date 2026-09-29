@@ -13,8 +13,15 @@ import type {
 	RuntimeUpdate,
 	StepProgress,
 } from '@/domain/arrow';
+import { parseArrowOrigin, parseInferenceConfidence } from '@/domain/arrow';
 import { splitNamespace } from '@/lib/namespace';
 import type { ArrowCatalogRecord } from '@/lib/persistence/schemas';
+
+export interface InferenceDTO {
+	generator?: string;
+	confidence?: string;
+	warnings?: string[];
+}
 
 export interface InstalledVersionDTO {
 	ref: string;
@@ -42,6 +49,10 @@ export interface ArrowListResponseItemDTO {
 		banner?: string | null;
 	};
 	versions: InstalledVersionDTO[];
+	/** Absent on a daemon that predates inference; reads as declared. */
+	origin?: string;
+	/** Omitted unless the arrow is inferred. */
+	confidence?: string;
 }
 
 export interface LastReturnDTO {
@@ -74,6 +85,10 @@ export interface ArrowDetailDTO {
 	last_return?: LastReturnDTO | null;
 	/** The channel this arrow is currently tracking. Absent for one pinned to an exact ref with no tracked channel. */
 	channel?: string;
+	/** Absent on a daemon that predates inference; reads as declared. */
+	origin?: string;
+	/** Omitted unless the arrow is inferred. */
+	inference?: InferenceDTO;
 }
 
 /**
@@ -117,6 +132,8 @@ export function toArrowCatalogRecords(items: ArrowListResponseItemDTO[], connect
 			banner: arrow.media?.banner || null,
 			version: v.version,
 			last_used_at: v.last_used_at ?? null,
+			origin: parseArrowOrigin(arrow.origin),
+			confidence: parseInferenceConfidence(arrow.confidence),
 		}))
 	);
 }
@@ -362,6 +379,8 @@ export function toArrowDetail(
 		active_run: detail.active_run ?? null,
 		last_return: detail.last_return ?? null,
 		channel: detail.channel,
+		origin: parseArrowOrigin(detail.origin),
+		confidence: parseInferenceConfidence(detail.inference?.confidence),
 		channels,
 		readme,
 		dependencies: toArrowDependencies(dependencies),

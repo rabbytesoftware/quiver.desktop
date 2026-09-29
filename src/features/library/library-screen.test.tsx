@@ -67,6 +67,19 @@ beforeEach(() => {
 	vi.mocked(apiFetch).mockResolvedValue(undefined);
 });
 
+describe('LibraryScreen auto-made badge', () => {
+	it('marks an inferred arrow and no other', async () => {
+		useArrowStore
+			.getState()
+			.setCatalog([
+				catalogRecord({ namespace: 'a@1', name: 'Alpha', origin: 'inferred', confidence: 'low' }),
+				catalogRecord({ namespace: 'b@1', name: 'Bravo' }),
+			]);
+		await renderScreen();
+		expect(screen.getAllByText('Auto-made')).toHaveLength(1);
+	});
+});
+
 describe('LibraryScreen', () => {
 	it('shows the title and a count-aware subtitle', async () => {
 		useArrowStore.getState().setCatalog([catalogRecord({ namespace: 'a@1', name: 'Alpha' })]);

@@ -57,6 +57,31 @@ const ACTIVE: ArrowStatus = { labelKey: 'arrow.state.running', iconKind: 'active
 const UP: ArrowStatus = { labelKey: 'arrow.state.outdated', iconKind: 'up' };
 const PROBLEM: ArrowStatus = { labelKey: 'arrow.state.detached', iconKind: 'problem' };
 
+describe('ArrowTile auto-made badge', () => {
+	it('shows the badge when the arrow is inferred', async () => {
+		await renderTile({ inferred: true, confidence: 'low' });
+		expect(screen.getByText('Auto-made')).toBeInTheDocument();
+		expect(document.querySelector('[data-slot="inferred-badge"]')).toHaveAttribute('data-confidence', 'low');
+	});
+
+	it('sits beside a status badge rather than replacing it', async () => {
+		await renderTile({
+			inferred: true,
+			status: { iconKind: 'busy', labelKey: 'arrow.state.installing' } as ArrowStatus,
+		});
+		expect(screen.getByText('Auto-made')).toBeInTheDocument();
+		expect(screen.getAllByText(/./).some((el) => el.dataset.slot === 'badge')).toBe(true);
+	});
+
+	it.each([
+		['omitted', undefined],
+		['false', false],
+	])('shows nothing when inferred is %s', async (_name, inferred) => {
+		await renderTile({ inferred });
+		expect(screen.queryByText('Auto-made')).not.toBeInTheDocument();
+	});
+});
+
 describe('ArrowTile', () => {
 	it('names the tile for assistive tech even though the name is visually hidden at rest', async () => {
 		await renderTile();

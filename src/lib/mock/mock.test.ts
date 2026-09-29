@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ArrowListResponseItemDTO } from '@/lib/core-store/dtos/v0/arrow';
+import type { ArrowDetailDTO, ArrowListResponseItemDTO } from '@/lib/core-store/dtos/v0/arrow';
 import type { DiscoveryJobDTO, DiscoveryJobStartedDTO, SearchResultDTO } from '@/lib/core-store/dtos/v0/search';
 import { apiFetch } from '@/lib/transport/api';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
@@ -86,6 +86,52 @@ describe('the catalog', () => {
 		const library = await get<ArrowListResponseItemDTO[]>('/v0/arrow?user_installed=true');
 		const minecraft = library.find((a) => a.namespace === `${NS}/minecraft`);
 		expect(minecraft?.media?.icon).toMatch(/^data:image\/svg\+xml,/);
+	});
+});
+
+describe('origin on the wire', () => {
+	function makeInferred(confidence?: 'high' | 'medium' | 'low') {
+		const arrow = world().arrows.get(MINECRAFT)!;
+		arrow.origin = 'inferred';
+		arrow.confidence = confidence;
+	}
+
+	it('reports every arrow as declared unless a fixture says otherwise', async () => {
+		const library = await get<ArrowListResponseItemDTO[]>('/v0/arrow?user_installed=true');
+		expect(library.every((a) => a.origin === 'declared' && a.confidence === undefined)).toBe(true);
+		const detail = await get<ArrowDetailDTO>(`/v0/arrow/${encodeURIComponent(MINECRAFT)}`);
+		expect(detail.origin).toBe('declared');
+		expect(detail.inference).toBeUndefined();
+	});
+
+	it('reports an inferred arrow on the list, with its confidence', async () => {
+		makeInferred('medium');
+		const library = await get<ArrowListResponseItemDTO[]>('/v0/arrow?user_installed=true');
+		const minecraft = library.find((a) => a.namespace === `${NS}/minecraft`);
+		expect(minecraft).toMatchObject({ origin: 'inferred', confidence: 'medium' });
+	});
+
+	it('reports an inferred arrow on the detail as an inference block', async () => {
+		makeInferred('low');
+		const detail = await get<ArrowDetailDTO>(`/v0/arrow/${encodeURIComponent(MINECRAFT)}`);
+		expect(detail).toMatchObject({ origin: 'inferred', inference: { generator: 'fletcher/1', confidence: 'low' } });
+	});
+
+	it('reports an inferred arrow with no known confidence without inventing one', async () => {
+		makeInferred();
+		const detail = await get<ArrowDetailDTO>(`/v0/arrow/${encodeURIComponent(MINECRAFT)}`);
+		expect(detail.inference).toEqual({ generator: 'fletcher/1' });
+		const library = await get<ArrowListResponseItemDTO[]>('/v0/arrow?user_installed=true');
+		expect(library.find((a) => a.namespace === `${NS}/minecraft`)?.confidence).toBeUndefined();
+	});
+
+	it('reports an inferred arrow in search results', async () => {
+		makeInferred('high');
+		const hits = await get<SearchResultDTO[]>('/v0/search?q=minecraft');
+		expect(hits.find((h) => h.namespace === `${NS}/minecraft`)).toMatchObject({
+			origin: 'inferred',
+			confidence: 'high',
+		});
 	});
 });
 

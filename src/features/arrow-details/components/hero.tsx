@@ -1,10 +1,11 @@
 import { useState, type JSX } from 'react';
 
+import { InferredBadge } from '@/components/inferred-badge';
 import { Badge } from '@/components/ui/badge';
 import { FlickerSpinner } from '@/components/ui/flicker-spinner';
 
 import type { ArrowDetail } from '@/domain/arrow';
-import { isPlatformSupported } from '@/domain/arrow';
+import { isInferred, isPlatformSupported } from '@/domain/arrow';
 import { computeActions } from '@/features/arrow-details/lib/actions';
 import { CONTENT_MAX_WIDTH, CONTENT_PADDING_X } from '@/features/arrow-details/lib/layout';
 import { problemMessage, computeStatus, STATUS_BADGE_VARIANT, STATUS_ICONS } from '@/features/arrow-details/lib/status';
@@ -111,6 +112,7 @@ export function Hero({
 									)}
 									{t(status.labelKey)}
 								</Badge>
+								{isInferred(detail) && <InferredBadge confidence={detail.confidence} focusable />}
 								{platformUnsupported && (
 									<Badge className="shrink-0 gap-1" variant="error">
 										<TriangleAlertIcon aria-hidden="true" className="size-3" />

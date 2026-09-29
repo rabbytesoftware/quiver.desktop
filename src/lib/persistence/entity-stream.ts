@@ -1,3 +1,4 @@
+import { parseArrowOrigin, parseInferenceConfidence } from '@/domain/arrow';
 import { isReconnectSentinel, wsManager } from '@/lib/transport/ws-manager';
 
 import { getArrowsFor, removeArrow, upsertArrow } from './entity-cache';
@@ -18,6 +19,8 @@ interface ArrowFrame {
 		banner?: string | null;
 	};
 	version?: string;
+	origin?: string;
+	inference?: { confidence?: string };
 }
 
 export interface SubscribeArrowStreamOptions {
@@ -47,6 +50,8 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => v
 			icon: frame.media?.icon ?? frame.icon ?? null,
 			banner: frame.media?.banner ?? frame.banner ?? null,
 			version: frame.version ?? '',
+			origin: parseArrowOrigin(frame.origin),
+			confidence: parseInferenceConfidence(frame.inference?.confidence),
 		});
 	}
 

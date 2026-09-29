@@ -178,10 +178,19 @@ export const en = {
 	'settings.engine.selfUpdate.unset': 'Not set',
 	'settings.engine.selfUpdate.unavailable': "Couldn't load quiver.core's channels",
 
+	'settings.engine.autoRegister.title': 'Arrows',
+	'settings.engine.autoRegister.label': 'Auto-register arrows from repositories without an ARROW.md',
+	'settings.engine.autoRegister.description':
+		'Builds an arrow from a repository’s release downloads when it ships no manifest.',
+	'settings.engine.autoRegister.pending': 'Restart quiver.core to apply this change.',
+
 	'mock.badge': 'Mock',
 	'mock.status': '{scenario} · no daemon is being contacted',
 	'mock.turnOff': 'Turn off',
 
+	'arrow.inferred.badge': 'Auto-made',
+	'arrow.inferred.tooltip':
+		"This repository doesn't publish a Quiver manifest. Quiver built one automatically from its release downloads, so install steps may need a check.",
 	'arrow.error': "Couldn't load this arrow.",
 	'arrow.loading': 'Loading…',
 	'arrow.tab.overview': 'Overview',

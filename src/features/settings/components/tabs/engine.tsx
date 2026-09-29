@@ -7,6 +7,12 @@ import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 
 import { useCoreChannels } from '@/features/settings/hooks/use-core-channels';
+import {
+	autoRegisterPatch,
+	autoRegisterRejection,
+	autoRegisterResetPatch,
+	isAutoRegisterOn,
+} from '@/features/settings/lib/auto-register';
 import { LEVELS, normaliseLevel } from '@/features/settings/lib/log-level';
 import { useEngineStore } from '@/features/settings/stores/engine-store';
 import { useTranslation } from '@/lib/i18n';
@@ -68,7 +74,7 @@ export function EngineSettings() {
 		);
 	}
 
-	const { configured, defaults, restart_required: pending, corrected } = view;
+	const { configured, running, defaults, restart_required: pending, corrected } = view;
 	const why = (key: string) => rejected.find((r) => r.key === key)?.message;
 
 	// Each port field is patched on its own (see `port` below), so at most
@@ -102,6 +108,13 @@ export function EngineSettings() {
 		await patch({ netbridge: { [key]: n } });
 		if (useEngineStore.getState().rejected.some((r) => r.key === `netbridge.${key}`)) revert();
 	}
+
+	const autoRegisterOn = isAutoRegisterOn(configured);
+	const autoRegisterDescription =
+		autoRegisterRejection(rejected) ??
+		(autoRegisterOn !== isAutoRegisterOn(running)
+			? t('settings.engine.autoRegister.pending')
+			: t('settings.engine.autoRegister.description'));
 
 	return (
 		<div>
@@ -234,6 +247,21 @@ export function EngineSettings() {
 								))}
 							</SelectContent>
 						</Select>
+					</SettingRow>
+				</Section>
+
+				<Section title={t('settings.engine.autoRegister.title')}>
+					<SettingRow
+						label={t('settings.engine.autoRegister.label')}
+						description={autoRegisterDescription}
+						onReset={() => void patch(autoRegisterResetPatch())}
+						canReset={autoRegisterOn !== isAutoRegisterOn(defaults)}
+					>
+						<Switch
+							checked={autoRegisterOn}
+							onCheckedChange={(next) => void patch(autoRegisterPatch(next))}
+							aria-label={t('settings.engine.autoRegister.label')}
+						/>
 					</SettingRow>
 				</Section>
 			</div>

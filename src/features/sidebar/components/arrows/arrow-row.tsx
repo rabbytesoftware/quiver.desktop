@@ -2,7 +2,10 @@ import type { JSX } from 'react';
 
 import { Link } from '@tanstack/react-router';
 
+import { InferredBadge } from '@/components/inferred-badge';
+
 import type { ArrowEntry } from '@/domain/arrow';
+import { isInferred } from '@/domain/arrow';
 import { blockReselect } from '@/features/sidebar/lib/reselect';
 import { ROW_ACTIVE, ROW_BASE, ROW_INACTIVE, ROW_SUBLABEL } from '@/features/sidebar/lib/row-base';
 import { cn } from '@/lib/cn';
@@ -25,8 +28,11 @@ export function ArrowRow({ arrow }: ArrowRowProps): JSX.Element {
 		<Link to="/arrow/$" params={{ _splat: arrow.namespace }} onClick={blockReselect} className={ROW}>
 			<ArrowIcon namespace={arrow.namespace} name={arrow.name} icon={arrow.icon} />
 			<span className="flex min-w-0 flex-1 flex-col justify-center">
-				<span data-slot="arrow-name" className="truncate text-[13px]/[16px]">
-					{arrow.name}
+				<span className="flex min-w-0 items-center gap-1.5">
+					<span data-slot="arrow-name" className="truncate text-[13px]/[16px]">
+						{arrow.name}
+					</span>
+					{isInferred(arrow) && <InferredBadge compact confidence={arrow.confidence} />}
 				</span>
 				<span data-slot="arrow-namespace" className={SUBTITLE}>
 					<span className="truncate">{head}</span>

@@ -48,6 +48,22 @@ async function renderCard(entry: SearchEntry) {
 	return { ...view, link };
 }
 
+describe('ArrowCard auto-made badge', () => {
+	it('shows the badge for an inferred arrow', async () => {
+		await renderCard({ ...ENTRY, origin: 'inferred', confidence: 'high' });
+		expect(screen.getByText('Auto-made')).toBeInTheDocument();
+	});
+
+	it.each([
+		['a declared arrow', { origin: 'declared' as const }],
+		['an entry that carries no origin', {}],
+	])('shows nothing for %s', async (_name, extra) => {
+		await renderCard({ ...ENTRY, ...extra });
+		expect(screen.queryByText('Auto-made')).not.toBeInTheDocument();
+		expect(document.querySelector('[data-slot="inferred-badge"]')).toBeNull();
+	});
+});
+
 describe('ArrowCard', () => {
 	it('names the arrow for assistive tech even though the name is visually hidden at rest', async () => {
 		await renderCard(ENTRY);

@@ -884,6 +884,22 @@ describe('Hero, the Channel and Version switchers', () => {
  * default matching platform) is itself proof the indicator/warning stay
  * silent on a supported arrow.
  */
+describe('Hero, auto-made badge', () => {
+	it('shows the badge beside the name for an inferred arrow, reachable by keyboard', () => {
+		renderHero({ detail: detail({ origin: 'inferred', confidence: 'medium' }) });
+		expect(screen.getByText('Auto-made')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Auto-made' })).toBeInTheDocument();
+	});
+
+	it.each([
+		['declared', { origin: 'declared' as const }],
+		['carrying no origin', {}],
+	])('shows nothing for an arrow that is %s', (_name, extra) => {
+		renderHero({ detail: detail(extra) });
+		expect(screen.queryByText('Auto-made')).not.toBeInTheDocument();
+	});
+});
+
 describe('Hero, platform support', () => {
 	it('shows no platform-unsupported badge when the target matches the detected platform', () => {
 		renderHero();

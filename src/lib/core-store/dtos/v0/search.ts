@@ -6,6 +6,7 @@
  * shapes the client would have to render differently.
  */
 
+import { parseArrowOrigin, parseInferenceConfidence } from '@/domain/arrow';
 import type { DiscoveryProvider, DiscoverySummary, SearchEntry, SearchProvenance } from '@/domain/search';
 
 export interface SearchResultDTO {
@@ -49,6 +50,9 @@ export interface SearchResultDTO {
 	known: boolean;
 	stars: number;
 	source?: string;
+	/** Each omitted when empty. Absent origin reads as declared. */
+	origin?: string;
+	confidence?: string;
 }
 
 /**
@@ -121,6 +125,8 @@ export function toSearchEntry(dto: SearchResultDTO): SearchEntry {
 		known: dto.known,
 		stars: dto.stars ?? 0,
 		source: dto.source ?? null,
+		origin: parseArrowOrigin(dto.origin),
+		confidence: parseInferenceConfidence(dto.confidence),
 	};
 }
 

@@ -84,6 +84,20 @@ beforeEach(() => {
 	mockCollectionsResponse([]);
 });
 
+describe('HomeScreen auto-made badge', () => {
+	it('marks an inferred arrow in the library and no other', async () => {
+		useArrowStore
+			.getState()
+			.setCatalog([
+				catalogRecord({ namespace: 'a@1', name: 'Alpha', origin: 'inferred', confidence: 'medium' }),
+				catalogRecord({ namespace: 'b@1', name: 'Bravo', origin: 'declared' }),
+			]);
+		await renderHome();
+		await screen.findByText('Library');
+		expect(screen.getAllByText('Auto-made')).toHaveLength(1);
+	});
+});
+
 describe('HomeScreen', () => {
 	it('shows the empty state once both the catalog and collections have finished loading with nothing in either', async () => {
 		useArrowStore.getState().setCatalog([]);

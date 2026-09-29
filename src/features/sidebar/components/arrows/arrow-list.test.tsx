@@ -133,6 +133,24 @@ beforeEach(() => {
 	useCatalogVisibilityStore.setState({ showSelfComponents: true });
 });
 
+describe('ArrowList auto-made badge', () => {
+	it('marks an inferred arrow, by icon with an accessible name', async () => {
+		seed({ ...entry(MINECRAFT, 'Minecraft', null), origin: 'inferred', confidence: 'medium' });
+		renderList('/');
+		const row = (await screen.findAllByRole('link'))[0];
+		const badge = row.querySelector('[data-slot="inferred-badge"]');
+		expect(badge).toHaveAttribute('aria-label', 'Auto-made');
+		expect(badge).toHaveAttribute('data-confidence', 'medium');
+	});
+
+	it('leaves declared arrows unmarked', async () => {
+		seed(entry(MINECRAFT, 'Minecraft', null), { ...entry('github.com/a/b@1', 'B', null), origin: 'declared' });
+		renderList('/');
+		await screen.findAllByRole('link');
+		expect(document.querySelector('[data-slot="inferred-badge"]')).toBeNull();
+	});
+});
+
 describe('ArrowList', () => {
 	it('names the list for screen readers', async () => {
 		seed(entry(MINECRAFT, 'Minecraft', null));

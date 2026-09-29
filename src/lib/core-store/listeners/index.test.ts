@@ -401,6 +401,8 @@ describe('setupListeners', () => {
 				banner: null,
 				version: '1',
 				last_used_at: null,
+				origin: 'declared',
+				confidence: null,
 			},
 		]);
 	});

@@ -77,6 +77,8 @@ export function toArrowListDTO(arrows: MockArrow[]): ArrowListResponseItemDTO[] 
 			installed_at: a.installed_at,
 			...(a.last_used_at ? { last_used_at: a.last_used_at } : {}),
 		})),
+		origin: group[0].origin ?? 'declared',
+		...(group[0].origin === 'inferred' && group[0].confidence ? { confidence: group[0].confidence } : {}),
 	}));
 }
 
@@ -90,6 +92,8 @@ export function toArrowFrame(arrow: MockArrow, event: 'upserted' | 'removed'): u
 		tags: arrow.tags,
 		media: { icon: arrow.icon, banner: arrow.banner },
 		version: arrow.version,
+		origin: arrow.origin ?? 'declared',
+		...(arrow.origin === 'inferred' && arrow.confidence ? { inference: { confidence: arrow.confidence } } : {}),
 	};
 }
 
@@ -128,6 +132,10 @@ export function toArrowDetailDTO(arrow: MockArrow): ArrowDetailDTO {
 		active_run: arrow.active_run,
 		last_return: arrow.last_return,
 		...(arrow.channel ? { channel: arrow.channel } : {}),
+		origin: arrow.origin ?? 'declared',
+		...(arrow.origin === 'inferred'
+			? { inference: { generator: 'fletcher/1', ...(arrow.confidence ? { confidence: arrow.confidence } : {}) } }
+			: {}),
 	};
 }
 
@@ -219,6 +227,8 @@ export function toSearchResultDTO(
 		known: facts.known,
 		stars: arrow.stars ?? 0,
 		...(arrow.source ? { source: arrow.source } : {}),
+		...(arrow.origin ? { origin: arrow.origin } : {}),
+		...(arrow.origin === 'inferred' && arrow.confidence ? { confidence: arrow.confidence } : {}),
 	};
 }
 

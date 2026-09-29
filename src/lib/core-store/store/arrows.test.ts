@@ -62,6 +62,20 @@ describe('setCatalog', () => {
 	});
 });
 
+describe('setCatalog origin', () => {
+	it('carries an inferred record and its confidence onto the entry', () => {
+		useArrowStore.getState().setCatalog([{ ...catalogRecord('a@1'), origin: 'inferred', confidence: 'high' }]);
+		const entry = useArrowStore.getState().arrows.get('a@1');
+		expect(entry?.origin).toBe('inferred');
+		expect(entry?.confidence).toBe('high');
+	});
+
+	it('leaves a record cached before origin existed without one', () => {
+		useArrowStore.getState().setCatalog([catalogRecord('a@1')]);
+		expect(useArrowStore.getState().arrows.get('a@1')?.origin).toBeUndefined();
+	});
+});
+
 describe('applyRuntimeUpdate', () => {
 	it('overlays runtime state without touching catalog fields', () => {
 		useArrowStore
