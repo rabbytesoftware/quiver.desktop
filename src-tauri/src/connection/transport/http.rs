@@ -1,13 +1,8 @@
-//! The TCP transport, serving two callers that differ only in credentials:
+//! The TCP transport, for a remote quiver.core over https with a bearer token.
 //!
-//!   * a remote quiver.core over https with a bearer token, and
-//!   * the LOCAL daemon on Windows, over loopback with no token at all —
-//!     Rust cannot reach AF_UNIX on Windows (design doc §2.2), so the sidecar
-//!     is spawned with `--host tcp://127.0.0.1:<port>` there.
-//!
-//! Note that quiver.core's TCP mode is unauthenticated: a loopback listener is
-//! reachable by any local process. That is an accepted risk of the Windows
-//! path, recorded in the design doc, not something this module can fix.
+//! The local daemon does not come through here: it is reached over a unix
+//! socket (`super::unix`) or, on Windows, a named pipe (`super::pipe`), both of
+//! which only the current user can open.
 
 use std::time::Duration;
 

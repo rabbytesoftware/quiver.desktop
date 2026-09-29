@@ -51,12 +51,12 @@ impl SidecarManager {
 	/// to spawn unconditionally. On unix that was merely wasteful — the second
 	/// daemon loses the race for a fixed socket path and exits — and on Windows,
 	/// where the port used to be picked fresh each time, it was an orphaned daemon
-	/// per switch (see `local::LOCAL_TCP_PORT`). With a fixed address on both
+	/// per switch (see `local::LOCAL_PIPE_NAME`). With a fixed address on both
 	/// platforms, one health probe answers "is there already one of these?" and
 	/// makes the second spawn unnecessary rather than merely doomed.
 	///
 	/// The probe also decides what "ready" means, which is what keeps the fixed
-	/// port honest: if something that is not quiver.core holds the address, it
+	/// address honest: if something that is not quiver.core holds the address, it
 	/// cannot answer `/v0/health`, so this reports failure rather than handing
 	/// the app a transport pointed at a stranger.
 	///
@@ -384,12 +384,19 @@ mod tests {
 	use tauri_plugin_shell::process::TerminatedPayload;
 	use tempfile::TempDir;
 
+	fn test_host() -> LocalHost {
+		#[cfg(unix)]
+		return LocalHost::Unix("/tmp/quiver-test.sock".into());
+		#[cfg(windows)]
+		return LocalHost::Pipe("quiver-test".into());
+	}
+
 	/// Answers `/v0/health` however the test needs it answered.
 	enum Peer {
 		/// A daemon that is up.
 		Healthy,
 		/// Something is listening, but it is not quiver.core — the case the
-		/// fixed port on Windows makes possible, and the reason the decision to
+		/// fixed local address makes possible, and the reason the decision to
 		/// spawn is taken on a health ANSWER rather than on a bind.
 		AStranger,
 		/// Nothing is listening at all.
@@ -500,7 +507,7 @@ mod tests {
 	/// down the app's quit with a panic.
 	#[test]
 	fn a_daemon_this_app_did_not_spawn_is_left_alone() {
-		let manager = SidecarManager::new(LocalHost::Tcp(40257));
+		let manager = SidecarManager::new(test_host());
 
 		manager.reap();
 
@@ -538,7 +545,7 @@ mod tests {
 	#[test]
 	fn stderr_from_the_daemon_reaches_the_log_loudly() {
 		let (level, line) = described(CommandEvent::Stderr(
-			b"listen tcp 127.0.0.1:40257: bind: address already in use\n".to_vec(),
+			b"listen npipe \\\\.\\pipe\\quiver: address already in use\n".to_vec(),
 		));
 		assert_eq!(level, log::Level::Warn);
 		assert!(line.contains("address already in use"), "got {line:?}");
