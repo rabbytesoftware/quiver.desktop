@@ -28,10 +28,23 @@ export interface SubscribeArrowStreamOptions {
 	seed: () => Promise<ArrowCatalogRecord[]>;
 	onChange?: () => void;
 	onSeedError?: (error: unknown) => void;
+	/**
+	 * Called with the namespace of an upsert frame that carries no version for
+	 * a row the cache has none for either -- a row just registered, typically.
+	 * quiver.core's frames never carry the resolved ref, so only a re-read of
+	 * the catalog can supply it.
+	 */
+	onUnversionedUpsert?: (namespace: string) => void;
 }
 
-export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => void {
-	const { connectionId, seed, onChange, onSeedError } = opts;
+/** Disposes the stream when called; `reseed` re-reads the whole catalog, the same way a reconnect does. */
+export interface ArrowStream {
+	(): void;
+	reseed(): void;
+}
+
+export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): ArrowStream {
+	const { connectionId, seed, onChange, onSeedError, onUnversionedUpsert } = opts;
 	let disposed = false;
 
 	let applyChain: Promise<void> = Promise.resolve();
@@ -45,6 +58,7 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => v
 		// state, re-read from `GET /v0/arrow`), so a frame must not erase the
 		// one the last seed recorded.
 		const version = frame.version ?? (await getArrow(connectionId, frame.namespace))?.version ?? '';
+		if (!version) onUnversionedUpsert?.(frame.namespace);
 		return upsertArrow({
 			connectionId,
 			namespace: frame.namespace,
@@ -122,8 +136,14 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => v
 			});
 	});
 
-	return () => {
+	function dispose(): void {
 		disposed = true;
 		unsubscribe();
-	};
+	}
+
+	return Object.assign(dispose, {
+		reseed(): void {
+			if (!disposed) runSeed();
+		},
+	});
 }

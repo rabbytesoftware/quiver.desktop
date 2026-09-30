@@ -25,7 +25,16 @@ interface ArrowStore {
 	applyRuntimeUpdate: (update: RuntimeUpdate) => void;
 	seedInitialState: (update: RuntimeUpdate) => void;
 	reset: () => void;
+	/**
+	 * Re-reads the catalog from `GET /v0/arrow` -- the only source of each
+	 * row's resolved ref, which no live frame carries. A no-op while no
+	 * catalog stream is up; the listeners install the real one.
+	 */
+	refreshCatalog: () => void;
+	setCatalogRefresh: (refresh: () => void) => void;
 }
+
+const NO_REFRESH = (): void => {};
 
 function toEntry(record: ArrowCatalogRecord, overlay: RuntimeUpdate | undefined): ArrowEntry {
 	return {
@@ -78,6 +87,9 @@ export const useArrowStore = create<ArrowStore>((set, get) => {
 	return {
 		arrows: new Map(),
 		catalog: 'loading',
+		refreshCatalog: NO_REFRESH,
+
+		setCatalogRefresh: (refresh) => set({ refreshCatalog: refresh }),
 
 		setCatalogError: () => set({ catalog: 'error' }),
 

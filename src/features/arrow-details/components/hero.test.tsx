@@ -9,6 +9,8 @@ import { runStep, signalStep } from '@/__mocks__/arrow-steps';
 import type { ArrowDetail, ArrowLifecycle, ArrowTarget } from '@/domain/arrow';
 import type { ResolvedReleaseAsset } from '@/domain/release';
 import { QUIVER_DESKTOP_NAMESPACE } from '@/domain/release';
+import { useSelectorSwitchStore } from '@/features/arrow-details/stores/selector-switch-store';
+import { useArrowStore } from '@/lib/core-store';
 import { apiFetch, ApiError } from '@/lib/transport/api';
 import type { Backend } from '@/lib/transport/backend';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
@@ -171,6 +173,8 @@ beforeEach(() => {
 	mockApiFetch.mockReset();
 	mockApiFetch.mockResolvedValue(undefined);
 	update.status = 202;
+	useSelectorSwitchStore.setState({ active: null, failure: null });
+	useArrowStore.getState().setCatalogRefresh(() => {});
 	platformBackend();
 });
 
@@ -791,13 +795,14 @@ describe('Hero, picking what an entry follows', () => {
 	});
 
 	describe('already in the library', () => {
-		it('shows what the entry follows and what that resolves to, read-only', () => {
+		it('shows what the entry follows and what is installed, read-only', () => {
 			renderHero({
 				detail: detail({
 					namespace: `${BARE}@stable`,
 					selector: 'stable',
 					selector_kind: 'channel',
 					resolved_ref: 'v1.21.4',
+					installed_at: '2026-09-01T00:00:00Z',
 					channels: [STABLE, BETA],
 				}),
 			});
@@ -806,7 +811,21 @@ describe('Hero, picking what an entry follows', () => {
 			const summary = document.querySelector('[data-slot="selector-summary"]');
 			expect(summary).toHaveTextContent('Channel');
 			expect(summary).toHaveTextContent('stable');
-			expect(summary).toHaveTextContent('Installs v1.21.4');
+			expect(summary).toHaveTextContent('Installed v1.21.4');
+		});
+
+		it('says what a not-yet-installed entry resolves to', () => {
+			renderHero({
+				detail: detail({
+					namespace: `${BARE}@stable`,
+					selector: 'stable',
+					selector_kind: 'channel',
+					resolved_ref: 'v1.21.4',
+					state: 'absent',
+					installed_at: undefined,
+				}),
+			});
+			expect(document.querySelector('[data-slot="selector-summary"]')).toHaveTextContent('Resolves to v1.21.4');
 		});
 
 		it('never sends a PATCH to switch in place', async () => {
@@ -847,31 +866,123 @@ describe('Hero, picking what an entry follows', () => {
 			await user.click(screen.getByRole('button', { name: 'Uninstall and reinstall' }));
 
 			await waitFor(() => expect(onIdentityChange).toHaveBeenCalledWith(`${BARE}@beta`));
-			expect(apiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(`${BARE}@stable`)}`, {
-				method: 'DELETE',
-			});
-			expect(apiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(`${BARE}@beta`)}`, {
-				method: 'POST',
-			});
+			await waitFor(() =>
+				expect(
+					mockApiFetch.mock.calls.map(([path, init]) => `${(init as RequestInit).method} ${path}`)
+				).toEqual([
+					`POST /v0/arrow/${encodeURIComponent(`${BARE}@beta`)}`,
+					`DELETE /v0/arrow/${encodeURIComponent(`${BARE}@stable`)}`,
+				])
+			);
 			await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 		});
 
-		it('reports a switch that failed part-way', async () => {
-			mockApiFetch.mockRejectedValueOnce(new ApiError('other arrows depend on this arrow', 422));
+		it('keeps the dialog open and changes nothing when the new identity cannot be registered', async () => {
+			mockApiFetch.mockRejectedValueOnce(new ApiError('fetch failed', 502));
 			const user = userEvent.setup();
-			renderWithNavigation(
-				detail({ namespace: `${BARE}@stable`, selector: 'stable', state: 'absent', channels: [STABLE, BETA] })
+			const onIdentityChange = renderWithNavigation(
+				detail({
+					namespace: `${BARE}@stable`,
+					selector: 'stable',
+					state: 'absent',
+					channels: [STABLE, NIGHTLY],
+				})
 			);
 
 			await user.click(screen.getByRole('button', { name: 'Switch…' }));
 			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
-			await user.click(await screen.findByRole('option', { name: 'beta' }));
+			await user.click(await screen.findByRole('option', { name: 'nightly (rolling)' }));
+			const field = screen.getByRole('textbox', { name: 'Version' });
+			await user.clear(field);
+			await user.type(field, 'feat/typo{Enter}');
 			await user.click(screen.getByRole('button', { name: 'Uninstall and reinstall' }));
 
-			expect(await screen.findByText('other arrows depend on this arrow')).toBeInTheDocument();
-			expect(screen.getByText("Couldn't switch")).toBeInTheDocument();
-			await user.keyboard('{Escape}');
+			expect(await screen.findByRole('alert')).toHaveTextContent('nothing was changed: fetch failed');
+			expect(screen.getByRole('dialog')).toHaveTextContent('Switching means reinstalling');
+			expect(mockApiFetch.mock.calls.map(([path, init]) => `${(init as RequestInit).method} ${path}`)).toEqual([
+				`POST /v0/arrow/${encodeURIComponent(`${BARE}@feat/typo`)}`,
+			]);
+			expect(onIdentityChange).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			['uninstall', 'still installed', true],
+			['remove', "couldn't be removed from your library", true],
+			['install', 'nothing is installed', false],
+		] as const)(
+			'says plainly what is left when the %s step fails, with the page already on the new identity',
+			async (step, left, offersOld) => {
+				useSelectorSwitchStore.setState({
+					active: null,
+					failure: { step, from: `${BARE}@stable`, to: `${BARE}@beta`, reason: 'boom' },
+				});
+				const user = userEvent.setup();
+				const onIdentityChange = renderWithNavigation(detail({ namespace: `${BARE}@beta`, selector: 'beta' }));
+
+				const dialog = await screen.findByRole('dialog');
+				expect(dialog).toHaveTextContent("Couldn't switch");
+				expect(dialog).toHaveTextContent(left);
+				expect(dialog).toHaveTextContent('boom');
+
+				if (offersOld) {
+					await user.click(screen.getByRole('button', { name: 'Open the old version' }));
+					expect(onIdentityChange).toHaveBeenCalledWith(`${BARE}@stable`);
+				} else {
+					expect(screen.queryByRole('button', { name: 'Open the old version' })).not.toBeInTheDocument();
+					await user.keyboard('{Escape}');
+				}
+				await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+				expect(useSelectorSwitchStore.getState().failure).toBeNull();
+			}
+		);
+
+		it('dismisses a late failure without going anywhere', async () => {
+			useSelectorSwitchStore.setState({
+				active: null,
+				failure: { step: 'remove', from: `${BARE}@stable`, to: `${BARE}@beta`, reason: 'boom' },
+			});
+			const user = userEvent.setup();
+			const onIdentityChange = renderWithNavigation(detail({ namespace: `${BARE}@beta`, selector: 'beta' }));
+
+			await user.click(await screen.findByRole('button', { name: 'Dismiss' }));
+
 			await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+			expect(onIdentityChange).not.toHaveBeenCalled();
+		});
+
+		it('opens the switch dialog of a constraint row with nothing picked and Confirm disabled', async () => {
+			const user = userEvent.setup();
+			renderHero({
+				detail: detail({
+					namespace: `${BARE}@v1.*`,
+					selector: 'v1.*',
+					selector_kind: 'constraint',
+					channels: [STABLE, BETA],
+				}),
+			});
+
+			await user.click(screen.getByRole('button', { name: 'Switch…' }));
+
+			expect(screen.getByRole('button', { name: 'Uninstall and reinstall' })).toBeDisabled();
+			expect(screen.getByRole('dialog')).toHaveTextContent(`Pick what ${BARE}@v1.* should follow instead.`);
+			await user.click(screen.getByRole('combobox', { name: 'Channel' }));
+			await user.click(await screen.findByRole('option', { name: 'beta' }));
+			expect(screen.getByRole('button', { name: 'Uninstall and reinstall' })).not.toBeDisabled();
+		});
+
+		it('shows a loading state, not a from == to note, while channels are still arriving', async () => {
+			const user = userEvent.setup();
+			renderHero({
+				channelsLoading: true,
+				detail: detail({ namespace: `${BARE}@stable`, selector: 'stable', channels: [STABLE] }),
+			});
+
+			await user.click(screen.getByRole('button', { name: 'Switch…' }));
+
+			const dialog = screen.getByRole('dialog');
+			expect(dialog).toHaveTextContent('Loading');
+			expect(dialog).not.toHaveTextContent(`${BARE}@stable will be uninstalled`);
+			expect(screen.getByRole('button', { name: 'Uninstall and reinstall' })).toBeDisabled();
 		});
 
 		it('cancels the switch without touching anything', async () => {
@@ -908,6 +1019,35 @@ describe('Hero, picking what an entry follows', () => {
 
 describe('Hero, updating', () => {
 	const AHEAD = { ref: 'v1.22.0', commit: 'abc1234' };
+
+	it.each([200, 202])(
+		're-reads the catalog after an update core answered %i, for the sidebar’s resolved ref',
+		async (status) => {
+			update.status = status;
+			const refresh = vi.fn();
+			useArrowStore.getState().setCatalogRefresh(refresh);
+			const user = userEvent.setup();
+			renderHero({ detail: detail({ state: 'outdated', available: AHEAD, outdated: true }) });
+
+			await user.click(screen.getByRole('button', { name: 'Update' }));
+
+			await waitFor(() => expect(refresh).toHaveBeenCalled());
+		}
+	);
+
+	it.each([
+		['Add to Library', { user_installed: false, state: 'absent' as const }],
+		['Uninstall', {}],
+	])('re-reads the catalog after %s', async (button, overrides) => {
+		const refresh = vi.fn();
+		useArrowStore.getState().setCatalogRefresh(refresh);
+		const user = userEvent.setup();
+		renderHero({ detail: detail(overrides) });
+
+		await user.click(screen.getByRole('button', { name: button }));
+
+		await waitFor(() => expect(refresh).toHaveBeenCalled());
+	});
 
 	it('shows "Update available" and offers Update from ready as soon as something is available', () => {
 		renderHero({ detail: detail({ state: 'ready', available: AHEAD, outdated: true }) });
@@ -1127,6 +1267,27 @@ describe('Hero, platform support', () => {
  * suite is the proof that the real button does.
  */
 describe('Hero, updating Quiver itself', () => {
+	/** What core reports for the row when the click re-reads it: `available` or nothing ahead. */
+	function coreReports(available: { ref: string; commit: string } | null) {
+		mockApiFetch.mockImplementation((_path: string, init?: RequestInit) =>
+			Promise.resolve(
+				init?.method === undefined
+					? ({
+							namespace: selfDetail().namespace,
+							resolved_ref: 'stable-1.0',
+							...(available ? { available } : {}),
+						} as never)
+					: undefined
+			)
+		);
+	}
+
+	function updateCalls() {
+		return mockApiFetch.mock.calls.filter(([path]) => String(path).endsWith('/update'));
+	}
+
+	beforeEach(() => coreReports({ ref: 'stable-1.1', commit: 'def' }));
+
 	it('resolves the release asset and sends both variables core requires', async () => {
 		const user = userEvent.setup();
 		const resolve = resolverAnswering(RESOLVED);
@@ -1157,7 +1318,7 @@ describe('Hero, updating Quiver itself', () => {
 
 		await user.click(screen.getByRole('button', { name: 'Update' }));
 
-		await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+		await waitFor(() => expect(updateCalls()).toHaveLength(1));
 		expect(resolve).toHaveBeenCalledWith('stable-1.1');
 		const body = bodyOf(lastCall()) as { variables: Record<string, string> };
 		expect(body.variables.QUIVER_RELEASE_ASSET_URL).toContain('stable-1.1');
@@ -1173,11 +1334,47 @@ describe('Hero, updating Quiver itself', () => {
 		renderHero({ detail: selfDetail({ state: 'outdated' }) });
 
 		await user.click(screen.getByRole('button', { name: 'Update' }));
-		await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+		await waitFor(() => expect(updateCalls()).toHaveLength(1));
 		await user.click(screen.getByRole('button', { name: 'Update' }));
-		await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(2));
+		await waitFor(() => expect(updateCalls()).toHaveLength(2));
 
 		expect(resolve).toHaveBeenCalledTimes(2);
+	});
+
+	// The page's `available` came from a one-time read. The version check can
+	// flip the runtime to outdated while the page is open, and only `state`
+	// arrives live -- so the click decides from a fresh read, never from the
+	// installed ref.
+	it('decides from a fresh read when the page’s own detail knows of nothing ahead', async () => {
+		const user = userEvent.setup();
+		const resolve = resolverAnswering(RESOLVED);
+		renderHero({ detail: selfDetail({ state: 'outdated', available: null, outdated: false }) });
+
+		await user.click(screen.getByRole('button', { name: 'Update' }));
+
+		await waitFor(() => expect(updateCalls()).toHaveLength(1));
+		expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(selfDetail().namespace)}`);
+		expect(resolve).toHaveBeenCalledWith('stable-1.1');
+		expect(resolve).not.toHaveBeenCalledWith('stable-1.0');
+	});
+
+	it('refuses to update, and refreshes the page, when the fresh read has nothing ahead', async () => {
+		coreReports(null);
+		const user = userEvent.setup();
+		const resolve = resolverAnswering(RESOLVED);
+		const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+		const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+		render(
+			<Hero detail={selfDetail({ state: 'outdated' })} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />,
+			{ wrapper: wrapper(qc) }
+		);
+
+		await user.click(screen.getByRole('button', { name: 'Update' }));
+
+		expect(await screen.findByText(/nothing newer to update to/)).toBeInTheDocument();
+		expect(updateCalls()).toHaveLength(0);
+		expect(resolve).not.toHaveBeenCalled();
+		expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['arrow'] });
 	});
 
 	it('resolves for install too, from the ref the row resolved to', async () => {
@@ -1225,7 +1422,7 @@ describe('Hero, updating Quiver itself', () => {
 			await user.click(screen.getByRole('button', { name: 'Update' }));
 
 			await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-			expect(apiFetch).not.toHaveBeenCalled();
+			expect(updateCalls()).toHaveLength(0);
 		});
 
 		it('says so in plain words, with the technical text underneath', async () => {
@@ -1269,7 +1466,7 @@ describe('Hero, updating Quiver itself', () => {
 			await user.click(screen.getByRole('button', { name: 'Update' }));
 
 			expect(await screen.findByText(/can't be verified/)).toBeInTheDocument();
-			expect(apiFetch).not.toHaveBeenCalled();
+			expect(updateCalls()).toHaveLength(0);
 		});
 
 		// A failed resolution must not leave the button spinning forever: the

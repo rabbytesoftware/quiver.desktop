@@ -26,7 +26,13 @@ export function SelectorSummary({ detail, onSwitch, pending }: SelectorSummaryPr
 		<span className="flex items-center gap-1.5" data-slot="selector-summary">
 			<span>{t(`arrow.selector.kind.${detail.selector_kind}`)}</span>
 			<span className="font-mono text-foreground">{detail.selector}</span>
-			{resolved && <span className="font-mono">({t('arrow.selector.resolved', { ref: resolved })})</span>}
+			{resolved && (
+				<span className="font-mono">
+					(
+					{t(detail.installed_at ? 'arrow.selector.installed' : 'arrow.selector.resolves', { ref: resolved })}
+					)
+				</span>
+			)}
 			{onSwitch && (
 				<Button
 					className="h-6"

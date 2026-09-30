@@ -1,7 +1,10 @@
 import type { ArrowDetail } from '@/domain/arrow';
 import type { ReleaseResolveError, ReleaseResolveErrorKind } from '@/domain/release';
 import { isReleaseResolveError, QUIVER_DESKTOP_NAMESPACE } from '@/domain/release';
+import type { ArrowDetailDTO } from '@/lib/core-store/dtos/v0/arrow';
 import type { MessageKey } from '@/lib/i18n';
+import { namespaceSegment } from '@/lib/namespace';
+import { apiFetch } from '@/lib/transport/api';
 import { backend } from '@/lib/transport/backend';
 
 /** The two variables `ARROW.md` declares without defaults. */
@@ -21,15 +24,35 @@ export function isSelfArrow(namespace: string): boolean {
 }
 
 /**
- * The release tag whose asset an action on this row installs: what an update
- * moves the row to (`available.ref`), else what the row already resolved to
- * (`resolved_ref`) -- the release an install puts on disk. Never the identity
- * selector: `stable` or `v1.*` names what the row follows, not a release.
+ * The release an install of this row puts on disk: the ref it resolved to.
+ * Never the identity selector -- `stable` or `v1.*` names what the row
+ * follows, not a release.
  */
-export function releaseTagFor(
-	detail: Pick<ArrowDetail, 'namespace' | 'available' | 'resolved_ref'>
-): string | undefined {
-	return detail.available?.ref || detail.resolved_ref || undefined;
+export function installTagFor(detail: Pick<ArrowDetail, 'resolved_ref'>): string | undefined {
+	return detail.resolved_ref || undefined;
+}
+
+/**
+ * The release variables for updating `namespace`, from the release the row
+ * moves to -- read fresh from core at click time, because the page's own
+ * `available` comes from a one-time read and the version check can move it
+ * while the page is open. Refuses (`nothing_ahead`) when core reports nothing
+ * newer: falling back to the installed ref would reinstall the old release
+ * while core advances the row to the new one.
+ */
+export async function updateReleaseVariables(namespace: string): Promise<Record<string, string>> {
+	const detail = await apiFetch<ArrowDetailDTO>(`/v0/arrow/${namespaceSegment(namespace)}`).catch((err: unknown) => {
+		throw asResolveError(err);
+	});
+	const target = detail?.available?.ref;
+	if (!target) {
+		const failure: ReleaseResolveError = {
+			kind: 'nothing_ahead',
+			detail: `${namespace} has nothing newer to update to`,
+		};
+		throw failure;
+	}
+	return releaseVariables(target);
 }
 
 /**
@@ -109,6 +132,7 @@ const MESSAGE_KEYS: Record<ReleaseResolveErrorKind, ReleaseMessageKey> = {
 	no_asset: 'arrow.release.noAsset',
 	unsupported_platform: 'arrow.release.unsupportedPlatform',
 	unverifiable: 'arrow.release.unverifiable',
+	nothing_ahead: 'arrow.release.nothingAhead',
 };
 
 /**

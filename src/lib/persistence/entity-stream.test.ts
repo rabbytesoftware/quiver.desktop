@@ -267,6 +267,34 @@ describe('entity-stream', () => {
 		);
 	});
 
+	it('asks for a re-read when a live frame upserts a row it has no version for', async () => {
+		const onUnversionedUpsert = vi.fn();
+		const done = vi.fn();
+		subscribeArrowStream({
+			connectionId: 'local',
+			seed: async () => [rec('known@stable')],
+			onChange: done,
+			onUnversionedUpsert,
+		});
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'known@stable', name: 'known' });
+		subscribers[0]({ event: 'upserted', namespace: 'fresh@beta', name: 'fresh' });
+		subscribers[0]({ event: 'upserted', namespace: 'versioned@1', name: 'v', version: '1' });
+		await vi.waitFor(() => expect(onUnversionedUpsert).toHaveBeenCalledWith('fresh@beta'));
+		expect(onUnversionedUpsert).toHaveBeenCalledTimes(1);
+	});
+
+	it('re-reads the catalog on request, picking up versions no frame carries', async () => {
+		const seed = vi
+			.fn()
+			.mockResolvedValueOnce([rec('a@stable')])
+			.mockResolvedValue([{ ...rec('a@stable'), version: '2' }]);
+		const stream = subscribeArrowStream({ connectionId: 'local', seed });
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(1));
+		stream.reseed();
+		await vi.waitFor(async () => expect((await getArrowsFor('local'))[0]?.version).toBe('2'));
+	});
+
 	it('commits an upsert then a delete in arrival order', async () => {
 		const cacheMod = await import('./entity-cache');
 		const realUpsertArrow = cacheMod.upsertArrow;

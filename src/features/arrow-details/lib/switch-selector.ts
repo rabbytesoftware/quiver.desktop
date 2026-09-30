@@ -1,11 +1,15 @@
 import type { ArrowState } from '@/domain/arrow';
 
-/** Each step resolves once it has fully happened -- `uninstall` only once the row is back to `absent`. */
+export type SwitchStep = 'register' | 'uninstall' | 'remove' | 'install';
+
+/** Each step resolves once it has fully happened -- `uninstall` only once the row is no longer installed. */
 export interface SwitchSteps {
+	register(namespace: string): Promise<void>;
 	uninstall(namespace: string): Promise<void>;
 	remove(namespace: string): Promise<void>;
-	register(namespace: string): Promise<void>;
 	install(namespace: string): Promise<void>;
+	/** Called once the new identity exists, before anything of the old row is touched. */
+	registered(namespace: string): void;
 }
 
 export interface SwitchPlan {
@@ -15,17 +19,43 @@ export interface SwitchPlan {
 	installed: boolean;
 }
 
+/** Which step of a switch failed, and why. Every step before it has happened; none after it has. */
+export class SwitchError extends Error {
+	readonly step: SwitchStep;
+	readonly reason: string;
+
+	constructor(step: SwitchStep, cause: unknown) {
+		const reason = cause instanceof Error ? cause.message : String(cause);
+		super(`${step}: ${reason}`);
+		this.name = 'SwitchError';
+		this.step = step;
+		this.reason = reason;
+	}
+}
+
+async function run(step: SwitchStep, action: () => Promise<void>): Promise<void> {
+	try {
+		await action();
+	} catch (err) {
+		throw new SwitchError(step, err);
+	}
+}
+
 /**
  * Moves what a library entry follows. A catalog identity's selector never
- * changes, so there is no in-place switch: the old row is uninstalled and
- * forgotten, and the new identity registered (and installed, when the old one
- * was). Strictly sequential, stopping at the first failure.
+ * changes, so there is no in-place switch. The new identity is registered
+ * FIRST: rows coexist, so registering changes nothing about the old one, and a
+ * selector core cannot resolve fails there with nothing lost. Only then is the
+ * old row uninstalled (when it was installed) and forgotten, and the new one
+ * installed in its place. Strictly sequential; a failure throws a
+ * `SwitchError` naming the step it stopped at.
  */
 export async function switchSelector(plan: SwitchPlan, steps: SwitchSteps): Promise<void> {
-	if (plan.installed) await steps.uninstall(plan.from);
-	await steps.remove(plan.from);
-	await steps.register(plan.to);
-	if (plan.installed) await steps.install(plan.to);
+	await run('register', () => steps.register(plan.to));
+	steps.registered(plan.to);
+	if (plan.installed) await run('uninstall', () => steps.uninstall(plan.from));
+	await run('remove', () => steps.remove(plan.from));
+	if (plan.installed) await run('install', () => steps.install(plan.to));
 }
 
 const SWITCHABLE: readonly ArrowState[] = ['absent', 'ready', 'outdated'];

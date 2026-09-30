@@ -44,10 +44,13 @@ describe('useChannelSelection', () => {
 		expect(result.current.selector).toBe('v1');
 	});
 
-	it('falls back to the first published channel for a selector no channel names', () => {
-		const { result } = renderHook(() => useChannelSelection('v9.*', [BETA, STABLE]));
-		expect(result.current.selectedChannel).toBe('beta');
-		expect(result.current.selector).toBe('beta');
+	it.each([
+		['a constraint', 'v9.*'],
+		['a commit', '3f2a9c1'],
+	])('starts with nothing picked for %s no channel lists, rather than a different target', (_kind, selector) => {
+		const { result } = renderHook(() => useChannelSelection(selector, [BETA, STABLE]));
+		expect(result.current.selectedChannel).toBeUndefined();
+		expect(result.current.selector).toBeUndefined();
 	});
 
 	it('re-seeds once when the channel list arrives after the first render', () => {

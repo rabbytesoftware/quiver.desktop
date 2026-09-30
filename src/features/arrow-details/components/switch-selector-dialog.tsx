@@ -22,6 +22,8 @@ interface SwitchSelectorDialogProps {
 	detail: ArrowDetail;
 	channelsLoading: boolean;
 	pending: boolean;
+	/** Why registering the picked identity failed -- nothing was changed, so the dialog stays open on it. */
+	error: string | null;
 	onOpenChange: (open: boolean) => void;
 	onConfirm: (selector: string) => void;
 }
@@ -35,6 +37,7 @@ export function SwitchSelectorDialog({
 	detail,
 	channelsLoading,
 	pending,
+	error,
 	onOpenChange,
 	onConfirm,
 }: SwitchSelectorDialogProps): JSX.Element {
@@ -49,10 +52,14 @@ export function SwitchSelectorDialog({
 				<DialogHeader>
 					<DialogTitle>{t('arrow.selector.switchTitle')}</DialogTitle>
 					<DialogDescription>
-						{t('arrow.selector.switchNote', {
-							from: detail.namespace,
-							to: withSelector(detail.namespace, target ?? detail.selector),
-						})}
+						{channelsLoading
+							? t('arrow.loading')
+							: unchanged
+								? t('arrow.selector.switchPick', { from: detail.namespace })
+								: t('arrow.selector.switchNote', {
+										from: detail.namespace,
+										to: withSelector(detail.namespace, target),
+									})}
 					</DialogDescription>
 				</DialogHeader>
 				<DialogPanel>
@@ -64,13 +71,18 @@ export function SwitchSelectorDialog({
 							selection={selection}
 						/>
 					</div>
+					{error && (
+						<p className="mt-3 text-xs text-destructive" role="alert">
+							{t('arrow.selector.registerFailed', { reason: error })}
+						</p>
+					)}
 				</DialogPanel>
 				<DialogFooter>
 					<Button onClick={() => onOpenChange(false)} variant="outline">
 						{t('arrow.selector.switchCancel')}
 					</Button>
 					<Button
-						disabled={unchanged || pending}
+						disabled={unchanged || pending || channelsLoading}
 						onClick={() => target && onConfirm(target)}
 						variant="destructive"
 					>

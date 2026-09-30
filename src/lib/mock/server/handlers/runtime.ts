@@ -127,10 +127,11 @@ export const runtimeRoutes: Route[] = [
 				}
 
 				case 'update': {
+					// A state violation, which core answers 422.
 					if (arrow.state !== 'ready' && arrow.state !== 'outdated') {
 						return fail(
 							`arrow ${req.params.ns} is ${arrow.state}; update only runs from ready/outdated`,
-							409
+							422
 						);
 					}
 					// Nothing newer: core begins nothing and answers 200, and no

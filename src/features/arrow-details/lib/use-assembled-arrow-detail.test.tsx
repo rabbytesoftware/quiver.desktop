@@ -135,6 +135,90 @@ describe('useAssembledArrowDetail', () => {
 		await waitFor(() => expect(result.current.detail?.state).toBe('installing'));
 	});
 
+	it('re-reads the catalog when a run ends successfully, so the sidebar picks up the new resolved ref', async () => {
+		const refresh = vi.fn();
+		useArrowStore.getState().setCatalogRefresh(refresh);
+		const { result } = renderHook(() => useAssembledArrowDetail(NS), { wrapper });
+		await waitFor(() => expect(result.current.detail).toBeDefined());
+
+		useArrowStore.getState().applyRuntimeUpdate({
+			namespace: NS,
+			state: 'updating',
+			active_run: { method: '_update', variables: {}, steps: [] },
+			last_return: null,
+		});
+		await waitFor(() => expect(result.current.detail?.state).toBe('updating'));
+		expect(refresh).not.toHaveBeenCalled();
+
+		useArrowStore.getState().applyRuntimeUpdate({
+			namespace: NS,
+			state: 'ready',
+			active_run: null,
+			last_return: { method: '_update', outcome: 'success' },
+		});
+		await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+	});
+
+	it('does not re-read the catalog when a run ends in failure', async () => {
+		const refresh = vi.fn();
+		useArrowStore.getState().setCatalogRefresh(refresh);
+		const { result } = renderHook(() => useAssembledArrowDetail(NS), { wrapper });
+		await waitFor(() => expect(result.current.detail).toBeDefined());
+
+		useArrowStore.getState().applyRuntimeUpdate({
+			namespace: NS,
+			state: 'updating',
+			active_run: { method: '_update', variables: {}, steps: [] },
+			last_return: null,
+		});
+		useArrowStore.getState().applyRuntimeUpdate({
+			namespace: NS,
+			state: 'outdated',
+			active_run: null,
+			last_return: { method: '_update', outcome: 'failed' },
+		});
+		await waitFor(() => expect(result.current.detail?.state).toBe('outdated'));
+		expect(refresh).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		['ready', 'outdated'],
+		['outdated', 'ready'],
+	] as const)(
+		'refetches the detail when the runtime moves %s -> %s, so `available` is never stale',
+		async (from, to) => {
+			const { result } = renderHook(() => useAssembledArrowDetail(NS), { wrapper });
+			await waitFor(() => expect(result.current.detail).toBeDefined());
+			useArrowStore
+				.getState()
+				.applyRuntimeUpdate({ namespace: NS, state: from, active_run: null, last_return: null });
+			await waitFor(() => expect(result.current.detail?.state).toBe(from));
+			mockApiFetch.mockClear();
+
+			useArrowStore
+				.getState()
+				.applyRuntimeUpdate({ namespace: NS, state: to, active_run: null, last_return: null });
+
+			await waitFor(() => expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(NS)}`));
+		}
+	);
+
+	it('does not refetch for a transition that neither enters nor leaves outdated', async () => {
+		const { result } = renderHook(() => useAssembledArrowDetail(NS), { wrapper });
+		await waitFor(() => expect(result.current.detail).toBeDefined());
+		useArrowStore
+			.getState()
+			.applyRuntimeUpdate({ namespace: NS, state: 'ready', active_run: null, last_return: null });
+		await waitFor(() => expect(result.current.detail?.state).toBe('ready'));
+		mockApiFetch.mockClear();
+
+		useArrowStore
+			.getState()
+			.applyRuntimeUpdate({ namespace: NS, state: 'absent', active_run: null, last_return: null });
+		await waitFor(() => expect(result.current.detail?.state).toBe('absent'));
+		expect(mockApiFetch).not.toHaveBeenCalled();
+	});
+
 	it('does not refetch on mount when there is no active run to begin with', async () => {
 		const { result } = renderHook(() => useAssembledArrowDetail(NS), { wrapper });
 		await waitFor(() => expect(result.current.detail).toBeDefined());

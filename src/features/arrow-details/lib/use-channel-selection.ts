@@ -39,7 +39,9 @@ function seed(selector: string, channels: ArrowChannel[]): { channel?: ArrowChan
 	if (named) return { channel: named, version: defaultVersionOf(named) };
 	const listing = channels.find((c) => c.members?.includes(selector));
 	if (listing) return { channel: listing, version: selector };
-	return { channel: channels[0], version: defaultVersionOf(channels[0]) };
+	// A constraint or commit no channel lists: nothing is picked, so nothing
+	// but the identity itself is on offer until the person chooses.
+	return {};
 }
 
 /**

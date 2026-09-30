@@ -375,7 +375,7 @@ describe('runtime verbs that do run', () => {
 		// MINECRAFT is 'running' -- past the broad STARTABLE gate, so this
 		// exercises update's own narrower check specifically.
 		const { status, body } = await call('POST', `/v0/runtime/${enc(MINECRAFT)}/update`, {});
-		expect(status).toBe(409);
+		expect(status).toBe(422);
 		expect(body!.error).toMatch(/ready\/outdated/);
 	});
 

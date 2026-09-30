@@ -114,7 +114,7 @@ beforeEach(() => {
 		handlers.set(event as string, handler as (e: { payload: unknown }) => Promise<void> | void);
 		return Promise.resolve(() => {});
 	});
-	mockSubscribeArrowStream.mockReturnValue(vi.fn());
+	mockSubscribeArrowStream.mockReturnValue(Object.assign(vi.fn(), { reseed: vi.fn() }));
 	mockGetArrowsFor.mockResolvedValue([]);
 	mockApiFetch.mockResolvedValue([]);
 	mockWipe.mockResolvedValue(undefined);
@@ -375,6 +375,23 @@ describe('setupListeners', () => {
 		expect(wsManager.subscribe).toHaveBeenCalledWith('/v0/runtime', expect.any(Function));
 	});
 
+	it('lets anything re-read the catalog through the store while the stream is up, and not after', async () => {
+		const stream = Object.assign(vi.fn(), { reseed: vi.fn() });
+		mockSubscribeArrowStream.mockReturnValue(stream);
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+
+		useArrowStore.getState().refreshCatalog();
+		expect(stream.reseed).toHaveBeenCalledTimes(1);
+
+		mockSubscribeArrowStream.mock.calls[0][0].onUnversionedUpsert?.('x@stable');
+		expect(stream.reseed).toHaveBeenCalledTimes(2);
+
+		await emit('core://status', { status: 'starting' });
+		useArrowStore.getState().refreshCatalog();
+		expect(stream.reseed).toHaveBeenCalledTimes(2);
+	});
+
 	it("the arrow stream's seed GETs the user-installed catalog and stamps the active connection", async () => {
 		mockApiFetch.mockResolvedValue([
 			{
@@ -532,7 +549,7 @@ describe('setupListeners', () => {
 	});
 
 	it('clears the projection and stops the arrow stream when core restarts', async () => {
-		const dispose = vi.fn();
+		const dispose = Object.assign(vi.fn(), { reseed: vi.fn() });
 		mockSubscribeArrowStream.mockReturnValue(dispose);
 		await setupListeners();
 		await emit('core://status', { status: 'ready' });

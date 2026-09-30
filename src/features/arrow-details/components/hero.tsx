@@ -86,7 +86,11 @@ export function Hero({
 		dismissActionError,
 		dismissPlatformWarning,
 	} = useHeroActions(detail, values, registerAs, onIdentityChange);
-	const selectorSwitch = useSelectorSwitch(detail, values, onIdentityChange);
+	const selectorSwitch = useSelectorSwitch(detail, values, (namespace) => {
+		setSwitchOpen(false);
+		onIdentityChange?.(namespace);
+	});
+	const switchFailure = selectorSwitch.failure;
 	const hasChannels = channelsLoading || detail.channels.length > 0;
 
 	const status = computeStatus(detail);
@@ -267,22 +271,38 @@ export function Hero({
 				<SwitchSelectorDialog
 					channelsLoading={channelsLoading}
 					detail={detail}
-					onConfirm={(selector) => {
-						void selectorSwitch.switchTo(selector).finally(() => setSwitchOpen(false));
+					error={selectorSwitch.registerError}
+					onConfirm={(selector) => void selectorSwitch.switchTo(selector)}
+					onOpenChange={(open) => {
+						setSwitchOpen(open);
+						if (!open) selectorSwitch.dismissRegisterError();
 					}}
-					onOpenChange={setSwitchOpen}
 					pending={selectorSwitch.pending}
 				/>
 			)}
 
-			{selectorSwitch.error && (
-				<MessageModal
-					message={selectorSwitch.error}
-					onOpenChange={(open) => !open && selectorSwitch.dismissError()}
-					open
-					title={t('arrow.selector.switchFailed')}
-				/>
-			)}
+			{switchFailure &&
+				(switchFailure.step === 'install' ? (
+					<MessageModal
+						message={`${t('arrow.selector.failed.install', switchFailure)}\n\n${switchFailure.reason}`}
+						onOpenChange={(open) => !open && selectorSwitch.dismissFailure()}
+						open
+						title={t('arrow.selector.switchFailed')}
+					/>
+				) : (
+					<MessageModal
+						cancelLabel={t('arrow.selector.dismiss')}
+						confirmLabel={t('arrow.selector.openOld')}
+						message={`${t(`arrow.selector.failed.${switchFailure.step}`, switchFailure)}\n\n${switchFailure.reason}`}
+						onConfirm={() => {
+							selectorSwitch.dismissFailure();
+							onIdentityChange?.(switchFailure.from);
+						}}
+						onOpenChange={(open) => !open && selectorSwitch.dismissFailure()}
+						open
+						title={t('arrow.selector.switchFailed')}
+					/>
+				))}
 
 			{platformWarning !== null && (
 				<MessageModal

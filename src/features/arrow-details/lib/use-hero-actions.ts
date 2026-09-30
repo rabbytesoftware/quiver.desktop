@@ -8,12 +8,14 @@ import type { ArrowActionKind } from '@/features/arrow-details/lib/actions';
 import {
 	isSelfArrow,
 	releaseErrorMessageKey,
-	releaseTagFor,
+	installTagFor,
 	releaseVariables,
+	updateReleaseVariables,
 	type ReleaseMessageKey,
 } from '@/features/arrow-details/lib/release-variables';
 import { resolveRealPlatform } from '@/features/arrow-details/lib/use-real-platform';
 import {
+	useArrowStore,
 	useExecuteArrow,
 	useInstall,
 	useRegisterArrow,
@@ -101,6 +103,7 @@ export function useHeroActions(
 	const stop = useStop();
 	const update = useUpdate();
 	const execute = useExecuteArrow();
+	const refreshCatalog = useArrowStore((state) => state.refreshCatalog);
 
 	useEffect(() => {
 		if (!upToDate) return;
@@ -116,8 +119,9 @@ export function useHeroActions(
 	 * `ARROW.md` cannot name (release filenames carry a static product
 	 * version, and `${REF}` at update time is the version being left, not the
 	 * one being installed), so the caller resolves it at the moment the button
-	 * is clicked -- from the release the row moves to (`releaseTagFor`), never
-	 * from the selector it follows.
+	 * is clicked: an install from the release the row resolved to, an update
+	 * from the release a fresh read says it moves to -- never from the
+	 * selector it follows, and never an update from the installed ref.
 	 *
 	 * Resolved on EVERY click, never remembered. Nothing here may depend on a
 	 * previous execution's values still being around inside core.
@@ -125,7 +129,8 @@ export function useHeroActions(
 	async function extraVariables(kind: ArrowActionKind): Promise<Record<string, string>> {
 		const needsRelease = kind === 'install' || kind === 'reinstall' || kind === 'update';
 		if (!needsRelease || !isSelfArrow(detail.namespace)) return {};
-		return releaseVariables(releaseTagFor(detail));
+		if (kind === 'update') return updateReleaseVariables(detail.namespace);
+		return releaseVariables(installTagFor(detail));
 	}
 
 	async function invoke(kind: ArrowActionKind, skipPlatformWarning = false): Promise<void> {
@@ -159,6 +164,9 @@ export function useHeroActions(
 			const { kind: errKind, detail: errDetail } = err as { kind: string; detail: string };
 			setReleaseError({ messageKey: releaseErrorMessageKey(errKind), detail: errDetail });
 			setPendingKind(null);
+			// The page's `available` was stale; show what core holds now.
+			if (errKind === 'nothing_ahead')
+				await queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
 			return;
 		}
 
@@ -173,6 +181,7 @@ export function useHeroActions(
 					// be running under a bare namespace (Search's own links carry no
 					// ref), which differs from the identity core filed it under.
 					await queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
+					refreshCatalog();
 					if (registerAs !== detail.namespace) onIdentityChange?.(registerAs);
 					break;
 				case 'removeFromLibrary':
@@ -188,6 +197,7 @@ export function useHeroActions(
 					break;
 				case 'uninstall':
 					await uninstall.mutateAsync({ namespace: detail.namespace });
+					refreshCatalog();
 					break;
 				case 'update': {
 					// `release` is empty for every arrow but Quiver's own, which
@@ -203,6 +213,7 @@ export function useHeroActions(
 						setUpToDate(true);
 						await queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
 					}
+					refreshCatalog();
 					break;
 				}
 				case 'execute':

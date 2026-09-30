@@ -90,7 +90,12 @@ export type ReleaseResolveErrorKind =
 	 * checksum for it. Raised on this side, because whether that blocks an
 	 * install is a policy decision rather than a resolution failure.
 	 */
-	| 'unverifiable';
+	| 'unverifiable'
+	/**
+	 * Not produced by Rust either: core reports nothing newer for the row an
+	 * update was asked of, so there is no release to fetch.
+	 */
+	| 'nothing_ahead';
 
 /** Whether an unknown value from the IPC boundary is one of these errors. */
 export function isReleaseResolveError(value: unknown): value is ReleaseResolveError {

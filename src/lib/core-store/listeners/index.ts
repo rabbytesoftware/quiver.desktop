@@ -27,6 +27,7 @@ export async function setupListeners(): Promise<void> {
 	function stopStreams(): void {
 		disposeArrowStream?.();
 		disposeArrowStream = null;
+		useArrowStore.getState().setCatalogRefresh(() => {});
 		disposeRuntimeStream?.();
 		disposeRuntimeStream = null;
 	}
@@ -38,7 +39,7 @@ export async function setupListeners(): Promise<void> {
 
 		let pendingInitialStates: RuntimeUpdate[] = [];
 
-		disposeArrowStream = subscribeArrowStream({
+		const stream = subscribeArrowStream({
 			connectionId,
 			seed: () =>
 				apiFetch<ArrowListResponseItemDTO[]>('/v0/arrow?user_installed=true').then((items) => {
@@ -63,7 +64,10 @@ export async function setupListeners(): Promise<void> {
 				if (generation !== streamGeneration) return;
 				useArrowStore.getState().setCatalogError();
 			},
+			onUnversionedUpsert: () => stream.reseed(),
 		});
+		disposeArrowStream = stream;
+		useArrowStore.getState().setCatalogRefresh(() => stream.reseed());
 
 		disposeRuntimeStream = wsManager.subscribe(RUNTIME_ENDPOINT, (data) => {
 			if (isReconnectSentinel(data)) return;

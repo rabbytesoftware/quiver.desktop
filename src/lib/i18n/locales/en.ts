@@ -248,6 +248,7 @@ export const en = {
 	'arrow.release.unverifiable':
 		"This Quiver release doesn't publish a checksum, so the download can't be verified. Quiver won't replace itself with a file it can't check.",
 	'arrow.release.unavailable': "Quiver couldn't work out which file to download. Try again later.",
+	'arrow.release.nothingAhead': 'There is nothing newer to update to. The page now shows what Quiver knows.',
 
 	// The persistent "not compatible" indicator (always visible, no click
 	// needed) and the confirm-to-proceed warning shown at Add-to-Library time,
@@ -328,14 +329,25 @@ export const en = {
 	'arrow.selector.kind.constraint': 'Range',
 	'arrow.selector.kind.pin': 'Pinned',
 	'arrow.selector.kind.commit': 'Commit',
-	'arrow.selector.resolved': 'Installs {ref}',
+	'arrow.selector.installed': 'Installed {ref}',
+	'arrow.selector.resolves': 'Resolves to {ref}',
 	'arrow.selector.switch': 'Switch…',
 	'arrow.selector.switchTitle': 'Switching means reinstalling',
 	'arrow.selector.switchNote':
 		'{from} will be uninstalled and removed from your library, and {to} added in its place. Anything that was installed is installed again from scratch.',
+	'arrow.selector.switchPick': 'Pick what {from} should follow instead.',
 	'arrow.selector.switchConfirm': 'Uninstall and reinstall',
 	'arrow.selector.switchCancel': 'Cancel',
 	'arrow.selector.switchFailed': "Couldn't switch",
+	'arrow.selector.registerFailed': "Couldn't add that version, so nothing was changed: {reason}",
+	'arrow.selector.failed.uninstall':
+		"{to} was added to your library, but {from} couldn't be uninstalled. Both are in your library, and {from} is still installed. Uninstall and remove it from its own page.",
+	'arrow.selector.failed.remove':
+		"{to} was added to your library and {from} was uninstalled, but {from} couldn't be removed from your library. Remove it from its own page.",
+	'arrow.selector.failed.install':
+		'{to} replaced {from} in your library, but installing it failed, so nothing is installed. Install it from this page.',
+	'arrow.selector.openOld': 'Open the old version',
+	'arrow.selector.dismiss': 'Dismiss',
 
 	'home.recents': 'Recents',
 	'home.library': 'Library',

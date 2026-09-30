@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import type { ArrowCatalogRecord } from '@/lib/persistence/schemas';
 
@@ -18,6 +18,14 @@ const catalogRecord = (namespace: string): ArrowCatalogRecord => ({
 });
 
 describe('setCatalog', () => {
+	it('refreshes the catalog through whatever refresh is installed, and does nothing before one is', () => {
+		expect(() => useArrowStore.getState().refreshCatalog()).not.toThrow();
+		const refresh = vi.fn();
+		useArrowStore.getState().setCatalogRefresh(refresh);
+		useArrowStore.getState().refreshCatalog();
+		expect(refresh).toHaveBeenCalledTimes(1);
+	});
+
 	it('projects catalog records with neutral runtime state', () => {
 		useArrowStore.getState().setCatalog([catalogRecord('a@1')]);
 		const entry = useArrowStore.getState().arrows.get('a@1');

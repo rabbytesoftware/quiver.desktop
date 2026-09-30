@@ -77,9 +77,29 @@ export function useAssembledArrowDetail(namespace: string): AssembledArrowDetail
 		const previous = previousRunState.current;
 		if (previous.namespace === namespace && previous.active && !isActive) {
 			void queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
+			// A successful run (an update above all) can move the row's resolved
+			// ref, which only the catalog read carries -- no live frame does.
+			if (liveEntry?.last_return?.outcome === 'success') useArrowStore.getState().refreshCatalog();
 		}
 		previousRunState.current = { namespace, active: isActive };
-	}, [namespace, liveEntry?.active_run, queryClient]);
+	}, [namespace, liveEntry?.active_run, liveEntry?.last_return, queryClient]);
+
+	// The runtime's `outdated` state is reconciled from the row's `available`,
+	// which only the detail read carries: entering or leaving it means the
+	// detail on screen describes a different `available` than core now holds.
+	const previousOutdated = useRef<{ namespace: string; outdated: boolean | undefined }>({
+		namespace,
+		outdated: undefined,
+	});
+	useEffect(() => {
+		const outdated = liveEntry ? liveEntry.state === 'outdated' : undefined;
+		const previous = previousOutdated.current;
+		const changed = previous.outdated !== undefined && outdated !== undefined && previous.outdated !== outdated;
+		if (previous.namespace === namespace && changed) {
+			void queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
+		}
+		previousOutdated.current = { namespace, outdated };
+	}, [namespace, liveEntry, queryClient]);
 
 	const detail = useMemo(() => {
 		if (!data) return data;
