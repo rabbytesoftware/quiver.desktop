@@ -8,11 +8,17 @@ import { QuiverWebSocket } from './quiver-socket';
 
 export const SOCKET_OPEN = 1;
 
+/** What the daemon said when it closed a stream; absent when the transport could not tell. */
+export interface SocketCloseInfo {
+	code: number;
+	reason: string;
+}
+
 export interface SocketLike {
 	readyState: number;
 	onopen: (() => void) | null;
 	onmessage: ((event: { data: string }) => void) | null;
-	onclose: (() => void) | null;
+	onclose: ((info?: SocketCloseInfo) => void) | null;
 	onerror: ((event: unknown) => void) | null;
 	send(data: string): void;
 	close(): void;

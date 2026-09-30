@@ -174,6 +174,8 @@ export interface Clock {
 
 export interface Emitter {
 	emit(endpoint: string, frame: unknown): void;
+	/** Ends a stream the way the daemon does, with a close code and reason. */
+	close?(endpoint: string, code: number, reason: string): void;
 }
 
 // The daemon config document, keyed by section then setting name. Same shape

@@ -1156,4 +1156,26 @@ describe('Hero, updating Quiver itself', () => {
 			);
 		});
 	});
+
+	describe('inference notes', () => {
+		it('shows no notes for a hand-written arrow', () => {
+			renderHero({ detail: detail({ origin: 'declared' }) });
+			expect(screen.queryByText('Things to check')).not.toBeInTheDocument();
+			expect(screen.queryByText(/Confidence/)).not.toBeInTheDocument();
+		});
+
+		it('shows nothing extra when the core sends no origin at all', () => {
+			renderHero();
+			expect(screen.queryByText(/Confidence/)).not.toBeInTheDocument();
+		});
+
+		it('shows the confidence and the warnings for an inferred arrow', () => {
+			renderHero({
+				detail: detail({ origin: 'inferred', confidence: 'medium', warnings: ['unpinned_rolling_tag'] }),
+			});
+			expect(screen.getByText('Confidence: medium')).toBeInTheDocument();
+			expect(screen.getByText('Things to check')).toBeInTheDocument();
+			expect(screen.getByText(/rolling tag/)).toBeInTheDocument();
+		});
+	});
 });

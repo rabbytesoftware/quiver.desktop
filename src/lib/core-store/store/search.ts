@@ -64,6 +64,10 @@ const EMPTY = {
 	passFailed: false,
 };
 
+function phaseAfterLocal(phase: SearchPhase): SearchPhase {
+	return phase === 'discovering' || phase === 'settling' || phase === 'settled' ? phase : 'local';
+}
+
 export const useSearchStore = create<SearchStore>((set, get) => ({
 	query: '',
 	submitQuery: null,
@@ -72,9 +76,11 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
 
 	setQuery: (query) => set({ query, ...EMPTY }),
 
-	setLocal: (local) => set({ local, phase: 'local', localError: false }),
+	// Lane A resolves the platform before it asks, so a slow answer can land
+	// after the pass has begun -- it must fill the band, not rewind the phase.
+	setLocal: (local) => set({ local, phase: phaseAfterLocal(get().phase), localError: false }),
 
-	setLocalError: () => set({ localError: true, phase: 'local' }),
+	setLocalError: () => set({ localError: true, phase: phaseAfterLocal(get().phase) }),
 
 	beginPass: (job) => set({ job, phase: 'discovering', passFailed: false }),
 
@@ -90,9 +96,14 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
 
 	endPass: (summary) => set({ summary, phase: 'settling' }),
 
-	// A replacement, not a patch: merging here would re-introduce the ordering
-	// ambiguity the two bands exist to avoid.
-	settle: (local) => set({ local, streamed: [], phase: 'settled' }),
+	// Local is a replacement, but a streamed entry the re-query misses survives
+	// in `streamed` (arrival order): some probed results are deliberately never
+	// indexed, so the re-query alone would erase them.
+	settle: (local) => {
+		const { streamed } = get();
+		const stillStreamed = streamed.filter((e) => !local.some((l) => l.namespace === e.namespace));
+		set({ local, streamed: stillStreamed, phase: 'settled' });
+	},
 
 	// Holds the phase and keeps both bands: clearing them would delete
 	// results the user can see, to recover from a failed re-query.

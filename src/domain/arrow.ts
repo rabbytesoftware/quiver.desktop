@@ -17,7 +17,7 @@ export type ArrowState =
  * live/historical runs, and existing mock fixtures already emit values outside
  * this set (`'exec'`), so callers must not assume membership.
  */
-export type StepType = 'run' | 'fetch' | 'signal' | 'dependencies';
+export type StepType = 'run' | 'fetch' | 'extract' | 'portable' | 'signal' | 'dependencies' | 'expose' | 'unexpose';
 
 export type StepStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -27,6 +27,8 @@ export interface StepProgress {
 	status: StepStatus;
 	type: string;
 	error?: string;
+	/** Why a completed step did nothing (e.g. an `auto` expose that found nothing). Not a failure. */
+	note?: string;
 }
 
 export interface ActiveRun {
@@ -215,7 +217,8 @@ export type ArrowStepDefinition =
 			signal: Overridable<SignalKind>;
 			timeout: Overridable<string>;
 	  })
-	| (ArrowStepBase & { type: 'dependencies' });
+	| (ArrowStepBase & { type: 'dependencies' })
+	| (ArrowStepBase & { type: 'extract' | 'portable' | 'expose' | 'unexpose' });
 
 /** A manifest-declared custom method (e.g. "backup", "rcon") -- distinct from the reserved lifecycle actions in `ArrowTarget.lifecycle`. */
 export interface ArrowMethod {
@@ -272,6 +275,8 @@ export interface ArrowDependency {
  * check it, not whether an entry happens to exist somewhere else.
  */
 export interface ArrowDetail extends ArrowOriginFields {
+	/** Machine codes from an inferred manifest's generator, e.g. `assumed_arch`; empty for a declared arrow. */
+	warnings?: string[];
 	namespace: string;
 	name: string;
 	description: string;

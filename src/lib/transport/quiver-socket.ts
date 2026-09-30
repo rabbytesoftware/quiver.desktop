@@ -1,6 +1,17 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 
+import type { SocketCloseInfo } from './backend';
+
 export const WS_CLOSE_SENTINEL = '\u0000quiver-ws-close';
+const CLOSE_INFO_SEPARATOR = '\u0000';
+
+/** The bridge appends `\0code\0reason` to the sentinel when the daemon's close frame carried them. */
+function parseCloseInfo(text: string): SocketCloseInfo | undefined {
+	const [, code, ...reason] = text.slice(WS_CLOSE_SENTINEL.length).split(CLOSE_INFO_SEPARATOR);
+	const parsed = Number(code);
+	if (!code || !Number.isInteger(parsed)) return undefined;
+	return { code: parsed, reason: reason.join(CLOSE_INFO_SEPARATOR) };
+}
 
 export class QuiverWebSocket {
 	static readonly CONNECTING = 0;
@@ -9,7 +20,7 @@ export class QuiverWebSocket {
 
 	onopen: (() => void) | null = null;
 	onmessage: ((event: { data: string }) => void) | null = null;
-	onclose: (() => void) | null = null;
+	onclose: ((info?: SocketCloseInfo) => void) | null = null;
 	onerror: ((event: unknown) => void) | null = null;
 
 	readyState: number = QuiverWebSocket.CONNECTING;
@@ -22,10 +33,10 @@ export class QuiverWebSocket {
 
 		const channel = new Channel<string>();
 		channel.onmessage = (text) => {
-			if (text === WS_CLOSE_SENTINEL) {
+			if (text.startsWith(WS_CLOSE_SENTINEL)) {
 				if (this.readyState === QuiverWebSocket.CLOSED) return;
 				this.readyState = QuiverWebSocket.CLOSED;
-				this.onclose?.();
+				this.onclose?.(parseCloseInfo(text));
 				return;
 			}
 			this.onmessage?.({ data: text });

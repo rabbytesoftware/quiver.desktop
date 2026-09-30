@@ -59,6 +59,17 @@ use crate::connection::transport::Transport;
 /// impossible to collide with a real JSON DTO frame (which always starts `{`).
 pub const WS_CLOSE_SENTINEL: &str = "\u{0}quiver-ws-close";
 
+/// The sentinel, extended with the daemon's close code and reason when its close
+/// frame carried them (`sentinel NUL code NUL reason`). The discovery stream ends
+/// with `1000 completed`, which is how the shim tells a finished pass from a
+/// dropped one.
+fn close_sentinel(info: Option<&(u16, String)>) -> String {
+	match info {
+		Some((code, reason)) => format!("{WS_CLOSE_SENTINEL}\u{0}{code}\u{0}{reason}"),
+		None => WS_CLOSE_SENTINEL.to_string(),
+	}
+}
+
 /// Where daemon → webview frames go: a Tauri `Channel` in the app, a plain closure
 /// under test. The indirection is what lets a connection's lifetime be exercised
 /// without standing up a webview.
@@ -199,6 +210,7 @@ pub async fn open_bridge<S: FrameSink>(
 	let connections = Arc::clone(&manager.connections);
 	let reader = tokio::spawn(async move {
 		let mut daemon_closed = false;
+		let mut close_info: Option<(u16, String)> = None;
 		while !daemon_closed {
 			tokio::select! {
 				// The connection was removed from the map: `ws_close`, a page load, or a
@@ -216,6 +228,9 @@ pub async fn open_bridge<S: FrameSink>(
 					// Not a DTO — skip it and keep reading. Notably NOT the
 					// stream ending: a ping or a binary frame must not be
 					// mistaken for a close.
+					Some(Ok(Message::Close(frame))) => {
+						close_info = frame.map(|f| (u16::from(f.code), f.reason.to_string()));
+					}
 					Some(Ok(_)) => (),
 					// A close frame (`None` once the handshake completes) and a
 					// socket error are the same event to us: the daemon ended it.
@@ -249,7 +264,7 @@ pub async fn open_bridge<S: FrameSink>(
 		// whoever did it already knows. Announcing after the writer means a reconnect can
 		// never race ahead of the descriptor it is about to need.
 		if daemon_closed {
-			on_message.send(WS_CLOSE_SENTINEL.to_string());
+			on_message.send(close_sentinel(close_info.as_ref()));
 		}
 	});
 
@@ -262,6 +277,20 @@ mod tests {
 	use crate::connection::transport::http::HttpTransport;
 	use std::time::Duration;
 	use tokio::net::TcpListener;
+
+	#[test]
+	fn close_sentinel_without_a_close_frame_is_the_bare_sentinel() {
+		assert_eq!(close_sentinel(None), WS_CLOSE_SENTINEL);
+	}
+
+	#[test]
+	fn close_sentinel_carries_the_daemons_code_and_reason() {
+		let info = (1000_u16, "completed".to_string());
+		assert_eq!(
+			close_sentinel(Some(&info)),
+			format!("{WS_CLOSE_SENTINEL}\u{0}1000\u{0}completed")
+		);
+	}
 
 	// Every test below that opens a socket takes `crate::FD_TESTS`, the
 	// crate-wide guard — not just the one that counts descriptors. `open_fds()`

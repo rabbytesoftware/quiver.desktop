@@ -302,6 +302,30 @@ describe('toArrowDetail origin', () => {
 });
 
 describe('toArrowDetail', () => {
+	it('never yields ns@undefined when neither the namespace nor installed_ref carries a ref', () => {
+		const result = toArrowDetail({ ...DETAIL, installed_ref: undefined }, MANIFEST, [], null, [], []);
+		expect(result.namespace).toBe('github.com/rabbyte/minecraft');
+		expect(result.installed_ref).toBe('');
+		expect(result.namespace).not.toContain('undefined');
+	});
+
+	it('carries the inference warnings, and none for a hand-written arrow', () => {
+		const inferred = toArrowDetail(
+			{
+				...DETAIL,
+				origin: 'inferred',
+				inference: { generator: 'fletcher/1', confidence: 'medium', warnings: ['assumed_arch'] },
+			},
+			MANIFEST,
+			[],
+			null,
+			[],
+			[]
+		);
+		expect(inferred.warnings).toEqual(['assumed_arch']);
+		expect(toArrowDetail(DETAIL, MANIFEST, [], null, [], []).warnings).toEqual([]);
+	});
+
 	it('combines the bare namespace with installed_ref, since every downstream call needs the full identifier', () => {
 		const result = toArrowDetail(DETAIL, MANIFEST, [], null, [], []);
 		expect(result.namespace).toBe('github.com/rabbyte/minecraft@v1.21.4');

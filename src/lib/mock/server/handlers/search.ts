@@ -168,6 +168,7 @@ function runPass(world: MockWorld, jobId: string, hits: MockCandidate[]): void {
 		job.skipped = hits.length - job.verified;
 		job.status = 'completed';
 		job.expires_at = new Date(Date.now() + JOB_GRACE_MS).toISOString();
+		world.emitter.close?.(endpoint, 1000, 'completed');
 	});
 }
 

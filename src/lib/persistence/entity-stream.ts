@@ -1,7 +1,7 @@
 import { parseArrowOrigin, parseInferenceConfidence } from '@/domain/arrow';
 import { isReconnectSentinel, wsManager } from '@/lib/transport/ws-manager';
 
-import { getArrowsFor, removeArrow, upsertArrow } from './entity-cache';
+import { getArrow, getArrowsFor, removeArrow, upsertArrow } from './entity-cache';
 import type { ArrowCatalogRecord } from './schemas';
 
 const ARROW_ENDPOINT = '/v0/arrow';
@@ -19,8 +19,9 @@ interface ArrowFrame {
 		banner?: string | null;
 	};
 	version?: string;
+	last_used_at?: string;
 	origin?: string;
-	inference?: { confidence?: string };
+	inference?: { confidence?: string } | null;
 }
 
 export interface SubscribeArrowStreamOptions {
@@ -37,10 +38,21 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => v
 	let applyChain: Promise<void> = Promise.resolve();
 	let seedGeneration = 0;
 
-	function applyFrame(frame: ArrowFrame): Promise<void> {
+	async function applyFrame(frame: ArrowFrame): Promise<void> {
 		if (frame.event === 'removed') {
 			return removeArrow(connectionId, frame.namespace);
 		}
+		// A frame that omits origin/inference (an older core) must not erase what
+		// the seed already recorded; a declared arrow never carries a confidence.
+		const existing = await getArrow(connectionId, frame.namespace);
+		const origin = frame.origin === undefined ? (existing?.origin ?? 'declared') : parseArrowOrigin(frame.origin);
+		const confidence =
+			origin === 'declared'
+				? null
+				: frame.inference?.confidence === undefined
+					? (existing?.confidence ?? null)
+					: parseInferenceConfidence(frame.inference.confidence);
+		const lastUsedAt = frame.last_used_at ?? existing?.last_used_at;
 		return upsertArrow({
 			connectionId,
 			namespace: frame.namespace,
@@ -50,8 +62,9 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => v
 			icon: frame.media?.icon ?? frame.icon ?? null,
 			banner: frame.media?.banner ?? frame.banner ?? null,
 			version: frame.version ?? '',
-			origin: parseArrowOrigin(frame.origin),
-			confidence: parseInferenceConfidence(frame.inference?.confidence),
+			...(lastUsedAt ? { last_used_at: lastUsedAt } : {}),
+			origin,
+			confidence,
 		});
 	}
 

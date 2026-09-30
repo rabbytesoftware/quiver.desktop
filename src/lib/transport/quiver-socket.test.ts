@@ -51,6 +51,29 @@ describe('QuiverWebSocket', () => {
 		expect(ws.readyState).toBe(QuiverWebSocket.CLOSED);
 	});
 
+	it('reports the close code and reason the bridge appends to the sentinel', () => {
+		const ws = new QuiverWebSocket('/v0/search/discover/j1');
+		const closed = vi.fn();
+		ws.onclose = closed;
+		const channel = invoke.mock.calls[0][1].onMessage as { onmessage: (m: string) => void };
+		channel.onmessage(`${WS_CLOSE_SENTINEL}\u00001000\u0000completed`);
+		expect(closed).toHaveBeenCalledWith({ code: 1000, reason: 'completed' });
+	});
+
+	it('reports no close info for a bare sentinel or a malformed suffix', () => {
+		const first = new QuiverWebSocket('/v0/arrow');
+		const firstClosed = vi.fn();
+		first.onclose = firstClosed;
+		const second = new QuiverWebSocket('/v0/arrow');
+		const secondClosed = vi.fn();
+		second.onclose = secondClosed;
+		const channels = invoke.mock.calls.map((c) => c[1].onMessage as { onmessage: (m: string) => void });
+		channels[0].onmessage(WS_CLOSE_SENTINEL);
+		channels[1].onmessage(`${WS_CLOSE_SENTINEL}\u0000oops\u0000x`);
+		expect(firstClosed).toHaveBeenCalledWith(undefined);
+		expect(secondClosed).toHaveBeenCalledWith(undefined);
+	});
+
 	it('defers ws_close when closed while still connecting', async () => {
 		let resolveOpen: () => void = () => {};
 		invoke.mockImplementation((cmd: string) => {
