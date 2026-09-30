@@ -49,6 +49,36 @@ describe("resolveChannel", () => {
       const tags = ["beta-26.5-9", "beta-26.5-10"];
       expect(resolveChannel(tags, "beta")).toBe("beta-26.5-10");
     });
+
+    it("reads a dated series, ranked by its date among calendar versions", () => {
+      const tags = ["nightly-latest", "beta-2026-09-27", "stable-26.5.1", "beta-26.5-4", "beta-26.5"];
+      expect(resolveChannel(tags, "beta")).toBe("beta-2026-09-27");
+    });
+
+    it("ranks a dated rebuild above its series and a later calendar version above a date", () => {
+      expect(resolveChannel(["beta-2026-09-27", "beta-2026-09-27-1", "beta-26.5-4"], "beta")).toBe("beta-2026-09-27-1");
+      expect(resolveChannel(["beta-2026-09-27-3", "beta-26.11"], "beta")).toBe("beta-26.11");
+      expect(resolveChannel(["beta-2026-09-27-3", "beta-2026-10-01"], "beta")).toBe("beta-2026-10-01");
+    });
+
+    it("throws for a date that is not a real one", () => {
+      expect(() => resolveChannel(["beta-26.5", "beta-2026-13-01"], "beta")).toThrow(/malformed beta tag "beta-2026-13-01"/);
+    });
+  });
+
+  describe("stable, dated series", () => {
+    it("ranks a date as YY.MM.DD.patch, the order quiver.core's own channel ranking uses", () => {
+      const tags = ["stable-26.5.1", "stable-2026-09-27", "stable-2026-09-27.1", "stable-2026-10-01"];
+      expect(resolveChannel(tags, "stable")).toBe("stable-2026-10-01");
+      expect(resolveChannel([...tags, "stable-26.11"], "stable")).toBe("stable-26.11");
+      expect(resolveChannel(["stable-2026-09-27", "stable-2026-09-27.1", "stable-26.5.1"], "stable")).toBe(
+        "stable-2026-09-27.1"
+      );
+    });
+
+    it("ignores a stable- tag whose date is not a real one", () => {
+      expect(resolveChannel(["stable-26.5", "stable-2026-02-40"], "stable")).toBe("stable-26.5");
+    });
   });
 
   describe("nightly", () => {

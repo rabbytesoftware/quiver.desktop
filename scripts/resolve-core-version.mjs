@@ -1,7 +1,38 @@
-import semver from "semver";
-
 const NIGHTLY_TAG = "nightly-latest";
 const CHANNEL_PREFIXES = { stable: "stable-", beta: "beta-" };
+
+const DATE_SERIES = /^(\d{4})-(\d{2})-(\d{2})(?:\.(\d+))?$/;
+const CALENDAR_SERIES = /^\d+(?:\.\d+){0,3}$/;
+const BETA_TAG = /^(\d{4}-\d{2}-\d{2}(?:\.\d+)?|\d+(?:\.\d+)*)(?:-(\d+))?$/;
+
+/**
+ * The four numbers a release version ranks by, in the order quiver.core's own
+ * channel ranking (and its release-tag.sh) uses: a calendar version `26.5.1`
+ * is 26.5.1.0, a date `2026-09-27.1` is 26.9.27.1. `null` for anything else,
+ * including a date that is not a real one.
+ */
+function rankKey(version) {
+  const date = DATE_SERIES.exec(version);
+  if (date) {
+    const [year, month, day, patch] = date.slice(1).map((part) => Number(part ?? 0));
+    if (year < 2000 || year > 2099 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return [year - 2000, month, day, patch];
+  }
+  if (!CALENDAR_SERIES.test(version)) return null;
+  return [...version.split(".").map(Number), 0, 0, 0].slice(0, 4);
+}
+
+function compareKeys(a, b) {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const diff = (a[i] ?? 0) - (b[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function highest(ranked) {
+  return ranked.sort((a, b) => compareKeys(a.key, b.key))[ranked.length - 1].tag;
+}
 
 /**
  * Picks the highest release tag on a quiver.core channel. `stable` and
@@ -28,39 +59,27 @@ export function resolveChannel(tags, channel) {
   }
 
   if (channel === "stable") {
-    const versions = candidates
-      .map((t) => t.slice(prefix.length))
-      .filter((v) => semver.valid(semver.coerce(v)))
-      .sort((a, b) => semver.compare(semver.coerce(a), semver.coerce(b)));
-    if (versions.length === 0) {
+    const ranked = candidates
+      .map((tag) => ({ tag, key: rankKey(tag.slice(prefix.length)) }))
+      .filter((r) => r.key !== null);
+    if (ranked.length === 0) {
       throw new Error(`no ${channel} release found`);
     }
-    return `${prefix}${versions[versions.length - 1]}`;
+    return highest(ranked);
   }
 
-  // beta tags are `beta-<series>[-<count>]` (e.g. "beta-26.5", "beta-26.5-4")
-  // — not valid semver on their own, so series and count are compared
-  // separately rather than parsed as one semver string. Validate the shape
-  // up front: an unvalidated tag (e.g. "beta-abc") would parse to NaN
-  // components, and Array.prototype.sort treats a NaN comparator result as
-  // "unordered", silently corrupting the sort instead of erroring.
-  const BETA_TAG_SHAPE = /^\d+(\.\d+)*(-\d+)?$/;
-  const parsed = candidates.map((tag) => {
-    const rest = tag.slice(prefix.length);
-    if (!BETA_TAG_SHAPE.test(rest)) {
+  // beta tags are `beta-<series>[-<count>]`, the series a calendar version or
+  // a date ("beta-26.5-4", "beta-2026-09-27-1"). A tag of any other shape is
+  // an error rather than something silently sorted in.
+  const ranked = candidates.map((tag) => {
+    const match = BETA_TAG.exec(tag.slice(prefix.length));
+    const series = match && rankKey(match[1]);
+    if (!series) {
       throw new Error(`malformed beta tag "${tag}"`);
     }
-    const [series, count] = rest.split("-");
-    return { tag, series: series.split(".").map(Number), count: count ? Number(count) : 0 };
+    return { tag, key: [...series, Number(match[2] ?? 0)] };
   });
-  parsed.sort((a, b) => {
-    for (let i = 0; i < Math.max(a.series.length, b.series.length); i++) {
-      const diff = (a.series[i] ?? 0) - (b.series[i] ?? 0);
-      if (diff !== 0) return diff;
-    }
-    return a.count - b.count;
-  });
-  return parsed[parsed.length - 1].tag;
+  return highest(ranked);
 }
 
 async function main() {
