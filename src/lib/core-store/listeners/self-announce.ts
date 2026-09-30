@@ -13,15 +13,17 @@ const STABLE_CHANNEL = 'stable';
  * Announces quiver.desktop to the connected daemon on every successful
  * connection, and makes its catalog row say what is actually running.
  *
- * 1. Register. A release build registers `quiver.desktop@stable`, the channel
- *    its `stable-*` build tag (stamped by `src-tauri/build.rs`) was cut on --
- *    a catalog identity's selector never changes, so the row follows the
- *    channel the way quiver.core files its own row. Any other build registers
- *    the repository's default channel -- the first one `/channels` lists,
- *    which is what a refless add would pick -- by name, so it knows which row
- *    is its own. Only when the channels cannot be read does it register
- *    refless, and then it forgets nothing. An identity already in the library
- *    is not registered again.
+ * 1. Register. A build registers the channel its release pipeline published
+ *    it on (`VITE_QUIVER_BUILD_CHANNEL`: `stable`, `beta`, `hotfix`,
+ *    `nightly-rolling`) -- a catalog identity's selector never changes, so the
+ *    row follows that channel the way quiver.core files its own row. A
+ *    channel the repository does not list yet is not registered. Without one,
+ *    a `stable-*` build tag (stamped by `src-tauri/build.rs`) means `stable`,
+ *    and any other build registers the repository's default channel -- the
+ *    first one `/channels` lists, which is what a refless add would pick -- by
+ *    name, so it knows which row is its own. Only when the channels cannot be
+ *    read does it register refless, and then it forgets nothing. An identity
+ *    already in the library is not registered again.
  * 2. Adopt. A release build then declares its own tag as what is installed
  *    (`POST /v0/arrow/:ns/adopt`), so the version check offers exactly the
  *    releases newer than the running one -- unless the row already records
@@ -40,7 +42,7 @@ const STABLE_CHANNEL = 'stable';
  */
 export async function announceSelf(): Promise<void> {
 	const tag = await buildTag();
-	const selector = tag ? STABLE_CHANNEL : await defaultChannel();
+	const selector = await selectorFor(tag);
 	const identity = withSelector(QUIVER_DESKTOP_NAMESPACE, selector);
 	const known = await knownRows();
 
@@ -61,16 +63,34 @@ async function register(identity: string): Promise<boolean> {
 	}
 }
 
-/** The channel a refless add would file quiver.desktop under: the first `/channels` lists. `''` when unknown. */
-async function defaultChannel(): Promise<string> {
+/** The channel the release pipeline published this build on, or `''` for a local or PR build. */
+function buildChannel(): string {
+	return import.meta.env.VITE_QUIVER_BUILD_CHANNEL?.trim() ?? '';
+}
+
+/** The selector this build files itself under; `''` (refless) only when nothing names one. */
+async function selectorFor(tag: string | null): Promise<string> {
+	const channel = buildChannel();
+	if (tag && !channel) return STABLE_CHANNEL;
+	const listed = await listedChannels();
+	if (channel) {
+		if (listed === null || listed.includes(channel)) return channel;
+		console.debug(`core-store: quiver.desktop publishes no ${channel} channel yet; announcing its default`);
+	}
+	if (tag) return STABLE_CHANNEL;
+	return listed?.[0] ?? '';
+}
+
+/** Every channel quiver.desktop publishes, the one a refless add would pick first; `null` when unknown. */
+async function listedChannels(): Promise<string[] | null> {
 	try {
 		const { channels } = await apiFetch<ChannelListDTO>(
 			`/v0/arrow/${namespaceSegment(QUIVER_DESKTOP_NAMESPACE)}/channels`
 		);
-		return channels[0]?.name ?? '';
+		return channels.map((c) => c.name);
 	} catch (err) {
 		console.error('core-store: could not read quiver.desktop channels; announcing refless', err);
-		return '';
+		return null;
 	}
 }
 

@@ -121,6 +121,7 @@ jobs:
       uses: ./.github/actions/build-tauri
       with:
         quiver-version: ${{ needs.prepare.outputs.core_version }}
+        release-channel: nightly-rolling
         rust-version: ${{ env.RUST_VERSION }}
         bun-version: ${{ env.BUN_VERSION }}
       env:

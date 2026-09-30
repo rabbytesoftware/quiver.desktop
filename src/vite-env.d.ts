@@ -8,6 +8,8 @@ interface ImportMetaEnv {
 	readonly VITE_QUIVER_LOCALE?: string;
 
 	readonly VITE_APP_VERSION?: string;
+
+	readonly VITE_QUIVER_BUILD_CHANNEL?: string;
 }
 
 interface ImportMeta {

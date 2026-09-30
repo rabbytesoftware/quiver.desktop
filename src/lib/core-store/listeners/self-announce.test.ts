@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
 
 vi.mock('@/lib/transport/api', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('@/lib/transport/api')>();
@@ -256,6 +256,74 @@ describe('announceSelf, from a build with no release tag', () => {
 		daemon({ selves: ['stable-26.4'], channels: [] });
 		await announceSelf();
 		expect(calls()).toEqual([`POST /v0/arrow/${enc(NS)}`]);
+	});
+});
+
+describe('announceSelf, from a build its release pipeline names a channel for', () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	it('registers a nightly build under its own channel, not the stable default, and adopts nothing', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'nightly-rolling');
+		daemon({ channels: ['stable', 'nightly-rolling'] });
+
+		await announceSelf();
+
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(`${NS}@nightly-rolling`)}`]);
+	});
+
+	it('registers a beta build under beta and leaves the stable row of another build alone', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', ' beta ');
+		daemon({ selves: [{ ref: 'stable', resolved: 'stable-26.5' }], channels: ['stable', 'beta'] });
+
+		await announceSelf();
+
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(`${NS}@beta`)}`]);
+	});
+
+	it('still adopts the tag of a stable build that names its channel', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'stable');
+		builtFrom('stable-26.5.0');
+		daemon({ channels: ['stable', 'nightly-rolling'] });
+
+		await announceSelf();
+
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(STABLE)}`, ADOPT]);
+	});
+
+	it('falls back to the default channel while the repository publishes none of that name yet', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'beta');
+		const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+
+		await announceSelf();
+
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(`${NS}@nightly-rolling`)}`]);
+		expect(debug).toHaveBeenCalled();
+		debug.mockRestore();
+	});
+
+	it('falls back to stable for a tagged build whose channel is not published yet', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'beta');
+		builtFrom('stable-26.5.0');
+		daemon({ channels: ['stable'] });
+		const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+
+		await announceSelf();
+
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(STABLE)}`, ADOPT]);
+		debug.mockRestore();
+	});
+
+	it('registers the named channel when the channels cannot be read', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'nightly-rolling');
+		daemon({ failing: { [`GET /v0/arrow/${enc(NS)}/channels`]: new Error('down') } });
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		await announceSelf();
+
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(`${NS}@nightly-rolling`)}`]);
+		error.mockRestore();
 	});
 });
 
