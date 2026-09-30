@@ -159,7 +159,7 @@ export function createSearchController(): SearchController {
 			const current = backend().openSocket(`${path}?os=${os}`);
 			socket = current;
 
-			current.onmessage = (event) => {
+			socket.onmessage = (event) => {
 				if (!isCurrent()) return;
 				try {
 					store.getState().receive(toSearchEntry(JSON.parse(event.data) as SearchResultDTO));
