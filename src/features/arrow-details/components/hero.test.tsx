@@ -936,6 +936,32 @@ describe('Hero, picking what an entry follows', () => {
 			}
 		);
 
+		it('shows a late failure only on the pages of the identities it involves', () => {
+			useSelectorSwitchStore.setState({
+				active: null,
+				failure: { step: 'install', from: `${BARE}@stable`, to: `${BARE}@beta`, reason: 'boom' },
+			});
+			renderHero({ detail: detail({ namespace: 'github.com/rabbyte/valheim@v1', selector: 'v1' }) });
+			expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+		});
+
+		it('locks the new identity’s actions while the switch is still working on it', () => {
+			useSelectorSwitchStore.setState({ active: { from: `${BARE}@stable`, to: `${BARE}@beta` }, failure: null });
+			renderHero({ detail: detail({ namespace: `${BARE}@beta`, selector: 'beta', state: 'absent' }) });
+
+			expect(screen.getByRole('button', { name: 'Install' })).toBeDisabled();
+			expect(screen.getByRole('button', { name: 'Remove from Library' })).toBeDisabled();
+		});
+
+		it('leaves other pages’ actions alone during a switch', () => {
+			useSelectorSwitchStore.setState({ active: { from: `${BARE}@stable`, to: `${BARE}@beta` }, failure: null });
+			renderHero({
+				detail: detail({ namespace: 'github.com/rabbyte/valheim@v1', selector: 'v1', state: 'absent' }),
+			});
+
+			expect(screen.getByRole('button', { name: 'Install' })).not.toBeDisabled();
+		});
+
 		it('dismisses a late failure without going anywhere', async () => {
 			useSelectorSwitchStore.setState({
 				active: null,
@@ -1019,6 +1045,30 @@ describe('Hero, picking what an entry follows', () => {
 
 describe('Hero, updating', () => {
 	const AHEAD = { ref: 'v1.22.0', commit: 'abc1234' };
+
+	it('keeps quiver.core’s update available but disabled, says why, and sends nothing', async () => {
+		const user = userEvent.setup();
+		renderHero({
+			detail: detail({
+				namespace: 'github.com/rabbytesoftware/quiver.core@stable',
+				state: 'outdated',
+				available: AHEAD,
+				outdated: true,
+			}),
+		});
+
+		expect(screen.getByText('Update available')).toBeInTheDocument();
+		const update = screen.getByRole('button', { name: 'Update' });
+		expect(update).toBeDisabled();
+		expect(screen.getByRole('note')).toHaveTextContent('Settings → Engine');
+		await user.click(update);
+		expect(apiFetch).not.toHaveBeenCalled();
+	});
+
+	it('shows no such note for an ordinary arrow', () => {
+		renderHero({ detail: detail({ state: 'outdated', available: AHEAD, outdated: true }) });
+		expect(screen.queryByRole('note')).not.toBeInTheDocument();
+	});
 
 	it.each([200, 202])(
 		're-reads the catalog after an update core answered %i, for the sidebar’s resolved ref',

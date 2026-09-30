@@ -19,6 +19,7 @@ interface ArrowFrame {
 		banner?: string | null;
 	};
 	version?: string;
+	user_installed?: boolean;
 	origin?: string;
 	inference?: { confidence?: string };
 }
@@ -37,7 +38,7 @@ export interface SubscribeArrowStreamOptions {
 	onUnversionedUpsert?: (namespace: string) => void;
 }
 
-/** Disposes the stream when called; `reseed` re-reads the whole catalog, the same way a reconnect does. */
+/** Disposes the stream when called; `reseed` re-reads the whole catalog the way a reconnect does, coalescing a burst of requests into at most one more read. */
 export interface ArrowStream {
 	(): void;
 	reseed(): void;
@@ -49,6 +50,14 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): ArrowSt
 
 	let applyChain: Promise<void> = Promise.resolve();
 	let seedGeneration = 0;
+	// Re-read requests coalesce: one seed in flight, at most one queued after it.
+	let reseedPending = false;
+	let reseedAgain = false;
+	// Namespaces an unversioned frame asked a re-read for, and those a re-read
+	// then showed are not library rows (dependency-only arrows, which the seed
+	// never lists): asking again for those would re-read forever.
+	const askedFor = new Set<string>();
+	const unlisted = new Set<string>();
 
 	async function applyFrame(frame: ArrowFrame): Promise<void> {
 		if (frame.event === 'removed') {
@@ -58,7 +67,10 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): ArrowSt
 		// state, re-read from `GET /v0/arrow`), so a frame must not erase the
 		// one the last seed recorded.
 		const version = frame.version ?? (await getArrow(connectionId, frame.namespace))?.version ?? '';
-		if (!version) onUnversionedUpsert?.(frame.namespace);
+		if (!version && frame.user_installed !== false && !unlisted.has(frame.namespace)) {
+			askedFor.add(frame.namespace);
+			onUnversionedUpsert?.(frame.namespace);
+		}
 		return upsertArrow({
 			connectionId,
 			namespace: frame.namespace,
@@ -77,6 +89,10 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): ArrowSt
 		const items = await seed();
 		if (disposed || generation !== seedGeneration) return;
 		const fresh = new Set(items.map((item) => item.namespace));
+		for (const namespace of askedFor) {
+			if (!fresh.has(namespace)) unlisted.add(namespace);
+		}
+		askedFor.clear();
 		const cached = await getArrowsFor(connectionId);
 		if (disposed || generation !== seedGeneration) return;
 		const namespacesToPrune: string[] = [];
@@ -89,7 +105,7 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): ArrowSt
 		await Promise.all(items.map((item) => upsertArrow(item)));
 	}
 
-	function runSeed(): void {
+	function runSeed(): Promise<void> {
 		const generation = ++seedGeneration;
 		applyChain = applyChain
 			.then(() => applySeed(generation))
@@ -107,14 +123,30 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): ArrowSt
 				console.error(`entity-stream: seed failed for ${ARROW_ENDPOINT}`, err);
 				if (!disposed) onSeedError?.(err);
 			});
+		return applyChain;
 	}
 
-	runSeed();
+	function requestReseed(): void {
+		if (disposed) return;
+		if (reseedPending) {
+			reseedAgain = true;
+			return;
+		}
+		reseedPending = true;
+		void runSeed().then(() => {
+			reseedPending = false;
+			if (!reseedAgain) return;
+			reseedAgain = false;
+			requestReseed();
+		});
+	}
+
+	void runSeed();
 
 	const unsubscribe = wsManager.subscribe(ARROW_ENDPOINT, (data: unknown) => {
 		if (disposed) return;
 		if (isReconnectSentinel(data)) {
-			runSeed();
+			void runSeed();
 			return;
 		}
 		const frame = data as ArrowFrame;
@@ -142,8 +174,6 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): ArrowSt
 	}
 
 	return Object.assign(dispose, {
-		reseed(): void {
-			if (!disposed) runSeed();
-		},
+		reseed: requestReseed,
 	});
 }

@@ -1,5 +1,6 @@
 import type { ArrowDetail, ArrowStepDefinition } from '@/domain/arrow';
 import { targetForPlatform } from '@/domain/arrow';
+import { isQuiverCore } from '@/domain/release';
 import { isSelfArrow, RELEASE_VARIABLE_NAMES } from '@/features/arrow-details/lib/release-variables';
 import type { MessageKey } from '@/lib/i18n';
 
@@ -48,7 +49,12 @@ export interface ArrowAction {
 	forceBusy: boolean;
 	/** Not runnable from the current state -- plainly greyed, no busy label, info trigger stays clickable. */
 	forceDisabled: boolean;
+	/** Why a disabled action is disabled, when that is not just the state -- shown beside the action row. */
+	disabledReasonKey?: ArrowActionReasonKey;
 }
+
+/** The `arrow.update.*` sentences an action can carry as its disabled reason. Narrowed for the same reason as `ArrowActionLabelKey`. */
+export type ArrowActionReasonKey = Extract<MessageKey, 'arrow.update.coreSelf'>;
 
 /**
  * The variables this arrow's configure form should ask for.
@@ -75,6 +81,20 @@ function allVariableNames(detail: ArrowDetail): string[] {
  * -- never render it enabled outside `ready`, even speculatively.
  */
 export function computeActions(detail: ArrowDetail, platform: string): ArrowAction[] {
+	const actions = actionsForState(detail, platform);
+	if (!isQuiverCore(detail.namespace)) return actions;
+	// quiver.core updates itself through its own channel, and its update
+	// needs release variables this app does not resolve for it: the tile keeps
+	// its "update available" state, but never sends a request core would
+	// refuse, or run with whatever the Settings panel happens to hold.
+	return actions.map((action) =>
+		action.kind === 'update' && !action.forceBusy
+			? { ...action, forceDisabled: true, disabledReasonKey: 'arrow.update.coreSelf' }
+			: action
+	);
+}
+
+function actionsForState(detail: ArrowDetail, platform: string): ArrowAction[] {
 	if (!detail.user_installed) {
 		return [
 			{

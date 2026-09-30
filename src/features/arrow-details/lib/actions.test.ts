@@ -277,3 +277,35 @@ describe('computeActions on Quiver’s own row', () => {
 		]);
 	});
 });
+
+/**
+ * quiver.core updates itself through its own channel (Settings → Engine), and
+ * its ARROW.md needs release variables the app does not resolve for it. The
+ * tile keeps saying an update is available, but never sends a request core
+ * would refuse -- or worse, run with stale stored values.
+ */
+describe('computeActions on quiver.core’s own row', () => {
+	const CORE = 'github.com/rabbytesoftware/quiver.core@stable';
+	const AHEAD = { ref: 'stable-26.6', commit: 'abc' };
+
+	it.each<[ArrowState, Partial<ArrowDetail>]>([
+		['outdated', {}],
+		['ready', { available: AHEAD, outdated: true }],
+	])('disables Update in %s with the reason, pointing at Settings', (state, extra) => {
+		const update = computeActions(detail({ namespace: CORE, state, ...extra }), PLATFORM).find(
+			(a) => a.kind === 'update'
+		);
+		expect(update).toMatchObject({ forceDisabled: true, disabledReasonKey: 'arrow.update.coreSelf' });
+	});
+
+	it.each([
+		['quiver.desktop', 'github.com/rabbytesoftware/quiver.desktop@stable'],
+		['an ordinary arrow', 'github.com/rabbyte/minecraft@v1.21.4'],
+	])('leaves Update enabled for %s', (_name, namespace) => {
+		const update = computeActions(detail({ namespace, state: 'outdated' }), PLATFORM).find(
+			(a) => a.kind === 'update'
+		);
+		expect(update?.forceDisabled).toBe(false);
+		expect(update?.disabledReasonKey).toBeUndefined();
+	});
+});

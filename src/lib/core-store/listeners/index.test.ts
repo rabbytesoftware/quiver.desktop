@@ -693,6 +693,60 @@ describe('setupListeners', () => {
 		expect(useArrowStore.getState().arrows.has('ghost@1')).toBe(false);
 	});
 
+	it('re-reads the catalog when an update run ends successfully, on whatever page the user is', async () => {
+		const stream = Object.assign(vi.fn(), { reseed: vi.fn() });
+		mockSubscribeArrowStream.mockReturnValue(stream);
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+		useArrowStore.getState().setCatalog([catalogRecord('a@stable')]);
+		const cb = runtimeSubscriber();
+
+		cb({
+			namespace: 'a@stable',
+			state: 'updating',
+			active_run: { method: '_update', variables: {}, steps: [] },
+			last_return: null,
+		});
+		expect(stream.reseed).not.toHaveBeenCalled();
+		cb({
+			namespace: 'a@stable',
+			state: 'ready',
+			active_run: null,
+			last_return: { method: '_update', outcome: 'success' },
+		});
+		expect(stream.reseed).toHaveBeenCalledTimes(1);
+
+		cb({
+			namespace: 'a@stable',
+			state: 'running',
+			active_run: null,
+			last_return: { method: '_update', outcome: 'success' },
+		});
+		expect(stream.reseed).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([
+		['a failed update', { method: '_update', outcome: 'failed' }],
+		['a successful execute', { method: '_execute', outcome: 'success' }],
+	])('does not re-read the catalog when %s ends', async (_name, lastReturn) => {
+		const stream = Object.assign(vi.fn(), { reseed: vi.fn() });
+		mockSubscribeArrowStream.mockReturnValue(stream);
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+		useArrowStore.getState().setCatalog([catalogRecord('a@stable')]);
+		const cb = runtimeSubscriber();
+
+		cb({
+			namespace: 'a@stable',
+			state: 'updating',
+			active_run: { method: lastReturn.method, variables: {}, steps: [] },
+			last_return: null,
+		});
+		cb({ namespace: 'a@stable', state: 'ready', active_run: null, last_return: lastReturn });
+
+		expect(stream.reseed).not.toHaveBeenCalled();
+	});
+
 	it('ignores the reconnect sentinel on the runtime channel', async () => {
 		await setupListeners();
 		await emit('core://status', { status: 'ready' });

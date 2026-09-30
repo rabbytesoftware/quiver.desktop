@@ -13,6 +13,11 @@ export const QUIVER_DESKTOP_NAMESPACE = 'github.com/rabbytesoftware/quiver.deskt
  */
 export const QUIVER_CORE_NAMESPACE = 'github.com/rabbytesoftware/quiver.core';
 
+/** Whether `namespace`, at any selector, is the quiver.core daemon's own row. */
+export function isQuiverCore(namespace: string): boolean {
+	return namespace.split('@')[0] === QUIVER_CORE_NAMESPACE;
+}
+
 /**
  * Whether `namespace` is one of Quiver's own two self-registered components --
  * quiver.desktop itself, or the quiver.core daemon it talks to. Refs are

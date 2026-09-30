@@ -14,6 +14,7 @@ import type { Backend } from '@/lib/transport/backend';
 import { backend } from '@/lib/transport/backend';
 
 import { announceSelf } from './self-announce';
+import { useArrowStore } from '../store/arrows';
 
 const mockApiFetch = apiFetch as MockedFunction<typeof apiFetch>;
 const mockApiRequest = apiRequest as MockedFunction<typeof apiRequest>;
@@ -28,6 +29,16 @@ function builtFrom(tag: string | null): void {
 	mockBackend.mockReturnValue({ getBuildTag: vi.fn().mockResolvedValue(tag) } as unknown as Backend);
 }
 
+interface Self {
+	ref: string;
+	/** What the row resolved to; defaults to the ref itself. */
+	resolved?: string;
+	/** Defaults to `channel` for `stable`/`nightly-rolling`, `pin` for anything else -- what earlier builds created. */
+	kind?: string;
+}
+
+const CHANNEL_REFS = ['stable', 'nightly-rolling'];
+
 /**
  * A daemon whose catalog lists quiver.desktop under `selves` (plus an
  * unrelated arrow), whose repository publishes `channels` (the first is the
@@ -35,10 +46,12 @@ function builtFrom(tag: string | null): void {
  * (`METHOD path`).
  */
 function daemon({
-	selves = [] as string[],
+	selves = [] as (string | Self)[],
 	channels = ['nightly-rolling'] as string[],
 	failing = {} as Record<string, unknown>,
 } = {}): void {
+	const rows: Self[] = selves.map((self) => (typeof self === 'string' ? { ref: self } : self));
+	const kindOf = (row: Self) => row.kind ?? (CHANNEL_REFS.includes(row.ref) ? 'channel' : 'pin');
 	const fail = (call: string) => (call in failing ? Promise.reject(failing[call]) : undefined);
 	mockApiFetch.mockImplementation((path: string, init?: RequestInit) => {
 		const call = `${init?.method ?? 'GET'} ${path}`;
@@ -54,16 +67,28 @@ function daemon({
 					name: 'Quiver',
 					description: '',
 					tags: null,
-					versions: selves.map((ref) => ({ ref, state: 'absent' })),
+					versions: rows.map((row) => ({
+						ref: row.ref,
+						resolved_ref: row.resolved ?? row.ref,
+						state: 'absent',
+					})),
 				},
 				{
 					namespace: 'github.com/char2cs/crowbar',
 					name: 'crowbar',
 					description: '',
 					tags: [],
-					versions: [{ ref: 'stable-26.5', state: 'ready' }],
+					versions: [{ ref: 'stable-26.5', resolved_ref: 'stable-26.5', state: 'ready' }],
 				},
 			]);
+		}
+		const row = rows.find((r) => call === `GET /v0/arrow/${enc(`${NS}@${r.ref}`)}`);
+		if (row) {
+			return Promise.resolve({
+				namespace: `${NS}@${row.ref}`,
+				selector_kind: kindOf(row),
+				resolved_ref: row.resolved ?? row.ref,
+			});
 		}
 		return Promise.resolve(undefined);
 	});
@@ -73,16 +98,20 @@ function daemon({
 	});
 }
 
-/** Every call but the catalog and channel listings, in the order it was made. */
-function calls(): string[] {
+/** Every call, in the order it was made. */
+function allCalls(): string[] {
 	const all = [
 		...mockApiRequest.mock.calls.map((args, i) => [mockApiRequest.mock.invocationCallOrder[i], args] as const),
 		...mockApiFetch.mock.calls.map((args, i) => [mockApiFetch.mock.invocationCallOrder[i], args] as const),
 	];
 	return all
 		.sort(([a], [b]) => a - b)
-		.map(([, [path, init]]) => `${(init as RequestInit | undefined)?.method ?? 'GET'} ${path}`)
-		.filter((call) => call !== `GET ${LIST}` && !call.endsWith('/channels'));
+		.map(([, [path, init]]) => `${(init as RequestInit | undefined)?.method ?? 'GET'} ${path}`);
+}
+
+/** Every mutation, in the order it was made. */
+function calls(): string[] {
+	return allCalls().filter((call) => !call.startsWith('GET'));
 }
 
 function deletes(): string[] {
@@ -95,11 +124,13 @@ function adoptBody(): unknown {
 }
 
 const STABLE = `${NS}@stable`;
+const ADOPT = `POST /v0/arrow/${enc(STABLE)}/adopt`;
 
 beforeEach(() => {
 	vi.clearAllMocks();
 	builtFrom(null);
 	daemon();
+	useArrowStore.getState().setCatalogRefresh(() => {});
 });
 
 describe('announceSelf, from a build cut from a release tag', () => {
@@ -108,7 +139,7 @@ describe('announceSelf, from a build cut from a release tag', () => {
 
 		await announceSelf();
 
-		expect(calls()).toEqual([`POST /v0/arrow/${enc(STABLE)}`, `POST /v0/arrow/${enc(STABLE)}/adopt`]);
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(STABLE)}`, ADOPT]);
 		expect(adoptBody()).toEqual({ resolved_ref: 'stable-26.5.0' });
 	});
 
@@ -118,30 +149,38 @@ describe('announceSelf, from a build cut from a release tag', () => {
 		expect(mockApiRequest).toHaveBeenCalledWith(`/v0/arrow/${enc(STABLE)}`, { method: 'POST' });
 	});
 
-	it('does not register again an identity already in the library -- a re-announce only adopts, which core makes a no-op', async () => {
+	it('re-reads the catalog after an adopt, so the sidebar shows the version it declared', async () => {
 		builtFrom('stable-26.5.0');
-		daemon({ selves: ['stable'] });
+		const refresh = vi.fn();
+		useArrowStore.getState().setCatalogRefresh(refresh);
+		await announceSelf();
+		expect(refresh).toHaveBeenCalledTimes(1);
+	});
+
+	it('sends nothing but the listing when the same build announces again', async () => {
+		builtFrom('stable-26.5.0');
+		daemon({ selves: [{ ref: 'stable', resolved: 'stable-26.5.0' }] });
 
 		await announceSelf();
 
-		expect(calls()).toEqual([`POST /v0/arrow/${enc(STABLE)}/adopt`]);
+		expect(allCalls()).toEqual([`GET ${LIST}`]);
 	});
 
 	it('advances the same identity to a newer build through adopt, never a new row', async () => {
 		builtFrom('stable-26.9.0');
-		daemon({ selves: ['stable'] });
+		daemon({ selves: [{ ref: 'stable', resolved: 'stable-26.5.0' }] });
 
 		await announceSelf();
 
+		expect(calls()).toEqual([ADOPT]);
 		expect(adoptBody()).toEqual({ resolved_ref: 'stable-26.9.0' });
-		expect(deletes()).toEqual([]);
 	});
 
 	it.each([400, 404])(
-		'leaves the plain registration and logs at debug when core refuses the tag (%i)',
+		'leaves the plain registration, logs at debug and forgets nothing when core refuses the tag (%i)',
 		async (status) => {
 			builtFrom('stable-26.5.0');
-			daemon({ failing: { [`POST /v0/arrow/${enc(STABLE)}/adopt`]: new ApiError('not a member', status) } });
+			daemon({ selves: ['stable-26.4'], failing: { [ADOPT]: new ApiError('not a member', status) } });
 			const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
 			const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -149,19 +188,21 @@ describe('announceSelf, from a build cut from a release tag', () => {
 
 			expect(debug).toHaveBeenCalled();
 			expect(error).not.toHaveBeenCalled();
+			expect(deletes()).toEqual([]);
 			debug.mockRestore();
 			error.mockRestore();
 		}
 	);
 
-	it('logs any other adopt failure as an error, and still resolves', async () => {
+	it('logs any other adopt failure as an error, forgets nothing, and still resolves', async () => {
 		builtFrom('stable-26.5.0');
-		daemon({ failing: { [`POST /v0/arrow/${enc(STABLE)}/adopt`]: new ApiError('fetch failed', 502) } });
+		daemon({ selves: ['stable-26.4'], failing: { [ADOPT]: new ApiError('fetch failed', 502) } });
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 		await expect(announceSelf()).resolves.toBeUndefined();
 
 		expect(error).toHaveBeenCalled();
+		expect(deletes()).toEqual([]);
 		error.mockRestore();
 	});
 });
@@ -188,7 +229,7 @@ describe('announceSelf, from a build with no release tag', () => {
 		expect(calls()).toEqual([]);
 	});
 
-	it('still announces -- refless -- when the build tag cannot be read at all', async () => {
+	it('falls back to the untagged path -- the default channel by name -- when the build tag cannot be read at all', async () => {
 		mockBackend.mockReturnValue({
 			getBuildTag: vi.fn().mockRejectedValue(new Error('no ipc')),
 		} as unknown as Backend);
@@ -218,17 +259,17 @@ describe('announceSelf, from a build with no release tag', () => {
 	});
 });
 
-describe('announceSelf, removing the rows earlier builds left behind', () => {
+describe('announceSelf, removing the pin rows earlier builds left behind', () => {
 	it('removes nothing when this build’s identity is the only one', async () => {
 		builtFrom('stable-26.5.0');
-		daemon({ selves: ['stable'] });
+		daemon({ selves: [{ ref: 'stable', resolved: 'stable-26.5.0' }] });
 		await announceSelf();
 		expect(deletes()).toEqual([]);
 	});
 
-	it('removes every other quiver.desktop identity, and never the current one or another arrow', async () => {
+	it('removes every other quiver.desktop pin, and never the current one or another arrow', async () => {
 		builtFrom('stable-26.5.0');
-		daemon({ selves: ['stable-26.4', 'stable', 'stable-26.5'] });
+		daemon({ selves: ['stable-26.4', { ref: 'stable', resolved: 'stable-26.5.0' }, 'stable-26.5'] });
 
 		await announceSelf();
 
@@ -238,8 +279,17 @@ describe('announceSelf, removing the rows earlier builds left behind', () => {
 		]);
 	});
 
-	it('keeps the default-channel row of an untagged build, across every restart, and forgets the rest', async () => {
-		daemon({ selves: ['stable-26.4', 'nightly-rolling'] });
+	it('never removes a sibling channel identity -- another build’s own row', async () => {
+		builtFrom('stable-26.5.0');
+		daemon({ selves: [{ ref: 'stable', resolved: 'stable-26.5.0' }, 'nightly-rolling', 'stable-26.4'] });
+
+		await announceSelf();
+
+		expect(deletes()).toEqual([`DELETE /v0/arrow/${enc(`${NS}@stable-26.4`)}`]);
+	});
+
+	it('keeps an untagged build’s default-channel row, and every channel row, across restarts', async () => {
+		daemon({ selves: ['stable-26.4', 'nightly-rolling', 'stable'] });
 
 		await announceSelf();
 		await announceSelf();
@@ -248,13 +298,26 @@ describe('announceSelf, removing the rows earlier builds left behind', () => {
 			`DELETE /v0/arrow/${enc(`${NS}@stable-26.4`)}`,
 			`DELETE /v0/arrow/${enc(`${NS}@stable-26.4`)}`,
 		]);
-		expect(deletes()).not.toContain(`DELETE /v0/arrow/${enc(`${NS}@nightly-rolling`)}`);
+	});
+
+	it('keeps a row whose kind cannot be read', async () => {
+		builtFrom('stable-26.5.0');
+		daemon({
+			selves: [{ ref: 'stable', resolved: 'stable-26.5.0' }, 'stable-26.4'],
+			failing: { [`GET /v0/arrow/${enc(`${NS}@stable-26.4`)}`]: new Error('down') },
+		});
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		await announceSelf();
+
+		expect(deletes()).toEqual([]);
+		error.mockRestore();
 	});
 
 	it('logs a failed removal and carries on with the rest', async () => {
 		builtFrom('stable-26.5.0');
 		daemon({
-			selves: ['stable-26.4', 'stable', 'stable-26.5'],
+			selves: ['stable-26.4', { ref: 'stable', resolved: 'stable-26.5.0' }, 'stable-26.5'],
 			failing: {
 				[`DELETE /v0/arrow/${enc(`${NS}@stable-26.4`)}`]: new Error('other arrows depend on this arrow'),
 			},
@@ -290,7 +353,7 @@ describe('announceSelf, removing the rows earlier builds left behind', () => {
 
 		await announceSelf();
 
-		expect(calls()).toEqual([`POST /v0/arrow/${enc(STABLE)}`, `POST /v0/arrow/${enc(STABLE)}/adopt`]);
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(STABLE)}`, ADOPT]);
 		expect(error).toHaveBeenCalled();
 		error.mockRestore();
 	});

@@ -95,7 +95,12 @@ export function Hero({
 
 	const status = computeStatus(detail);
 	const problem = problemMessage(detail);
-	const actions = computeActions(detail, platform);
+	// While a switch is working on this identity, its steps -- not the user --
+	// drive install and uninstall here.
+	const actions = computeActions(detail, platform).map((action) =>
+		selectorSwitch.pending ? { ...action, forceDisabled: true } : action
+	);
+	const disabledReason = actions.find((action) => action.disabledReasonKey)?.disabledReasonKey;
 	// Always-visible, no click required to discover it -- unlike `problem`,
 	// which needs an active run or a detached process, this can be true for an
 	// arrow that has never been touched at all (the moment it's discovered).
@@ -214,6 +219,11 @@ export function Hero({
 							</span>
 						)}
 					</div>
+					{disabledReason && (
+						<p className="mt-2 text-xs text-muted-foreground" role="note">
+							{t(disabledReason)}
+						</p>
+					)}
 				</div>
 			</div>
 

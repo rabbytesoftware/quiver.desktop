@@ -16,6 +16,10 @@ import { useStatusStore } from '../store/status';
 
 const RUNTIME_ENDPOINT = '/v0/runtime';
 
+function isSuccessfulUpdate(lastReturn: RuntimeUpdate['last_return']): boolean {
+	return lastReturn?.outcome === 'success' && lastReturn.method.replace(/^_/, '') === 'update';
+}
+
 export async function setupListeners(): Promise<void> {
 	const wipeDone = maybeWipeOnVersionChange();
 
@@ -71,7 +75,15 @@ export async function setupListeners(): Promise<void> {
 
 		disposeRuntimeStream = wsManager.subscribe(RUNTIME_ENDPOINT, (data) => {
 			if (isReconnectSentinel(data)) return;
-			useArrowStore.getState().applyRuntimeUpdate(toRuntimeUpdate(data as RuntimeUpdateDTO));
+			const update = toRuntimeUpdate(data as RuntimeUpdateDTO);
+			const store = useArrowStore.getState();
+			const wasRunning = store.arrows.get(update.namespace)?.active_run != null;
+			store.applyRuntimeUpdate(update);
+			// A successful update moves the row's resolved ref, which only the
+			// catalog read carries; whatever page is open, the sidebar follows.
+			if (wasRunning && update.active_run === null && isSuccessfulUpdate(update.last_return)) {
+				store.refreshCatalog();
+			}
 		});
 	}
 

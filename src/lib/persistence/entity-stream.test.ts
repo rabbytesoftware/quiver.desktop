@@ -295,6 +295,45 @@ describe('entity-stream', () => {
 		await vi.waitFor(async () => expect((await getArrowsFor('local'))[0]?.version).toBe('2'));
 	});
 
+	it('coalesces a burst of re-read requests into at most one more seed after the one in flight', async () => {
+		const seed = vi.fn().mockResolvedValue([rec('a@stable')]);
+		const stream = subscribeArrowStream({ connectionId: 'local', seed });
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(1));
+
+		for (let i = 0; i < 10; i++) stream.reseed();
+		await vi.waitFor(() => expect(seed.mock.calls.length).toBeGreaterThan(1));
+		await new Promise((r) => setTimeout(r, 50));
+
+		expect(seed.mock.calls.length).toBeLessThanOrEqual(3);
+	});
+
+	it('does not ask again for a namespace a re-read showed is not a library row', async () => {
+		const onUnversionedUpsert = vi.fn();
+		const done = vi.fn();
+		const seed = vi.fn().mockResolvedValue([]);
+		const stream = subscribeArrowStream({ connectionId: 'local', seed, onChange: done, onUnversionedUpsert });
+		onUnversionedUpsert.mockImplementation(() => stream.reseed());
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+
+		subscribers[0]({ event: 'upserted', namespace: 'dep@stable', name: 'dep' });
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(2));
+		for (let i = 0; i < 5; i++) subscribers[0]({ event: 'upserted', namespace: 'dep@stable', name: 'dep' });
+		await new Promise((r) => setTimeout(r, 50));
+
+		expect(onUnversionedUpsert).toHaveBeenCalledTimes(1);
+		expect(seed).toHaveBeenCalledTimes(2);
+	});
+
+	it('never asks for a re-read on a frame that says the row is not user-installed', async () => {
+		const onUnversionedUpsert = vi.fn();
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done, onUnversionedUpsert });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'dep@stable', name: 'dep', user_installed: false });
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
+		expect(onUnversionedUpsert).not.toHaveBeenCalled();
+	});
+
 	it('commits an upsert then a delete in arrival order', async () => {
 		const cacheMod = await import('./entity-cache');
 		const realUpsertArrow = cacheMod.upsertArrow;

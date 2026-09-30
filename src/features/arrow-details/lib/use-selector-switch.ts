@@ -22,7 +22,7 @@ export interface SelectorSwitch {
 	pending: boolean;
 	/** Registering the new identity failed, so nothing was changed. */
 	registerError: string | null;
-	/** A later step failed -- the new identity exists; see `SwitchFailure` for what else happened. */
+	/** A later step of a switch from or to this identity failed -- the new identity exists; see `SwitchFailure` for what else happened. */
 	failure: SwitchFailure | null;
 	dismissRegisterError(): void;
 	dismissFailure(): void;
@@ -162,10 +162,15 @@ export function useSelectorSwitch(
 		}
 	}
 
+	const involves = (pair: { from: string; to: string } | null): boolean =>
+		pair !== null && (pair.from === detail.namespace || pair.to === detail.namespace);
+
 	return {
-		pending: active !== null && (active.from === detail.namespace || active.to === detail.namespace),
+		pending: involves(active),
 		registerError,
-		failure,
+		// Scoped to the two identities it is about: its sentences ("install it
+		// from this page") only make sense there.
+		failure: involves(failure) ? failure : null,
 		dismissRegisterError: () => setRegisterError(null),
 		dismissFailure: () => useSelectorSwitchStore.getState().dismiss(),
 		switchTo,
