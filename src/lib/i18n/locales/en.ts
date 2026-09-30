@@ -150,6 +150,7 @@ export const en = {
 	'settings.developer.faults.runtime': 'Runtime actions',
 	'settings.developer.faults.health': 'Health probe',
 	'settings.developer.faults.config': 'Daemon config',
+	'settings.developer.faults.path': 'Command line PATH',
 
 	'settings.engine.loading': 'Loading engine settings',
 	'settings.engine.restart': 'These settings take effect the next time quiver.core restarts.',
@@ -184,6 +185,20 @@ export const en = {
 	'settings.engine.autoRegister.description':
 		'Builds an arrow from a repository’s release downloads when it ships no manifest.',
 	'settings.engine.autoRegister.pending': 'Restart quiver.core to apply this change.',
+
+	'settings.engine.path.title': 'Command line',
+	'settings.engine.path.label': 'Use Quiver commands in a terminal',
+	'settings.engine.path.loading': 'Checking your PATH…',
+	'settings.engine.path.setup': 'Set up PATH',
+	'settings.engine.path.files': 'Configuration: {files}.',
+	'settings.engine.path.state.ready': 'Ready',
+	'settings.engine.path.state.restart': 'Configured',
+	'settings.engine.path.description.setup':
+		'Add Quiver’s command directory ({dir}) to your PATH so the commands of installed arrows work in a terminal.',
+	'settings.engine.path.description.restart':
+		'Quiver’s command directory is set up on your PATH. Open a new terminal, or restart your shell, for it to take effect.',
+	'settings.engine.path.description.ready':
+		'Quiver’s command directory is on your PATH, so the commands of installed arrows work in a terminal.',
 
 	'mock.badge': 'Mock',
 	'mock.status': '{scenario} · no daemon is being contacted',

@@ -19,14 +19,17 @@ import { createMockBackend, currentMock, disposeMock, installMock } from '@/lib/
 import { setMockCorrected } from '@/lib/mock/server/handlers/config';
 import { FAULT_KEYS, useMockStore } from '@/lib/mock/store';
 import { arrow } from '@/lib/mock/world/scenarios/kit';
+import { ApiError } from '@/lib/transport/api';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 import { routeTree } from '@/routeTree.gen';
 
 import * as engineApi from './api/engine-api';
+import * as pathApi from './api/path-api';
 import { DeveloperSettings } from './components/tabs/developer';
 import { EngineSettings } from './components/tabs/engine';
 import { GeneralSettings } from './components/tabs/general';
 import { useEngineStore } from './stores/engine-store';
+import { usePathStore } from './stores/path-store';
 import { useSettingsUI } from './stores/settings-store';
 
 let reload: ReturnType<typeof vi.fn>;
@@ -839,5 +842,90 @@ describe("the Engine panel's self-update channel row", () => {
 
 		await user.click(screen.getByRole('button', { name: 'Reset Update channel' }));
 		await waitFor(() => expect(useEngineStore.getState().view?.configured.arrows?.self_update_channel).toBe(''));
+	});
+});
+
+describe('the Command line section of the Engine panel', () => {
+	beforeEach(() => {
+		installMock('normal');
+		useEngineStore.setState({ view: null, rejected: [], loading: true, error: null, patchError: null });
+		usePathStore.setState({
+			status: null,
+			loading: true,
+			settingUp: false,
+			unavailable: false,
+			error: null,
+			setupError: null,
+		});
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('offers to set up PATH, naming where it would be configured', async () => {
+		render(<EngineSettings />);
+		expect(await screen.findByRole('button', { name: 'Set up PATH' })).toBeEnabled();
+		expect(screen.getByText(/Configuration: \/home\/mock\/\.zshrc, \/home\/mock\/\.bashrc\./)).toBeInTheDocument();
+	});
+
+	it('shows a checking state until the status arrives', async () => {
+		render(<EngineSettings />);
+		await screen.findByDisplayValue('49152');
+		await screen.findByRole('button', { name: 'Set up PATH' });
+	});
+
+	it('sets up PATH and asks for a new terminal, without offering the button again', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		await user.click(await screen.findByRole('button', { name: 'Set up PATH' }));
+
+		expect(await screen.findByText(/Open a new terminal/)).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Set up PATH' })).not.toBeInTheDocument();
+		expect(screen.getByText('Configured')).toBeInTheDocument();
+	});
+
+	it('shows the ready state, with no button, when the directory is already on PATH', async () => {
+		vi.spyOn(pathApi, 'getPathStatus').mockResolvedValue({
+			binDir: '/b',
+			onPath: true,
+			configured: true,
+			files: [],
+		});
+		render(<EngineSettings />);
+		expect(await screen.findByText('Ready')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Set up PATH' })).not.toBeInTheDocument();
+		expect(screen.queryByText(/Configuration:/)).not.toBeInTheDocument();
+	});
+
+	it('shows a setup failure inline and keeps the button', async () => {
+		const user = userEvent.setup();
+		render(<EngineSettings />);
+		const button = await screen.findByRole('button', { name: 'Set up PATH' });
+		useMockStore.getState().setFault('path', 100);
+		await user.click(button);
+
+		expect(await screen.findByRole('alert')).toHaveTextContent(/mock fault: path/i);
+		expect(screen.getByRole('button', { name: 'Set up PATH' })).toBeEnabled();
+	});
+
+	it('offers a retry when the status cannot be loaded', async () => {
+		const user = userEvent.setup();
+		useMockStore.getState().setFault('path', 100);
+		render(<EngineSettings />);
+		await screen.findByDisplayValue('49152');
+		const retry = await screen.findAllByRole('button', { name: 'Try again' });
+
+		useMockStore.getState().setFault('path', 0);
+		await user.click(retry[0]);
+		expect(await screen.findByRole('button', { name: 'Set up PATH' })).toBeInTheDocument();
+	});
+
+	it('hides the entry on a core without the endpoint', async () => {
+		vi.spyOn(pathApi, 'getPathStatus').mockRejectedValue(new ApiError('not found', 404));
+		render(<EngineSettings />);
+		await screen.findByDisplayValue('49152');
+		await waitFor(() => expect(usePathStore.getState().unavailable).toBe(true));
+		expect(screen.queryByText('Command line')).not.toBeInTheDocument();
 	});
 });

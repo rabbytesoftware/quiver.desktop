@@ -426,3 +426,26 @@ describe('home', () => {
 		expect((await call('POST', '/v0/home/refresh')).status).toBe(202);
 	});
 });
+
+describe('system path', () => {
+	it('reports a PATH that is not set up', async () => {
+		const { status, body } = await call('GET', '/v0/system/path');
+		expect(status).toBe(200);
+		expect(body!.data).toMatchObject({ on_path: false, configured: false });
+		expect((body!.data as { files: string[] }).files.length).toBeGreaterThan(0);
+	});
+
+	it('flips configured on setup, keeps on_path, and stays set when repeated', async () => {
+		const first = await call('POST', '/v0/system/path');
+		expect(first.status).toBe(200);
+		expect(first.body!.data).toMatchObject({ on_path: false, configured: true });
+
+		expect((await call('POST', '/v0/system/path')).body!.data).toMatchObject({ configured: true });
+		expect((await call('GET', '/v0/system/path')).body!.data).toMatchObject({ configured: true });
+	});
+
+	it('honours its own fault family', async () => {
+		useMockStore.getState().setFault('path', 100);
+		expect((await call('GET', '/v0/system/path')).status).toBe(500);
+	});
+});
