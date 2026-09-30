@@ -324,6 +324,26 @@ describe('entity-stream', () => {
 		expect(seed).toHaveBeenCalledTimes(2);
 	});
 
+	it('asks again for a namespace a later re-read lists -- a dependency that became a library row', async () => {
+		const onUnversionedUpsert = vi.fn();
+		const done = vi.fn();
+		const seed = vi.fn().mockResolvedValue([]);
+		const stream = subscribeArrowStream({ connectionId: 'local', seed, onChange: done, onUnversionedUpsert });
+		onUnversionedUpsert.mockImplementation(() => stream.reseed());
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+
+		subscribers[0]({ event: 'upserted', namespace: 'dep@stable', name: 'dep' });
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(2));
+
+		seed.mockResolvedValue([{ ...rec('dep@stable'), version: '' }]);
+		stream.reseed();
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(3));
+		await new Promise((r) => setTimeout(r, 20));
+
+		subscribers[0]({ event: 'upserted', namespace: 'dep@stable', name: 'dep' });
+		await vi.waitFor(() => expect(onUnversionedUpsert).toHaveBeenCalledTimes(2));
+	});
+
 	it('never asks for a re-read on a frame that says the row is not user-installed', async () => {
 		const onUnversionedUpsert = vi.fn();
 		const done = vi.fn();

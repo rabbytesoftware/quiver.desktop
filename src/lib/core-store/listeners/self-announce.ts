@@ -111,11 +111,11 @@ async function knownRows(): Promise<Map<string, string>> {
 	}
 }
 
-/** Whether core records `identity` as a pin -- what earlier builds filed. Unknown reads as not, so it is kept. */
+/** Whether core records `identity` as a pin -- what earlier builds filed. A missing or unknown kind reads as not, so the row is kept. */
 async function isPin(identity: string): Promise<boolean> {
 	try {
 		const detail = await apiFetch<ArrowDetailDTO>(`/v0/arrow/${namespaceSegment(identity)}`);
-		return (detail.selector_kind ?? 'pin') === 'pin';
+		return detail?.selector_kind === 'pin';
 	} catch (err) {
 		console.error(`core-store: could not read ${identity}; keeping it`, err);
 		return false;

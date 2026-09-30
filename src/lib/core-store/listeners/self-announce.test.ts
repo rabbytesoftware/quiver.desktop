@@ -33,8 +33,8 @@ interface Self {
 	ref: string;
 	/** What the row resolved to; defaults to the ref itself. */
 	resolved?: string;
-	/** Defaults to `channel` for `stable`/`nightly-rolling`, `pin` for anything else -- what earlier builds created. */
-	kind?: string;
+	/** Defaults to `channel` for `stable`/`nightly-rolling`, `pin` for anything else -- what earlier builds created. `null` leaves the field out. */
+	kind?: string | null;
 }
 
 const CHANNEL_REFS = ['stable', 'nightly-rolling'];
@@ -86,7 +86,7 @@ function daemon({
 		if (row) {
 			return Promise.resolve({
 				namespace: `${NS}@${row.ref}`,
-				selector_kind: kindOf(row),
+				...(row.kind === null ? {} : { selector_kind: kindOf(row) }),
 				resolved_ref: row.resolved ?? row.ref,
 			});
 		}
@@ -312,6 +312,20 @@ describe('announceSelf, removing the pin rows earlier builds left behind', () =>
 
 		expect(deletes()).toEqual([]);
 		error.mockRestore();
+	});
+
+	it('keeps a row whose detail names no selector kind', async () => {
+		builtFrom('stable-26.5.0');
+		daemon({
+			selves: [
+				{ ref: 'stable', resolved: 'stable-26.5.0' },
+				{ ref: 'stable-26.4', kind: null },
+			],
+		});
+
+		await announceSelf();
+
+		expect(deletes()).toEqual([]);
 	});
 
 	it('logs a failed removal and carries on with the rest', async () => {

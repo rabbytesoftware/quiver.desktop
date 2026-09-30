@@ -92,6 +92,7 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): ArrowSt
 		for (const namespace of askedFor) {
 			if (!fresh.has(namespace)) unlisted.add(namespace);
 		}
+		for (const namespace of fresh) unlisted.delete(namespace);
 		askedFor.clear();
 		const cached = await getArrowsFor(connectionId);
 		if (disposed || generation !== seedGeneration) return;
