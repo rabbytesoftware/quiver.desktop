@@ -28,22 +28,24 @@ mkdir -p "$STATE"/{raw,releases,git} "$RESULTS"
 seed_repo() {
 	local repo="$1" manifest="$2" branch="$3"
 	local bare="$STATE/git/${repo}.git"
-	[ -d "$bare" ] && return 0
 
-	local work
+	local work commit
 	work="$(mktemp -d)"
-	git -C "$work" init -q -b "$branch"
-	cp "$manifest" "$work/ARROW.md"
-	git -C "$work" add ARROW.md
-	git -C "$work" -c user.email=e2e@quiver.local -c user.name='Quiver E2E' \
-		commit -qm "seed $repo"
+	# The same commit build.sh stamped into quiver.core as main.commit. A bare
+	# repository a run before this one seeded differently is seeded again.
+	commit="$("$HERE/seed-commit.sh" "$work" "$manifest" "$branch")"
+	if [ "$(git --git-dir="$bare" rev-parse -q --verify "refs/heads/$branch" 2>/dev/null)" = "$commit" ]; then
+		rm -rf "$work"
+		return 0
+	fi
 
+	rm -rf "$bare"
 	mkdir -p "$(dirname "$bare")"
 	git init -q --bare "$bare"
 	git -C "$work" push -q "$bare" "$branch"
 	git --git-dir="$bare" symbolic-ref HEAD "refs/heads/$branch"
 	rm -rf "$work"
-	echo "[upstream] seeded git repo $repo (branch $branch)"
+	echo "[upstream] seeded git repo $repo (branch $branch, $commit)"
 }
 
 seed_repo rabbytesoftware/quiver.core "$CORE_SRC/ARROW.md" develop

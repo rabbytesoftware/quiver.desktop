@@ -123,6 +123,28 @@ export async function getArrow(
 	return coreClient(home).get<ArrowDetailDTO>(`/v0/arrow/${encodeURIComponent(namespace)}`);
 }
 
+/** `GET /v0/arrow/:ns/channels` -- the channels a repository publishes, the default a refless add picks first. */
+export interface ChannelListDTO {
+	channels: { name: string; kind: string; latest?: string }[];
+}
+
+export async function getChannels(
+	home: string,
+	namespace: string
+): Promise<{ status: number; body: ChannelListDTO | null }> {
+	return coreClient(home).get<ChannelListDTO>(`/v0/arrow/${encodeURIComponent(namespace)}/channels`);
+}
+
+/** `GET /v0/arrow?user_installed=true` -- one item per namespace, one version per catalog identity (`ref` is its selector). */
+export interface ArrowListItemDTO {
+	namespace: string;
+	versions: { ref: string; resolved_ref?: string; state: string }[];
+}
+
+export async function listLibrary(home: string): Promise<{ status: number; body: ArrowListItemDTO[] | null }> {
+	return coreClient(home).get<ArrowListItemDTO[]>('/v0/arrow?user_installed=true');
+}
+
 /** `GET /v0/health` -- the same probe `SidecarManager::ensure_running` decides readiness on. */
 export async function healthy(home: string): Promise<boolean> {
 	try {

@@ -13,8 +13,8 @@ behind a CA the container trusts.
 Nothing in quiver.core is stubbed, patched or rebuilt for this. The binary
 under test is byte-identical to a production build: it still derives
 `https://raw.githubusercontent.com/{user}/{repo}/{ref}/ARROW.md` from its own
-embedded metadata.yaml, still follows `/releases/latest` for its redirect, and
-still runs the real fetch + sha256 verification on whatever comes back. Only
+embedded metadata.yaml, still reads the repository's tags for its version
+check, and still runs the real fetch + sha256 verification on whatever comes back. Only
 the machine's name resolution and trust store differ, which is the same thing
 a corporate TLS-inspecting proxy does to every Go program on earth.
 
@@ -27,11 +27,10 @@ Endpoints, matched on the Host header:
 
   github.com
     GET /{user}/{repo}/releases/latest
-        302 -> /{user}/{repo}/releases/tag/{latest}. This is the ENTIRE
-        drift check for a tag-tracked arrow: providers/host.go's
-        LatestRelease reads the Location header and nothing else, looking for
-        the literal marker "/releases/tag/". Repointing the LATEST file is
-        how a scenario publishes a new version.
+        302 -> /{user}/{repo}/releases/tag/{latest}. What install.sh and
+        GitHub's own "latest" links follow. quiver.core's version check does
+        not: it reads the tags git smart-HTTP (below) advertises, so a
+        scenario publishes a new version with git_tag.
     GET /{user}/{repo}/releases/download/{tag}/{asset}
     GET /{user}/{repo}/releases/latest/download/{asset}
         Release assets, and GitHub's own "always the newest release" alias
@@ -39,10 +38,10 @@ Endpoints, matched on the Host header:
     GET  /{user}/{repo}/info/refs?service=git-upload-pack
     POST /{user}/{repo}/git-upload-pack
         Real git smart-HTTP, delegated to git's own http-backend CGI over
-        state/git/{user}/{repo}.git. Needed because a globbed dependency
-        constraint (quiver.desktop's `tools:` edge on
-        quiver.core@stable-26.5*) is resolved by go-git's ls-remote against
-        the clone URL, with no host-specific shortcut.
+        state/git/{user}/{repo}.git. Every selector (a channel, a globbed
+        constraint such as quiver.desktop's `tools:` edge on
+        quiver.core@stable-26.5*, a pin) is resolved by go-git's ls-remote
+        against the clone URL, with no host-specific shortcut.
 
   api.github.com
     GET /repos/{user}/{repo}/releases/latest

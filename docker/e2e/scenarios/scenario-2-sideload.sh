@@ -24,8 +24,13 @@ source "$HERE/lib.sh"
 scenario_begin "2-sideload" \
 	"headless core, desktop installed through core's own catalog, app adopts the running daemon"
 
+# The user adds quiver.desktop pinned to one release, a row of their own; the
+# app, once it runs, files itself under its channel (quiver.desktop@stable)
+# and must leave the user's pin alone. quiver.core files itself under the
+# channel build.sh stamped.
 DESK_ARROW="$DESK_NS@$DESK_V1"
-CORE_ARROW="$CORE_NS@$CORE_V1"
+DESK_SELF="$DESK_NS@stable"
+CORE_ARROW="$CORE_NS@stable"
 INSTALL_PATH="${XDG_DATA_HOME:-$HOME/.local/share}/Quiver/Quiver.AppImage"
 
 # --- preconditions ---------------------------------------------------------
@@ -66,9 +71,10 @@ info "the headless daemon is pid $HEADLESS_PID"
 # installing quiver.desktop failed on its own dependency unless something had
 # walked core's self-arrow to Ready by hand. This call sends no variables
 # either, for the same reason.
-say "Bootstrapping the core self-arrow so it can be depended on"
-api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW")/install" \
-	'{"variables":{}}' 202 >/dev/null
+#
+# quiver.core settles its own runtime on boot now (an absent runtime is marked
+# ready), so there is nothing to bootstrap: this only waits for it.
+say "Waiting for the core self-arrow to settle so it can be depended on"
 wait_for_state "$CORE_ARROW" ready 120
 
 # --- act: add + install quiver.desktop THROUGH CORE ------------------------
@@ -156,7 +162,11 @@ say "Confirming the app is actually talking to the adopted daemon"
 # The app's own webview has to have loaded, connected and run announceSelf for
 # this row to carry the app's build tag -- so this is an end-to-end check of
 # the whole stack, not just of the Rust transport.
-wait_for_catalogued "$DESK_ARROW" 90 "the app is served by the adopted daemon"
+wait_for_catalogued "$DESK_SELF" 90 "the app is served by the adopted daemon"
+assert_eq "$DESK_V1" "$(arrow_field "$DESK_SELF" '.data.resolved_ref')" \
+	"the build the app declared installed on its own row"
+is_catalogued "$DESK_ARROW" || fail "the app's announce removed the user's own $DESK_ARROW row"
+ok "the user's own $DESK_ARROW row is still catalogued"
 grep -q "POST /v0/arrow" "$SCENARIO_DIR/daemon.log" \
 	|| fail "the adopted daemon never received a POST /v0/arrow from the app"
 ok "the adopted daemon logged the app's own self-announce POST"

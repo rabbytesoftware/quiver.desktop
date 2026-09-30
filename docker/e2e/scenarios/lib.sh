@@ -196,13 +196,20 @@ assert_daemon_alive() {
 # scenarios asserted "the app announced itself" on exactly that 200 and passed
 # while the app's frontend was not running at all.
 #
-# The list endpoint has no such fallback. It groups by BARE namespace with the
-# real installed refs underneath, which is also why the ref has to be read out
-# of .versions[] rather than off the row itself -- the same shape that made
-# quiver.core's own RetireStale a permanent no-op.
+# The list endpoint has no such fallback. It groups by BARE namespace with one
+# entry per catalog row underneath: .versions[].ref is the row's selector (a
+# channel such as `stable`, or a pinned tag), .versions[].resolved_ref the
+# release that row has installed.
 catalogued_refs() {
 	api_body GET /v0/arrow | jq -r --arg ns "$1" \
 		'[.data[] | select(.namespace == $ns) | .versions[].ref] | sort | join(",")'
+}
+
+# catalogued_refs_resolved NAMESPACE -- the same rows, as the ref each one has
+# installed (resolved_ref) instead of its selector.
+catalogued_refs_resolved() {
+	api_body GET /v0/arrow | jq -r --arg ns "$1" \
+		'[.data[] | select(.namespace == $ns) | .versions[].resolved_ref] | sort | join(",")'
 }
 
 is_catalogued() {
@@ -249,6 +256,19 @@ wait_for_daemon() {
 }
 
 # wait_for_state NS STATE TIMEOUT -- polls the real runtime aggregate.
+# wait_for_resolved IDENTITY REF [TIMEOUT] [WHAT] -- until the catalog row
+# IDENTITY records REF as installed (its resolved_ref).
+wait_for_resolved() {
+	local ns="$1" want="$2" timeout="${3:-60}" what="${4:-$1}"
+	local deadline=$(( SECONDS + timeout )) seen=""
+	while [ "$SECONDS" -lt "$deadline" ]; do
+		seen="$(arrow_field "$ns" '.data.resolved_ref' 2>/dev/null || true)"
+		[ "$seen" = "$want" ] && { ok "$what: $ns has $want installed"; return 0; }
+		sleep 1
+	done
+	fail "$what: $ns never had $want installed (last seen: ${seen:-none})"
+}
+
 wait_for_state() {
 	local ns="$1" want="$2" timeout="${3:-120}"
 	local deadline=$(( SECONDS + timeout )) seen=""
@@ -474,7 +494,7 @@ publish_release() {
 }
 
 # mark_latest USER/REPO TAG -- what /releases/latest redirects to, i.e. what
-# quiver.core's drift check will call the newest version.
+# install.sh downloads. quiver.core's version check reads tags (git_tag).
 mark_latest() {
 	local repo="$1" tag="$2"
 	mkdir -p "$UPSTREAM_STATE/releases/$repo"
@@ -507,6 +527,12 @@ sha256_of() { sha256sum "$1" | cut -d' ' -f1; }
 # nothing leaks in from the one before it.
 reset_upstream() {
 	rm -rf "$UPSTREAM_STATE/raw" "$UPSTREAM_STATE/releases"
+	# Tags are what quiver.core's version check reads, so they go too.
+	local bare
+	for bare in "$UPSTREAM_STATE"/git/*/*.git; do
+		[ -d "$bare" ] || continue
+		git --git-dir="$bare" tag -l | xargs -r git --git-dir="$bare" tag -d >/dev/null
+	done
 	mkdir -p "$UPSTREAM_STATE/raw" "$UPSTREAM_STATE/releases"
 	local bare
 	for bare in "$UPSTREAM_STATE"/git/*/*.git; do

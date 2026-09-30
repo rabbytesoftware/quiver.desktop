@@ -6,7 +6,7 @@ test seam.
 
 | Spec | Claim |
 |---|---|
-| `scenarios/bootstrap.spec.ts` | A clean `QUIVER_HOME` comes up with a self-installed Core at `<QUIVER_HOME>/self/quiver`, and both self-arrows are registered `user_installed: true`. |
+| `scenarios/bootstrap.spec.ts` | A clean `QUIVER_HOME` comes up with a self-installed Core at `<QUIVER_HOME>/self/quiver`, both self-arrows are registered `user_installed: true`, and quiver.desktop is filed under one channel identity (`<ns>@<channel>`), never a pin of its version. |
 | `scenarios/self-update-while-running.spec.ts` | A process Core supervises keeps its PID across Core's own self-update handover. |
 | `scenarios/generic-outdated-badge.spec.ts` | An outdated self-arrow gets the *generic* outdated badge, via the *generic* `/v0/runtime` broadcast. |
 
@@ -119,6 +119,7 @@ xvfb-run -a --server-args="-screen 0 1280x800x24" bun run test
 | `QUIVER_E2E_TMP` | where per-spec homes are created (default `$TMPDIR/quiver-e2e`) |
 | `QUIVER_E2E_DRIVER_PORT` / `QUIVER_E2E_NATIVE_PORT` | driver ports |
 | `QUIVER_E2E_TAURI_DRIVER` | path to `tauri-driver` |
+| `QUIVER_E2E_BUILD_CHANNEL` | the channel the app under test was built for (`VITE_QUIVER_BUILD_CHANNEL`); default: the first channel quiver.desktop's repository lists |
 | `QUIVER_E2E_FIXTURE_NS` | the supervised arrow for scenario 2 (see below) |
 | `QUIVER_E2E_OUTDATED_NS` | the arrow driven outdated for scenario 3 |
 
@@ -132,9 +133,10 @@ quietly and reporting green.
    `quiver.core`'s self-arrow is seeded from its **embedded** `ARROW.md`
    (`internal/core/selfmanifest`), so it works offline. `quiver.desktop`'s is
    not embedded anywhere in core: `announceSelf` POSTs
-   `/v0/arrow/<ns>@<version>`, and core's `Add` resolves that manifest from the
-   remote through `metadata.GetPlatforms()`. Until this branch is merged and a
-   ref matching the running app's version is tagged, that call answers 404.
+   `/v0/arrow/<ns>@<channel>` (the channel the build was published on, or the
+   repository's default one) and core resolves that channel's manifest from
+   the remote through `metadata.GetPlatforms()`. The repository must publish
+   at least one channel whose tag carries an `ARROW.md`.
 
 2. **Scenarios 2 and 3 need an arrow a *production* daemon can resolve.**
    quiver.core's own `quiver-test/self-update-fixture` is injected through the
