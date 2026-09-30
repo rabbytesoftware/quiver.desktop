@@ -25,7 +25,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RUST_VERSION: '1.88'
+  RUST_VERSION: '1.90'
   BUN_VERSION: 'latest'
   # Only used by the `prepare` job, which runs scripts/resolve-core-version.mjs.
   # `import.meta.main` (the script's entry-point guard) was added in Node

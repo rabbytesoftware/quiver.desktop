@@ -26,7 +26,7 @@ on:
 # driver tauri-driver wraps there, and it needs a display, hence Xvfb.
 
 env:
-  RUST_VERSION: '1.88'
+  RUST_VERSION: '1.90'
   BUN_VERSION: 'latest'
 
 concurrency:
