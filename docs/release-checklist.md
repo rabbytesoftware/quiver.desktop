@@ -102,6 +102,38 @@ smoke tests) are what catch an incompatible combination, not config.
    step 1 above is the pre-release-specific confirmation against the tag just
    cut.
 
+### How each build files its own catalog row
+
+On every connection the app announces itself to the daemon
+(`src/lib/core-store/listeners/self-announce.ts`). The row it files is a
+catalog identity `github.com/rabbytesoftware/quiver.desktop@<channel>`,
+chosen from what the release pipeline baked into the build:
+
+| Workflow | `release-channel` (baked as `VITE_QUIVER_BUILD_CHANNEL`) | `release-tag` (stamped by `src-tauri/build.rs`) | Row | Declares the running build (`/adopt`) |
+|---|---|---|---|---|
+| `stable-release.yml` | `stable` | the `stable-*` tag | `@stable` | yes |
+| `prerelease.yml`, `beta/*` | `beta` | none | `@beta` | no |
+| `prerelease.yml`, `hotfix/*` | `hotfix` | none | `@hotfix` | no |
+| `nightly.yml` | `nightly-rolling` | none | `@nightly-rolling` | no |
+| PR, local or e2e build | none | none | the repository's default channel (the first `/channels` lists) | no |
+
+A channel the repository does not publish yet falls back to the default one.
+The app records the rows it registered itself, per connection, and removes
+only those when a build of another channel takes over (a nightly user moving
+to a stable build loses `@nightly-rolling`). A row the user added, such as a
+pin of one release, is never removed.
+
+**Known limit: only stable builds declare what is running.** A beta, hotfix
+or nightly build's row resolves to whatever its channel pointed at when the
+row was first registered, not to the running build, so the first version
+check can offer (or miss) a build that does not match the one installed.
+Beta and hotfix builds could declare their tag once `build.rs` accepts
+`beta-*`/`hotfix-*` tags and `prerelease.yml` passes `release-tag`. A
+nightly build cannot: `nightly-rolling` is a pointer channel, and quiver.core's
+`/adopt` admits a pointer channel's ref only at the commit it points at now,
+so declaring an older nightly needs a quiver.core change (adopting by commit)
+first.
+
 ## 3. macOS notarization
 
 Unlike Windows (step 4), macOS signing here is **not** a from-scratch
@@ -306,10 +338,11 @@ end-to-end.
    sidebar draws no status badge at all; the badge lives on `ArrowTile`,
    consumed by Home, Library, and the collection grids — see
    `src/features/sidebar/components/arrows/`).
-4. Open the quiver.core self-arrow's detail page (or otherwise trigger a
-   `GetDetail` read for it) to fire the passive drift check
-   (`CheckVersionDrift`, throttled by `version_check_ttl`) against the now
-   newer remote tag.
+4. Wait for quiver.core's periodic version check (it checks every installed
+   row within a minute of the daemon starting, then every
+   `arrows.version_check_interval`, 6h by default), or open the quiver.core
+   self-arrow's detail page to run the same check at once (throttled by
+   `version_check_ttl`) against the now newer remote tag.
 5. Return to the Library grid and confirm the quiver.core tile shows a badge
    with the text **"Update available"** (`arrow.state.outdated` in
    `src/lib/i18n/locales/en.ts`) and a single up-arrow icon — the exact same
