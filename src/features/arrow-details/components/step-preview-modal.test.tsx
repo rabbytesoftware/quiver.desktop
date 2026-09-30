@@ -174,4 +174,27 @@ describe('StepPreviewModal', () => {
 		expect(screen.queryByText('Raw step definition')).not.toBeInTheDocument();
 		expect(screen.getByRole('heading', { name: 'Install' })).toBeInTheDocument();
 	});
+
+	it.each(['run', 'fetch', 'extract', 'portable', 'signal', 'dependencies', 'expose', 'unexpose'] as const)(
+		'renders a %s step without crashing',
+		(type) => {
+			render(
+				<StepPreviewModal
+					onOpenChange={vi.fn()}
+					open
+					steps={[{ type, title: 'A step' } as ArrowStepDefinition]}
+					title="Install"
+				/>
+			);
+			expect(screen.getByText('A step')).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: 'Inspect step definition' })).toBeInTheDocument();
+		}
+	);
+
+	it('renders an unknown step type with its raw name instead of crashing', () => {
+		const steps = [{ type: 'teleport', title: 'Warp' }] as unknown as ArrowStepDefinition[];
+		render(<StepPreviewModal onOpenChange={vi.fn()} open steps={steps} title="Install" />);
+		expect(screen.getByText('Warp')).toBeInTheDocument();
+		expect(screen.getByText('teleport')).toBeInTheDocument();
+	});
 });

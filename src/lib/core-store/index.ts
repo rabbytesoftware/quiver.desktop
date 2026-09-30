@@ -6,6 +6,7 @@ export { useInstall, useUninstall, useExecute, useExecuteArrow, useStop, useUpda
 export { useRegisterArrow, useRemoveArrow, useSwitchArrowChannel } from './mutations/arrow';
 export { useFollowCollection, useUnfollowCollection } from './mutations/collection';
 export { useFollowedCollections } from './queries/collections';
+export { useHome } from './queries/home';
 export {
 	useCheckRemoteHealth,
 	useAddConnection,

@@ -146,9 +146,11 @@ export const en = {
 	'settings.developer.faults.discover': 'Discovery',
 	'settings.developer.faults.collections': 'Collections',
 	'settings.developer.faults.collection-detail': 'Collection detail',
+	'settings.developer.faults.home': 'Home',
 	'settings.developer.faults.runtime': 'Runtime actions',
 	'settings.developer.faults.health': 'Health probe',
 	'settings.developer.faults.config': 'Daemon config',
+	'settings.developer.faults.path': 'Command line PATH',
 
 	'settings.engine.loading': 'Loading engine settings',
 	'settings.engine.restart': 'These settings take effect the next time quiver.core restarts.',
@@ -184,6 +186,20 @@ export const en = {
 		'Builds an arrow from a repository’s release downloads when it ships no manifest.',
 	'settings.engine.autoRegister.pending': 'Restart quiver.core to apply this change.',
 
+	'settings.engine.path.title': 'Command line',
+	'settings.engine.path.label': 'Use Quiver commands in a terminal',
+	'settings.engine.path.loading': 'Checking your PATH…',
+	'settings.engine.path.setup': 'Set up PATH',
+	'settings.engine.path.files': 'Configuration: {files}.',
+	'settings.engine.path.state.ready': 'Ready',
+	'settings.engine.path.state.restart': 'Configured',
+	'settings.engine.path.description.setup':
+		'Add Quiver’s command directory ({dir}) to your PATH so the commands of installed arrows work in a terminal.',
+	'settings.engine.path.description.restart':
+		'Quiver’s command directory is set up on your PATH. Open a new terminal, or restart your shell, for it to take effect.',
+	'settings.engine.path.description.ready':
+		'Quiver’s command directory is on your PATH, so the commands of installed arrows work in a terminal.',
+
 	'mock.badge': 'Mock',
 	'mock.status': '{scenario} · no daemon is being contacted',
 	'mock.turnOff': 'Turn off',
@@ -192,6 +208,9 @@ export const en = {
 	'arrow.inferred.tooltip':
 		"This repository doesn't publish a Quiver manifest. Quiver built one automatically from its release downloads, so install steps may need a check.",
 	'arrow.error': "Couldn't load this arrow.",
+	'app.crash.title': 'Something went wrong',
+	'app.crash.body': 'This screen failed to render. The rest of Quiver is unaffected.',
+	'app.crash.retry': 'Try again',
 	'arrow.loading': 'Loading…',
 	'arrow.tab.overview': 'Overview',
 	'arrow.tab.activity': 'Activity',
@@ -263,8 +282,24 @@ export const en = {
 	'arrow.step.modal.title': 'Raw step definition',
 	'arrow.step.type.run': 'run',
 	'arrow.step.type.fetch': 'fetch',
+	'arrow.step.type.extract': 'extract',
+	'arrow.step.type.portable': 'portable',
 	'arrow.step.type.signal': 'signal',
 	'arrow.step.type.dependencies': 'deps',
+	'arrow.step.type.expose': 'expose',
+	'arrow.step.type.unexpose': 'unexpose',
+
+	'arrow.inferred.confidence': 'Confidence: {confidence}',
+	'arrow.inferred.warnings': 'Things to check',
+	'arrow.inferred.confidence.high': 'high',
+	'arrow.inferred.confidence.medium': 'medium',
+	'arrow.inferred.confidence.low': 'low',
+	'arrow.inferred.warning.assumed_arch': 'The CPU architecture was assumed, not stated by the release.',
+	'arrow.inferred.warning.emulated': 'This build runs through emulation on your platform.',
+	'arrow.inferred.warning.windows_exe_unverified': 'The Windows executable could not be verified.',
+	'arrow.inferred.warning.name_mismatch': 'The download is not named after the repository.',
+	'arrow.inferred.warning.unpinned_rolling_tag':
+		'It tracks a rolling tag, so what you get can change without notice.',
 
 	'arrow.preview.subtitle': 'What runs when you choose this',
 	'arrow.preview.uses': 'Uses',
@@ -319,9 +354,14 @@ export const en = {
 	'home.recents': 'Recents',
 	'home.library': 'Library',
 	'home.collections': 'Collections',
+	'home.recommended': 'Recommended',
 	'home.viewAllArrows': {
 		one: 'View {count} arrow',
 		other: 'View all {count} arrows',
+	},
+	'home.viewAllRecommended': {
+		one: 'View {count} arrow',
+		other: 'View all {count}',
 	},
 	'home.viewAllCollections': {
 		one: 'View {count} collection',
@@ -336,6 +376,12 @@ export const en = {
 		other: '{count} installed arrows',
 	},
 	'library.sort.name': 'Sort: Name',
+
+	'recommended.subtitle': {
+		one: '{count} recommended arrow',
+		other: '{count} recommended arrows',
+	},
+	'recommended.empty': 'No recommendations right now.',
 
 	'collections.subtitle': '{count} followed',
 	'collections.arrowCount': {

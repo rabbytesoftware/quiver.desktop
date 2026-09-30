@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 
+import { PathSettings } from '@/features/settings/components/path-settings';
 import { useCoreChannels } from '@/features/settings/hooks/use-core-channels';
 import {
 	autoRegisterPatch,
@@ -264,6 +265,8 @@ export function EngineSettings() {
 						/>
 					</SettingRow>
 				</Section>
+
+				<PathSettings />
 			</div>
 		</div>
 	);

@@ -1,5 +1,6 @@
+import { resolveRealPlatform } from '@/features/arrow-details/lib/use-real-platform';
 import { apiFetch } from '@/lib/transport/api';
-import { backend, type SocketLike } from '@/lib/transport/backend';
+import { backend, type SocketCloseInfo, type SocketLike } from '@/lib/transport/backend';
 
 import type { DiscoveryJobDTO, DiscoveryJobStartedDTO, SearchResultDTO } from '../dtos/v0/search';
 import { toDiscoverySummary, toSearchEntry } from '../dtos/v0/search';
@@ -7,10 +8,14 @@ import { useSearchStore } from '../store/search';
 
 /** Stillness before a provider pass. Measured from the committed query -- spec 2.2.1. */
 export const IDLE_BEFORE_PASS_MS = 600;
-/** The stream has no terminal frame, so completion is polled -- spec 1.4. */
-export const POLL_INTERVAL_MS = 1000;
-/** provider_timeout (10s), doubled, plus slack. Spec 1.4.1. */
+/**
+ * How long a reconnected stream may take to close. The clean close frame is the
+ * completion signal; this only bounds a pass whose stream broke abnormally and
+ * whose replay never reaches one.
+ */
 export const PASS_DEADLINE_MS = 25_000;
+/** A dropped stream is replayed by core, so one reconnect recovers it. */
+const MAX_RECONNECTS = 1;
 /** Core's cap (`maxLimit`), not its default of 25. Spec 1.1. */
 export const SEARCH_LIMIT = 100;
 
@@ -41,7 +46,8 @@ export function createSearchController(): SearchController {
 
 	let query = '';
 	let idleTimer: ReturnType<typeof setTimeout> | null = null;
-	let pollTimer: ReturnType<typeof setTimeout> | null = null;
+	let safetyTimer: ReturnType<typeof setTimeout> | null = null;
+	let platformKey: Promise<string> | null = null;
 	let socket: SocketLike | null = null;
 	// Two lifetimes, two counters: a query change invalidates the local fetch
 	// AND the pass, but submit invalidates only the pass -- collapsing these
@@ -57,10 +63,19 @@ export function createSearchController(): SearchController {
 
 	/** Closing the socket is the cancel -- there is no cancel endpoint (spec 1.3). */
 	function stopPass(): void {
-		if (pollTimer !== null) clearTimeout(pollTimer);
-		pollTimer = null;
-		socket?.close();
+		if (safetyTimer !== null) clearTimeout(safetyTimer);
+		safetyTimer = null;
+		if (socket) {
+			socket.onclose = null;
+			socket.close();
+		}
 		socket = null;
+	}
+
+	/** Both lanes filter on the same platform, or the stream and the re-query cover different sets. */
+	function platform(): Promise<string> {
+		platformKey ??= resolveRealPlatform();
+		return platformKey;
 	}
 
 	function cancelPass(): void {
@@ -80,14 +95,15 @@ export function createSearchController(): SearchController {
 	 * caps it at 100; asking for the cap makes the set complete for any query
 	 * that does not match more arrows than exist on the machine plus one pass.
 	 */
-	function localPath(): string {
-		return `/v0/search?q=${encodeURIComponent(query)}&limit=${SEARCH_LIMIT}`;
+	async function localPath(): Promise<string> {
+		const os = encodeURIComponent(await platform());
+		return `/v0/search?q=${encodeURIComponent(query)}&limit=${SEARCH_LIMIT}&os=${os}`;
 	}
 
 	async function runLocal(myGeneration: number): Promise<void> {
 		if (isBlank(query)) return;
 		try {
-			const dtos = await apiFetch<SearchResultDTO[]>(localPath());
+			const dtos = await apiFetch<SearchResultDTO[]>(await localPath());
 			if (disposed || queryGeneration !== myGeneration) return;
 			store.getState().setLocal(dtos.map(toSearchEntry));
 		} catch {
@@ -99,7 +115,7 @@ export function createSearchController(): SearchController {
 	/** Streamed results are unranked (spec 3); Lane A now sees the vault the pass just filled. */
 	async function requery(myGeneration: number): Promise<void> {
 		try {
-			const dtos = await apiFetch<SearchResultDTO[]>(localPath());
+			const dtos = await apiFetch<SearchResultDTO[]>(await localPath());
 			if (disposed || passGeneration !== myGeneration) return;
 			store.getState().settle(dtos.map(toSearchEntry));
 		} catch {
@@ -121,53 +137,64 @@ export function createSearchController(): SearchController {
 		store.getState().beginPass({ id: started.job_id, expires_at: started.expires_at });
 
 		const path = `/v0/search/discover/${started.job_id}`;
-		socket = backend().openSocket(path);
-		socket.onmessage = (event) => {
-			if (disposed || passGeneration !== myGeneration) return;
+		const os = encodeURIComponent(await platform());
+		if (disposed || passGeneration !== myGeneration) return;
+
+		const isCurrent = (): boolean => !disposed && passGeneration === myGeneration;
+
+		/** The close frame is the end of the stream; the job summary is readable from then on. */
+		async function complete(): Promise<void> {
+			stopPass();
 			try {
-				store.getState().receive(toSearchEntry(JSON.parse(event.data) as SearchResultDTO));
+				const job = await apiFetch<DiscoveryJobDTO>(path);
+				if (!isCurrent()) return;
+				store.getState().endPass(toDiscoverySummary(job));
 			} catch {
-				// A frame we cannot parse is not worth tearing the pass down for.
+				if (!isCurrent()) return;
 			}
-		};
+			void requery(myGeneration);
+		}
 
-		const deadline = Date.now() + PASS_DEADLINE_MS;
+		function connect(reconnects: number): void {
+			const current = backend().openSocket(`${path}?os=${os}`);
+			socket = current;
 
-		// Recursive, not setInterval: the next poll is scheduled only once this one
-		// settles, so a round trip slower than POLL_INTERVAL_MS can never leave two
-		// polls in flight to both observe `completed` and both consume the summary.
-		function poll(): void {
-			pollTimer = setTimeout(() => {
-				if (disposed || passGeneration !== myGeneration) return;
+			socket.onmessage = (event) => {
+				if (!isCurrent()) return;
+				try {
+					store.getState().receive(toSearchEntry(JSON.parse(event.data) as SearchResultDTO));
+				} catch {
+					// A frame we cannot parse is not worth tearing the pass down for.
+				}
+			};
 
-				if (Date.now() >= deadline) {
+			current.onclose = (info?: SocketCloseInfo) => {
+				if (!isCurrent() || socket !== current) return;
+
+				if (info?.code === 1000 && info.reason === 'completed') {
+					void complete();
+					return;
+				}
+
+				if (reconnects >= MAX_RECONNECTS) {
 					stopPass();
 					store.getState().settleFailed();
 					return;
 				}
 
-				void apiFetch<DiscoveryJobDTO>(path)
-					.then((job) => {
-						if (disposed || passGeneration !== myGeneration) return;
-						if (job.status !== 'completed') {
-							poll();
-							return;
-						}
-
-						// This response IS the summary: one call, not two.
-						stopPass();
-						store.getState().endPass(toDiscoverySummary(job));
-						void requery(myGeneration);
-					})
-					.catch(() => {
-						if (disposed || passGeneration !== myGeneration) return;
-						stopPass();
-						store.getState().settleFailed();
-					});
-			}, POLL_INTERVAL_MS);
+				// Core replays everything the pass emitted, and `receive` dedups on the
+				// bare namespace, so a reconnect is safe to repeat over what we hold.
+				socket = null;
+				safetyTimer ??= setTimeout(() => {
+					if (!isCurrent()) return;
+					stopPass();
+					store.getState().settleFailed();
+				}, PASS_DEADLINE_MS);
+				connect(reconnects + 1);
+			};
 		}
 
-		poll();
+		connect(0);
 	}
 
 	function arm(): void {

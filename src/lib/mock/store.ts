@@ -12,9 +12,11 @@ export const FAULT_KEYS = [
 	'discover',
 	'collections',
 	'collection-detail',
+	'home',
 	'runtime',
 	'health',
 	'config',
+	'path',
 ] as const;
 
 export type FaultKey = (typeof FAULT_KEYS)[number];

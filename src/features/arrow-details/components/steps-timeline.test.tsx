@@ -100,6 +100,27 @@ describe('StepsTimeline', () => {
 			expect(document.querySelectorAll('pre')).toHaveLength(1);
 		});
 
+		it('shows a completed step’s note as muted text, never in the error style', () => {
+			const note = 'nothing exposed: no desktop application found';
+			const run: ActiveRun = {
+				method: 'install',
+				steps: [step({ index: 0, note, status: 'completed', title: 'Expose desktop Foo', type: 'expose' })],
+				variables: {},
+			};
+			render(<StepsTimeline activeRun={run} lastReturn={null} userInstalled />);
+
+			const line = screen.getByText(note);
+			expect(line).toBeInTheDocument();
+			expect(line.closest('p')).toHaveClass('text-muted-foreground');
+			expect(document.querySelectorAll('pre')).toHaveLength(0);
+			expect(document.querySelector('.text-destructive')).toBeNull();
+		});
+
+		it('shows no note line for steps without one', () => {
+			render(<StepsTimeline activeRun={activeRun} lastReturn={null} userInstalled />);
+			expect(screen.queryByText(/nothing exposed/)).not.toBeInTheDocument();
+		});
+
 		it('draws a connecting rail between steps but not after the last one', () => {
 			render(<StepsTimeline activeRun={activeRun} lastReturn={null} userInstalled />);
 			expect(document.querySelectorAll('.w-px')).toHaveLength(STEPS.length - 1);

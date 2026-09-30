@@ -3,10 +3,11 @@ import { useState, type JSX } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from '@/components/ui/dialog';
 
-import type { ArrowStepDefinition, ArrowVariable, StepType } from '@/domain/arrow';
+import type { ArrowStepDefinition, ArrowVariable } from '@/domain/arrow';
+import { iconForStepType, isKnownStepType } from '@/features/arrow-details/lib/step-type';
 import { useTranslation } from '@/lib/i18n';
 
-import { BoxIcon, DownloadIcon, InfoIcon, ListIcon, RadioIcon, type LucideIcon } from 'lucide-react';
+import { InfoIcon } from 'lucide-react';
 
 import { StepYamlModal } from './step-yaml-modal';
 import { VariablesSettingsModal } from './variables-settings-modal';
@@ -24,13 +25,6 @@ interface StepPreviewModalProps {
 	values?: Record<string, string>;
 	onValueChange?: (name: string, value: string) => void;
 }
-
-const STEP_ICONS: Record<StepType, LucideIcon> = {
-	dependencies: BoxIcon,
-	fetch: DownloadIcon,
-	run: ListIcon,
-	signal: RadioIcon,
-};
 
 function noop(): void {
 	/* onValueChange is optional; this keeps the modal usable without one. */
@@ -65,7 +59,7 @@ export function StepPreviewModal({
 				<DialogPanel>
 					<ol className="flex flex-col gap-2">
 						{steps.map((step) => {
-							const Icon = STEP_ICONS[step.type];
+							const Icon = iconForStepType(step.type);
 							return (
 								<li
 									className="flex items-center gap-2.5 rounded-md border px-3 py-2"
@@ -74,7 +68,7 @@ export function StepPreviewModal({
 									<Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
 									<span className="min-w-0 flex-1 truncate text-sm">{step.title}</span>
 									<span className="shrink-0 text-xs text-muted-foreground">
-										{t(`arrow.step.type.${step.type}`)}
+										{isKnownStepType(step.type) ? t(`arrow.step.type.${step.type}`) : step.type}
 									</span>
 									<Button
 										aria-label={t('arrow.step.inspect')}

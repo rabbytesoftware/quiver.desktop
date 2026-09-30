@@ -4,22 +4,12 @@ import { Button } from '@/components/ui/button';
 import { FlickerSpinner } from '@/components/ui/flicker-spinner';
 import { Frame, FrameDescription, FrameHeader, FramePanel, FrameTitle } from '@/components/ui/frame';
 
-import type { ActiveRun, LastReturn, StepProgress, StepType } from '@/domain/arrow';
+import type { ActiveRun, LastReturn, StepProgress } from '@/domain/arrow';
+import { iconForStepType } from '@/features/arrow-details/lib/step-type';
 import { cn } from '@/lib/cn';
 import { useTranslation, type Translator } from '@/lib/i18n';
 
-import {
-	BoxIcon,
-	CheckIcon,
-	CircleHelpIcon,
-	DownloadIcon,
-	InfoIcon,
-	ListIcon,
-	RadioIcon,
-	SquareIcon,
-	XIcon,
-	type LucideIcon,
-} from 'lucide-react';
+import { CheckIcon, InfoIcon, SquareIcon, XIcon, type LucideIcon } from 'lucide-react';
 
 import { StepYamlModal, type StepYamlStep } from './step-yaml-modal';
 
@@ -68,28 +58,6 @@ function outcomeLabel(t: Translator['t'], outcome: LastReturn['outcome']): strin
 		case 'cancelled':
 			return t('arrow.activity.outcome.cancelled');
 	}
-}
-
-const KNOWN_STEP_TYPES: readonly StepType[] = ['run', 'fetch', 'signal', 'dependencies'];
-
-const STEP_TYPE_ICONS: Record<StepType, LucideIcon> = {
-	dependencies: BoxIcon,
-	fetch: DownloadIcon,
-	run: ListIcon,
-	signal: RadioIcon,
-};
-
-function isKnownStepType(type: string): type is StepType {
-	return (KNOWN_STEP_TYPES as readonly string[]).includes(type);
-}
-
-/**
- * `step.type` is a bare string off the wire -- real fixture data already uses
- * values like `'exec'` outside the four known kinds, so an unrecognised type
- * falls back to a generic icon rather than throwing or rendering nothing.
- */
-function iconForStepType(type: string): LucideIcon {
-	return isKnownStepType(type) ? STEP_TYPE_ICONS[type] : CircleHelpIcon;
 }
 
 interface StepStatusDotProps {
@@ -161,6 +129,12 @@ function StepRow({ step, isLast, inspectLabel, onInspect }: StepRowProps): JSX.E
 						<InfoIcon aria-hidden="true" />
 					</Button>
 				</div>
+				{step.note && (
+					<p className="mt-1 flex items-start gap-1.5 text-xs text-muted-foreground">
+						<InfoIcon aria-hidden="true" className="mt-px size-3 shrink-0" />
+						<span>{step.note}</span>
+					</p>
+				)}
 				{step.error && (
 					<pre className="mt-1.5 whitespace-pre-wrap break-words rounded-md bg-destructive/8 p-2 font-mono text-xs text-destructive dark:bg-destructive/16">
 						{step.error}

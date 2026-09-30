@@ -20,6 +20,7 @@ import { TriangleAlertIcon } from 'lucide-react';
 
 import { ActionButton } from './action-button';
 import { ChannelVersionSelects } from './channel-version-selects';
+import { InferenceNotes } from './inference-notes';
 import { MessageModal } from './message-modal';
 
 interface HeroProps {
@@ -148,6 +149,10 @@ export function Hero({
 					) : null}
 
 					<p className="mt-3 line-clamp-2 max-w-2xl text-sm text-muted-foreground">{detail.description}</p>
+
+					{isInferred(detail) && (
+						<InferenceNotes confidence={detail.confidence} warnings={detail.warnings ?? []} />
+					)}
 
 					<div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
 						<ChannelVersionSelects

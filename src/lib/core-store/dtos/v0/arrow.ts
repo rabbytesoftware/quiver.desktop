@@ -348,10 +348,10 @@ export function toArrowDetail(
 	// itself and omits `installed_ref` -- use it as-is rather than appending
 	// a second, absent ref.
 	const { head, tail } = splitNamespace(detail.namespace);
-	const namespace = tail ? detail.namespace : `${head}@${detail.installed_ref}`;
-	// Non-null: `installed_ref` is only ever absent on the wire when `tail`
-	// already supplied the ref instead (see `ArrowDetailDTO.installed_ref`).
-	const installedRef = tail ? tail.slice(1) : detail.installed_ref!;
+	const ref = tail ? tail.slice(1) : (detail.installed_ref ?? '');
+	// Never `ns@undefined`, and never a dangling `ns@`: with no ref anywhere the bare namespace is all we know.
+	const namespace = tail || !ref ? detail.namespace : `${head}@${ref}`;
+	const installedRef = ref;
 	return {
 		// Every runtime/arrow endpoint this app calls afterwards
 		// (install/execute/stop/etc, and re-fetching this same detail) expects
@@ -381,6 +381,7 @@ export function toArrowDetail(
 		channel: detail.channel,
 		origin: parseArrowOrigin(detail.origin),
 		confidence: parseInferenceConfidence(detail.inference?.confidence),
+		warnings: detail.inference?.warnings ?? [],
 		channels,
 		readme,
 		dependencies: toArrowDependencies(dependencies),
