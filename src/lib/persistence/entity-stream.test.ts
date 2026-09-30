@@ -136,6 +136,7 @@ describe('entity-stream', () => {
 				icon: 'icon.png',
 				banner: 'banner.png',
 				version: '2',
+				last_used_at: null,
 				origin: 'declared',
 				confidence: null,
 			},
@@ -194,6 +195,7 @@ describe('entity-stream', () => {
 					icon: 'nested-icon.png',
 					banner: 'nested-banner.png',
 					version: '1',
+					last_used_at: null,
 					origin: 'declared',
 					confidence: null,
 				},
@@ -227,6 +229,7 @@ describe('entity-stream', () => {
 					icon: 'nested-icon.png',
 					banner: 'nested-banner.png',
 					version: '1',
+					last_used_at: null,
 					origin: 'declared',
 					confidence: null,
 				},
@@ -250,6 +253,7 @@ describe('entity-stream', () => {
 					icon: null,
 					banner: null,
 					version: '',
+					last_used_at: null,
 					origin: 'declared',
 					confidence: null,
 				},
@@ -267,7 +271,40 @@ describe('entity-stream', () => {
 		);
 	});
 
+	it('takes last_used_at from a live frame, and keeps the cached one when the frame has none', async () => {
+		const done = vi.fn();
+		const seeded = { ...rec('a@stable'), last_used_at: '2026-09-01T00:00:00Z' };
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [seeded, rec('b@stable')], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'a@stable', name: 'a' });
+		subscribers[0]({ event: 'upserted', namespace: 'b@stable', name: 'b', last_used_at: '2026-09-30T12:00:00Z' });
+		await vi.waitFor(async () =>
+			expect(await getArrowsFor('local')).toEqual([
+				expect.objectContaining({ namespace: 'a@stable', name: 'a', last_used_at: '2026-09-01T00:00:00Z' }),
+				expect.objectContaining({ namespace: 'b@stable', name: 'b', last_used_at: '2026-09-30T12:00:00Z' }),
+			])
+		);
+	});
+
 	it('asks for a re-read when a live frame upserts a row it has no version for', async () => {
+		const onUnversionedUpsert = vi.fn();
+		const done = vi.fn();
+		subscribeArrowStream({
+			connectionId: 'local',
+			seed: async () => [],
+			onChange: done,
+			onUnversionedUpsert,
+		});
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'fresh@beta', name: 'fresh' });
+		subscribers[0]({ event: 'upserted', namespace: 'versioned@1', name: 'v', version: '1' });
+		await vi.waitFor(() => expect(onUnversionedUpsert).toHaveBeenCalledWith('fresh@beta'));
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(2));
+		expect(onUnversionedUpsert).toHaveBeenCalledTimes(1);
+	});
+
+	// Live quiver.core: an update's advance lands after `runtime.ended`, only as this frame.
+	it('asks for a re-read when a live frame upserts a row it already has a version for', async () => {
 		const onUnversionedUpsert = vi.fn();
 		const done = vi.fn();
 		subscribeArrowStream({
@@ -278,10 +315,8 @@ describe('entity-stream', () => {
 		});
 		await vi.waitFor(() => expect(done).toHaveBeenCalled());
 		subscribers[0]({ event: 'upserted', namespace: 'known@stable', name: 'known' });
-		subscribers[0]({ event: 'upserted', namespace: 'fresh@beta', name: 'fresh' });
-		subscribers[0]({ event: 'upserted', namespace: 'versioned@1', name: 'v', version: '1' });
-		await vi.waitFor(() => expect(onUnversionedUpsert).toHaveBeenCalledWith('fresh@beta'));
-		expect(onUnversionedUpsert).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => expect(onUnversionedUpsert).toHaveBeenCalledWith('known@stable'));
+		expect(await getArrowsFor('local')).toEqual([expect.objectContaining({ version: '1' })]);
 	});
 
 	it('re-reads the catalog on request, picking up versions no frame carries', async () => {

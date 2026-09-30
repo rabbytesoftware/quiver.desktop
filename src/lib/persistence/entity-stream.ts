@@ -20,6 +20,7 @@ interface ArrowFrame {
 	};
 	version?: string;
 	user_installed?: boolean;
+	last_used_at?: string;
 	origin?: string;
 	inference?: { confidence?: string };
 }
@@ -30,8 +31,8 @@ export interface SubscribeArrowStreamOptions {
 	onChange?: () => void;
 	onSeedError?: (error: unknown) => void;
 	/**
-	 * Called with the namespace of an upsert frame that carries no version for
-	 * a row the cache has none for either -- a row just registered, typically.
+	 * Called with the namespace of an upsert frame that carries no version --
+	 * a row just registered, or one an update or adoption advanced in place.
 	 * quiver.core's frames never carry the resolved ref, so only a re-read of
 	 * the catalog can supply it.
 	 */
@@ -65,9 +66,12 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): ArrowSt
 		}
 		// quiver.core's catalog frames carry no version (the resolved ref is row
 		// state, re-read from `GET /v0/arrow`), so a frame must not erase the
-		// one the last seed recorded.
-		const version = frame.version ?? (await getArrow(connectionId, frame.namespace))?.version ?? '';
-		if (!version && frame.user_installed !== false && !unlisted.has(frame.namespace)) {
+		// one the last seed recorded. Each still asks for that re-read: an
+		// update's advance reaches this client only as such a frame, after the
+		// runtime already reported the run ended.
+		const cached = await getArrow(connectionId, frame.namespace);
+		const version = frame.version ?? cached?.version ?? '';
+		if (frame.version === undefined && frame.user_installed !== false && !unlisted.has(frame.namespace)) {
 			askedFor.add(frame.namespace);
 			onUnversionedUpsert?.(frame.namespace);
 		}
@@ -80,6 +84,7 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): ArrowSt
 			icon: frame.media?.icon ?? frame.icon ?? null,
 			banner: frame.media?.banner ?? frame.banner ?? null,
 			version,
+			last_used_at: frame.last_used_at ?? cached?.last_used_at ?? null,
 			origin: parseArrowOrigin(frame.origin),
 			confidence: parseInferenceConfidence(frame.inference?.confidence),
 		});
