@@ -181,7 +181,7 @@ runs:
 
     - name: Install tauri-cli
       shell: bash
-      run: cargo binstall tauri-cli@^2 --no-confirm --locked
+      run: cargo binstall tauri-cli@^2 --no-confirm --locked --force
 
     # macOS only, and a self-skipping no-op unless Xcode 26+ is selected. The
     # job must run on `macos-26`: macOS 15's newest Xcode is 26.3, whose actool
