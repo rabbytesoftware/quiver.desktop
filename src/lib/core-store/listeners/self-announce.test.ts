@@ -24,9 +24,28 @@ const NS = 'github.com/rabbytesoftware/quiver.desktop';
 const enc = encodeURIComponent;
 const LIST = '/v0/arrow?user_installed=true';
 
-/** Stands in for a binary that was (or was not) built from a release tag. */
-function builtFrom(tag: string | null): void {
-	mockBackend.mockReturnValue({ getBuildTag: vi.fn().mockResolvedValue(tag) } as unknown as Backend);
+const CONNECTION = 'local';
+const RECORD = `quiver:self-announced:${CONNECTION}`;
+
+/** Stands in for a binary that was (or was not) built from a release tag, connected to `connection`. */
+function builtFrom(tag: string | null, connection: string | Error = CONNECTION): void {
+	mockBackend.mockReturnValue({
+		getBuildTag: vi.fn().mockResolvedValue(tag),
+		getConnections:
+			connection instanceof Error
+				? vi.fn().mockRejectedValue(connection)
+				: vi.fn().mockResolvedValue({ connections: [], active_id: connection }),
+	} as unknown as Backend);
+}
+
+/** The identities earlier announces on this connection registered themselves. */
+function announcedBefore(...refs: string[]): void {
+	localStorage.setItem(RECORD, JSON.stringify(refs.map((ref) => `${NS}@${ref}`)));
+}
+
+function recorded(connection = CONNECTION): unknown {
+	const raw = localStorage.getItem(`quiver:self-announced:${connection}`);
+	return raw === null ? null : JSON.parse(raw);
 }
 
 interface Self {
@@ -128,6 +147,7 @@ const ADOPT = `POST /v0/arrow/${enc(STABLE)}/adopt`;
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	localStorage.clear();
 	builtFrom(null);
 	daemon();
 	useArrowStore.getState().setCatalogRefresh(() => {});
@@ -327,96 +347,190 @@ describe('announceSelf, from a build its release pipeline names a channel for', 
 	});
 });
 
-describe('announceSelf, removing the pin rows earlier builds left behind', () => {
-	it('removes nothing when this build’s identity is the only one', async () => {
+describe('announceSelf, forgetting only the rows its own earlier announces registered', () => {
+	const NIGHTLY = `${NS}@nightly-rolling`;
+
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	it('records the identity it registered, per connection', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'nightly-rolling');
+
+		await announceSelf();
+
+		expect(recorded()).toEqual([NIGHTLY]);
+	});
+
+	it('registers its recorded identity again after the user removed it, recording it once', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'nightly-rolling');
+		announcedBefore('nightly-rolling');
+
+		await announceSelf();
+
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(NIGHTLY)}`]);
+		expect(recorded()).toEqual([NIGHTLY]);
+	});
+
+	it('ignores a record that is not a list of identities', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'nightly-rolling');
+		localStorage.setItem(RECORD, JSON.stringify({ not: 'a list' }));
+
+		await announceSelf();
+
+		expect(recorded()).toEqual([NIGHTLY]);
+	});
+
+	it('records nothing for an identity already in the library: that row is not its own', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'nightly-rolling');
+		daemon({ selves: ['nightly-rolling'] });
+
+		await announceSelf();
+
+		expect(recorded()).toBeNull();
+	});
+
+	it('removes the channel row an earlier build of another channel registered, and records the new one', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'stable');
 		builtFrom('stable-26.5.0');
+		announcedBefore('nightly-rolling');
+		daemon({ selves: ['nightly-rolling'], channels: ['stable', 'nightly-rolling'] });
+
+		await announceSelf();
+
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(STABLE)}`, ADOPT, `DELETE /v0/arrow/${enc(NIGHTLY)}`]);
+		expect(recorded()).toEqual([STABLE]);
+	});
+
+	it('never removes a pin or channel the user added, even one of its own build tag', async () => {
+		builtFrom('stable-26.6');
+		daemon({ selves: ['stable-26.6', 'nightly-rolling', 'stable-26.4'] });
+
+		await announceSelf();
+
+		expect(deletes()).toEqual([]);
+	});
+
+	it('never removes the identity this build files itself under, even when an earlier announce registered it', async () => {
+		builtFrom('stable-26.5.0');
+		announcedBefore('stable');
 		daemon({ selves: [{ ref: 'stable', resolved: 'stable-26.5.0' }] });
-		await announceSelf();
-		expect(deletes()).toEqual([]);
-	});
-
-	it('removes every other quiver.desktop pin, and never the current one or another arrow', async () => {
-		builtFrom('stable-26.5.0');
-		daemon({ selves: ['stable-26.4', { ref: 'stable', resolved: 'stable-26.5.0' }, 'stable-26.5'] });
-
-		await announceSelf();
-
-		expect(deletes()).toEqual([
-			`DELETE /v0/arrow/${enc(`${NS}@stable-26.4`)}`,
-			`DELETE /v0/arrow/${enc(`${NS}@stable-26.5`)}`,
-		]);
-	});
-
-	it('never removes a sibling channel identity -- another build’s own row', async () => {
-		builtFrom('stable-26.5.0');
-		daemon({ selves: [{ ref: 'stable', resolved: 'stable-26.5.0' }, 'nightly-rolling', 'stable-26.4'] });
-
-		await announceSelf();
-
-		expect(deletes()).toEqual([`DELETE /v0/arrow/${enc(`${NS}@stable-26.4`)}`]);
-	});
-
-	it('keeps an untagged build’s default-channel row, and every channel row, across restarts', async () => {
-		daemon({ selves: ['stable-26.4', 'nightly-rolling', 'stable'] });
-
-		await announceSelf();
-		await announceSelf();
-
-		expect(deletes()).toEqual([
-			`DELETE /v0/arrow/${enc(`${NS}@stable-26.4`)}`,
-			`DELETE /v0/arrow/${enc(`${NS}@stable-26.4`)}`,
-		]);
-	});
-
-	it('keeps a row whose kind cannot be read', async () => {
-		builtFrom('stable-26.5.0');
-		daemon({
-			selves: [{ ref: 'stable', resolved: 'stable-26.5.0' }, 'stable-26.4'],
-			failing: { [`GET /v0/arrow/${enc(`${NS}@stable-26.4`)}`]: new Error('down') },
-		});
-		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 		await announceSelf();
 
 		expect(deletes()).toEqual([]);
-		error.mockRestore();
+		expect(recorded()).toEqual([STABLE]);
 	});
 
-	it('keeps a row whose detail names no selector kind', async () => {
+	it('drops a recorded identity the user already removed, without a call', async () => {
 		builtFrom('stable-26.5.0');
-		daemon({
-			selves: [
-				{ ref: 'stable', resolved: 'stable-26.5.0' },
-				{ ref: 'stable-26.4', kind: null },
-			],
-		});
+		announcedBefore('nightly-rolling', 'stable');
+		daemon({ selves: [{ ref: 'stable', resolved: 'stable-26.5.0' }] });
 
 		await announceSelf();
 
 		expect(deletes()).toEqual([]);
+		expect(recorded()).toEqual([STABLE]);
 	});
 
-	it('logs a failed removal and carries on with the rest', async () => {
+	it('keeps a row whose removal failed on record, and tries again on the next announce', async () => {
 		builtFrom('stable-26.5.0');
+		announcedBefore('nightly-rolling');
 		daemon({
-			selves: ['stable-26.4', { ref: 'stable', resolved: 'stable-26.5.0' }, 'stable-26.5'],
-			failing: {
-				[`DELETE /v0/arrow/${enc(`${NS}@stable-26.4`)}`]: new Error('other arrows depend on this arrow'),
-			},
+			selves: [{ ref: 'stable', resolved: 'stable-26.5.0' }, 'nightly-rolling'],
+			failing: { [`DELETE /v0/arrow/${enc(NIGHTLY)}`]: new ApiError('state violation', 422) },
 		});
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 		await expect(announceSelf()).resolves.toBeUndefined();
+		expect(recorded()).toEqual([NIGHTLY]);
+		await announceSelf();
 
-		expect(deletes()).toContain(`DELETE /v0/arrow/${enc(`${NS}@stable-26.5`)}`);
+		expect(deletes()).toEqual([`DELETE /v0/arrow/${enc(NIGHTLY)}`, `DELETE /v0/arrow/${enc(NIGHTLY)}`]);
 		expect(error).toHaveBeenCalled();
+		error.mockRestore();
+	});
+
+	it('drops a row core no longer has (404) from the record', async () => {
+		builtFrom('stable-26.5.0');
+		announcedBefore('nightly-rolling');
+		daemon({
+			selves: [{ ref: 'stable', resolved: 'stable-26.5.0' }, 'nightly-rolling'],
+			failing: { [`DELETE /v0/arrow/${enc(NIGHTLY)}`]: new ApiError('not found', 404) },
+		});
+
+		await announceSelf();
+
+		expect(recorded()).toEqual([]);
+	});
+
+	it('uses only the record of the connection it announces on', async () => {
+		builtFrom('stable-26.5.0', 'remote');
+		announcedBefore('nightly-rolling');
+		daemon({ selves: [{ ref: 'stable', resolved: 'stable-26.5.0' }, 'nightly-rolling'] });
+
+		await announceSelf();
+
+		expect(deletes()).toEqual([]);
+		expect(recorded()).toEqual([NIGHTLY]);
+		expect(recorded('remote')).toBeNull();
+	});
+
+	it('still announces, and records and removes nothing, when the connection cannot be named', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'stable');
+		builtFrom('stable-26.5.0', new Error('no ipc'));
+		announcedBefore('nightly-rolling');
+		daemon({ selves: ['nightly-rolling'], channels: ['stable', 'nightly-rolling'] });
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		await announceSelf();
+
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(STABLE)}`, ADOPT]);
+		expect(recorded()).toEqual([NIGHTLY]);
+		error.mockRestore();
+	});
+
+	it('ignores a record it cannot read, and still announces', async () => {
+		builtFrom('stable-26.5.0');
+		localStorage.setItem(RECORD, '{not json');
+		daemon({ selves: ['nightly-rolling'] });
+
+		await announceSelf();
+
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(STABLE)}`, ADOPT]);
+		expect(recorded()).toEqual([STABLE]);
+	});
+
+	it('still announces when storage refuses the record', async () => {
+		builtFrom('stable-26.5.0');
+		const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+			throw new Error('quota');
+		});
+
+		await announceSelf();
+
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(STABLE)}`, ADOPT]);
+		setItem.mockRestore();
+	});
+
+	it('records a registered identity but removes nothing when the adopt fails', async () => {
+		builtFrom('stable-26.5.0');
+		announcedBefore('nightly-rolling');
+		daemon({ selves: ['nightly-rolling'], failing: { [ADOPT]: new ApiError('fetch failed', 502) } });
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		await announceSelf();
+
+		expect(deletes()).toEqual([]);
+		expect(recorded()).toEqual([NIGHTLY, STABLE]);
 		error.mockRestore();
 	});
 
 	it('removes nothing, and adopts nothing, when the register itself fails', async () => {
 		builtFrom('stable-26.5.0');
+		announcedBefore('nightly-rolling');
 		daemon({
-			selves: ['stable-26.4'],
+			selves: ['nightly-rolling'],
 			failing: { [`POST /v0/arrow/${enc(STABLE)}`]: new Error('502 bad gateway') },
 		});
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -424,19 +538,32 @@ describe('announceSelf, removing the pin rows earlier builds left behind', () =>
 		await expect(announceSelf()).resolves.toBeUndefined();
 
 		expect(calls()).toEqual([`POST /v0/arrow/${enc(STABLE)}`]);
-		expect(error).toHaveBeenCalled();
+		expect(recorded()).toEqual([NIGHTLY]);
 		error.mockRestore();
 	});
 
-	it('still registers and adopts when the catalog cannot be listed, and removes nothing', async () => {
+	it('still registers and adopts when the catalog cannot be listed, but records, removes and drops nothing', async () => {
 		builtFrom('stable-26.5.0');
+		announcedBefore('nightly-rolling');
 		daemon({ failing: { [`GET ${LIST}`]: new Error('down') } });
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 		await announceSelf();
 
+		// The row may have been the user's already: an unread catalog cannot say.
 		expect(calls()).toEqual([`POST /v0/arrow/${enc(STABLE)}`, ADOPT]);
+		expect(recorded()).toEqual([NIGHTLY]);
 		expect(error).toHaveBeenCalled();
 		error.mockRestore();
+	});
+
+	it('records and removes nothing after a refless register', async () => {
+		announcedBefore('nightly-rolling');
+		daemon({ selves: ['nightly-rolling'], channels: [] });
+
+		await announceSelf();
+
+		expect(calls()).toEqual([`POST /v0/arrow/${enc(NS)}`]);
+		expect(recorded()).toEqual([NIGHTLY]);
 	});
 });

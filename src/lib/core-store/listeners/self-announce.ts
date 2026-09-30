@@ -3,7 +3,8 @@ import { namespaceSegment, withSelector } from '@/lib/namespace';
 import { apiFetch, ApiError, apiRequest } from '@/lib/transport/api';
 import { backend } from '@/lib/transport/backend';
 
-import type { ArrowDetailDTO, ArrowListResponseItemDTO, ChannelListDTO } from '../dtos/v0/arrow';
+import { announcedRows, type AnnouncedRows } from './announced-rows';
+import type { ArrowListResponseItemDTO, ChannelListDTO } from '../dtos/v0/arrow';
 import { useArrowStore } from '../store/arrows';
 
 /** The channel a build tag belongs to: `src-tauri/build.rs` only ever stamps `stable-*`. */
@@ -31,10 +32,13 @@ const STABLE_CHANNEL = 'stable';
  *    (after a self-update relaunch) advances the same row in place. A tag
  *    core will not accept for the channel (400/404) leaves the plain
  *    registration.
- * 3. Forget stale pins. Earlier builds filed themselves as pins of their
- *    build tags. Only once the announce fully succeeded, every OTHER
- *    quiver.desktop row whose selector is a pin is removed; a channel
- *    identity is never touched, since it may be another build's own row.
+ * 3. Forget what earlier announces left. An identity this app registered
+ *    itself is recorded per connection (`announcedRows`); only once the
+ *    announce fully succeeded, every OTHER recorded identity still in the
+ *    library is removed -- the row a build of another channel filed, e.g.
+ *    `@nightly-rolling` after the user moved to a stable build. A row the
+ *    user added (any pin, any channel) was never recorded and is never
+ *    touched.
  *
  * Fire-and-forget-with-logging throughout: a daemon too old for any of this,
  * an unreachable manifest host, or a transient error must never fail or
@@ -44,13 +48,16 @@ export async function announceSelf(): Promise<void> {
 	const tag = await buildTag();
 	const selector = await selectorFor(tag);
 	const identity = withSelector(QUIVER_DESKTOP_NAMESPACE, selector);
-	const known = await knownRows();
+	const [known, record] = await Promise.all([knownRows(), announcedRows()]);
 
-	if (!known.has(identity) && !(await register(identity))) return;
-	if (tag && known.get(identity) !== tag && !(await adopt(identity, tag))) return;
-	// A refless register leaves no way to tell which row core filed, so
-	// nothing is forgotten on its account.
-	if (selector) await forgetStalePins([...known.keys()], identity);
+	if (!known?.has(identity)) {
+		if (!(await register(identity))) return;
+		// Only a row known to be absent is this app's own; a refless register
+		// leaves no way to tell which row core filed.
+		if (selector && known) record?.add(identity);
+	}
+	if (tag && known?.get(identity) !== tag && !(await adopt(identity, tag))) return;
+	if (selector && known && record) await forgetEarlierAnnounces(record, known, identity);
 }
 
 async function register(identity: string): Promise<boolean> {
@@ -117,8 +124,8 @@ async function adopt(identity: string, tag: string): Promise<boolean> {
 	}
 }
 
-/** Every quiver.desktop identity in the library and the ref each resolved to; none when the catalog cannot be read. */
-async function knownRows(): Promise<Map<string, string>> {
+/** Every quiver.desktop identity in the library and the ref each resolved to; `null` when the catalog cannot be read. */
+async function knownRows(): Promise<Map<string, string> | null> {
 	try {
 		const items = await apiFetch<ArrowListResponseItemDTO[]>('/v0/arrow?user_installed=true');
 		const self = items.find((item) => item.namespace === QUIVER_DESKTOP_NAMESPACE);
@@ -127,37 +134,38 @@ async function knownRows(): Promise<Map<string, string>> {
 		);
 	} catch (err) {
 		console.error('core-store: could not list the catalog; leaving any stale quiver.desktop rows', err);
-		return new Map();
+		return null;
 	}
 }
 
-/** Whether core records `identity` as a pin -- what earlier builds filed. A missing or unknown kind reads as not, so the row is kept. */
-async function isPin(identity: string): Promise<boolean> {
-	try {
-		const detail = await apiFetch<ArrowDetailDTO>(`/v0/arrow/${namespaceSegment(identity)}`);
-		return detail?.selector_kind === 'pin';
-	} catch (err) {
-		console.error(`core-store: could not read ${identity}; keeping it`, err);
-		return false;
-	}
-}
-
-async function forgetStalePins(known: string[], current: string): Promise<void> {
-	const removals = known.flatMap((stale) =>
-		stale === current
-			? []
-			: [
-					isPin(stale).then(async (pin) => {
-						if (!pin) return;
-						await apiFetch<void>(`/v0/arrow/${namespaceSegment(stale)}`, { method: 'DELETE' }).catch(
-							(err: unknown) => {
-								console.error(`core-store: could not remove the stale ${stale} row`, err);
-							}
-						);
-					}),
-				]
+/** Removes every recorded identity but `current`; one the library no longer holds, or core no longer has, just leaves the record. */
+async function forgetEarlierAnnounces(
+	record: AnnouncedRows,
+	known: Map<string, string>,
+	current: string
+): Promise<void> {
+	const stale = record.list().filter((identity) => identity !== current);
+	await Promise.all(
+		stale.map(async (identity) => {
+			if (!known.has(identity)) {
+				record.drop(identity);
+				return;
+			}
+			try {
+				await apiFetch<void>(`/v0/arrow/${namespaceSegment(identity)}`, { method: 'DELETE' });
+				record.drop(identity);
+			} catch (err) {
+				if (err instanceof ApiError && err.status === 404) {
+					record.drop(identity);
+					return;
+				}
+				console.error(
+					`core-store: could not remove the stale ${identity} row; retrying on the next announce`,
+					err
+				);
+			}
+		})
 	);
-	await Promise.all(removals);
 }
 
 /**
