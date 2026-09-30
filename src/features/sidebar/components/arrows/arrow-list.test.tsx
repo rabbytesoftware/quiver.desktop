@@ -346,6 +346,38 @@ describe('ArrowRow', () => {
 		expect(tail.className).toContain('shrink-0');
 	});
 
+	it.each([
+		['github.com/char2cs/crowbar@nightly', '@nightly'],
+		['github.com/char2cs/crowbar@stable', '@stable'],
+		['github.com/char2cs/crowbar@v1.*', '@v1.*'],
+		['github.com/char2cs/crowbar@feat/x', '@feat/x'],
+	])('routes to and names the selector identity %s whole', async (identity, tail) => {
+		const user = userEvent.setup();
+		seed({ ...entry(identity, 'Crowbar', null), version: '' });
+		renderList('/');
+
+		await user.click(await screen.findByRole('link'));
+
+		expect(await screen.findByTestId('arrow-page')).toHaveAttribute('data-namespace', identity);
+		const [head, selector] = Array.from(subtitleOf(rows()[0]).children);
+		expect(head).toHaveTextContent('github.com/char2cs/crowbar');
+		expect(selector).toHaveTextContent(tail);
+	});
+
+	it('adds the ref the selector resolved to, when it names something else', async () => {
+		seed({ ...entry('github.com/char2cs/crowbar@stable', 'Crowbar', null), version: 'v1.3.0' });
+		await selectArrow(renderList('/'), 'github.com/char2cs/crowbar@stable');
+
+		expect(subtitleOf(rows()[0])).toHaveTextContent('github.com/char2cs/crowbar@stable · v1.3.0');
+	});
+
+	it('does not repeat a resolved ref that is the selector itself', async () => {
+		seed({ ...entry('github.com/char2cs/crowbar@nightly', 'Crowbar', null), version: 'nightly' });
+		await selectArrow(renderList('/'), 'github.com/char2cs/crowbar@nightly');
+
+		expect(subtitleOf(rows()[0]).textContent).toBe('github.com/char2cs/crowbar@nightly');
+	});
+
 	it('keeps the same height class whether or not the subtitle is showing', async () => {
 		seed(entry(MINECRAFT, 'Minecraft', null));
 		const router = renderList('/');

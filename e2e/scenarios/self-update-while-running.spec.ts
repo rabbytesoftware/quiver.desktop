@@ -42,7 +42,7 @@ describe('self-update while a supervised process is running', () => {
 
 		const { body } = await getArrow(home, NS_CORE);
 		expect(body).not.toBeNull();
-		selfNs = body!.installed_ref ? `${NS_CORE}@${body!.installed_ref}` : body!.namespace;
+		selfNs = body!.namespace;
 		expect(selfNs).toContain('@');
 	});
 

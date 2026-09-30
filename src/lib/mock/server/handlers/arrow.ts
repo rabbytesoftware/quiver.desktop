@@ -1,4 +1,14 @@
-import { findArrow, versioned } from '../../world/types';
+import { selectorOf } from '@/lib/namespace';
+
+import {
+	classifySelector,
+	findArrow,
+	findRepository,
+	resolvedRefOf,
+	versioned,
+	type MockArrow,
+	type MockWorld,
+} from '../../world/types';
 import { fail, ok } from '../envelope';
 import {
 	toArrowChannelsDTO,
@@ -13,6 +23,32 @@ import {
 import type { Route } from '../router';
 
 const ARROW_ENDPOINT = '/v0/arrow';
+
+/**
+ * A registration of a selector the world has no row for: a new row of the same
+ * repository, filed under that selector, nothing on disk yet -- what core's
+ * register does. Returns undefined for a repository nothing in the world is.
+ */
+function registerNewRow(world: MockWorld, ns: string): MockArrow | undefined {
+	const repository = findRepository(world.arrows, ns);
+	if (!repository) return undefined;
+	const selector = selectorOf(ns);
+	const row: MockArrow = {
+		...repository,
+		ref: selector,
+		selector_kind: classifySelector(selector, repository.channels),
+		resolved_ref: undefined,
+		available: undefined,
+		user_installed: true,
+		state: 'absent',
+		installed_at: '',
+		active_run: null,
+		last_return: null,
+	};
+	row.resolved_ref = resolvedRefOf(row);
+	world.arrows.set(versioned(row), row);
+	return row;
+}
 
 export const arrowRoutes: Route[] = [
 	{
@@ -50,9 +86,6 @@ export const arrowRoutes: Route[] = [
 		pattern: '/v0/arrow/:ns/readme',
 		fault: 'arrow-detail',
 		handler: (req, world) => {
-			// core rejects `namespace@ref` here the same way it already does for `/manifest` (`ErrInvalidNamespace`, 400).
-			if (req.params.ns.includes('@')) return fail('invalid namespace', 400);
-
 			const arrow = findArrow(world.arrows, req.params.ns);
 			if (!arrow) return fail(`arrow ${req.params.ns} not found`, 404);
 			if (!arrow.readme) return fail(`arrow ${req.params.ns} has no readme`, 404);
@@ -94,18 +127,21 @@ export const arrowRoutes: Route[] = [
 		pattern: '/v0/arrow/:ns',
 		fault: 'arrows',
 		handler: (req, world) => {
-			const arrow = findArrow(world.arrows, req.params.ns);
+			const existing = findArrow(world.arrows, req.params.ns);
+			const arrow = existing ?? registerNewRow(world, req.params.ns);
 			if (!arrow) return fail(`arrow ${req.params.ns} not found`, 404);
-			if (arrow.user_installed) return fail(`arrow ${req.params.ns} is already in the library`, 500);
 
-			const body = (req.body ?? {}) as { channel?: string };
+			// Re-registering an identity already in the library is a no-op, the
+			// way core answers it -- 201 all the same.
 			arrow.user_installed = true;
-			if (body.channel) arrow.channel = body.channel;
 			world.emitter.emit(ARROW_ENDPOINT, toArrowFrame(arrow, 'upserted'));
-			return ok(null);
+			return ok(null, 201);
 		},
 	},
 	{
+		// A re-check, no body. A row with nothing installed advances in place at
+		// once; an installed one stays put and reports what is available, which
+		// only `POST /v0/runtime/:ns/update` moves it to.
 		method: 'PATCH',
 		pattern: '/v0/arrow/:ns',
 		fault: 'arrows',
@@ -113,28 +149,18 @@ export const arrowRoutes: Route[] = [
 			const arrow = findArrow(world.arrows, req.params.ns);
 			if (!arrow) return fail(`arrow ${req.params.ns} not found`, 404);
 
-			const body = (req.body ?? {}) as { channel?: string; ref?: string };
-			if (!body.channel) return fail('channel is required', 400);
-
-			// Real quiver.core resolves an omitted `ref` to the channel's own
-			// `latest` -- mirror that here rather than leaving the ref untouched.
-			const entry = (arrow.channels ?? []).find((c) => c.name === body.channel);
-			const nextRef = body.ref ?? entry?.latest ?? arrow.ref;
-
-			// `world.arrows` is keyed by `namespace@ref` (see `findArrow`'s own
-			// comment) -- changing `ref` in place without re-keying would strand
-			// this entry under its old key, so any future exact-key lookup for
-			// the new ref would miss it.
-			const oldKey = versioned(arrow);
-			arrow.channel = body.channel;
-			arrow.ref = nextRef;
-			if (versioned(arrow) !== oldKey) {
-				world.arrows.delete(oldKey);
-				world.arrows.set(versioned(arrow), arrow);
+			if (arrow.available && arrow.state === 'absent') {
+				arrow.resolved_ref = arrow.available.ref;
+				arrow.available = undefined;
+				world.emitter.emit(ARROW_ENDPOINT, toArrowFrame(arrow, 'upserted'));
 			}
-
-			world.emitter.emit(ARROW_ENDPOINT, toArrowFrame(arrow, 'upserted'));
-			return ok(null);
+			return ok({
+				added_deps: [],
+				removed_from_manifest: [],
+				safe_to_uninstall: [],
+				constrained_deps: [],
+				...(arrow.available ? { available: arrow.available } : {}),
+			});
 		},
 	},
 	{

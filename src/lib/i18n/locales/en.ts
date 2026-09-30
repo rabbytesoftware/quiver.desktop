@@ -229,6 +229,12 @@ export const en = {
 	'arrow.action.info': 'What this does',
 	'arrow.action.error.title': "Couldn't complete the action",
 
+	'arrow.update.current': 'Already up to date',
+	'arrow.update.busy':
+		'Another update is underway, or the last one is still being applied. Wait a moment and try again.',
+	'arrow.update.retry': 'Try again',
+	'arrow.update.dismiss': 'Dismiss',
+
 	// Resolving Quiver's own release asset, which happens the moment Update or
 	// Install is clicked on Quiver's own tile. Every one of these says what
 	// went wrong and what the person can do, and none of them names a URL, an
@@ -237,10 +243,10 @@ export const en = {
 	'arrow.release.offline': "Quiver couldn't reach GitHub to find the download. Check your connection and try again.",
 	'arrow.release.rateLimited': 'GitHub is temporarily refusing requests from this network. Try again in an hour.',
 	'arrow.release.noRelease': 'There is no published Quiver release to download yet.',
-	'arrow.release.noAsset': "The latest Quiver release doesn't include a download for this computer.",
+	'arrow.release.noAsset': "This Quiver release doesn't include a download for this computer.",
 	'arrow.release.unsupportedPlatform': 'Quiver does not publish a download for this kind of computer.',
 	'arrow.release.unverifiable':
-		"The latest Quiver release doesn't publish a checksum, so the download can't be verified. Quiver won't replace itself with a file it can't check.",
+		"This Quiver release doesn't publish a checksum, so the download can't be verified. Quiver won't replace itself with a file it can't check.",
 	'arrow.release.unavailable': "Quiver couldn't work out which file to download. Try again later.",
 
 	// The persistent "not compatible" indicator (always visible, no click
@@ -315,6 +321,21 @@ export const en = {
 	'arrow.channel.label': 'Channel',
 	/** Suffix shown next to a pointer channel's name in the Channel picker, e.g. "nightly (rolling)". */
 	'arrow.channel.pointer': 'rolling',
+
+	// What a library entry follows. The selector is fixed for the life of the
+	// entry, so following something else is a reinstall, never an edit.
+	'arrow.selector.kind.channel': 'Channel',
+	'arrow.selector.kind.constraint': 'Range',
+	'arrow.selector.kind.pin': 'Pinned',
+	'arrow.selector.kind.commit': 'Commit',
+	'arrow.selector.resolved': 'Installs {ref}',
+	'arrow.selector.switch': 'Switch…',
+	'arrow.selector.switchTitle': 'Switching means reinstalling',
+	'arrow.selector.switchNote':
+		'{from} will be uninstalled and removed from your library, and {to} added in its place. Anything that was installed is installed again from scratch.',
+	'arrow.selector.switchConfirm': 'Uninstall and reinstall',
+	'arrow.selector.switchCancel': 'Cancel',
+	'arrow.selector.switchFailed': "Couldn't switch",
 
 	'home.recents': 'Recents',
 	'home.library': 'Library',

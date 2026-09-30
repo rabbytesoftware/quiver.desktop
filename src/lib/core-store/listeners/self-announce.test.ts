@@ -46,25 +46,25 @@ beforeEach(() => {
 });
 
 describe('announceSelf, from a build cut from a real release tag', () => {
-	it('announces that exact tag, so core resolves the ref this user is actually running', async () => {
+	it('announces the stable channel the tag belongs to, not the tag itself', async () => {
 		builtFrom('stable-26.5.1');
 
 		await announceSelf();
 
 		expect(apiFetch).toHaveBeenCalledTimes(1);
-		expect(apiFetch).toHaveBeenCalledWith(`${SELF_PATH}%40stable-26.5.1`, { method: 'POST' });
+		expect(apiFetch).toHaveBeenCalledWith(`${SELF_PATH}%40stable`, { method: 'POST' });
 	});
 
-	it('carries the ref as one encoded namespace, `@` and all', async () => {
+	it('never files the row under the build tag, which as a pin would never see a newer release', async () => {
 		builtFrom('stable-26.5');
 
 		await announceSelf();
 
-		// `%40` is the whole difference from the refless path below: core takes
-		// an explicit ref as written (resolvers/http.go), so this row tracks
-		// the tag this binary was built from rather than whatever the latest
-		// published release happens to be.
-		expect(announcedPath()).toBe(`${SELF_PATH}%40stable-26.5`);
+		// A catalog identity's selector never changes. `@stable-26.5` is a pin
+		// of a tag that never moves, so the row would never report an update;
+		// `@stable` follows the channel and stays the same row across every
+		// update, the way quiver.core files its own row.
+		expect(announcedPath()).toBe(`${SELF_PATH}%40stable`);
 	});
 });
 

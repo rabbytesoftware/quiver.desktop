@@ -1,0 +1,15 @@
+{
+	"success": true,
+	"error": null,
+	"namespace": "github.com/char2cs/crowbar@develop",
+	"data": {
+		"added_deps": [],
+		"removed_from_manifest": [],
+		"safe_to_uninstall": [],
+		"constrained_deps": [],
+		"available": {
+			"ref": "develop",
+			"commit": "06cf14309da6a110c94a0ba77051cf7cc59879c1"
+		}
+	}
+}

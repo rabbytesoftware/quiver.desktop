@@ -1,191 +1,74 @@
-import { createElement, type ReactNode } from 'react';
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
+import type { ArrowChannel } from '@/domain/arrow';
 
-import type { ArrowChannel, ArrowDetail } from '@/domain/arrow';
-import { apiFetch } from '@/lib/transport/api';
-
-import { useChannelSelection } from './use-channel-selection';
-
-vi.mock('@/lib/transport/api', () => ({ apiFetch: vi.fn() }));
-const mockApiFetch = apiFetch as MockedFunction<typeof apiFetch>;
+import { selectorFor, useChannelSelection } from './use-channel-selection';
 
 const STABLE: ArrowChannel = { name: 'stable', kind: 'ordered', latest: 'v2', count: 2, members: ['v2', 'v1'] };
 const BETA: ArrowChannel = { name: 'beta', kind: 'ordered', latest: 'v3-beta', count: 1, members: ['v3-beta'] };
+const NIGHTLY: ArrowChannel = { name: 'nightly', kind: 'pointer', latest: 'nightly-latest' };
 
-function detail(overrides: Partial<ArrowDetail> = {}): ArrowDetail {
-	return {
-		namespace: 'github.com/rabbyte/x@v2',
-		name: 'X',
-		description: '',
-		license: '',
-		url: '',
-		tags: [],
-		media: { icon: null, banner: null },
-		maintainers: [],
-		credits: [],
-		netbridge: [],
-		variables: [],
-		targets: [],
-		state: 'ready',
-		user_installed: true,
-		installed_ref: 'v2',
-		channel: 'stable',
-		channels: [STABLE, BETA],
-		active_run: null,
-		last_return: null,
-		readme: null,
-		dependencies: [],
-		dependents: [],
-		...overrides,
-	};
-}
+describe('selectorFor', () => {
+	it('follows the channel itself when its newest version is picked', () => {
+		expect(selectorFor(STABLE, 'v2')).toBe('stable');
+	});
 
-function wrapper() {
-	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-	return function Wrapper({ children }: { children: ReactNode }) {
-		return createElement(QueryClientProvider, { client }, children);
-	};
-}
+	it('pins a version that is not the channel’s newest', () => {
+		expect(selectorFor(STABLE, 'v1')).toBe('v1');
+	});
 
-beforeEach(() => {
-	mockApiFetch.mockReset();
-	mockApiFetch.mockResolvedValue(undefined);
+	it('follows a pointer channel when its own ref is kept, and pins anything typed instead', () => {
+		expect(selectorFor(NIGHTLY, 'nightly-latest')).toBe('nightly');
+		expect(selectorFor(NIGHTLY, 'a1b2c3d')).toBe('a1b2c3d');
+	});
+
+	it('follows the channel when no version is picked, and has nothing to say with no channel', () => {
+		expect(selectorFor(STABLE, undefined)).toBe('stable');
+		expect(selectorFor(undefined, 'v1')).toBeUndefined();
+	});
 });
 
 describe('useChannelSelection', () => {
-	it('seeds from detail.channel, falling back to the first published channel when untracked', () => {
-		const { result, rerender } = renderHook(({ d }) => useChannelSelection(d), {
-			wrapper: wrapper(),
-			initialProps: { d: detail({ channel: undefined }) },
-		});
-		expect(result.current.selectedChannel).toBe('stable');
-
-		// A genuinely different arrow (new namespace) re-seeds from scratch --
-		// note the reversed channel order proves this re-ran rather than just
-		// happening to already be 'stable'.
-		rerender({
-			d: detail({ channel: undefined, channels: [BETA, STABLE], namespace: 'github.com/rabbyte/y@v1' }),
-		});
-		expect(result.current.selectedChannel).toBe('beta');
-	});
-
-	it('skips the core call for a target detail already reflects', () => {
-		const { result } = renderHook(() => useChannelSelection(detail({ channel: 'stable', installed_ref: 'v2' })), {
-			wrapper: wrapper(),
-		});
-
-		act(() => {
-			result.current.selectVersion('stable', 'v2');
-		});
-
-		expect(apiFetch).not.toHaveBeenCalled();
-	});
-
-	it('skips the core call entirely for a not-yet-installed arrow, but still updates local state', () => {
-		const { result } = renderHook(() => useChannelSelection(detail({ user_installed: false })), {
-			wrapper: wrapper(),
-		});
-
-		act(() => {
-			result.current.selectChannel('beta');
-		});
-
-		expect(apiFetch).not.toHaveBeenCalled();
-		expect(result.current.selectedChannel).toBe('beta');
-	});
-
-	// Regression: a genuine concurrent double-click (Channel then Version, or
-	// vice versa) fired two overlapping PATCHes against the same starting
-	// namespace live -- `useMutation`'s own `isPending` only updates on
-	// React's next render, so it could not have caught this. `selectChannel`
-	// and `selectVersion` are invoked synchronously back to back, inside one
-	// `act`, before the first mutation's promise ever settles.
-	it('drops a second switch fired synchronously before the first settles, sending only one PATCH', async () => {
-		let resolveFirst: (value: undefined) => void = () => {};
-		mockApiFetch.mockReturnValueOnce(
-			new Promise((resolve) => {
-				resolveFirst = resolve;
-			})
-		);
-
-		const { result } = renderHook(() => useChannelSelection(detail()), { wrapper: wrapper() });
-
-		act(() => {
-			result.current.selectChannel('beta');
-			result.current.selectVersion('stable', 'v1');
-		});
-
-		// react-query dispatches the mutation function on a microtask, not
-		// synchronously within the call to `mutateAsync` -- but the `inFlight`
-		// guard itself is set synchronously inside `switchOnCore`, before that
-		// dispatch, which is the whole point: by the time either call could
-		// reach here, the second one has already been turned away.
-		await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
-		// The winning call (the channel pick, fired first) is what local state
-		// reflects -- not a mix with the dropped version pick's own target.
+	it('seeds from the channel the identity follows', () => {
+		const { result } = renderHook(() => useChannelSelection('beta', [STABLE, BETA]));
 		expect(result.current.selectedChannel).toBe('beta');
 		expect(result.current.selectedVersion).toBe('v3-beta');
-
-		resolveFirst(undefined);
+		expect(result.current.selector).toBe('beta');
 	});
 
-	it('also drops a channel pick that loses the race to an in-flight version pick', async () => {
-		let resolveFirst: (value: undefined) => void = () => {};
-		mockApiFetch.mockReturnValueOnce(
-			new Promise((resolve) => {
-				resolveFirst = resolve;
-			})
-		);
-
-		const { result } = renderHook(() => useChannelSelection(detail()), { wrapper: wrapper() });
-
-		act(() => {
-			result.current.selectVersion('stable', 'v1');
-			result.current.selectChannel('beta');
-		});
-
-		await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+	it('seeds a pinned identity onto the channel that lists it, at that version', () => {
+		const { result } = renderHook(() => useChannelSelection('v1', [STABLE, BETA]));
 		expect(result.current.selectedChannel).toBe('stable');
 		expect(result.current.selectedVersion).toBe('v1');
-
-		resolveFirst(undefined);
+		expect(result.current.selector).toBe('v1');
 	});
 
-	it('allows a new switch once the in-flight one has settled', async () => {
-		// `detail` here is a static fixture (this test doesn't simulate the
-		// server-refetch a real switch triggers), so both attempts target
-		// `beta` -- targeting `stable` again would be silently skipped by the
-		// separate "already matches detail" no-op guard instead of exercising
-		// the in-flight one this test is actually about.
-		const { result } = renderHook(() => useChannelSelection(detail()), { wrapper: wrapper() });
-
-		act(() => {
-			result.current.selectChannel('beta');
-		});
-		await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
-
-		act(() => {
-			result.current.selectChannel('beta');
-		});
-		await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(2));
+	it('falls back to the first published channel for a selector no channel names', () => {
+		const { result } = renderHook(() => useChannelSelection('v9.*', [BETA, STABLE]));
+		expect(result.current.selectedChannel).toBe('beta');
+		expect(result.current.selector).toBe('beta');
 	});
 
-	it('still clears the in-flight guard when the switch rejects, so a later attempt is not stuck blocked', async () => {
-		mockApiFetch.mockRejectedValueOnce(new Error('offline'));
-		const { result } = renderHook(() => useChannelSelection(detail()), { wrapper: wrapper() });
-
-		act(() => {
-			result.current.selectChannel('beta');
+	it('re-seeds once when the channel list arrives after the first render', () => {
+		const { result, rerender } = renderHook(({ channels }) => useChannelSelection('stable', channels), {
+			initialProps: { channels: [] as ArrowChannel[] },
 		});
-		await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+		expect(result.current.selector).toBeUndefined();
+		rerender({ channels: [BETA, STABLE] });
+		expect(result.current.selectedChannel).toBe('stable');
+	});
 
-		mockApiFetch.mockResolvedValueOnce(undefined);
-		act(() => {
-			result.current.selectChannel('beta');
-		});
-		await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(2));
+	it('picks a channel at its own newest version', () => {
+		const { result } = renderHook(() => useChannelSelection('stable', [STABLE, BETA]));
+		act(() => result.current.selectChannel('beta'));
+		expect(result.current.selectedVersion).toBe('v3-beta');
+		expect(result.current.selector).toBe('beta');
+	});
+
+	it('picks a version inside the selected channel as a pin', () => {
+		const { result } = renderHook(() => useChannelSelection('stable', [STABLE, BETA]));
+		act(() => result.current.selectVersion('v1'));
+		expect(result.current.selector).toBe('v1');
 	});
 });

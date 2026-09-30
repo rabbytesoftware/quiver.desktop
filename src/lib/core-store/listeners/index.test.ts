@@ -382,7 +382,7 @@ describe('setupListeners', () => {
 				name: 'a',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'ready' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'ready' }],
 			},
 		]);
 		await setupListeners();
@@ -424,7 +424,7 @@ describe('setupListeners', () => {
 				name: 'a',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'running' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'running' }],
 			},
 		]);
 		mockGetArrowsFor.mockResolvedValue([catalogRecord('a@1')]);
@@ -458,7 +458,7 @@ describe('setupListeners', () => {
 				name: 'a',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'ready' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'ready' }],
 			},
 		]);
 		await setupListeners();
@@ -476,14 +476,14 @@ describe('setupListeners', () => {
 				name: 'a',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'ready' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'ready' }],
 			},
 			{
 				namespace: 'b',
 				name: 'b',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'running' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'running' }],
 			},
 		]);
 		await opts.seed();
@@ -504,14 +504,14 @@ describe('setupListeners', () => {
 				name: 'a',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'ready' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'ready' }],
 			},
 			{
 				namespace: 'b',
 				name: 'b',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'running' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'running' }],
 			},
 		]);
 		await setupListeners();

@@ -1,3 +1,4 @@
+import type { ArrowDetail } from '@/domain/arrow';
 import type { ReleaseResolveError, ReleaseResolveErrorKind } from '@/domain/release';
 import { isReleaseResolveError, QUIVER_DESKTOP_NAMESPACE } from '@/domain/release';
 import type { MessageKey } from '@/lib/i18n';
@@ -13,17 +14,27 @@ export const RELEASE_VARIABLE_NAMES: readonly string[] = [RELEASE_ASSET_URL, REL
  * Whether this arrow is Quiver itself.
  *
  * The resolver reads quiver.desktop's OWN releases, so it is only ever
- * correct for quiver.desktop's own row. Refs are stripped because the same
- * app appears under whichever ref it announced itself at, and because an
- * update is started against the row's ref (the one being updated FROM) while
- * the asset comes from the newest release.
+ * correct for quiver.desktop's own row, whichever selector that row follows.
  */
 export function isSelfArrow(namespace: string): boolean {
 	return namespace.split('@')[0] === QUIVER_DESKTOP_NAMESPACE;
 }
 
 /**
- * Resolves this app's own release asset into the two execution variables
+ * The release tag whose asset an action on this row installs: what an update
+ * moves the row to (`available.ref`), else what the row already resolved to
+ * (`resolved_ref`) -- the release an install puts on disk. Never the identity
+ * selector: `stable` or `v1.*` names what the row follows, not a release.
+ */
+export function releaseTagFor(
+	detail: Pick<ArrowDetail, 'namespace' | 'available' | 'resolved_ref'>
+): string | undefined {
+	return detail.available?.ref || detail.resolved_ref || undefined;
+}
+
+/**
+ * Resolves this app's own release asset, from the release tagged `tag` (the
+ * newest release when there is none), into the two execution variables
  * quiver.core requires for `install` and `update`.
  *
  * Runs at click time rather than being baked into the manifest: the asset
@@ -45,9 +56,9 @@ export function isSelfArrow(namespace: string): boolean {
  * published checksum manifest, so both verify whenever anything is
  * publishable at all.
  */
-export async function releaseVariables(): Promise<Record<string, string>> {
+export async function releaseVariables(tag?: string): Promise<Record<string, string>> {
 	const asset = await backend()
-		.resolveReleaseAsset()
+		.resolveReleaseAsset(tag)
 		.catch((err: unknown) => {
 			throw asResolveError(err);
 		});

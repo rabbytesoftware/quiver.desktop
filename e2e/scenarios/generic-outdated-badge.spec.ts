@@ -28,7 +28,7 @@ describe('an outdated self-arrow gets the generic outdated badge', () => {
 
 		const { body } = await getArrow(home, OUTDATED_NS);
 		if (!body) throw new Error(`${OUTDATED_NS} is not in the catalog at all`);
-		versionedNs = body.namespace.includes('@') ? body.namespace : `${OUTDATED_NS}@${body.installed_ref ?? ''}`;
+		versionedNs = body.namespace;
 	});
 
 	it('bootstraps the self-arrow to ready so it can legally go outdated', async () => {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError, apiBase, apiFetch, coreIsReachable, isNotFoundError } from './api';
+import { ApiError, apiBase, apiFetch, apiRequest, coreIsReachable, isNotFoundError } from './api';
 
 const NO_SLEEP = { attempts: 8, baseDelayMs: 0, maxDelayMs: 0, sleep: () => Promise.resolve() };
 
@@ -120,6 +120,37 @@ describe('apiFetch', () => {
 		vi.stubGlobal('fetch', fetchMock);
 		await expect(apiFetch('/v0/health', undefined, { ...NO_SLEEP, attempts: 3 })).rejects.toThrow(ApiError);
 		expect(fetchMock).toHaveBeenCalledTimes(3);
+	});
+});
+
+describe('apiRequest', () => {
+	it('reports the status beside the unwrapped data, so a 200 no-op can be told from a 202', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue(jsonResponse({ success: true, error: null, namespace: 'x@stable' }, 200))
+		);
+		await expect(apiRequest('/v0/runtime/x/update', { method: 'POST' })).resolves.toEqual({
+			status: 200,
+			data: undefined,
+		});
+	});
+
+	it('reports a bare 202 acknowledgement', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 202 })));
+		await expect(apiRequest('/v0/runtime/x/update', { method: 'POST' })).resolves.toEqual({
+			status: 202,
+			data: undefined,
+		});
+	});
+
+	it('throws an ApiError carrying the status for a state violation', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue(jsonResponse({ success: false, error: 'state violation' }, 422))
+		);
+		const err = await apiRequest('/v0/runtime/x/update', { method: 'POST' }).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ApiError);
+		expect((err as ApiError).status).toBe(422);
 	});
 });
 

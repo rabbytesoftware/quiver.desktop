@@ -4,13 +4,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vitest';
 
-import { apiFetch } from '@/lib/transport/api';
+import { apiFetch, apiRequest } from '@/lib/transport/api';
 
 import { useExecute, useExecuteArrow, useInstall, useStop, useUninstall, useUpdate } from './runtime';
 
-vi.mock('@/lib/transport/api', () => ({ apiFetch: vi.fn() }));
+vi.mock('@/lib/transport/api', () => ({ apiFetch: vi.fn(), apiRequest: vi.fn() }));
 
 const mockApiFetch = apiFetch as MockedFunction<typeof apiFetch>;
+const mockApiRequest = apiRequest as MockedFunction<typeof apiRequest>;
 
 function wrapper() {
 	const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -82,14 +83,23 @@ describe('useExecute', () => {
 });
 
 describe('useUpdate', () => {
-	it('POSTs to /v0/runtime/:ns/update', async () => {
+	it('POSTs to /v0/runtime/:ns/update and reports a 202 as an update that started', async () => {
+		mockApiRequest.mockResolvedValue({ status: 202, data: undefined });
 		const { result } = renderHook(() => useUpdate(), { wrapper: wrapper() });
-		await act(() => result.current.mutateAsync({ namespace: 'ns@v1' }));
-		expect(apiFetch).toHaveBeenCalledWith('/v0/runtime/ns%40v1/update', {
+		const outcome = await act(() => result.current.mutateAsync({ namespace: 'ns@stable' }));
+		expect(apiRequest).toHaveBeenCalledWith('/v0/runtime/ns%40stable/update', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ variables: {} }),
 		});
+		expect(outcome).toBe('started');
+	});
+
+	it('reports a 200 as nothing newer -- no runtime event will follow', async () => {
+		mockApiRequest.mockResolvedValue({ status: 200, data: undefined });
+		const { result } = renderHook(() => useUpdate(), { wrapper: wrapper() });
+		const outcome = await act(() => result.current.mutateAsync({ namespace: 'ns@stable' }));
+		expect(outcome).toBe('current');
 	});
 });
 

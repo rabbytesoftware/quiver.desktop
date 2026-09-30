@@ -1,0 +1,37 @@
+{
+	"success": true,
+	"error": null,
+	"data": {
+		"namespace": "github.com/rabbytesoftware/quiver.core@develop",
+		"name": "Quiver Core",
+		"description": "The Quiver package manager's own engine daemon.",
+		"license": "GPL-3.0",
+		"state": "ready",
+		"tags": null,
+		"installed_at": "2026-09-30T00:12:17Z",
+		"user_installed": true,
+		"selector_kind": "pin",
+		"resolved_ref": "develop",
+		"installed_commit": "0fba569a0ca7a2c51e05eae4526671aed4d994fe",
+		"outdated": false,
+		"last_return": {
+			"method": "_install",
+			"outcome": "success",
+			"variables": {
+				"ARROW_NAMESPACE": "github.com/rabbytesoftware/quiver.core@develop",
+				"INSTALL_PATH": "/tmp/rkv-live/qhome/namespaces/github.com/rabbytesoftware/quiver.core@develop",
+				"PLATFORM": "darwin/arm64",
+				"REF": "develop",
+				"WORKDIR": "/tmp/rkv-live/qhome/namespaces/github.com/rabbytesoftware/quiver.core@develop"
+			},
+			"steps": [
+				{
+					"index": 0,
+					"status": "completed",
+					"title": "Resolve dependencies",
+					"type": "dependencies"
+				}
+			]
+		}
+	}
+}

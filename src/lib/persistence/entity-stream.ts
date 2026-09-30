@@ -1,7 +1,7 @@
 import { parseArrowOrigin, parseInferenceConfidence } from '@/domain/arrow';
 import { isReconnectSentinel, wsManager } from '@/lib/transport/ws-manager';
 
-import { getArrowsFor, removeArrow, upsertArrow } from './entity-cache';
+import { getArrow, getArrowsFor, removeArrow, upsertArrow } from './entity-cache';
 import type { ArrowCatalogRecord } from './schemas';
 
 const ARROW_ENDPOINT = '/v0/arrow';
@@ -37,10 +37,14 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => v
 	let applyChain: Promise<void> = Promise.resolve();
 	let seedGeneration = 0;
 
-	function applyFrame(frame: ArrowFrame): Promise<void> {
+	async function applyFrame(frame: ArrowFrame): Promise<void> {
 		if (frame.event === 'removed') {
 			return removeArrow(connectionId, frame.namespace);
 		}
+		// quiver.core's catalog frames carry no version (the resolved ref is row
+		// state, re-read from `GET /v0/arrow`), so a frame must not erase the
+		// one the last seed recorded.
+		const version = frame.version ?? (await getArrow(connectionId, frame.namespace))?.version ?? '';
 		return upsertArrow({
 			connectionId,
 			namespace: frame.namespace,
@@ -49,7 +53,7 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): () => v
 			tags: frame.tags ?? [],
 			icon: frame.media?.icon ?? frame.icon ?? null,
 			banner: frame.media?.banner ?? frame.banner ?? null,
-			version: frame.version ?? '',
+			version,
 			origin: parseArrowOrigin(frame.origin),
 			confidence: parseInferenceConfidence(frame.inference?.confidence),
 		});

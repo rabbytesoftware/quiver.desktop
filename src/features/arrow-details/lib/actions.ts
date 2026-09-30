@@ -155,7 +155,21 @@ export function computeActions(detail: ArrowDetail, platform: string): ArrowActi
 
 		case 'ready': {
 			const actions: ArrowAction[] = [];
-			if (hasExecute) actions.push(execute(false, 'default'));
+			// `available` is the row's own record of what is ahead; the runtime's
+			// `outdated` state is reconciled from it, but a detail read can land
+			// before that reconciliation does.
+			if (detail.available) {
+				actions.push({
+					kind: 'update',
+					labelKey: 'arrow.action.update',
+					variant: 'default',
+					steps: lifecycle?.update ?? [],
+					usesVariables: [],
+					forceBusy: false,
+					forceDisabled: false,
+				});
+			}
+			if (hasExecute) actions.push(execute(false, detail.available ? 'outline' : 'default'));
 			actions.push({
 				kind: 'uninstall',
 				labelKey: 'arrow.action.uninstall',

@@ -20,14 +20,16 @@ const NS = 'github.com/user/app@v1';
 const BARE_NS = 'github.com/user/app';
 
 const DETAIL = {
-	namespace: BARE_NS,
+	namespace: NS,
 	name: 'App',
-	version: 'v1',
 	description: 'An app.',
 	license: 'MIT',
 	state: 'ready',
 	tags: [],
-	installed_ref: 'v1',
+	selector_kind: 'pin',
+	resolved_ref: 'v1',
+	installed_commit: '',
+	outdated: false,
 	installed_at: '2026-05-09T21:26:59Z',
 	user_installed: true,
 };
@@ -39,7 +41,12 @@ const MANIFEST = {
 	tags: [],
 	variables: [],
 	targets: {},
-	manifest: { url: '', maintainers: [], credits: [], media: {}, netbridge: [] },
+	manifest: {
+		metadata: { url: '', maintainers: [], credits: [], media: {} },
+		variables: [],
+		netbridge: [],
+		targets: {},
+	},
 };
 
 function catalogRecord() {

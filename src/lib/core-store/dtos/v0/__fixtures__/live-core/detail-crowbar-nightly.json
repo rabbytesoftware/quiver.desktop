@@ -1,0 +1,17 @@
+{
+	"success": true,
+	"error": null,
+	"data": {
+		"namespace": "github.com/char2cs/crowbar@nightly",
+		"name": "crowbar",
+		"description": "Local-first desktop IDE where coding agents do the heavy lifting. Every branch becomes its own managed git worktree, Claude Code and Codex are interchangeable mid-conversation, and the diff review — inline comment threads and PR status — lives in the same window as the agent that wrote the code.",
+		"license": "AGPL-3.0-only OR LicenseRef-Commercial",
+		"state": "absent",
+		"tags": ["ide", "development", "agents", "git", "desktop", "code-review"],
+		"user_installed": true,
+		"selector_kind": "channel",
+		"resolved_ref": "nightly",
+		"installed_commit": "9dd0b183177a64ec71a2672d1cd7cf0c70bb4877",
+		"outdated": false
+	}
+}

@@ -257,6 +257,16 @@ describe('entity-stream', () => {
 		);
 	});
 
+	it('keeps the cached version when a live frame carries none, as quiver.core’s never do', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [rec('a@stable')], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'a@stable', name: 'renamed', description: '', tags: [] });
+		await vi.waitFor(async () =>
+			expect(await getArrowsFor('local')).toEqual([expect.objectContaining({ name: 'renamed', version: '1' })])
+		);
+	});
+
 	it('commits an upsert then a delete in arrival order', async () => {
 		const cacheMod = await import('./entity-cache');
 		const realUpsertArrow = cacheMod.upsertArrow;

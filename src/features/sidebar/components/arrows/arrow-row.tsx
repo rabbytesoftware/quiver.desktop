@@ -23,6 +23,9 @@ interface ArrowRowProps {
 
 export function ArrowRow({ arrow }: ArrowRowProps): JSX.Element {
 	const { head, tail } = splitNamespace(arrow.namespace);
+	// The identity names what the row follows (`@stable`, `@v1.*`); the
+	// version is the ref that resolved to, worth showing only when different.
+	const resolved = arrow.version && arrow.version !== tail.slice(1) ? arrow.version : null;
 
 	return (
 		<Link to="/arrow/$" params={{ _splat: arrow.namespace }} onClick={blockReselect} className={ROW}>
@@ -37,6 +40,7 @@ export function ArrowRow({ arrow }: ArrowRowProps): JSX.Element {
 				<span data-slot="arrow-namespace" className={SUBTITLE}>
 					<span className="truncate">{head}</span>
 					<span className="shrink-0">{tail}</span>
+					{resolved && <span className="shrink-0">&nbsp;· {resolved}</span>}
 				</span>
 			</span>
 		</Link>

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import type { ArrowChannel, ArrowDependency, ArrowDetail } from '@/domain/arrow';
-import { splitNamespace } from '@/lib/namespace';
+import { bareNamespace, namespaceSegment } from '@/lib/namespace';
 import { apiFetch, isNotFoundError } from '@/lib/transport/api';
 
 import type {
@@ -41,11 +41,12 @@ export function arrowDependentsQueryKey(namespace: string) {
  * `GET /v0/arrow/:ns/readme` (quiver.core #219) 404s when the arrow has no
  * readme -- a plain `arrow.yaml` delivery, or an ARROW.md with nothing
  * outside its fenced block -- which is an expected outcome here, not a
- * failure of the whole detail fetch.
+ * failure of the whole detail fetch. Read at the identity: two selectors of
+ * one repository can sit on manifests with different prose.
  */
-async function fetchReadme(bareNamespace: string): Promise<string | null> {
+async function fetchReadme(namespace: string): Promise<string | null> {
 	try {
-		const dto = await apiFetch<ArrowReadmeDTO>(`/v0/arrow/${encodeURIComponent(bareNamespace)}/readme`);
+		const dto = await apiFetch<ArrowReadmeDTO>(`/v0/arrow/${namespaceSegment(namespace)}/readme`);
 		return dto.readme;
 	} catch (err) {
 		if (isNotFoundError(err)) return null;
@@ -54,15 +55,15 @@ async function fetchReadme(bareNamespace: string): Promise<string | null> {
 }
 
 /**
- * `GET /v0/arrow/:ns/channels` -- like `/manifest` and `/readme`, this is a
- * repo-level property, not a per-ref one, so it takes the bare namespace.
+ * `GET /v0/arrow/:ns/channels` -- what the repository publishes, not a
+ * property of any one row, so it takes the bare namespace.
  * 404 means the arrow itself doesn't resolve (or hasn't published any
  * channels), which is a fine "nothing to show" outcome here, not a failure
  * of the whole detail fetch -- same treatment as readme/dependencies/dependents.
  */
-async function fetchChannels(bareNamespace: string): Promise<ChannelListDTO> {
+async function fetchChannels(namespace: string): Promise<ChannelListDTO> {
 	try {
-		return await apiFetch<ChannelListDTO>(`/v0/arrow/${encodeURIComponent(bareNamespace)}/channels`);
+		return await apiFetch<ChannelListDTO>(`/v0/arrow/${namespaceSegment(bareNamespace(namespace))}/channels`);
 	} catch (err) {
 		if (isNotFoundError(err)) return { channels: [] };
 		throw err;
@@ -78,7 +79,7 @@ async function fetchChannels(bareNamespace: string): Promise<ChannelListDTO> {
  */
 async function fetchDependencies(namespace: string): Promise<ArrowDependencyDTO[]> {
 	try {
-		const dto = await apiFetch<ArrowDependenciesDTO>(`/v0/arrow/${encodeURIComponent(namespace)}/dependencies`);
+		const dto = await apiFetch<ArrowDependenciesDTO>(`/v0/arrow/${namespaceSegment(namespace)}/dependencies`);
 		return dto.dependencies;
 	} catch (err) {
 		if (isNotFoundError(err)) return [];
@@ -89,7 +90,7 @@ async function fetchDependencies(namespace: string): Promise<ArrowDependencyDTO[
 /** `GET /v0/arrow/:ns/dependents` (quiver.core #220) -- core normalizes `:ns` to bare internally, but the full namespace@ref is passed for consistency with `/dependencies`. */
 async function fetchDependents(namespace: string): Promise<string[]> {
 	try {
-		const dto = await apiFetch<ArrowDependentsDTO>(`/v0/arrow/${encodeURIComponent(namespace)}/dependents`);
+		const dto = await apiFetch<ArrowDependentsDTO>(`/v0/arrow/${namespaceSegment(namespace)}/dependents`);
 		return dto.dependents;
 	} catch (err) {
 		if (isNotFoundError(err)) return [];
@@ -99,7 +100,7 @@ async function fetchDependents(namespace: string): Promise<string[]> {
 
 /**
  * The FAST/primary half of the six real endpoints quiver.core exposes for a
- * single arrow -- `GET /v0/arrow/:ns` (state/active_run/last_return/channel)
+ * single arrow -- `GET /v0/arrow/:ns` (state/active_run/last_return and the row state)
  * and `GET /v0/arrow/:ns/manifest` (media, maintainers, credits, url,
  * requirements, netbridge, variables, methods). Both are simple, fast reads
  * (confirmed live: tens of milliseconds), unlike the other four (readme,
@@ -120,17 +121,17 @@ async function fetchDependents(namespace: string): Promise<string[]> {
  * this into five independently-loading queries doesn't change that, it just
  * stops the frontend from gating everything on the slowest one.
  *
- * Manifest takes the bare namespace -- core rejects a `namespace@ref` path on
- * it (`ErrInvalidNamespace`, 400), confirmed live against the real daemon.
+ * Manifest is read at the identity, like the detail: each selector of a
+ * repository is its own row with its own manifest, and a bare namespace only
+ * reaches whichever row core prefers.
  */
 export function useArrowDetail(namespace: string) {
 	return useQuery<ArrowDetail>({
 		queryKey: arrowDetailQueryKey(namespace),
 		queryFn: async () => {
-			const bareNamespace = splitNamespace(namespace).head;
 			const [detail, manifest] = await Promise.all([
-				apiFetch<ArrowDetailDTO>(`/v0/arrow/${encodeURIComponent(namespace)}`),
-				apiFetch<ArrowManifestDTO>(`/v0/arrow/${encodeURIComponent(bareNamespace)}/manifest`),
+				apiFetch<ArrowDetailDTO>(`/v0/arrow/${namespaceSegment(namespace)}`),
+				apiFetch<ArrowManifestDTO>(`/v0/arrow/${namespaceSegment(namespace)}/manifest`),
 			]);
 			return toArrowDetail(detail, manifest, [], null, [], []);
 		},
@@ -143,13 +144,11 @@ export function useArrowDetail(namespace: string) {
  * feeds the Hero's Channel/Version selects, which show their own
  * loading/disabled treatment while this is in flight rather than blocking the
  * whole page (see `channelsLoading` threaded through `Hero`/`ChannelVersionSelects`).
- * Bare namespace, like `/manifest` and `/readme` -- channels are a repo-level
- * property, not a per-ref one.
  */
 export function useArrowChannels(namespace: string) {
 	return useQuery<ArrowChannel[]>({
 		queryKey: arrowChannelsQueryKey(namespace),
-		queryFn: async () => toArrowChannels(await fetchChannels(splitNamespace(namespace).head)),
+		queryFn: async () => toArrowChannels(await fetchChannels(namespace)),
 		enabled: namespace.length > 0,
 	});
 }
@@ -165,7 +164,7 @@ export function useArrowChannels(namespace: string) {
 export function useArrowReadme(namespace: string) {
 	return useQuery<string | null>({
 		queryKey: arrowReadmeQueryKey(namespace),
-		queryFn: () => fetchReadme(splitNamespace(namespace).head),
+		queryFn: () => fetchReadme(namespace),
 		enabled: namespace.length > 0,
 	});
 }

@@ -38,7 +38,12 @@ function detail(overrides: Partial<ArrowDetail> = {}): ArrowDetail {
 		targets: [TARGET],
 		state: 'ready',
 		user_installed: true,
-		installed_ref: 'v1.21.4',
+		selector: 'v1.21.4',
+		selector_kind: 'pin',
+		resolved_ref: 'v1.21.4',
+		installed_commit: '',
+		available: null,
+		outdated: false,
 		active_run: null,
 		last_return: null,
 		channels: [],
@@ -84,6 +89,17 @@ describe('computeActions', () => {
 			targets: [{ ...TARGET, lifecycle: { ...LIFECYCLE, execute: [] } }],
 		});
 		expect(computeActions(noExecute, PLATFORM).map((a) => a.kind)).toEqual(['uninstall']);
+	});
+
+	it('ready with something available: Update comes first, Start and Uninstall stay as they were', () => {
+		const available = { ref: 'v1.22.0', commit: 'abc1234' };
+		expect(kinds('ready', { available, outdated: true })).toEqual(['update', 'execute', 'uninstall']);
+		const [update] = computeActions(detail({ state: 'ready', available, outdated: true }), PLATFORM);
+		expect(update).toMatchObject({ forceDisabled: false, forceBusy: false, steps: LIFECYCLE.update });
+	});
+
+	it('ready with nothing available: no Update at all', () => {
+		expect(kinds('ready', { available: null, outdated: false })).not.toContain('update');
 	});
 
 	it('outdated: Update (enabled) + Start, hard-disabled unconditionally -- never gated by manifest data', () => {

@@ -16,6 +16,16 @@ describe('computeStatus', () => {
 		});
 	});
 
+	it('reads a ready row with something available as "Update available", keyed off available', () => {
+		expect(
+			computeStatus({ state: 'ready', user_installed: true, available: { ref: 'v2', commit: 'abc' } })
+		).toEqual({ labelKey: 'arrow.state.outdated', iconKind: 'up' });
+		expect(computeStatus({ state: 'ready', user_installed: true, available: null })).toEqual({
+			labelKey: 'arrow.state.ready',
+			iconKind: 'ready',
+		});
+	});
+
 	const CASES: Array<[ArrowState, string, string]> = [
 		['absent', 'arrow.state.absent', 'idle'],
 		['installing', 'arrow.state.installing', 'busy'],

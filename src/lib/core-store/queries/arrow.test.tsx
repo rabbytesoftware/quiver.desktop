@@ -30,16 +30,18 @@ const NS = 'github.com/rabbyte/minecraft@v1.21.4';
 const BARE_NS = 'github.com/rabbyte/minecraft';
 
 const DETAIL = {
-	namespace: 'github.com/rabbyte/minecraft',
+	namespace: NS,
 	name: 'Minecraft Server',
-	version: '1.21.4',
 	description: 'A server.',
 	license: 'MIT',
 	state: 'ready',
 	tags: [],
-	installed_ref: 'v1.21.4',
 	installed_at: '2026-05-09T21:26:59Z',
 	user_installed: true,
+	selector_kind: 'pin',
+	resolved_ref: 'v1.21.4',
+	installed_commit: 'abc1234',
+	outdated: false,
 };
 
 const MANIFEST = {
@@ -49,7 +51,12 @@ const MANIFEST = {
 	tags: [],
 	variables: [],
 	targets: {},
-	manifest: { url: '', maintainers: [], credits: [], media: {}, netbridge: [] },
+	manifest: {
+		metadata: { url: '', maintainers: [], credits: [], media: {} },
+		variables: [],
+		netbridge: [],
+		targets: {},
+	},
 };
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -82,7 +89,7 @@ describe('useArrowDetail', () => {
 		await waitFor(() => expect(result.current.isSuccess).toBe(true));
 		expect(mockApiFetch).toHaveBeenCalledTimes(2);
 		expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(NS)}`);
-		expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(BARE_NS)}/manifest`);
+		expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(NS)}/manifest`);
 	});
 
 	it('resolves immediately with placeholder values for the four slow fields', async () => {
@@ -113,7 +120,7 @@ describe('useArrowDetail', () => {
 });
 
 describe('useArrowChannels', () => {
-	it('fetches from the bare namespace, like manifest and readme', async () => {
+	it('fetches from the bare namespace -- channels are what the repository publishes, not a row', async () => {
 		mockApiFetch.mockResolvedValue({ channels: [] });
 
 		renderHook(() => useArrowChannels(NS), { wrapper });
@@ -155,14 +162,12 @@ describe('useArrowChannels', () => {
 });
 
 describe('useArrowReadme', () => {
-	it('fetches from the bare namespace', async () => {
-		mockApiFetch.mockResolvedValue({ namespace: BARE_NS, readme: '# About' });
+	it('fetches the readme of the identity, which is the row’s own manifest', async () => {
+		mockApiFetch.mockResolvedValue({ namespace: NS, readme: '# About' });
 
 		renderHook(() => useArrowReadme(NS), { wrapper });
 
-		await waitFor(() =>
-			expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(BARE_NS)}/readme`)
-		);
+		await waitFor(() => expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(NS)}/readme`));
 	});
 
 	it('resolves to the fetched prose', async () => {

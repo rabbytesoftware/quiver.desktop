@@ -29,14 +29,16 @@ const mockApiFetch = apiFetch as MockedFunction<typeof apiFetch>;
 const NS = 'github.com/rabbyte/minecraft@v1.21.4';
 
 const DETAIL: ArrowDetailDTO = {
-	namespace: 'github.com/rabbyte/minecraft',
+	namespace: NS,
 	name: 'Minecraft Server',
-	version: '1.21.4',
 	description: 'A vanilla Minecraft Java Edition server.',
 	license: 'MIT',
 	state: 'ready',
 	tags: ['game'],
-	installed_ref: 'v1.21.4',
+	selector_kind: 'pin',
+	resolved_ref: 'v1.21.4',
+	installed_commit: '',
+	outdated: false,
 	installed_at: '2026-05-09T21:26:59Z',
 	user_installed: true,
 	active_run: null,
@@ -88,11 +90,15 @@ const MANIFEST: ArrowManifestDTO = {
 		},
 	},
 	manifest: {
-		url: 'https://github.com/rabbyte/minecraft',
-		maintainers: [{ name: 'rabbyte' }],
-		credits: [],
-		media: {},
+		metadata: {
+			url: 'https://github.com/rabbyte/minecraft',
+			maintainers: [{ name: 'rabbyte' }],
+			credits: [],
+			media: {},
+		},
+		variables: null,
 		netbridge: [{ name: 'game', protocol: 'tcp', default: 25565, required: true }],
+		targets: null,
 	},
 };
 
@@ -213,13 +219,14 @@ describe('ArrowDetailsScreen', () => {
 		expect(screen.getByTestId('arrow-detail-layout')).not.toHaveClass('flex-col');
 	});
 
-	it('requests the readme from the bare namespace, not namespace@ref', async () => {
+	it('requests the readme of the identity, and the channels of the bare repository', async () => {
 		mockDetailAndManifest(DETAIL, MANIFEST, '## About');
 		renderScreen(NS);
 
 		await waitFor(() =>
-			expect(mockApiFetch).toHaveBeenCalledWith('/v0/arrow/github.com%2Frabbyte%2Fminecraft/readme')
+			expect(mockApiFetch).toHaveBeenCalledWith('/v0/arrow/github.com%2Frabbyte%2Fminecraft%40v1.21.4/readme')
 		);
+		expect(mockApiFetch).toHaveBeenCalledWith('/v0/arrow/github.com%2Frabbyte%2Fminecraft/channels');
 	});
 
 	it('picks the target matching the current platform for Requirements/Methods, not just the first one', async () => {
@@ -575,9 +582,9 @@ describe('ArrowDetailsScreen', () => {
 		await waitFor(() => expect(screen.queryByText(/Issue/)).not.toBeInTheDocument());
 	});
 
-	it('renders the channel and version switchers fed end to end by the channels endpoint', async () => {
+	it('renders the channel and version pickers for an arrow not yet in the library, fed by the channels endpoint', async () => {
 		mockDetailAndManifest(
-			DETAIL,
+			{ ...DETAIL, user_installed: false, state: 'absent' },
 			MANIFEST,
 			null,
 			[],
@@ -685,7 +692,7 @@ describe('ArrowDetailsScreen, progressive loading', () => {
 			if (path.endsWith('/dependencies')) return Promise.resolve({ namespace: NS, dependencies: [] });
 			if (path.endsWith('/dependents')) return Promise.resolve({ namespace: NS, dependents: [] });
 			if (path.endsWith('/channels')) return channels.promise;
-			return Promise.resolve(DETAIL);
+			return Promise.resolve({ ...DETAIL, user_installed: false, state: 'absent' });
 		});
 
 		renderScreen(NS);
@@ -696,7 +703,7 @@ describe('ArrowDetailsScreen, progressive loading', () => {
 		expect(channelSelect).toHaveTextContent('Loading…');
 		// The rest of the Hero (the action row) is unaffected by channels
 		// still being in flight.
-		expect(screen.getByRole('button', { name: 'Start' })).not.toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Add to Library' })).not.toBeDisabled();
 
 		channels.resolve({
 			channels: [{ name: 'stable', kind: 'ordered', latest: 'v1.21.4', count: 1, members: ['v1.21.4'] }],

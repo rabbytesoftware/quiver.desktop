@@ -8,6 +8,12 @@ export const Route = createFileRoute('/arrow/$')({
 
 function ArrowPage() {
 	const { _splat } = Route.useParams();
+	const navigate = Route.useNavigate();
 
-	return <ArrowDetailsScreen namespace={_splat ?? ''} />;
+	return (
+		<ArrowDetailsScreen
+			namespace={_splat ?? ''}
+			onIdentityChange={(namespace) => void navigate({ params: { _splat: namespace }, replace: true })}
+		/>
+	);
 }

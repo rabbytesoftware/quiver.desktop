@@ -8,6 +8,7 @@ import type { ArrowActionKind } from '@/features/arrow-details/lib/actions';
 import {
 	isSelfArrow,
 	releaseErrorMessageKey,
+	releaseTagFor,
 	releaseVariables,
 	type ReleaseMessageKey,
 } from '@/features/arrow-details/lib/release-variables';
@@ -22,6 +23,16 @@ import {
 	useUpdate,
 } from '@/lib/core-store';
 import { arrowDetailQueryKeyPrefix } from '@/lib/core-store/queries/arrow';
+import { ApiError } from '@/lib/transport/api';
+
+/**
+ * A state violation (422) or conflict (409) on update is a race with another
+ * update -- one underway, or the last one's commit still pending -- which a
+ * retry a moment later settles. Every other failure is final as reported.
+ */
+function isRetryableUpdateError(err: unknown): boolean {
+	return err instanceof ApiError && (err.status === 409 || err.status === 422);
+}
 
 export interface HeroActions {
 	/** The action kind currently in flight, or null -- callers disable/spin the matching button on this. */
@@ -30,6 +41,10 @@ export interface HeroActions {
 	releaseError: { messageKey: ReleaseMessageKey; detail: string } | null;
 	/** Set when a mutation itself rejects, carrying the backend's own precise reason. */
 	actionError: string | null;
+	/** Set alongside `actionError` when the failed action is worth simply trying again. */
+	retryKind: ArrowActionKind | null;
+	/** True after an Update that core answered with nothing newer: no run follows, so nothing is pending. */
+	upToDate: boolean;
 	/** Set to the platform `resolveRealPlatform()` decided against, opened instead of registering right away. */
 	platformWarning: string | null;
 	/** Runs the given action against core, gating `addToLibrary` on a fresh platform check unless `skipPlatformWarning`. */
@@ -39,21 +54,30 @@ export interface HeroActions {
 	dismissPlatformWarning(): void;
 }
 
+const UP_TO_DATE_MS = 4000;
+
 /**
- * The Hero's action-dispatch logic -- pulled out for the same reason
- * `useChannelSelection` was (react-doctor's `no-giant-component`): what to
- * call for each `ArrowActionKind`, the extra variables Quiver's own self-arrow
- * needs resolved fresh on every click, the platform-unsupported confirmation
- * gate, and restart's client-side stop-then-execute sequencing.
+ * The Hero's action-dispatch logic -- pulled out of `Hero` (react-doctor's
+ * `no-giant-component`): what to call for each `ArrowActionKind`, the extra
+ * variables Quiver's own self-arrow needs resolved fresh on every click, the
+ * platform-unsupported confirmation gate, and restart's client-side
+ * stop-then-execute sequencing.
+ *
+ * `registerAs` is the identity Add to Library files the arrow under -- the
+ * page's own, or another selector of it picked in the Hero. When it differs,
+ * `onIdentityChange` moves the page to the row that now exists.
  */
 export function useHeroActions(
 	detail: ArrowDetail,
 	values: Record<string, string>,
-	selectedChannel: string | undefined
+	registerAs: string,
+	onIdentityChange?: (namespace: string) => void
 ): HeroActions {
 	const [pendingKind, setPendingKind] = useState<ArrowActionKind | null>(null);
 	const [releaseError, setReleaseError] = useState<{ messageKey: ReleaseMessageKey; detail: string } | null>(null);
 	const [actionError, setActionError] = useState<string | null>(null);
+	const [retryKind, setRetryKind] = useState<ArrowActionKind | null>(null);
+	const [upToDate, setUpToDate] = useState(false);
 	const [platformWarning, setPlatformWarning] = useState<string | null>(null);
 	const restarting = useRef(false);
 	// Restart's second leg reads the namespace/values current as of the
@@ -78,6 +102,12 @@ export function useHeroActions(
 	const update = useUpdate();
 	const execute = useExecuteArrow();
 
+	useEffect(() => {
+		if (!upToDate) return;
+		const timer = setTimeout(() => setUpToDate(false), UP_TO_DATE_MS);
+		return () => clearTimeout(timer);
+	}, [upToDate]);
+
 	/**
 	 * The variables an action has to carry beyond whatever the user typed.
 	 *
@@ -85,9 +115,9 @@ export function useHeroActions(
 	 * own, `install`, `reinstall` and `update` fetch a release asset that
 	 * `ARROW.md` cannot name (release filenames carry a static product
 	 * version, and `${REF}` at update time is the version being left, not the
-	 * one being installed), so the caller has to resolve it -- which is
-	 * exactly what `install.sh` does against the same releases API, and what
-	 * this does at the moment the button is clicked.
+	 * one being installed), so the caller resolves it at the moment the button
+	 * is clicked -- from the release the row moves to (`releaseTagFor`), never
+	 * from the selector it follows.
 	 *
 	 * Resolved on EVERY click, never remembered. Nothing here may depend on a
 	 * previous execution's values still being around inside core.
@@ -95,7 +125,7 @@ export function useHeroActions(
 	async function extraVariables(kind: ArrowActionKind): Promise<Record<string, string>> {
 		const needsRelease = kind === 'install' || kind === 'reinstall' || kind === 'update';
 		if (!needsRelease || !isSelfArrow(detail.namespace)) return {};
-		return releaseVariables();
+		return releaseVariables(releaseTagFor(detail));
 	}
 
 	async function invoke(kind: ArrowActionKind, skipPlatformWarning = false): Promise<void> {
@@ -104,6 +134,8 @@ export function useHeroActions(
 		// from re-entering invoke() during that gap, the same guarantee every
 		// other kind here already has by setting this synchronously up front.
 		setPendingKind(kind);
+		setUpToDate(false);
+		setRetryKind(null);
 
 		if (kind === 'addToLibrary' && !skipPlatformWarning) {
 			// A fresh, authoritative read, not the platform prop: gating this
@@ -133,17 +165,15 @@ export function useHeroActions(
 		try {
 			switch (kind) {
 				case 'addToLibrary':
-					await registerArrow.mutateAsync({
-						namespace: detail.namespace,
-						...(selectedChannel ? { channel: selectedChannel } : {}),
-					});
+					await registerArrow.mutateAsync({ namespace: registerAs });
 					// `user_installed` isn't part of the live WS-driven overlay (only
 					// state/active_run/last_return are) -- the one-time detail fetch
 					// needs an explicit refetch to pick up the new library membership.
 					// Keyed by prefix, not the exact namespace: the mounted query may
 					// be running under a bare namespace (Search's own links carry no
-					// ref), which differs from this ref-qualified `detail.namespace`.
+					// ref), which differs from the identity core filed it under.
 					await queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
+					if (registerAs !== detail.namespace) onIdentityChange?.(registerAs);
 					break;
 				case 'removeFromLibrary':
 					await removeArrow.mutateAsync({ namespace: detail.namespace });
@@ -159,13 +189,22 @@ export function useHeroActions(
 				case 'uninstall':
 					await uninstall.mutateAsync({ namespace: detail.namespace });
 					break;
-				case 'update':
+				case 'update': {
 					// `release` is empty for every arrow but Quiver's own, which
 					// is the whole point: core requires only the variables the
 					// method's own steps expand, and an ordinary arrow's update
 					// expands none of these.
-					await update.mutateAsync({ namespace: detail.namespace, variables: release });
+					const outcome = await update.mutateAsync({ namespace: detail.namespace, variables: release });
+					// A 200 is a no-op: no run starts and no runtime event will
+					// follow, so there is nothing to wait for -- only a detail
+					// whose `available` was stale, re-read in place (the identity
+					// never changes, so there is nowhere to navigate).
+					if (outcome === 'current') {
+						setUpToDate(true);
+						await queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
+					}
 					break;
+				}
 				case 'execute':
 					await execute.mutateAsync({ namespace: detail.namespace, variables: values });
 					break;
@@ -185,6 +224,7 @@ export function useHeroActions(
 			restarting.current = false;
 			setPendingKind(null);
 			setActionError(err instanceof Error ? err.message : String(err));
+			if (kind === 'update' && isRetryableUpdateError(err)) setRetryKind('update');
 			return;
 		}
 		setPendingKind(null);
@@ -209,10 +249,15 @@ export function useHeroActions(
 		pendingKind,
 		releaseError,
 		actionError,
+		retryKind,
+		upToDate,
 		platformWarning,
 		invoke,
 		dismissReleaseError: () => setReleaseError(null),
-		dismissActionError: () => setActionError(null),
+		dismissActionError: () => {
+			setActionError(null);
+			setRetryKind(null);
+		},
 		dismissPlatformWarning: () => setPlatformWarning(null),
 	};
 }

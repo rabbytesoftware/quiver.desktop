@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getArrowsFor, removeArrow, upsertArrow } from './entity-cache';
+import { getArrow, getArrowsFor, removeArrow, upsertArrow } from './entity-cache';
 import { resetDB } from './idb';
 
 const rec = (connectionId: string, namespace: string) => ({
@@ -44,6 +44,12 @@ describe('entity-cache', () => {
 		expect(await getArrowsFor('remote-1')).toHaveLength(1);
 	});
 
+	it('reads one record by connection and identity', async () => {
+		await upsertArrow(rec('local', 'a@stable'));
+		expect((await getArrow('local', 'a@stable'))?.version).toBe('1');
+		expect(await getArrow('remote-1', 'a@stable')).toBeUndefined();
+	});
+
 	it('degrades to a no-op when IDB writes throw', async () => {
 		const mod = await import('./idb');
 		vi.spyOn(mod, 'getDB').mockRejectedValue(new Error('QuotaExceeded'));
@@ -54,6 +60,12 @@ describe('entity-cache', () => {
 		const mod = await import('./idb');
 		vi.spyOn(mod, 'getDB').mockRejectedValue(new Error('blocked'));
 		await expect(getArrowsFor('local')).resolves.toEqual([]);
+	});
+
+	it('degrades to no record when an IDB single read throws', async () => {
+		const mod = await import('./idb');
+		vi.spyOn(mod, 'getDB').mockRejectedValue(new Error('blocked'));
+		await expect(getArrow('local', 'a@1')).resolves.toBeUndefined();
 	});
 
 	it('degrades to a no-op when IDB deletes throw', async () => {

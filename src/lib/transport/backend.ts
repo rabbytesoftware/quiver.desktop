@@ -48,7 +48,8 @@ export interface Backend {
 	 */
 	getPlatform(): Promise<string>;
 	/**
-	 * This app's own newest release asset, for the machine it is running on.
+	 * This app's own release asset from the release tagged `tag` -- the newest
+	 * release when `tag` is undefined -- for the machine it is running on.
 	 *
 	 * Native-side for the same reason `getBuildTag` is: selecting an asset
 	 * needs the real OS and CPU architecture, and the webview cannot report
@@ -56,7 +57,7 @@ export interface Backend {
 	 * Silicon). Rejects with a `ReleaseResolveError` -- see
 	 * `src-tauri/src/release/mod.rs`.
 	 */
-	resolveReleaseAsset(): Promise<ResolvedReleaseAsset>;
+	resolveReleaseAsset(tag?: string): Promise<ResolvedReleaseAsset>;
 	getConnections(): Promise<ConnectionsSnapshot>;
 	onCoreStatus(cb: (status: ConnectionStatus) => void): Promise<() => void>;
 	onConnectionsChanged(cb: (snapshot: ConnectionsSnapshot) => void): Promise<() => void>;
@@ -89,8 +90,8 @@ export const realBackend: Backend = {
 		return invoke<string>('get_platform');
 	},
 
-	resolveReleaseAsset() {
-		return invoke<ResolvedReleaseAsset>('resolve_release_asset');
+	resolveReleaseAsset(tag) {
+		return invoke<ResolvedReleaseAsset>('resolve_release_asset', { tag: tag ?? null });
 	},
 
 	getConnections() {

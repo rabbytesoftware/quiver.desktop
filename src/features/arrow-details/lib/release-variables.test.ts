@@ -7,6 +7,7 @@ import { installBackend, resetBackend } from '@/lib/transport/backend';
 import {
 	isSelfArrow,
 	releaseErrorMessageKey,
+	releaseTagFor,
 	releaseVariables,
 	RELEASE_ASSET_URL,
 	RELEASE_CHECKSUM,
@@ -59,7 +60,51 @@ describe('isSelfArrow', () => {
 	});
 });
 
+describe('releaseTagFor', () => {
+	it('targets the ref an update moves to, never the identity selector', () => {
+		expect(
+			releaseTagFor({
+				namespace: 'github.com/rabbytesoftware/quiver.desktop@stable',
+				available: { ref: 'stable-26.9', commit: 'abc' },
+				resolved_ref: 'stable-26.5',
+			})
+		).toBe('stable-26.9');
+	});
+
+	it('targets the resolved ref when nothing newer is available, which is what an install puts on disk', () => {
+		expect(
+			releaseTagFor({
+				namespace: 'github.com/rabbytesoftware/quiver.desktop@nightly-latest',
+				available: null,
+				resolved_ref: 'nightly-latest',
+			})
+		).toBe('nightly-latest');
+	});
+
+	it('has no tag for a row that resolved nothing, rather than guessing from the selector', () => {
+		expect(
+			releaseTagFor({
+				namespace: 'github.com/rabbytesoftware/quiver.desktop@stable',
+				available: null,
+				resolved_ref: '',
+			})
+		).toBeUndefined();
+	});
+});
+
 describe('releaseVariables', () => {
+	it('asks the resolver for exactly the tag it is given', async () => {
+		const resolve = backendResolving(ASSET);
+		await releaseVariables('stable-26.9');
+		expect(resolve).toHaveBeenCalledWith('stable-26.9');
+	});
+
+	it('asks for the newest release when it has no tag', async () => {
+		const resolve = backendResolving(ASSET);
+		await releaseVariables(undefined);
+		expect(resolve).toHaveBeenCalledWith(undefined);
+	});
+
 	it('resolves the two variables ARROW.md declares without defaults', async () => {
 		backendResolving(ASSET);
 

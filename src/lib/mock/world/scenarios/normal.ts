@@ -64,9 +64,8 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		version: '1.21.4',
 		state: 'running',
 		// Exercises both channel kinds on one fixture: an ordered `stable`
-		// (ranked tags, this arrow's own `ref` as its current `latest`) and a
-		// `nightly` pointer (an unversioned branch, nothing to rank).
-		channel: 'stable',
+		// (ranked tags, this arrow's own pinned `ref` as its current `latest`)
+		// and a `nightly` pointer (a rolling tag, nothing to rank).
 		channels: [
 			{
 				name: 'stable',
@@ -189,6 +188,7 @@ export const NORMAL_ARROWS: MockArrow[] = [
 		ref: 'v1.4.4.9',
 		version: '1.4.4.9',
 		state: 'outdated',
+		available: { ref: 'v1.4.5.0', commit: '7c0de5a1b2c3d4e5f60718293a4b5c6d7e8f9012' },
 		tags: ['game', 'server'],
 		netbridge: [{ name: 'game', protocol: 'tcp', default: 7777, required: true }],
 	}),

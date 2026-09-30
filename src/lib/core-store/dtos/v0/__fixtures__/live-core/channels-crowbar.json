@@ -1,0 +1,13 @@
+{
+	"success": true,
+	"error": null,
+	"data": {
+		"channels": [
+			{
+				"name": "nightly",
+				"kind": "pointer",
+				"latest": "nightly"
+			}
+		]
+	}
+}
