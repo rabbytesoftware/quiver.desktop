@@ -9,7 +9,7 @@ import {
 	type MockArrow,
 	type MockWorld,
 } from '../../world/types';
-import { fail, ok } from '../envelope';
+import { fail, mutated, ok } from '../envelope';
 import {
 	toArrowChannelsDTO,
 	toArrowDependenciesDTO,
@@ -135,7 +135,28 @@ export const arrowRoutes: Route[] = [
 			// way core answers it -- 201 all the same.
 			arrow.user_installed = true;
 			world.emitter.emit(ARROW_ENDPOINT, toArrowFrame(arrow, 'upserted'));
-			return ok(null, 201);
+			return mutated(versioned(arrow));
+		},
+	},
+	{
+		// Declares `resolved_ref` as what is already installed under the
+		// identity: a new row when there is none, an in-place advance otherwise.
+		// Core also checks the ref against the repository's refs; the mock has
+		// no ref snapshot to check it against, so it takes the ref as given.
+		method: 'POST',
+		pattern: '/v0/arrow/:ns/adopt',
+		fault: 'arrows',
+		handler: (req, world) => {
+			const body = (req.body ?? {}) as { resolved_ref?: string };
+			if (!body.resolved_ref) return fail('resolved_ref is required', 400);
+			const arrow = findArrow(world.arrows, req.params.ns) ?? registerNewRow(world, req.params.ns);
+			if (!arrow) return fail(`arrow ${req.params.ns} not found`, 404);
+
+			arrow.user_installed = true;
+			arrow.resolved_ref = body.resolved_ref;
+			arrow.available = undefined;
+			world.emitter.emit(ARROW_ENDPOINT, toArrowFrame(arrow, 'upserted'));
+			return mutated(versioned(arrow));
 		},
 	},
 	{

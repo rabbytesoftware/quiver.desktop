@@ -9,6 +9,14 @@ export function ok(data: unknown, status = 200): Response {
 	});
 }
 
+/** A mutation envelope: success, no data, and the identity the mutation acted on. */
+export function mutated(namespace: string, status = 201): Response {
+	return new Response(JSON.stringify({ success: true, error: null, namespace }), {
+		status,
+		headers: JSON_HEADERS,
+	});
+}
+
 export function fail(message: string, status = 400): Response {
 	return new Response(JSON.stringify({ success: false, error: message, data: null }), {
 		status,

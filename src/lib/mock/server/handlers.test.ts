@@ -146,6 +146,37 @@ describe('library membership', () => {
 		expect(body!.data).toMatchObject({ selector_kind: kind });
 	});
 
+	it('names the identity it filed a registration under, as core’s mutation envelope does', async () => {
+		const { body } = await call('POST', `/v0/arrow/${enc(`${NS}/minecraft@nightly`)}`);
+		expect(body).toMatchObject({ success: true, namespace: `${NS}/minecraft@nightly` });
+	});
+
+	it('adopts a declared installed ref under the identity, in place, keeping it in the library', async () => {
+		const { status, body } = await call('POST', `/v0/arrow/${enc(`${NS}/terraria@v1.4.4.9`)}/adopt`, {
+			resolved_ref: 'v1.4.5.0',
+		});
+		expect(status).toBe(201);
+		expect(body).toMatchObject({ namespace: `${NS}/terraria@v1.4.4.9` });
+		const arrow = mock.world.arrows.get(`${NS}/terraria@v1.4.4.9`)!;
+		expect(arrow.resolved_ref).toBe('v1.4.5.0');
+		expect(arrow.available).toBeUndefined();
+		expect(arrow.user_installed).toBe(true);
+	});
+
+	it('adopts into a new row for an identity the world has no row for yet', async () => {
+		await call('POST', `/v0/arrow/${enc(`${NS}/minecraft@stable`)}/adopt`, { resolved_ref: 'v1.21.1' });
+		const row = mock.world.arrows.get(`${NS}/minecraft@stable`)!;
+		expect(row.resolved_ref).toBe('v1.21.1');
+		expect(row.selector_kind).toBe('channel');
+	});
+
+	it('400s an adopt with no resolved_ref, and 404s one for a repository it has never heard of', async () => {
+		expect((await call('POST', `/v0/arrow/${enc(MINECRAFT)}/adopt`, {})).status).toBe(400);
+		expect((await call('POST', `/v0/arrow/${enc('nope/nope@stable')}/adopt`, { resolved_ref: 'v1' })).status).toBe(
+			404
+		);
+	});
+
 	it('404s a registration of a repository the world has never heard of, whatever the selector', async () => {
 		expect((await call('POST', `/v0/arrow/${enc('nope/nope@stable')}`)).status).toBe(404);
 	});

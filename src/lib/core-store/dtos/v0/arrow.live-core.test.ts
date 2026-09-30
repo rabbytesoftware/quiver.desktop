@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import adoptNewest from './__fixtures__/live-core/adopt-detail-newest-adopted.json';
+import adoptOlder from './__fixtures__/live-core/adopt-detail-older-adopted.json';
+import adoptList from './__fixtures__/live-core/adopt-list-after-readopt.json';
 import channelsCore from './__fixtures__/live-core/channels-core.json';
 import channelsCrowbar from './__fixtures__/live-core/channels-crowbar.json';
 import detailCoreDevelopInstalled from './__fixtures__/live-core/detail-core-develop-installed.json';
@@ -93,5 +96,32 @@ describe('mapping real quiver.core payloads', () => {
 			['nightly-latest', 'pointer'],
 		]);
 		expect(core[0].members?.[0]).toBe(core[0].latest);
+	});
+
+	// A channel identity adopted at a release older than the channel's newest
+	// (`POST /adopt`, then a re-check), captured from a core serving a local
+	// repository tagged stable-26.5.0 / stable-26.5.1 / stable-26.6.0.
+	it('maps an adopted older build: resolved_ref is the build, available the newer release', () => {
+		const detail = toArrowDetail(detailOf(adoptOlder), manifest, [], null, [], []);
+		expect(detail.namespace).toBe('localhost/tester/desk@stable');
+		expect(detail.selector_kind).toBe('channel');
+		expect(detail.resolved_ref).toBe('stable-26.5.0');
+		expect(detail.available?.ref).toBe('stable-26.6.0');
+		expect(detail.outdated).toBe(true);
+		expect(detail.state).toBe('outdated');
+	});
+
+	it('maps an adopted newest build with nothing available', () => {
+		const detail = toArrowDetail(detailOf(adoptNewest), manifest, [], null, [], []);
+		expect(detail.resolved_ref).toBe('stable-26.6.0');
+		expect(detail.available).toBeNull();
+		expect(detail.outdated).toBe(false);
+	});
+
+	it('keeps one row after the same build is adopted again', () => {
+		const records = toArrowCatalogRecords(adoptList.data as ArrowListResponseItemDTO[], 'local');
+		expect(records.filter((r) => r.namespace.startsWith('localhost/tester/desk@'))).toEqual([
+			expect.objectContaining({ namespace: 'localhost/tester/desk@stable', version: 'stable-26.5.0' }),
+		]);
 	});
 });
