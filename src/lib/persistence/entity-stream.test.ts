@@ -524,4 +524,47 @@ describe('entity-stream', () => {
 		await new Promise((r) => setTimeout(r, 10));
 		expect(await getArrowsFor('local')).toEqual([]);
 	});
+
+	describe('origin, confidence and last_used_at through an upserted frame', () => {
+		async function seedThenFrame(seeded: Record<string, unknown>, frame: Record<string, unknown>) {
+			const changes = vi.fn();
+			subscribeArrowStream({
+				connectionId: 'local',
+				seed: async () => [{ ...rec('a@1'), ...seeded }],
+				onChange: changes,
+			});
+			await vi.waitFor(() => expect(changes).toHaveBeenCalledTimes(1));
+			subscribers[0]({ event: 'upserted', namespace: 'a@1', name: 'A', version: '1', ...frame });
+			await vi.waitFor(() => expect(changes).toHaveBeenCalledTimes(2));
+			return (await getArrowsFor('local'))[0];
+		}
+
+		it('keeps what the seed recorded when the frame carries none of it', async () => {
+			const stored = await seedThenFrame(
+				{ origin: 'inferred', confidence: 'medium', last_used_at: '2026-01-01T00:00:00Z' },
+				{}
+			);
+			expect(stored).toMatchObject({
+				origin: 'inferred',
+				confidence: 'medium',
+				last_used_at: '2026-01-01T00:00:00Z',
+			});
+		});
+
+		it('takes origin and confidence from the frame when it has them', async () => {
+			const stored = await seedThenFrame({}, { origin: 'inferred', inference: { confidence: 'high' } });
+			expect(stored).toMatchObject({ origin: 'inferred', confidence: 'high' });
+		});
+
+		it('drops a stale confidence once the frame says the arrow is declared', async () => {
+			const stored = await seedThenFrame({ origin: 'inferred', confidence: 'medium' }, { origin: 'declared' });
+			expect(stored.origin).toBe('declared');
+			expect(stored.confidence).toBeNull();
+		});
+
+		it('takes last_used_at from the frame when present', async () => {
+			const stored = await seedThenFrame({ last_used_at: 'old' }, { last_used_at: '2026-02-02T00:00:00Z' });
+			expect(stored.last_used_at).toBe('2026-02-02T00:00:00Z');
+		});
+	});
 });

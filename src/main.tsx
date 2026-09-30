@@ -5,6 +5,8 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import ReactDOM from 'react-dom/client';
 
+import { CrashFallback, ErrorBoundary } from '@/components/error-boundary';
+
 import { installThemeSync } from '@/features/shell';
 import { setupConnectionListeners } from '@/lib/connection';
 import { setupListeners } from '@/lib/core-store';
@@ -20,8 +22,8 @@ if (mock.enabled) installMock(mock.scenario);
 installLocaleSync();
 installThemeSync();
 
-setupListeners();
-setupConnectionListeners();
+setupListeners().catch((error: unknown) => console.error('setupListeners failed', error));
+setupConnectionListeners().catch((error: unknown) => console.error('setupConnectionListeners failed', error));
 
 const queryClient = new QueryClient({
 	defaultOptions: {
@@ -32,7 +34,10 @@ const queryClient = new QueryClient({
 	},
 });
 
-const router = createRouter({ routeTree });
+const router = createRouter({
+	routeTree,
+	defaultErrorComponent: ({ reset }) => <CrashFallback onRetry={reset} />,
+});
 
 declare module '@tanstack/react-router' {
 	interface Register {
@@ -42,9 +47,11 @@ declare module '@tanstack/react-router' {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
 	<React.StrictMode>
-		<QueryClientProvider client={queryClient}>
-			<RouterProvider router={router} />
-			<ReactQueryDevtools initialIsOpen={false} />
-		</QueryClientProvider>
+		<ErrorBoundary>
+			<QueryClientProvider client={queryClient}>
+				<RouterProvider router={router} />
+				<ReactQueryDevtools initialIsOpen={false} />
+			</QueryClientProvider>
+		</ErrorBoundary>
 	</React.StrictMode>
 );

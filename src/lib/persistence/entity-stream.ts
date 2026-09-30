@@ -22,7 +22,7 @@ interface ArrowFrame {
 	user_installed?: boolean;
 	last_used_at?: string;
 	origin?: string;
-	inference?: { confidence?: string };
+	inference?: { confidence?: string } | null;
 }
 
 export interface SubscribeArrowStreamOptions {
@@ -68,13 +68,22 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): ArrowSt
 		// state, re-read from `GET /v0/arrow`), so a frame must not erase the
 		// one the last seed recorded. Each still asks for that re-read: an
 		// update's advance reaches this client only as such a frame, after the
-		// runtime already reported the run ended.
+		// runtime already reported the run ended. Likewise a frame that omits
+		// origin/inference (an older core) must not erase what the seed
+		// recorded; a declared arrow never carries a confidence.
 		const cached = await getArrow(connectionId, frame.namespace);
 		const version = frame.version ?? cached?.version ?? '';
 		if (frame.version === undefined && frame.user_installed !== false && !unlisted.has(frame.namespace)) {
 			askedFor.add(frame.namespace);
 			onUnversionedUpsert?.(frame.namespace);
 		}
+		const origin = frame.origin === undefined ? (cached?.origin ?? 'declared') : parseArrowOrigin(frame.origin);
+		const confidence =
+			origin === 'declared'
+				? null
+				: frame.inference?.confidence === undefined
+					? (cached?.confidence ?? null)
+					: parseInferenceConfidence(frame.inference.confidence);
 		return upsertArrow({
 			connectionId,
 			namespace: frame.namespace,
@@ -85,8 +94,8 @@ export function subscribeArrowStream(opts: SubscribeArrowStreamOptions): ArrowSt
 			banner: frame.media?.banner ?? frame.banner ?? null,
 			version,
 			last_used_at: frame.last_used_at ?? cached?.last_used_at ?? null,
-			origin: parseArrowOrigin(frame.origin),
-			confidence: parseInferenceConfidence(frame.inference?.confidence),
+			origin,
+			confidence,
 		});
 	}
 

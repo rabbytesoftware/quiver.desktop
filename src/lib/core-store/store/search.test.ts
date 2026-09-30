@@ -97,7 +97,7 @@ describe('receive — the merge', () => {
 });
 
 describe('settle', () => {
-	it('replaces both bands so the seam cannot survive', () => {
+	it('moves a streamed namespace the re-query now returns into local, leaving streamed', () => {
 		const s = () => useSearchStore.getState();
 		s().setLocal([entry('github.com/a/one', { installed: true, known: true })]);
 		s().beginPass(JOB);
@@ -109,6 +109,21 @@ describe('settle', () => {
 		]);
 		expect(s().streamed).toEqual([]);
 		expect(s().local).toHaveLength(2);
+	});
+
+	it('keeps a streamed namespace the re-query does not return, in arrival order', () => {
+		const s = () => useSearchStore.getState();
+		s().setLocal([entry('github.com/a/base', { installed: true, known: true })]);
+		s().beginPass(JOB);
+		s().receive(entry('github.com/a/fletcher-1'));
+		s().receive(entry('github.com/a/fletcher-2'));
+		s().endPass({ job_id: 'job-1', query: 'q', found: 2, verified: 0, skipped: 0, providers: [] });
+		// The re-query only ever returns what Lane A indexes -- Fletcher probes
+		// stay out of it, so both streamed entries are absent here.
+		s().settle([entry('github.com/a/base', { installed: true, known: true })]);
+		expect(s().streamed.map((e) => e.namespace)).toEqual(['github.com/a/fletcher-1', 'github.com/a/fletcher-2']);
+		expect(s().local).toHaveLength(1);
+		expect(s().phase).toBe('settled');
 	});
 
 	it('keeps both bands when the re-query fails, rather than deleting visible results', () => {
@@ -179,5 +194,15 @@ describe('setQuery', () => {
 		s().setLocal([]);
 		s().setQuery('');
 		expect(s().phase).toBe('idle');
+	});
+
+	it('keeps the pass phase when a late Lane A answer or failure lands', () => {
+		for (const phase of ['discovering', 'settling', 'settled'] as const) {
+			useSearchStore.setState({ phase });
+			useSearchStore.getState().setLocal([]);
+			expect(useSearchStore.getState().phase).toBe(phase);
+			useSearchStore.getState().setLocalError();
+			expect(useSearchStore.getState().phase).toBe(phase);
+		}
 	});
 });

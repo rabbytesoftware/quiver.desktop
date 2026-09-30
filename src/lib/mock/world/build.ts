@@ -29,6 +29,12 @@ export function buildWorld(scenario: ScenarioName, emitter: Emitter): MockWorld 
 			configured: structuredClone(CONFIG_DEFAULTS),
 			corrected: [],
 		},
+		path: {
+			bin_dir: '/home/mock/.quiver/bin',
+			on_path: false,
+			configured: false,
+			files: ['/home/mock/.zshrc', '/home/mock/.bashrc'],
+		},
 		nextId: () => ++counter,
 	};
 

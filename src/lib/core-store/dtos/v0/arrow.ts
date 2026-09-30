@@ -398,6 +398,7 @@ export function toArrowDetail(
 		last_return: detail.last_return ?? null,
 		origin: parseArrowOrigin(detail.origin),
 		confidence: parseInferenceConfidence(detail.inference?.confidence),
+		warnings: detail.inference?.warnings ?? [],
 		channels,
 		readme,
 		dependencies: toArrowDependencies(dependencies),

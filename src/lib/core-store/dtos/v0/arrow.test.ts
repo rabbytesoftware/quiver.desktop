@@ -351,6 +351,23 @@ describe('toArrowDetail origin', () => {
 });
 
 describe('toArrowDetail', () => {
+	it('carries the inference warnings, and none for a hand-written arrow', () => {
+		const inferred = toArrowDetail(
+			{
+				...DETAIL,
+				origin: 'inferred',
+				inference: { generator: 'fletcher/1', confidence: 'medium', warnings: ['assumed_arch'] },
+			},
+			MANIFEST,
+			[],
+			null,
+			[],
+			[]
+		);
+		expect(inferred.warnings).toEqual(['assumed_arch']);
+		expect(toArrowDetail(DETAIL, MANIFEST, [], null, [], []).warnings).toEqual([]);
+	});
+
 	it('keeps the identity quiver.core sends, selector included', () => {
 		const result = toArrowDetail(DETAIL, MANIFEST, [], null, [], []);
 		expect(result.namespace).toBe('github.com/rabbyte/minecraft@stable');

@@ -1,6 +1,4 @@
-import { useMemo, type JSX, type ReactNode } from 'react';
-
-import { Link } from '@tanstack/react-router';
+import { useMemo, type JSX } from 'react';
 
 import type { ArrowEntry } from '@/domain/arrow';
 import { isInferred } from '@/domain/arrow';
@@ -9,42 +7,23 @@ import { columnRule } from '@/features/search/lib/columns';
 import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import { ArrowTile } from '@/features/sidebar/components/arrows/arrow-tile';
 import { arrowTileStatus } from '@/features/sidebar/components/arrows/arrow-tile-status';
-import { useArrowStore, useFollowedCollections, useStop } from '@/lib/core-store';
+import { useArrowStore, useFollowedCollections, useHome, useStop } from '@/lib/core-store';
 import { useTranslation } from '@/lib/i18n';
 
 import { EmptyHomeState } from './components/empty-home-state';
+import { SectionHeader } from './components/section-header';
+import { ShelfSection } from './components/shelf-section';
+import { ShelfSkeleton } from './components/shelf-skeleton';
+import { ViewAllLink } from './components/view-all-link';
+import { isSnapshotEmpty, visibleShelves } from './lib/visible-shelves';
 
 const RECENTS_LIMIT = 3;
 const LIBRARY_PREVIEW_LIMIT = 10;
 const COLLECTIONS_PREVIEW_LIMIT = 4;
+const LEAD_SHELF_LIMIT = 3;
 
 function byName(a: { name: string }, b: { name: string }): number {
 	return a.name.localeCompare(b.name);
-}
-
-interface SectionHeaderProps {
-	title: string;
-	action?: ReactNode;
-}
-
-function SectionHeader({ title, action }: SectionHeaderProps): JSX.Element {
-	return (
-		<div className="mb-4 flex items-end justify-between border-b border-border pb-2.5">
-			<h2 className="text-[13px] font-semibold tracking-[-0.1px]">{title}</h2>
-			{action}
-		</div>
-	);
-}
-
-function ViewAllLink({ to, children }: { to: '/library' | '/collections'; children: ReactNode }): JSX.Element {
-	return (
-		<Link
-			className="inline-flex items-center gap-1 pb-2.5 text-[12px] text-muted-foreground hover:text-foreground"
-			to={to}
-		>
-			{children}
-		</Link>
-	);
 }
 
 export function HomeScreen(): JSX.Element {
@@ -52,6 +31,7 @@ export function HomeScreen(): JSX.Element {
 	const arrows = useArrowStore((s) => s.arrows);
 	const catalogStatus = useArrowStore((s) => s.catalog);
 	const { data: collections = [], isLoading: collectionsLoading } = useFollowedCollections();
+	const { data: home, isLoading: homeLoading } = useHome();
 	const stop = useStop();
 	const showSelfComponents = useCatalogVisibilityStore((s) => s.showSelfComponents);
 
@@ -76,8 +56,20 @@ export function HomeScreen(): JSX.Element {
 		[collections]
 	);
 
+	const shelves = useMemo(() => visibleShelves(home), [home]);
+
+	const [leadShelf, ...trailingShelves] = shelves;
+
+	const showSkeleton = isSnapshotEmpty(home) && home?.refreshing === true;
+
 	const isEmpty =
-		catalogStatus !== 'loading' && !collectionsLoading && allArrows.length === 0 && collections.length === 0;
+		catalogStatus !== 'loading' &&
+		!collectionsLoading &&
+		!homeLoading &&
+		allArrows.length === 0 &&
+		collections.length === 0 &&
+		shelves.length === 0 &&
+		!showSkeleton;
 	if (isEmpty) return <EmptyHomeState />;
 
 	return (
@@ -108,6 +100,21 @@ export function HomeScreen(): JSX.Element {
 					</div>
 				</section>
 			)}
+
+			{leadShelf && (
+				<ShelfSection
+					action={
+						leadShelf.arrows.length > LEAD_SHELF_LIMIT && (
+							<ViewAllLink to="/recommended">
+								{t('home.viewAllRecommended', { count: leadShelf.arrows.length })}
+							</ViewAllLink>
+						)
+					}
+					shelf={{ ...leadShelf, arrows: leadShelf.arrows.slice(0, LEAD_SHELF_LIMIT) }}
+				/>
+			)}
+
+			{showSkeleton && <ShelfSkeleton title={t('home.recommended')} />}
 
 			{allArrows.length > 0 && (
 				<section className="mb-8">
@@ -142,6 +149,10 @@ export function HomeScreen(): JSX.Element {
 					</div>
 				</section>
 			)}
+
+			{trailingShelves.map((shelf) => (
+				<ShelfSection key={shelf.id} shelf={shelf} />
+			))}
 
 			{collections.length > 0 && (
 				<section className="mb-6">

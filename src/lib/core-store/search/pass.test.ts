@@ -4,7 +4,7 @@ import { createMockBackend, type MockRuntime } from '@/lib/mock';
 import { useMockStore } from '@/lib/mock/store';
 import { installBackend, resetBackend, type SocketLike } from '@/lib/transport/backend';
 
-import { createSearchController, IDLE_BEFORE_PASS_MS, PASS_DEADLINE_MS, POLL_INTERVAL_MS } from './pass';
+import { createSearchController, IDLE_BEFORE_PASS_MS, PASS_DEADLINE_MS } from './pass';
 import { useSearchStore } from '../store/search';
 
 let mock: MockRuntime;
@@ -198,7 +198,7 @@ describe('the pass', () => {
 		expect(useSearchStore.getState().streamed.length).toBe(before);
 	});
 
-	it('never lets two overlapping polls both consume the summary', async () => {
+	it('consumes the summary exactly once, however slow the round trips are', async () => {
 		useMockStore.getState().setLatency(1500);
 		const endPassSpy = vi.spyOn(useSearchStore.getState(), 'endPass');
 
@@ -209,42 +209,155 @@ describe('the pass', () => {
 		expect(phase()).toBe('settled');
 	});
 
-	it('force-settles a pass whose job never reports completion (spec 1.4.1)', async () => {
-		const original = mock.backend.fetch.bind(mock.backend);
-		const stillRunning = new Response(
-			JSON.stringify({
-				success: true,
-				error: null,
-				data: {
-					job_id: 'stuck',
-					status: 'running',
-					query: 'server',
-					found: 0,
-					verified: 0,
-					skipped: 0,
-					providers: [],
-				},
-			}),
-			{ status: 200, headers: { 'content-type': 'application/json' } }
-		);
-		const fetchSpy = vi.spyOn(mock.backend, 'fetch').mockImplementation((path, init) => {
-			if (path.startsWith('/v0/search/discover/')) return Promise.resolve(stillRunning.clone());
-			return original(path, init);
-		});
-
+	it('never polls the job resource while the stream is open', async () => {
+		const spy = vi.spyOn(mock.backend, 'fetch');
 		controller.setQuery('server');
-		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + PASS_DEADLINE_MS + POLL_INTERVAL_MS);
-
-		expect(phase()).toBe('settling');
-		expect(useSearchStore.getState().passFailed).toBe(true);
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 200);
+		expect(phase()).toBe('discovering');
 
 		const jobPath = `/v0/search/discover/${useSearchStore.getState().job?.id}`;
-		const hub = mock.world.emitter as unknown as { countFor: (path: string) => number };
-		expect(hub.countFor(jobPath)).toBe(0);
+		await vi.advanceTimersByTimeAsync(300);
+		expect(spy.mock.calls.filter(([p]) => p === jobPath)).toHaveLength(0);
+	});
 
-		const callsSoFar = fetchSpy.mock.calls.filter(([p]) => p === jobPath).length;
-		await vi.advanceTimersByTimeAsync(5000);
-		expect(fetchSpy.mock.calls.filter(([p]) => p === jobPath).length).toBe(callsSoFar);
+	it('settles on the close frame (1000 completed), then reads the summary once', async () => {
+		let opened: SocketLike | null = null;
+		const openSocket = mock.backend.openSocket.bind(mock.backend);
+		vi.spyOn(mock.backend, 'openSocket').mockImplementation((path) => {
+			opened = openSocket(path);
+			return opened;
+		});
+		const spy = vi.spyOn(mock.backend, 'fetch');
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10);
+		const jobPath = `/v0/search/discover/${useSearchStore.getState().job?.id}`;
+
+		opened!.onclose?.({ code: 1000, reason: 'completed' });
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(phase()).toBe('settled');
+		expect(spy.mock.calls.filter(([p]) => p === jobPath)).toHaveLength(1);
+	});
+
+	it('still settles when the summary cannot be read after a clean close', async () => {
+		let opened: SocketLike | null = null;
+		const openSocket = mock.backend.openSocket.bind(mock.backend);
+		vi.spyOn(mock.backend, 'openSocket').mockImplementation((path) => {
+			opened = openSocket(path);
+			return opened;
+		});
+		const original = mock.backend.fetch.bind(mock.backend);
+		vi.spyOn(mock.backend, 'fetch').mockImplementation((path, init) =>
+			path.startsWith('/v0/search/discover/') ? Promise.reject(new Error('gone')) : original(path, init)
+		);
+
+		controller.setQuery('server');
+		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10);
+		opened!.onclose?.({ code: 1000, reason: 'completed' });
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(phase()).toBe('settled');
+		expect(useSearchStore.getState().summary).toBeNull();
+	});
+
+	describe('an abnormal close', () => {
+		function captureSockets(): SocketLike[] {
+			const sockets: SocketLike[] = [];
+			const openSocket = mock.backend.openSocket.bind(mock.backend);
+			vi.spyOn(mock.backend, 'openSocket').mockImplementation((path) => {
+				const socket = openSocket(path);
+				sockets.push(socket);
+				return socket;
+			});
+			return sockets;
+		}
+
+		it('reconnects once on 1013 (slow consumer) and settles when the replay completes', async () => {
+			const sockets = captureSockets();
+			controller.setQuery('server');
+			await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10);
+			expect(sockets).toHaveLength(1);
+
+			sockets[0].onclose?.({ code: 1013, reason: 'slow consumer' });
+			expect(sockets).toHaveLength(2);
+			expect(phase()).toBe('discovering');
+
+			sockets[1].onclose?.({ code: 1000, reason: 'completed' });
+			await vi.advanceTimersByTimeAsync(0);
+			expect(phase()).toBe('settled');
+		});
+
+		it('does not duplicate a namespace the replay delivers again', async () => {
+			const sockets = captureSockets();
+			controller.setQuery('server');
+			await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10);
+
+			const frame = JSON.stringify({ namespace: 'github.com/a/b', name: 'b', description: '', tags: [] });
+			sockets[0].onmessage?.({ data: frame });
+			sockets[0].onclose?.({ code: 1013, reason: 'slow consumer' });
+			sockets[1].onmessage?.({ data: frame });
+
+			const streamed = useSearchStore.getState().streamed.filter((e) => e.namespace === 'github.com/a/b');
+			expect(streamed).toHaveLength(1);
+		});
+
+		it('fails the pass when the second stream breaks too, keeping what it has', async () => {
+			const sockets = captureSockets();
+			controller.setQuery('server');
+			await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10);
+
+			sockets[0].onclose?.();
+			sockets[1].onclose?.({ code: 1006, reason: '' });
+
+			expect(sockets).toHaveLength(2);
+			expect(phase()).toBe('settling');
+			expect(useSearchStore.getState().passFailed).toBe(true);
+		});
+
+		it('gives up after the safety deadline if a reconnected stream never closes', async () => {
+			(mock.world.emitter as { close?: unknown }).close = () => {};
+			const sockets = captureSockets();
+			controller.setQuery('server');
+			await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10);
+			sockets[0].onclose?.({ code: 1013, reason: 'slow consumer' });
+
+			await vi.advanceTimersByTimeAsync(PASS_DEADLINE_MS + 10);
+
+			expect(phase()).toBe('settling');
+			expect(useSearchStore.getState().passFailed).toBe(true);
+		});
+
+		it('does not fail a pass that completed inside the safety window', async () => {
+			const sockets = captureSockets();
+			controller.setQuery('server');
+			await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10);
+			sockets[0].onclose?.({ code: 1013, reason: 'slow consumer' });
+			sockets[1].onclose?.({ code: 1000, reason: 'completed' });
+
+			await vi.advanceTimersByTimeAsync(PASS_DEADLINE_MS + 10);
+
+			expect(phase()).toBe('settled');
+			expect(useSearchStore.getState().passFailed).toBe(false);
+		});
+	});
+
+	describe('the os filter', () => {
+		it('sends the same platform on Lane A, the stream and the re-query', async () => {
+			const platform = await mock.backend.getPlatform();
+			const fetchSpy = vi.spyOn(mock.backend, 'fetch');
+			const socketSpy = vi.spyOn(mock.backend, 'openSocket');
+
+			controller.setQuery('server');
+			await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10_000);
+
+			const encoded = encodeURIComponent(platform);
+			const lanePaths = fetchSpy.mock.calls.map(([p]) => p).filter((p) => p.startsWith('/v0/search?'));
+			expect(lanePaths.length).toBeGreaterThanOrEqual(2);
+			for (const path of lanePaths) expect(path).toContain(`&os=${encoded}`);
+			expect(socketSpy.mock.calls[0][0]).toMatch(/^\/v0\/search\/discover\/[^?]+\?os=/);
+			expect(socketSpy.mock.calls[0][0]).toContain(`?os=${encoded}`);
+		});
 	});
 });
 
@@ -502,29 +615,39 @@ describe('answers that arrive too late', () => {
 		expect(useSearchStore.getState().streamed.length).toBe(before);
 	});
 
-	it('stops polling a job once the controller is disposed', async () => {
+	async function startPassWithSocket(): Promise<SocketLike> {
+		let opened: SocketLike | null = null;
+		const openSocket = mock.backend.openSocket.bind(mock.backend);
+		vi.spyOn(mock.backend, 'openSocket').mockImplementation((path) => {
+			opened = openSocket(path);
+			return opened;
+		});
 		controller.setQuery('server');
 		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10);
+		return opened!;
+	}
 
-		const path = `/v0/search/discover/${useSearchStore.getState().job?.id}`;
+	it('ignores a close frame from a socket the controller already let go of', async () => {
+		const socket = await startPassWithSocket();
 		const spy = vi.spyOn(mock.backend, 'fetch');
 		controller.dispose();
 
-		await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 4);
+		socket.onclose?.({ code: 1000, reason: 'completed' });
+		await vi.advanceTimersByTimeAsync(0);
 
-		expect(spy.mock.calls.filter(([p]) => p === path)).toHaveLength(0);
+		expect(spy.mock.calls.filter(([p]) => p.startsWith('/v0/search/discover/'))).toHaveLength(0);
+		expect(phase()).toBe('idle');
 	});
 
-	it('drops a poll answer that lands after dispose', async () => {
+	it('drops a summary that lands after dispose', async () => {
 		const held = gate<Response>();
 		const original = mock.backend.fetch.bind(mock.backend);
 		vi.spyOn(mock.backend, 'fetch').mockImplementation((path, init) =>
 			path.startsWith('/v0/search/discover/') ? held.promise : original(path, init)
 		);
+		const socket = await startPassWithSocket();
 
-		controller.setQuery('server');
-		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + POLL_INTERVAL_MS + 10);
-
+		socket.onclose?.({ code: 1000, reason: 'completed' });
 		controller.dispose();
 		held.resolve(
 			envelope({
@@ -539,19 +662,19 @@ describe('answers that arrive too late', () => {
 		);
 		await vi.advanceTimersByTimeAsync(0);
 
-		expect(phase()).not.toBe('settled');
+		expect(phase()).toBe('idle');
+		expect(useSearchStore.getState().summary).toBeNull();
 	});
 
-	it('drops a failed poll that lands after dispose', async () => {
+	it('drops a failed summary read that lands after dispose', async () => {
 		const held = gate<Response>();
 		const original = mock.backend.fetch.bind(mock.backend);
 		vi.spyOn(mock.backend, 'fetch').mockImplementation((path, init) =>
 			path.startsWith('/v0/search/discover/') ? held.promise : original(path, init)
 		);
+		const socket = await startPassWithSocket();
 
-		controller.setQuery('server');
-		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + POLL_INTERVAL_MS + 10);
-
+		socket.onclose?.({ code: 1000, reason: 'completed' });
 		controller.dispose();
 		held.reject(new Error('gone'));
 		await vi.advanceTimersByTimeAsync(0);

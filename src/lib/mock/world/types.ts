@@ -187,6 +187,8 @@ export interface Clock {
 
 export interface Emitter {
 	emit(endpoint: string, frame: unknown): void;
+	/** Ends a stream the way the daemon does, with a close code and reason. */
+	close?(endpoint: string, code: number, reason: string): void;
 }
 
 // The daemon config document, keyed by section then setting name. Same shape
@@ -220,6 +222,13 @@ export interface MockConfigState {
 	corrected: { key: string; message: string }[];
 }
 
+export interface MockPathState {
+	bin_dir: string;
+	on_path: boolean;
+	configured: boolean;
+	files: string[];
+}
+
 export interface MockWorld {
 	scenario: ScenarioName;
 	connectionId: string;
@@ -243,6 +252,7 @@ export interface MockWorld {
 	clock: Clock;
 	emitter: Emitter;
 	config: MockConfigState;
+	path: MockPathState;
 
 	nextId: () => number;
 }
