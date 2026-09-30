@@ -400,3 +400,29 @@ describe('chaos, at the edges', () => {
 		expect((await mock.backend.fetch('/v0/health')).status).toBe(502);
 	});
 });
+
+describe('home', () => {
+	it('serves one popular shelf of arrows the catalog does not hold', async () => {
+		const { status, body } = await call('GET', '/v0/home');
+		expect(status).toBe(200);
+		const data = body!.data as {
+			shelves: Array<{ title: string; arrows: Array<{ installed: boolean }> }>;
+			refreshing: boolean;
+		};
+		expect(data.refreshing).toBe(false);
+		expect(data.shelves).toHaveLength(1);
+		expect(data.shelves[0].arrows.length).toBeGreaterThan(0);
+		expect(data.shelves[0].arrows.every((a) => !a.installed)).toBe(true);
+	});
+
+	it('serves no shelf in an empty world', async () => {
+		mock.dispose();
+		mock = createMockBackend('empty');
+		const { body } = await call('GET', '/v0/home');
+		expect(body!.data).toEqual({ shelves: [], refreshing: false });
+	});
+
+	it('accepts a refresh request', async () => {
+		expect((await call('POST', '/v0/home/refresh')).status).toBe(202);
+	});
+});

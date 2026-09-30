@@ -146,6 +146,7 @@ export const en = {
 	'settings.developer.faults.discover': 'Discovery',
 	'settings.developer.faults.collections': 'Collections',
 	'settings.developer.faults.collection-detail': 'Collection detail',
+	'settings.developer.faults.home': 'Home',
 	'settings.developer.faults.runtime': 'Runtime actions',
 	'settings.developer.faults.health': 'Health probe',
 	'settings.developer.faults.config': 'Daemon config',
@@ -338,9 +339,14 @@ export const en = {
 	'home.recents': 'Recents',
 	'home.library': 'Library',
 	'home.collections': 'Collections',
+	'home.recommended': 'Recommended',
 	'home.viewAllArrows': {
 		one: 'View {count} arrow',
 		other: 'View all {count} arrows',
+	},
+	'home.viewAllRecommended': {
+		one: 'View {count} arrow',
+		other: 'View all {count}',
 	},
 	'home.viewAllCollections': {
 		one: 'View {count} collection',
@@ -355,6 +361,12 @@ export const en = {
 		other: '{count} installed arrows',
 	},
 	'library.sort.name': 'Sort: Name',
+
+	'recommended.subtitle': {
+		one: '{count} recommended arrow',
+		other: '{count} recommended arrows',
+	},
+	'recommended.empty': 'No recommendations right now.',
 
 	'collections.subtitle': '{count} followed',
 	'collections.arrowCount': {
