@@ -23,7 +23,7 @@ inputs:
   rust-version:
     description: 'Rust toolchain version'
     required: false
-    default: '1.88'
+    default: '1.90'
   bun-version:
     description: 'Bun version'
     required: false
