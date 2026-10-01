@@ -1,0 +1,32 @@
+{
+	"success": true,
+	"error": null,
+	"data": {
+		"channels": [
+			{
+				"name": "stable",
+				"kind": "ordered",
+				"latest": "stable-26.5.1",
+				"count": 2,
+				"members": ["stable-26.5.1", "stable-26.5"]
+			},
+			{
+				"name": "beta",
+				"kind": "ordered",
+				"latest": "beta-26.5-4",
+				"count": 5,
+				"members": ["beta-26.5-4", "beta-26.5-3", "beta-26.5-2", "beta-26.5-1", "beta-26.5"]
+			},
+			{
+				"name": "beta-2026-09-27",
+				"kind": "pointer",
+				"latest": "beta-2026-09-27"
+			},
+			{
+				"name": "nightly-latest",
+				"kind": "pointer",
+				"latest": "nightly-latest"
+			}
+		]
+	}
+}

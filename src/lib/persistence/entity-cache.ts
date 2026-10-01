@@ -19,20 +19,20 @@ export async function getArrowsFor(connectionId: string): Promise<ArrowCatalogRe
 	}
 }
 
-export async function removeArrow(connectionId: string, namespace: string): Promise<void> {
-	try {
-		const db = await getDB();
-		await db.delete('quiver_arrows', [connectionId, namespace]);
-	} catch {
-		/* best-effort cache delete */
-	}
-}
-
 export async function getArrow(connectionId: string, namespace: string): Promise<ArrowCatalogRecord | undefined> {
 	try {
 		const db = await getDB();
 		return await db.get('quiver_arrows', [connectionId, namespace]);
 	} catch {
 		return undefined;
+	}
+}
+
+export async function removeArrow(connectionId: string, namespace: string): Promise<void> {
+	try {
+		const db = await getDB();
+		await db.delete('quiver_arrows', [connectionId, namespace]);
+	} catch {
+		/* best-effort cache delete */
 	}
 }

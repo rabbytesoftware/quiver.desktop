@@ -16,7 +16,9 @@
 
 use crate::release::{resolve, ResolveError, ResolvedAsset, DEFAULT_API, DEFAULT_REPO};
 
-/// This app's own newest release asset for the platform it is running on.
+/// This app's own release asset for the platform it is running on, from the
+/// release tagged `tag` -- the ref the row is moving to -- or the newest
+/// release when there is none.
 ///
 /// Called at the moment the user clicks Update (or Install) on Quiver's own
 /// tile, to fill in `QUIVER_RELEASE_ASSET_URL` and `QUIVER_RELEASE_CHECKSUM`
@@ -30,11 +32,11 @@ use crate::release::{resolve, ResolveError, ResolvedAsset, DEFAULT_API, DEFAULT_
 /// the webview could not have answered: `navigator.platform` says `MacIntel`
 /// on Apple Silicon.
 #[tauri::command]
-pub async fn resolve_release_asset() -> Result<ResolvedAsset, ResolveError> {
+pub async fn resolve_release_asset(tag: Option<String>) -> Result<ResolvedAsset, ResolveError> {
 	resolve(
 		DEFAULT_API,
 		DEFAULT_REPO,
-		None,
+		tag.as_deref(),
 		std::env::consts::OS,
 		std::env::consts::ARCH,
 	)

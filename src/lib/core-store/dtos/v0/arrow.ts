@@ -9,12 +9,13 @@ import type {
 	ArrowState,
 	ArrowStepDefinition,
 	ArrowTarget,
+	AvailableVersion,
 	DependencyType,
 	RuntimeUpdate,
 	StepProgress,
 } from '@/domain/arrow';
-import { parseArrowOrigin, parseInferenceConfidence } from '@/domain/arrow';
-import { splitNamespace } from '@/lib/namespace';
+import { parseArrowOrigin, parseInferenceConfidence, parseSelectorKind } from '@/domain/arrow';
+import { selectorOf } from '@/lib/namespace';
 import type { ArrowCatalogRecord } from '@/lib/persistence/schemas';
 
 export interface InferenceDTO {
@@ -23,10 +24,17 @@ export interface InferenceDTO {
 	warnings?: string[];
 }
 
+/**
+ * One catalog row of an arrow. `ref` is the identity selector the row is filed
+ * under (`stable`, `v1.*`, `v1.2.0`, a commit) and never changes; `resolved_ref`
+ * is the ref it resolved to, empty until it resolved one. Absent altogether on
+ * an older core, which reads the same as unresolved.
+ */
 export interface InstalledVersionDTO {
 	ref: string;
-	version: string;
+	resolved_ref?: string;
 	state: ArrowState;
+	/** Omitted until a successful install stamps it, and again after an uninstall. */
 	installed_at?: string;
 	/** Set once quiver.core stamps it on a completed `execute` (enhancement/last_used); absent until then. */
 	last_used_at?: string;
@@ -62,29 +70,38 @@ export interface LastReturnDTO {
 	steps: StepProgress[];
 }
 
+export interface AvailableDTO {
+	ref: string;
+	commit: string;
+}
+
+/**
+ * `GET /v0/arrow/:ns`. `namespace` is the catalog identity, `bare@selector`,
+ * always -- an uncatalogued refless read is resolved live and reported under
+ * the repository's default channel. The row-state fields are optional because
+ * an older core sends none of them; the mapper reads that as a pin with
+ * nothing resolved.
+ */
 export interface ArrowDetailDTO {
 	namespace: string;
 	name: string;
-	version: string;
 	description: string;
-	license: string;
+	license?: string;
 	state: ArrowState;
 	/** Null for an arrow with no `tags:`, exactly as above. */
 	tags: string[] | null;
-	/**
-	 * Absent, not just empty, when `namespace` already carries the resolved ref
-	 * itself -- quiver.core PR #225 made `GetDetail` resolve live for an
-	 * uncatalogued namespace, and the live-resolved case stamps the ref onto
-	 * `namespace` rather than reporting it here.
-	 */
-	installed_ref?: string;
-	installed_at: string;
-	installed_constraint?: string;
+	/** Omitted while the arrow is not on disk. */
+	installed_at?: string;
+	last_used_at?: string;
 	user_installed: boolean;
+	selector_kind?: 'pin' | 'channel' | 'constraint' | 'commit';
+	resolved_ref?: string;
+	installed_commit?: string;
+	/** Omitted when current. */
+	available?: AvailableDTO | null;
+	outdated?: boolean;
 	active_run?: ActiveRun | null;
 	last_return?: LastReturnDTO | null;
-	/** The channel this arrow is currently tracking. Absent for one pinned to an exact ref with no tracked channel. */
-	channel?: string;
 	/** Absent on a daemon that predates inference; reads as declared. */
 	origin?: string;
 	/** Omitted unless the arrow is inferred. */
@@ -130,7 +147,7 @@ export function toArrowCatalogRecords(items: ArrowListResponseItemDTO[], connect
 			tags: arrow.tags ?? [],
 			icon: arrow.media?.icon || null,
 			banner: arrow.media?.banner || null,
-			version: v.version,
+			version: v.resolved_ref ?? '',
 			last_used_at: v.last_used_at ?? null,
 			origin: parseArrowOrigin(arrow.origin),
 			confidence: parseInferenceConfidence(arrow.confidence),
@@ -208,25 +225,32 @@ export interface PortDTO {
 	required: boolean;
 }
 
-/** The raw manifest, nested whole under `manifest` -- the only place url/maintainers/credits/media/netbridge live on the wire. */
-export interface RawManifestDTO {
-	url: string;
-	/**
-	 * Null, not absent, for a manifest that declares none. Go marshals a nil
-	 * slice as JSON null and quiver.core's DTOs carry `domain.Arrow` through
-	 * untouched, so every list on this object can arrive that way -- and does:
-	 * neither of Quiver's own self-manifests declares `netbridge:`.
-	 *
-	 * This is the shape that cost a page. `tags` arriving null crashed the
-	 * whole arrow-details view on `detail.tags.length`, which put the Update
-	 * button out of reach on the one arrow that most needs it. The rest are
-	 * defaulted at the same boundary rather than waiting to be found the same
-	 * way.
-	 */
-	maintainers: CreditDTO[] | null;
-	credits: CreditDTO[] | null;
-	media: ArrowMediaDTO;
+/**
+ * The manifest's `metadata:` block as its author wrote it. Every list here can
+ * arrive as JSON null rather than absent or empty: Go marshals a nil slice
+ * that way and quiver.core carries the manifest through untouched. `tags`
+ * arriving null once crashed the whole arrow-details view on
+ * `detail.tags.length`, so every list is defaulted at this boundary.
+ */
+export interface ManifestMetadataDTO {
+	name?: string;
+	description?: string;
+	license?: string;
+	url?: string;
+	maintainers?: CreditDTO[] | null;
+	credits?: CreditDTO[] | null;
+	media?: ArrowMediaDTO | null;
+	tags?: string[] | null;
+}
+
+/** The manifest as its author wrote it -- the only place url/maintainers/credits/media/netbridge live on the wire. Row state (selector, resolved and available refs) is never here. */
+export interface ManifestContentDTO {
+	metadata: ManifestMetadataDTO | null;
+	variables: VariableDTO[] | null;
+	/** Neither of Quiver's own self-manifests declares `netbridge:`, so this is null for both. */
 	netbridge: PortDTO[] | null;
+	targets: Record<string, TargetManifestDTO> | null;
+	readme?: string;
 }
 
 export interface ArrowManifestDTO {
@@ -236,7 +260,8 @@ export interface ArrowManifestDTO {
 	tags: string[] | null;
 	variables: VariableDTO[] | null;
 	targets: Record<string, TargetManifestDTO>;
-	manifest: RawManifestDTO;
+	/** A pointer on the Go side, so null when core had no manifest to report. */
+	manifest: ManifestContentDTO | null;
 }
 
 /**
@@ -324,11 +349,14 @@ function toTargets(dto: ArrowManifestDTO['targets']): ArrowTarget[] {
 	}));
 }
 
+function toAvailable(dto: AvailableDTO | null | undefined): AvailableVersion | null {
+	return dto?.ref ? { ref: dto.ref, commit: dto.commit ?? '' } : null;
+}
+
 /**
  * Merges the six real endpoints into the one shape the Arrow Details page
  * consumes. `channels` comes from `GET /v0/arrow/:ns/channels` (a separate
- * fetch -- see `ChannelListDTO`), already mapped to the domain shape;
- * `channel` itself is the scalar field on `detail`, read straight through.
+ * fetch -- see `ChannelListDTO`), already mapped to the domain shape.
  * `readme` comes from `GET /v0/arrow/:ns/readme` (a separate fetch -- see
  * `ArrowReadmeDTO`), `null` when that call 404s; `dependencies`/`dependents`
  * come from the two dependency-graph endpoints (quiver.core #220), empty when
@@ -342,43 +370,32 @@ export function toArrowDetail(
 	dependencies: ArrowDependencyDTO[],
 	dependents: string[]
 ): ArrowDetail {
-	// A catalogued arrow's `namespace` comes back bare, with the ref reported
-	// separately as `installed_ref`. A live-resolved-but-uncatalogued one
-	// (quiver.core PR #225) already carries its resolved ref on `namespace`
-	// itself and omits `installed_ref` -- use it as-is rather than appending
-	// a second, absent ref.
-	const { head, tail } = splitNamespace(detail.namespace);
-	const ref = tail ? tail.slice(1) : (detail.installed_ref ?? '');
-	// Never `ns@undefined`, and never a dangling `ns@`: with no ref anywhere the bare namespace is all we know.
-	const namespace = tail || !ref ? detail.namespace : `${head}@${ref}`;
-	const installedRef = ref;
+	const meta = manifest.manifest?.metadata ?? {};
+	const available = toAvailable(detail.available);
 	return {
-		// Every runtime/arrow endpoint this app calls afterwards
-		// (install/execute/stop/etc, and re-fetching this same detail) expects
-		// the full `namespace@ref` form, matching the route param and the
-		// reactive store's own keying (`versioned()`). Resolving it here means
-		// every downstream consumer (Hero, the action mutations, ActionButton)
-		// can just use `detail.namespace` as-is.
-		namespace,
+		namespace: detail.namespace,
 		name: detail.name,
 		description: detail.description,
-		license: detail.license,
-		url: manifest.manifest.url,
+		license: detail.license ?? meta.license ?? '',
+		url: meta.url ?? '',
 		tags: detail.tags ?? [],
-		media: { icon: manifest.manifest.media.icon ?? null, banner: manifest.manifest.media.banner ?? null },
-		maintainers: (manifest.manifest.maintainers ?? []).map(toCredit),
-		credits: (manifest.manifest.credits ?? []).map(toCredit),
-		netbridge: manifest.manifest.netbridge ?? [],
+		media: { icon: meta.media?.icon ?? null, banner: meta.media?.banner ?? null },
+		maintainers: (meta.maintainers ?? []).map(toCredit),
+		credits: (meta.credits ?? []).map(toCredit),
+		netbridge: manifest.manifest?.netbridge ?? [],
 		variables: manifest.variables ?? [],
-		targets: toTargets(manifest.targets),
+		targets: toTargets(manifest.targets ?? {}),
 		state: detail.state,
 		user_installed: detail.user_installed,
-		installed_ref: installedRef,
 		installed_at: detail.installed_at,
-		installed_constraint: detail.installed_constraint,
+		selector: selectorOf(detail.namespace),
+		selector_kind: parseSelectorKind(detail.selector_kind),
+		resolved_ref: detail.resolved_ref ?? '',
+		installed_commit: detail.installed_commit ?? '',
+		available,
+		outdated: detail.outdated ?? available !== null,
 		active_run: detail.active_run ?? null,
 		last_return: detail.last_return ?? null,
-		channel: detail.channel,
 		origin: parseArrowOrigin(detail.origin),
 		confidence: parseInferenceConfidence(detail.inference?.confidence),
 		warnings: detail.inference?.warnings ?? [],

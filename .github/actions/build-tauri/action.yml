@@ -20,6 +20,15 @@ inputs:
       refless, exactly as before.
     required: false
     default: ''
+  release-channel:
+    description: >-
+      The quiver.desktop channel THIS build is published on (`stable`,
+      `beta`, `hotfix` or `nightly-rolling`), baked into the frontend as
+      VITE_QUIVER_BUILD_CHANNEL so the app files its own arrow under that
+      channel instead of the repository's default one. Empty for PR and
+      local builds.
+    required: false
+    default: ''
   rust-version:
     description: 'Rust toolchain version'
     required: false
@@ -78,6 +87,17 @@ runs:
           exit 1
         fi
         echo "✅ stamping this build as ${RELEASE_TAG}"
+
+    - name: Validate the release channel, when one was given
+      shell: bash
+      env:
+        RELEASE_CHANNEL: ${{ inputs.release-channel }}
+      run: |
+        case "$RELEASE_CHANNEL" in
+          '') echo "ℹ️  no release-channel given — this build will announce the repository's default channel." ;;
+          stable|beta|hotfix|nightly-rolling) echo "✅ this build announces the ${RELEASE_CHANNEL} channel" ;;
+          *) echo "❌ release-channel must be stable, beta, hotfix or nightly-rolling, got '${RELEASE_CHANNEL}'."; exit 1 ;;
+        esac
 
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
@@ -195,11 +215,14 @@ runs:
     # those): it is read by src-tauri/build.rs at compile time, and cargo
     # re-runs that script when the variable changes, so a restored target/
     # cache cannot carry the previous release's stamp into this one.
+    # VITE_QUIVER_BUILD_CHANNEL rides along for the `bun run build` that
+    # `cargo tauri build` runs first (tauri.conf.json's beforeBuildCommand).
     - name: Build Tauri app (macOS universal DMG)
       if: runner.os == 'macOS'
       shell: bash
       env:
         QUIVER_DESKTOP_RELEASE_TAG: ${{ inputs.release-tag }}
+        VITE_QUIVER_BUILD_CHANNEL: ${{ inputs.release-channel }}
       run: bash scripts/build-macos-dmg.sh
 
     # bundle.macOS.files points at icons/Assets.car, which only ever exists
@@ -210,6 +233,7 @@ runs:
       shell: bash
       env:
         QUIVER_DESKTOP_RELEASE_TAG: ${{ inputs.release-tag }}
+        VITE_QUIVER_BUILD_CHANNEL: ${{ inputs.release-channel }}
       run: |
         cargo tauri build --bundles appimage,deb \
           --config '{"bundle":{"macOS":{"files":{}}}}'
@@ -219,6 +243,7 @@ runs:
       shell: bash
       env:
         QUIVER_DESKTOP_RELEASE_TAG: ${{ inputs.release-tag }}
+        VITE_QUIVER_BUILD_CHANNEL: ${{ inputs.release-channel }}
       run: |
         cargo tauri build --bundles msi,nsis \
           --config '{"bundle":{"macOS":{"files":{}}}}'

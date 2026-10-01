@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 
-import { apiFetch } from '@/lib/transport/api';
+import { namespaceSegment } from '@/lib/namespace';
+import { apiFetch, apiRequest } from '@/lib/transport/api';
 
 interface RuntimeMethodInput {
 	namespace: string;
@@ -8,13 +9,28 @@ interface RuntimeMethodInput {
 	variables?: Record<string, string>;
 }
 
-function runtimeMethod({ namespace, method, variables = {} }: RuntimeMethodInput): Promise<void> {
-	return apiFetch<void>(`/v0/runtime/${encodeURIComponent(namespace)}/${method}`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ variables }),
-	});
+function runtimeRequest({ namespace, method, variables = {} }: RuntimeMethodInput): [string, RequestInit] {
+	return [
+		`/v0/runtime/${namespaceSegment(namespace)}/${method}`,
+		{
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ variables }),
+		},
+	];
 }
+
+function runtimeMethod(input: RuntimeMethodInput): Promise<void> {
+	return apiFetch<void>(...runtimeRequest(input));
+}
+
+/**
+ * What `POST /v0/runtime/:ns/update` did: `started` (202) -- the update runs
+ * and reports over the runtime stream, like any other lifecycle method -- or
+ * `current` (200), an idempotent no-op: nothing newer, and no runtime event
+ * will ever follow, so nothing may wait for one.
+ */
+export type UpdateOutcome = 'started' | 'current';
 
 export function useInstall() {
 	return useMutation({
@@ -39,8 +55,16 @@ export function useStop() {
 
 export function useUpdate() {
 	return useMutation({
-		mutationFn: ({ namespace, variables = {} }: { namespace: string; variables?: Record<string, string> }) =>
-			runtimeMethod({ namespace, method: 'update', variables }),
+		mutationFn: async ({
+			namespace,
+			variables = {},
+		}: {
+			namespace: string;
+			variables?: Record<string, string>;
+		}): Promise<UpdateOutcome> => {
+			const { status } = await apiRequest<void>(...runtimeRequest({ namespace, method: 'update', variables }));
+			return status === 202 ? 'started' : 'current';
+		},
 	});
 }
 

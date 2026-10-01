@@ -135,8 +135,14 @@ describe('realBackend.resolveReleaseAsset', () => {
 		};
 		mockInvoke.mockResolvedValue(asset);
 
-		await expect(realBackend.resolveReleaseAsset()).resolves.toEqual(asset);
-		expect(mockInvoke).toHaveBeenCalledWith('resolve_release_asset');
+		await expect(realBackend.resolveReleaseAsset('stable-26.9')).resolves.toEqual(asset);
+		expect(mockInvoke).toHaveBeenCalledWith('resolve_release_asset', { tag: 'stable-26.9' });
+	});
+
+	it('asks for the newest release, with a null tag, when it is given none', async () => {
+		mockInvoke.mockResolvedValue({});
+		await realBackend.resolveReleaseAsset();
+		expect(mockInvoke).toHaveBeenCalledWith('resolve_release_asset', { tag: null });
 	});
 
 	// The typed failure is the whole point of the command returning a

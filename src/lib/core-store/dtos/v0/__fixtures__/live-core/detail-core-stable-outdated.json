@@ -1,0 +1,21 @@
+{
+	"success": true,
+	"error": null,
+	"data": {
+		"namespace": "github.com/rabbytesoftware/quiver.core@stable",
+		"name": "Quiver Core",
+		"description": "The Quiver package manager's own engine daemon.",
+		"license": "GPL-3.0",
+		"state": "outdated",
+		"tags": null,
+		"user_installed": true,
+		"selector_kind": "channel",
+		"resolved_ref": "live",
+		"installed_commit": "18d6a100857ab2edcb870b8427bbe316026af087",
+		"available": {
+			"ref": "stable-26.5.1",
+			"commit": "e870cda0a7c16a896fb4736a9b34bab1879a057e"
+		},
+		"outdated": true
+	}
+}

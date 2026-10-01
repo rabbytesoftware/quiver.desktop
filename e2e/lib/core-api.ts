@@ -32,25 +32,25 @@ interface Envelope<T> {
 
 /** `GET /v0/arrow/:ns` -- mirrors src/lib/core-store/dtos/v0/arrow.ts's ArrowDetailDTO. */
 export interface ArrowDetailDTO {
+	/** The catalog identity, `namespace@selector`, always. */
 	namespace: string;
 	name: string;
-	version: string;
 	description: string;
 	state: string;
-	tags: string[];
-	installed_ref?: string;
-	installed_at: string;
-	installed_constraint?: string;
+	tags: string[] | null;
+	installed_at?: string;
 	user_installed: boolean;
+	selector_kind?: string;
+	resolved_ref?: string;
+	installed_commit?: string;
 	/**
-	 * The passive drift check's own two fields, set by `CheckVersionDrift` on
-	 * the way through `GetDetail`. Note these are SEPARATE from `state`: an
-	 * arrow can report `outdated: true` while its state machine still says
-	 * `absent`, because `absent -> outdated` is not a legal transition (only
-	 * `ready -> outdated` is). The badge in the UI keys off `state`, not these.
+	 * The row's own record of what is ahead, set by the version check on the
+	 * way through `GetDetail`. SEPARATE from `state`: the runtime's `outdated`
+	 * state is reconciled from it, and only from `ready` -- `absent ->
+	 * outdated` is not a legal transition.
 	 */
+	available?: { ref: string; commit: string };
 	outdated?: boolean;
-	recommended_ref?: string;
 	active_run?: { method: string; pid?: number; variables: Record<string, string> } | null;
 	last_return?: { method: string; outcome: string } | null;
 }
@@ -116,8 +116,33 @@ export function coreClient(home: string): CoreClient {
  * itself encodes it (`src/lib/core-store/queries/arrow.ts`), so this exercises
  * the same route shape the product uses rather than a second, looser one.
  */
-export async function getArrow(home: string, namespace: string): Promise<{ status: number; body: ArrowDetailDTO | null }> {
+export async function getArrow(
+	home: string,
+	namespace: string
+): Promise<{ status: number; body: ArrowDetailDTO | null }> {
 	return coreClient(home).get<ArrowDetailDTO>(`/v0/arrow/${encodeURIComponent(namespace)}`);
+}
+
+/** `GET /v0/arrow/:ns/channels` -- the channels a repository publishes, the default a refless add picks first. */
+export interface ChannelListDTO {
+	channels: { name: string; kind: string; latest?: string }[];
+}
+
+export async function getChannels(
+	home: string,
+	namespace: string
+): Promise<{ status: number; body: ChannelListDTO | null }> {
+	return coreClient(home).get<ChannelListDTO>(`/v0/arrow/${encodeURIComponent(namespace)}/channels`);
+}
+
+/** `GET /v0/arrow?user_installed=true` -- one item per namespace, one version per catalog identity (`ref` is its selector). */
+export interface ArrowListItemDTO {
+	namespace: string;
+	versions: { ref: string; resolved_ref?: string; state: string }[];
+}
+
+export async function listLibrary(home: string): Promise<{ status: number; body: ArrowListItemDTO[] | null }> {
+	return coreClient(home).get<ArrowListItemDTO[]>('/v0/arrow?user_installed=true');
 }
 
 /** `GET /v0/health` -- the same probe `SidecarManager::ensure_running` decides readiness on. */

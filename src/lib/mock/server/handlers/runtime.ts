@@ -3,7 +3,7 @@ import type { ArrowState, ArrowStepDefinition, StepProgress } from '@/domain/arr
 import { INSTALL_STEPS, START_STEPS, STOP_STEPS, UNINSTALL_STEPS, UPDATE_STEPS } from '../../world/scenarios/kit';
 import { findArrow, MOCK_HOST_PLATFORM, type MockArrow, type MockWorld } from '../../world/types';
 import { versioned } from '../../world/types';
-import { accepted, fail } from '../envelope';
+import { accepted, fail, ok } from '../envelope';
 import { toRuntimeFrame } from '../projections';
 import type { Route } from '../router';
 
@@ -29,7 +29,8 @@ function runSteps(
 	variables: Record<string, string>,
 	transitional: ArrowState,
 	finalState: ArrowState,
-	pid?: number
+	pid?: number,
+	onSuccess?: () => void
 ): void {
 	const key = versioned(arrow);
 	world.cancels.get(key)?.();
@@ -54,6 +55,7 @@ function runSteps(
 			stop();
 			world.cancels.delete(key);
 			arrow.state = finalState;
+			onSuccess?.();
 			arrow.last_return = { method, outcome: 'success', variables, steps: run.steps };
 			arrow.active_run = finalState === 'running' ? run : null;
 			if (finalState === 'running') run.pid = pid ?? 40000 + world.nextId();
@@ -125,13 +127,22 @@ export const runtimeRoutes: Route[] = [
 				}
 
 				case 'update': {
+					// A state violation, which core answers 422.
 					if (arrow.state !== 'ready' && arrow.state !== 'outdated') {
 						return fail(
 							`arrow ${req.params.ns} is ${arrow.state}; update only runs from ready/outdated`,
-							409
+							422
 						);
 					}
-					runSteps(world, arrow, 'update', UPDATE_STEPS, {}, 'updating', 'ready');
+					// Nothing newer: core begins nothing and answers 200, and no
+					// runtime event follows.
+					const target = arrow.available;
+					if (!target && arrow.state !== 'outdated') return ok(null);
+					runSteps(world, arrow, 'update', UPDATE_STEPS, {}, 'updating', 'ready', undefined, () => {
+						// The same row advances in place; its identity never changes.
+						if (target) arrow.resolved_ref = target.ref;
+						arrow.available = undefined;
+					});
 					return accepted();
 				}
 

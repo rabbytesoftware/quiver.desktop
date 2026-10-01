@@ -1,0 +1,17 @@
+{
+	"success": true,
+	"error": null,
+	"data": {
+		"namespace": "github.com/rabbytesoftware/quiver.desktop@nightly-rolling",
+		"name": "Quiver Desktop",
+		"description": "The Quiver desktop application.",
+		"license": "GPL-3.0",
+		"state": "absent",
+		"tags": null,
+		"user_installed": false,
+		"selector_kind": "channel",
+		"resolved_ref": "nightly-rolling",
+		"installed_commit": "a01a40c91b391f1cbefe1f7da2f7d470432ad610",
+		"outdated": false
+	}
+}

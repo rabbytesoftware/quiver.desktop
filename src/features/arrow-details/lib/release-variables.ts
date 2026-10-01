@@ -1,6 +1,10 @@
+import type { ArrowDetail } from '@/domain/arrow';
 import type { ReleaseResolveError, ReleaseResolveErrorKind } from '@/domain/release';
 import { isReleaseResolveError, QUIVER_DESKTOP_NAMESPACE } from '@/domain/release';
+import type { ArrowDetailDTO } from '@/lib/core-store/dtos/v0/arrow';
 import type { MessageKey } from '@/lib/i18n';
+import { namespaceSegment } from '@/lib/namespace';
+import { apiFetch } from '@/lib/transport/api';
 import { backend } from '@/lib/transport/backend';
 
 /** The two variables `ARROW.md` declares without defaults. */
@@ -13,17 +17,47 @@ export const RELEASE_VARIABLE_NAMES: readonly string[] = [RELEASE_ASSET_URL, REL
  * Whether this arrow is Quiver itself.
  *
  * The resolver reads quiver.desktop's OWN releases, so it is only ever
- * correct for quiver.desktop's own row. Refs are stripped because the same
- * app appears under whichever ref it announced itself at, and because an
- * update is started against the row's ref (the one being updated FROM) while
- * the asset comes from the newest release.
+ * correct for quiver.desktop's own row, whichever selector that row follows.
  */
 export function isSelfArrow(namespace: string): boolean {
 	return namespace.split('@')[0] === QUIVER_DESKTOP_NAMESPACE;
 }
 
 /**
- * Resolves this app's own release asset into the two execution variables
+ * The release an install of this row puts on disk: the ref it resolved to.
+ * Never the identity selector -- `stable` or `v1.*` names what the row
+ * follows, not a release.
+ */
+export function installTagFor(detail: Pick<ArrowDetail, 'resolved_ref'>): string | undefined {
+	return detail.resolved_ref || undefined;
+}
+
+/**
+ * The release variables for updating `namespace`, from the release the row
+ * moves to -- read fresh from core at click time, because the page's own
+ * `available` comes from a one-time read and the version check can move it
+ * while the page is open. Refuses (`nothing_ahead`) when core reports nothing
+ * newer: falling back to the installed ref would reinstall the old release
+ * while core advances the row to the new one.
+ */
+export async function updateReleaseVariables(namespace: string): Promise<Record<string, string>> {
+	const detail = await apiFetch<ArrowDetailDTO>(`/v0/arrow/${namespaceSegment(namespace)}`).catch((err: unknown) => {
+		throw asResolveError(err);
+	});
+	const target = detail?.available?.ref;
+	if (!target) {
+		const failure: ReleaseResolveError = {
+			kind: 'nothing_ahead',
+			detail: `${namespace} has nothing newer to update to`,
+		};
+		throw failure;
+	}
+	return releaseVariables(target);
+}
+
+/**
+ * Resolves this app's own release asset, from the release tagged `tag` (the
+ * newest release when there is none), into the two execution variables
  * quiver.core requires for `install` and `update`.
  *
  * Runs at click time rather than being baked into the manifest: the asset
@@ -45,9 +79,9 @@ export function isSelfArrow(namespace: string): boolean {
  * published checksum manifest, so both verify whenever anything is
  * publishable at all.
  */
-export async function releaseVariables(): Promise<Record<string, string>> {
+export async function releaseVariables(tag?: string): Promise<Record<string, string>> {
 	const asset = await backend()
-		.resolveReleaseAsset()
+		.resolveReleaseAsset(tag)
 		.catch((err: unknown) => {
 			throw asResolveError(err);
 		});
@@ -98,6 +132,7 @@ const MESSAGE_KEYS: Record<ReleaseResolveErrorKind, ReleaseMessageKey> = {
 	no_asset: 'arrow.release.noAsset',
 	unsupported_platform: 'arrow.release.unsupportedPlatform',
 	unverifiable: 'arrow.release.unverifiable',
+	nothing_ahead: 'arrow.release.nothingAhead',
 };
 
 /**

@@ -138,8 +138,11 @@ export function variable(
 
 type ArrowSeed = Partial<MockArrow> & Pick<MockArrow, 'namespace' | 'name' | 'state'>;
 
+/** A stand-in 40-hex commit for the fixtures that report one. */
+const FIXTURE_COMMIT = '0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c';
+
 export function arrow(seed: ArrowSeed): MockArrow {
-	return {
+	const built: MockArrow = {
 		ref: 'v1.0.0',
 		version: '1.0.0',
 		description: '',
@@ -167,4 +170,10 @@ export function arrow(seed: ArrowSeed): MockArrow {
 		last_return: null,
 		...seed,
 	};
+	// Core reconciles the runtime's `outdated` state from the row's own
+	// `available`; a fixture that says outdated has to say what is ahead.
+	if (built.state === 'outdated' && !built.available) {
+		built.available = { ref: `${built.ref}-next`, commit: FIXTURE_COMMIT };
+	}
+	return built;
 }

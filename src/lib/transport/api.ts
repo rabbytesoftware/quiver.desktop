@@ -53,7 +53,21 @@ export async function coreIsReachable(): Promise<boolean> {
 	}
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit, retry: RetryConfig = DEFAULT_RETRY): Promise<T> {
+export interface ApiResult<T> {
+	status: number;
+	data: T;
+}
+
+/**
+ * `apiFetch` with the response status kept beside the data, for the calls
+ * whose success statuses mean different things -- `POST /v0/runtime/:ns/update`
+ * answers 202 when an update started and 200 when there was nothing newer.
+ */
+export async function apiRequest<T>(
+	path: string,
+	init?: RequestInit,
+	retry: RetryConfig = DEFAULT_RETRY
+): Promise<ApiResult<T>> {
 	const maxAttempts = isIdempotentRead(init) ? Math.max(1, retry.attempts) : 1;
 	const sleep = retry.sleep ?? defaultSleep;
 
@@ -72,20 +86,24 @@ export async function apiFetch<T>(path: string, init?: RequestInit, retry: Retry
 		const body = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
 
 		if (res.ok && (res.status === 204 || body === null)) {
-			return undefined as T;
+			return { status: res.status, data: undefined as T };
 		}
 
 		// A 202 may carry an envelope -- POST /v0/search/discover answers with the
 		// job ticket before any provider has been asked, and the caller needs it.
 		// A 202 carrying anything else is a bare acknowledgement, as before.
 		if (res.status === 202 && !body?.success) {
-			return undefined as T;
+			return { status: res.status, data: undefined as T };
 		}
 
 		if (!res.ok || !body?.success) {
 			throw new ApiError(body?.error ?? `${res.status} ${res.statusText}`, res.status);
 		}
 
-		return body.data as T;
+		return { status: res.status, data: body.data as T };
 	}
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit, retry: RetryConfig = DEFAULT_RETRY): Promise<T> {
+	return (await apiRequest<T>(path, init, retry)).data;
 }

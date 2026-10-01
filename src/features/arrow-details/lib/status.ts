@@ -34,12 +34,19 @@ export interface ArrowStatus {
 
 /**
  * "Discovered" (browsed, never added to the library) is not a real
- * `ArrowState` value -- it's simply `user_installed === false`. Every other
- * state maps 1:1 to the badge treatment.
+ * `ArrowState` value -- it's simply `user_installed === false`. A ready row
+ * with something `available` reads as "Update available" even before the
+ * runtime's own `outdated` state catches up with it. Every other state maps
+ * 1:1 to the badge treatment.
  */
-export function computeStatus(detail: Pick<ArrowDetail, 'state' | 'user_installed'>): ArrowStatus {
+export function computeStatus(
+	detail: Pick<ArrowDetail, 'state' | 'user_installed'> & Partial<Pick<ArrowDetail, 'available'>>
+): ArrowStatus {
 	if (!detail.user_installed) {
 		return { labelKey: 'arrow.state.discovered', iconKind: 'idle' };
+	}
+	if (detail.state === 'ready' && detail.available) {
+		return { labelKey: 'arrow.state.outdated', iconKind: 'up' };
 	}
 
 	switch (detail.state) {

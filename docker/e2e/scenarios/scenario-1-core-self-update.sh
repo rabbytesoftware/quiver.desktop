@@ -9,9 +9,15 @@
 # quiver.core running as an ordinary background process off PATH. It registers
 # its own arrow with no help from this script. The "new release upstream" is a
 # second, genuinely different build published to the local GitHub stand-in,
-# found by quiver.core's own drift check reading a redirect, downloaded by
-# quiver.core's own fetch step, and verified against a real sha256 before the
-# handover. Nothing about the update is injected past the API.
+# found by quiver.core's own version check reading the stand-in repository's
+# tags, downloaded by quiver.core's own fetch step, and verified against a
+# real sha256 before the handover. Nothing about the update is injected past
+# the API.
+#
+# THE ROW IS THE CHANNEL. Both builds are stamped main.channel=stable (build.sh),
+# so quiver.core files itself as quiver.core@stable and keeps that one row for
+# its whole life: the update moves what the row has installed (resolved_ref)
+# from v1 to v2 in place, it never creates a second row.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,11 +31,13 @@ scenario_begin "1-core-self-update" \
 
 say "Preconditions: a clean machine, and one published quiver.core release"
 reset_state
+reset_upstream
 assert_daemon_count 0
 
 publish_manifest rabbytesoftware/quiver.core "$CORE_V1" "/workspace/build/src/quiver.core/ARROW.md"
 publish_release rabbytesoftware/quiver.core "$CORE_V1" "$BUILD_BIN/quiver-$CORE_V1"
 mark_latest rabbytesoftware/quiver.core "$CORE_V1"
+git_tag rabbytesoftware/quiver.core "$CORE_V1"
 
 # --- act: install headless -------------------------------------------------
 
@@ -42,33 +50,25 @@ assert_eq "$CORE_V1" "$(daemon_version)" "the daemon serving the socket reports 
 # --- assert: it registered ITSELF -----------------------------------------
 
 say "Checking quiver.core put itself in its own catalog, unprompted"
-CORE_ARROW="$CORE_NS@$CORE_V1"
-assert_eq "200" "$(api_status GET "/v0/arrow/$(ns_enc "$CORE_ARROW")")" \
-	"GET /v0/arrow/$CORE_ARROW"
+CORE_ARROW="$CORE_NS@stable"
+wait_for_catalogued "$CORE_ARROW" 30 "quiver.core registered itself"
+assert_eq "$CORE_V1" "$(catalogued_refs_resolved "$CORE_NS")" \
+	"quiver.core's catalog rows, as the build each resolved to"
 assert_eq "Quiver Core" "$(arrow_field "$CORE_ARROW" '.data.name')" \
 	"the self-registered arrow's name"
 assert_eq "true" "$(arrow_field "$CORE_ARROW" '.data.user_installed')" \
 	"the self-arrow is marked user_installed"
+assert_eq "channel" "$(arrow_field "$CORE_ARROW" '.data.selector_kind')" \
+	"how the self-arrow follows its selector"
 arrow_detail "$CORE_ARROW" | jq '.' >"$SCENARIO_DIR/self-arrow-before.json"
 
-# Bootstrap the self-arrow's runtime aggregate to Ready. quiver.core's own
-# manifest declares no install lifecycle ("there is nothing to install here:
-# it's already running"), so this runs dependency resolution and nothing
-# else -- "already installed by definition", made concrete. This is the exact
-# bootstrap tests/integration/selfupdate/selfupdate_test.go performs, for the
-# same reason: BeginUpdate refuses an aggregate that has never existed.
-#
-# Sent with NO variables, which is the point. quiver.core's own ARROW.md
-# declares QUIVER_RELEASE_ASSET_URL and QUIVER_RELEASE_CHECKSUM without
-# defaults, and ResolveVariables used to require every declared no-default
-# variable on EVERY execution of the arrow rather than on the lifecycle that
-# reads them -- so this call needed two placeholder values for an install that
-# looks at neither. That is fixed (requireReferenced), and this call is the
-# end-to-end proof: nothing supplies them, and the install still runs.
-say "Bootstrapping the self-arrow's runtime state"
-api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW")/install" \
-	'{"variables":{}}' 202 >/dev/null
+# The boot that registered the row also settled its runtime: quiver.core is
+# installed by definition, so an absent runtime is marked ready, and the
+# build's own commit is what the v1 tag names, so there is nothing ahead.
+say "Waiting for the self-arrow's runtime to settle"
 wait_for_state "$CORE_ARROW" ready 120
+assert_eq "absent" "$(arrow_field "$CORE_ARROW" '.data.available // "absent"')" \
+	"what the version check found ahead of $CORE_V1 before anything was published"
 
 # --- act: a new release appears upstream -----------------------------------
 
@@ -87,8 +87,8 @@ info "sha256:         $NEW_SUM"
 # --- assert: core NOTICES, through its own drift check ---------------------
 
 say "Waiting for quiver.core's own version check to notice"
-# GET /v0/arrow/:ns is what triggers maybeCheckVersion; version_check_ttl is
-# pinned to 1s in this run's config.yaml so repeated polls really do re-check.
+# GET /v0/arrow/:ns runs the version check; version_check_ttl is pinned to 1s
+# in this run's config.yaml so repeated polls really do re-check.
 found_outdated=0
 for _ in $(seq 1 40); do
 	arrow_detail "$CORE_ARROW" >/dev/null
@@ -98,10 +98,12 @@ for _ in $(seq 1 40); do
 		break
 	fi
 done
-[ "$found_outdated" = "1" ] || fail "quiver.core never marked its own arrow outdated after $CORE_V2 was published: $(arrow_detail "$CORE_ARROW" | jq -c '.data | {state,outdated,recommended_ref}')"
+[ "$found_outdated" = "1" ] || fail "quiver.core never marked its own arrow outdated after $CORE_V2 was published: $(arrow_detail "$CORE_ARROW" | jq -c '.data | {state,resolved_ref,outdated,available}')"
 ok "quiver.core's own arrow reports outdated=true"
-assert_eq "$CORE_V2" "$(arrow_field "$CORE_ARROW" '.data.recommended_ref')" \
-	"the recommended ref the drift check found"
+assert_eq "$CORE_V2" "$(arrow_field "$CORE_ARROW" '.data.available.ref')" \
+	"the release the version check found ahead"
+assert_eq "$CORE_V1" "$(arrow_field "$CORE_ARROW" '.data.resolved_ref')" \
+	"what the row still has installed"
 arrow_detail "$CORE_ARROW" | jq '.' >"$SCENARIO_DIR/self-arrow-outdated.json"
 
 # --- act: run the update ---------------------------------------------------
@@ -158,26 +160,24 @@ grep "\"tag\": \"$CORE_V2\"" "$RESULTS/upstream.log" >"$SCENARIO_DIR/upstream-hi
 # --- assert: the catalog moved on -----------------------------------------
 
 say "Checking the catalog after the restart"
+# The relaunched build adopts its own state on boot: the SAME row now has
+# $CORE_V2 installed and nothing ahead. No row for either version's name
+# exists; GET on one would still answer 200 via the live preview of an
+# uncatalogued identity, so the catalog listing is what has to be asserted.
+advanced=0
+for _ in $(seq 1 30); do
+	[ "$(catalogued_refs_resolved "$CORE_NS")" = "$CORE_V2" ] && { advanced=1; break; }
+	sleep 1
+done
 api_body GET /v0/arrow | jq '.' >"$SCENARIO_DIR/catalog-after.json"
-arrow_detail "$CORE_NS@$CORE_V2" | jq '.' >"$SCENARIO_DIR/self-arrow-after.json"
-arrow_detail "$CORE_ARROW" | jq '.' >"$SCENARIO_DIR/self-arrow-old-after.json"
-
-assert_eq "200" "$(api_status GET "/v0/arrow/$(ns_enc "$CORE_NS@$CORE_V2")")" \
-	"the new version is registered"
-assert_eq "Quiver Core" "$(arrow_field "$CORE_NS@$CORE_V2" '.data.name')" \
-	"the new self-arrow row's name"
-
-# The new process's own EnsureRegistered (Container.Start) is supposed to
-# leave exactly one quiver.core row in the CATALOG: it finds the old self row
-# still on record and moves it onto the new ref via UpgradeVersionSeeded,
-# whose own reaction removes the old row -- a stale record left behind is
-# dangerous, because BeginUpdate against it would fetch into a workdir that
-# may still be the file this process is executing out of. GET on a removed
-# namespace still answers 200 via GetDetail's live-preview fallback for an
-# uncatalogued namespace, so the catalog listing is what has to be asserted,
-# not the status code.
-assert_eq "$CORE_V2" "$(catalogued_refs "$CORE_NS")" \
-	"the quiver.core refs left in the catalog after the handover"
+arrow_detail "$CORE_ARROW" | jq '.' >"$SCENARIO_DIR/self-arrow-after.json"
+[ "$advanced" = "1" ] || fail "quiver.core@stable never recorded $CORE_V2 as installed: $(catalogued_refs_resolved "$CORE_NS")"
+assert_eq "stable" "$(catalogued_refs "$CORE_NS")" \
+	"the quiver.core rows left in the catalog after the handover"
+assert_eq "absent" "$(arrow_field "$CORE_ARROW" '.data.available // "absent"')" \
+	"what the version check finds ahead of $CORE_V2"
+assert_eq "Quiver Core" "$(arrow_field "$CORE_ARROW" '.data.name')" \
+	"the self-arrow's name after the handover"
 
 api_body GET /versions | jq '.' >"$SCENARIO_DIR/versions-after.json"
 scenario_end

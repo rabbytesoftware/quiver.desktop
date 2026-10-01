@@ -101,28 +101,130 @@ describe('library membership', () => {
 		expect((await call('DELETE', `/v0/arrow/${enc('nope/nope@v1')}`)).status).toBe(404);
 	});
 
-	it('500s a POST for an arrow already in the library, the way core does', async () => {
+	it('answers a re-registration of an identity already in the library as the no-op core makes it', async () => {
 		const { status } = await call('POST', `/v0/arrow/${enc(MINECRAFT)}`);
-		expect(status).toBe(500);
+		expect(status).toBe(201);
 	});
 
-	it('resolves GET /v0/arrow/:ns by a bare namespace too, when it is unambiguous', async () => {
+	it('resolves GET /v0/arrow/:ns by a bare namespace too, reporting the identity it reached', async () => {
 		const { status, body } = await call('GET', `/v0/arrow/${enc('github.com/rabbyte/minecraft')}`);
 		expect(status).toBe(200);
-		expect((body!.data as { namespace: string }).namespace).toBe('github.com/rabbyte/minecraft');
+		expect((body!.data as { namespace: string }).namespace).toBe(MINECRAFT);
 	});
 
 	it('registers library membership by a bare namespace too -- Search links to a Discovered arrow with no installed ref to offer', async () => {
 		const bare = `${NS}/mariadb`;
 		const { status } = await call('POST', `/v0/arrow/${enc(bare)}`);
-		expect(status).toBe(200);
+		expect(status).toBe(201);
 		expect(mock.world.arrows.get(`${bare}@v11.6.2`)!.user_installed).toBe(true);
 	});
 
-	it('stores the channel a registration pins, when one is given', async () => {
-		const bare = `${NS}/mariadb`;
-		await call('POST', `/v0/arrow/${enc(bare)}`, { channel: 'beta' });
-		expect(mock.world.arrows.get(`${bare}@v11.6.2`)!.channel).toBe('beta');
+	it('files a registration under the selector in its path, as a new row beside any other', async () => {
+		const { status } = await call('POST', `/v0/arrow/${enc(`${NS}/minecraft@nightly`)}`);
+		expect(status).toBe(201);
+		const row = mock.world.arrows.get(`${NS}/minecraft@nightly`)!;
+		expect(row.user_installed).toBe(true);
+		expect(row.state).toBe('absent');
+		expect(mock.world.arrows.get(MINECRAFT)).toBeDefined();
+
+		const { body } = await call('GET', `/v0/arrow/${enc(`${NS}/minecraft@nightly`)}`);
+		expect(body!.data).toMatchObject({
+			namespace: `${NS}/minecraft@nightly`,
+			selector_kind: 'channel',
+			resolved_ref: 'nightly-latest',
+			outdated: false,
+		});
+	});
+
+	it.each([
+		['v1.*', 'constraint'],
+		['abcdef1', 'commit'],
+		['v1.20.6', 'pin'],
+	])('classifies a registered selector %s as a %s, the way core does', async (selector, kind) => {
+		await call('POST', `/v0/arrow/${enc(`${NS}/minecraft@${selector}`)}`);
+		const { body } = await call('GET', `/v0/arrow/${enc(`${NS}/minecraft@${selector}`)}`);
+		expect(body!.data).toMatchObject({ selector_kind: kind });
+	});
+
+	it('names the identity it filed a registration under, as core’s mutation envelope does', async () => {
+		const { body } = await call('POST', `/v0/arrow/${enc(`${NS}/minecraft@nightly`)}`);
+		expect(body).toMatchObject({ success: true, namespace: `${NS}/minecraft@nightly` });
+	});
+
+	it('adopts a declared installed ref under the identity, in place, keeping it in the library', async () => {
+		const { status, body } = await call('POST', `/v0/arrow/${enc(`${NS}/terraria@v1.4.4.9`)}/adopt`, {
+			resolved_ref: 'v1.4.5.0',
+		});
+		expect(status).toBe(201);
+		expect(body).toMatchObject({ namespace: `${NS}/terraria@v1.4.4.9` });
+		const arrow = mock.world.arrows.get(`${NS}/terraria@v1.4.4.9`)!;
+		expect(arrow.resolved_ref).toBe('v1.4.5.0');
+		expect(arrow.available).toBeUndefined();
+		expect(arrow.user_installed).toBe(true);
+	});
+
+	it('adopts into a new row for an identity the world has no row for yet', async () => {
+		await call('POST', `/v0/arrow/${enc(`${NS}/minecraft@stable`)}/adopt`, { resolved_ref: 'v1.21.1' });
+		const row = mock.world.arrows.get(`${NS}/minecraft@stable`)!;
+		expect(row.resolved_ref).toBe('v1.21.1');
+		expect(row.selector_kind).toBe('channel');
+	});
+
+	it('400s an adopt with no resolved_ref, and 404s one for a repository it has never heard of', async () => {
+		expect((await call('POST', `/v0/arrow/${enc(MINECRAFT)}/adopt`, {})).status).toBe(400);
+		expect((await call('POST', `/v0/arrow/${enc('nope/nope@stable')}/adopt`, { resolved_ref: 'v1' })).status).toBe(
+			404
+		);
+	});
+
+	it('404s a registration of a repository the world has never heard of, whatever the selector', async () => {
+		expect((await call('POST', `/v0/arrow/${enc('nope/nope@stable')}`)).status).toBe(404);
+	});
+});
+
+describe('the detail and manifest wire shape', () => {
+	it('reports a pinned row with its resolved ref and nothing available', async () => {
+		const { body } = await call('GET', `/v0/arrow/${enc(MINECRAFT)}`);
+		const detail = body!.data as Record<string, unknown>;
+		expect(detail).toMatchObject({
+			namespace: MINECRAFT,
+			selector_kind: 'pin',
+			resolved_ref: 'v1.21.4',
+			outdated: false,
+		});
+		expect(detail).not.toHaveProperty('available');
+		for (const removed of ['installed_ref', 'installed_constraint', 'channel', 'recommended_ref', 'version']) {
+			expect(detail).not.toHaveProperty(removed);
+		}
+	});
+
+	it('reports what an outdated row has ahead of it', async () => {
+		const { body } = await call('GET', `/v0/arrow/${enc(`${NS}/terraria@v1.4.4.9`)}`);
+		expect(body!.data).toMatchObject({ outdated: true, available: { ref: 'v1.4.5.0' } });
+	});
+
+	it('nests the author’s metadata under manifest.metadata', async () => {
+		const { body } = await call('GET', `/v0/arrow/${enc(MINECRAFT)}/manifest`);
+		const { manifest } = body!.data as { manifest: Record<string, unknown> };
+		expect(Object.keys(manifest).sort()).toEqual(['metadata', 'netbridge', 'readme', 'targets', 'variables']);
+		expect(manifest.metadata).toMatchObject({
+			name: 'Minecraft Server',
+			url: 'https://github.com/rabbyte/minecraft',
+		});
+	});
+
+	it('lists each row under its identity selector with the ref it resolved to', async () => {
+		const { body } = await call('GET', '/v0/arrow');
+		const minecraft = (body!.data as Array<{ namespace: string; versions: unknown[] }>).find(
+			(a) => a.namespace === `${NS}/minecraft`
+		)!;
+		expect(minecraft.versions[0]).toMatchObject({ ref: 'v1.21.4', resolved_ref: 'v1.21.4' });
+		expect(minecraft.versions[0]).not.toHaveProperty('version');
+		expect(minecraft.versions[0]).not.toHaveProperty('constraint');
+	});
+
+	it('serves the readme at a full identity', async () => {
+		expect((await call('GET', `/v0/arrow/${enc(MINECRAFT)}/readme`)).status).toBe(200);
 	});
 });
 
@@ -155,50 +257,31 @@ describe('channels', () => {
 		expect((await call('GET', `/v0/arrow/${enc('nope/nope@v1')}/channels`)).status).toBe(404);
 	});
 
-	it('switches the tracked channel and pins the given ref, re-keying the world entry', async () => {
-		const { status } = await call('PATCH', `/v0/arrow/${enc(MINECRAFT)}`, {
-			channel: 'nightly',
-			ref: 'nightly-latest',
-		});
+	it('re-checks with a PATCH that takes no body, reporting what is available', async () => {
+		const { status, body } = await call('PATCH', `/v0/arrow/${enc(`${NS}/terraria@v1.4.4.9`)}`);
 		expect(status).toBe(200);
-		expect(mock.world.arrows.get(MINECRAFT)).toBeUndefined();
-		const moved = mock.world.arrows.get(`${NS}/minecraft@nightly-latest`);
-		expect(moved?.channel).toBe('nightly');
-		expect(moved?.ref).toBe('nightly-latest');
+		expect(body!.data).toMatchObject({ added_deps: [], available: { ref: 'v1.4.5.0' } });
+		const detail = await call('GET', `/v0/arrow/${enc(`${NS}/terraria@v1.4.4.9`)}`);
+		expect(detail.body!.data).toMatchObject({ resolved_ref: 'v1.4.4.9', outdated: true });
 	});
 
-	it("resolves an omitted ref to the channel's own latest", async () => {
-		await call('PATCH', `/v0/arrow/${enc(MINECRAFT)}`, { channel: 'nightly' });
-		const moved = mock.world.arrows.get(`${NS}/minecraft@nightly-latest`);
-		expect(moved?.ref).toBe('nightly-latest');
+	it('advances a row nothing is installed from in place, keeping its identity', async () => {
+		const arrow = mock.world.arrows.get(`${NS}/terraria@v1.4.4.9`)!;
+		arrow.state = 'absent';
+		const { body } = await call('PATCH', `/v0/arrow/${enc(`${NS}/terraria@v1.4.4.9`)}`);
+		expect(body!.data).not.toHaveProperty('available');
+		expect(arrow.resolved_ref).toBe('v1.4.5.0');
+		expect(arrow.available).toBeUndefined();
+		expect(mock.world.arrows.get(`${NS}/terraria@v1.4.4.9`)).toBe(arrow);
 	});
 
-	it('keeps the current ref when the named channel matches no published entry and no ref is given', async () => {
-		const { status } = await call('PATCH', `/v0/arrow/${enc(MINECRAFT)}`, { channel: 'made-up' });
-		expect(status).toBe(200);
-		const arrow = mock.world.arrows.get(MINECRAFT);
-		expect(arrow?.channel).toBe('made-up');
-		expect(arrow?.ref).toBe('v1.21.4');
-	});
-
-	it('400s a PATCH with no channel', async () => {
-		expect((await call('PATCH', `/v0/arrow/${enc(MINECRAFT)}`, {})).status).toBe(400);
-	});
-
-	it('400s a PATCH sent with no body at all', async () => {
-		expect((await call('PATCH', `/v0/arrow/${enc(MINECRAFT)}`)).status).toBe(400);
-	});
-
-	it('falls back through to the current ref for an arrow that publishes no channels at all', async () => {
-		const { status } = await call('PATCH', `/v0/arrow/${enc(POSTGRES)}`, { channel: 'stable' });
-		expect(status).toBe(200);
-		const arrow = mock.world.arrows.get(POSTGRES);
-		expect(arrow?.channel).toBe('stable');
-		expect(arrow?.ref).toBe('v17.2');
+	it('reports nothing available for a current row', async () => {
+		const { body } = await call('PATCH', `/v0/arrow/${enc(POSTGRES)}`);
+		expect(body!.data).not.toHaveProperty('available');
 	});
 
 	it('404s a PATCH for an arrow the world has never heard of', async () => {
-		expect((await call('PATCH', `/v0/arrow/${enc('nope/nope@v1')}`, { channel: 'beta' })).status).toBe(404);
+		expect((await call('PATCH', `/v0/arrow/${enc('nope/nope@v1')}`)).status).toBe(404);
 	});
 });
 
@@ -296,7 +379,7 @@ describe('runtime verbs that do run', () => {
 		expect(arrow.active_run?.pid).toBeGreaterThan(0);
 	});
 
-	it('update walks its own steps and lands back on ready', async () => {
+	it('update walks its own steps, lands back on ready, and advances the same row to what was available', async () => {
 		const arrow = mock.world.arrows.get(`${NS}/terraria@v1.4.4.9`)!;
 		expect(arrow.state).toBe('outdated');
 		const { status } = await call('POST', `/v0/runtime/${enc(`${NS}/terraria@v1.4.4.9`)}/update`, {});
@@ -305,13 +388,25 @@ describe('runtime verbs that do run', () => {
 
 		await vi.advanceTimersByTimeAsync(700 * 6);
 		expect(arrow.state).toBe('ready');
+		expect(arrow.resolved_ref).toBe('v1.4.5.0');
+		expect(arrow.available).toBeUndefined();
+		expect(mock.world.arrows.get(`${NS}/terraria@v1.4.4.9`)).toBe(arrow);
+	});
+
+	it('answers an update with nothing newer as a 200 no-op that starts nothing', async () => {
+		const arrow = mock.world.arrows.get(POSTGRES)!;
+		arrow.state = 'ready';
+		const { status } = await call('POST', `/v0/runtime/${enc(POSTGRES)}/update`, {});
+		expect(status).toBe(200);
+		expect(arrow.state).toBe('ready');
+		expect(arrow.active_run).toBeNull();
 	});
 
 	it('refuses update outside ready/outdated', async () => {
 		// MINECRAFT is 'running' -- past the broad STARTABLE gate, so this
 		// exercises update's own narrower check specifically.
 		const { status, body } = await call('POST', `/v0/runtime/${enc(MINECRAFT)}/update`, {});
-		expect(status).toBe(409);
+		expect(status).toBe(422);
 		expect(body!.error).toMatch(/ready\/outdated/);
 	});
 

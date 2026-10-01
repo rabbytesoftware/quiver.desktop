@@ -38,7 +38,12 @@ function detail(overrides: Partial<ArrowDetail> = {}): ArrowDetail {
 		targets: [TARGET],
 		state: 'ready',
 		user_installed: true,
-		installed_ref: 'v1.21.4',
+		selector: 'v1.21.4',
+		selector_kind: 'pin',
+		resolved_ref: 'v1.21.4',
+		installed_commit: '',
+		available: null,
+		outdated: false,
 		active_run: null,
 		last_return: null,
 		channels: [],
@@ -84,6 +89,17 @@ describe('computeActions', () => {
 			targets: [{ ...TARGET, lifecycle: { ...LIFECYCLE, execute: [] } }],
 		});
 		expect(computeActions(noExecute, PLATFORM).map((a) => a.kind)).toEqual(['uninstall']);
+	});
+
+	it('ready with something available: Update comes first, Start and Uninstall stay as they were', () => {
+		const available = { ref: 'v1.22.0', commit: 'abc1234' };
+		expect(kinds('ready', { available, outdated: true })).toEqual(['update', 'execute', 'uninstall']);
+		const [update] = computeActions(detail({ state: 'ready', available, outdated: true }), PLATFORM);
+		expect(update).toMatchObject({ forceDisabled: false, forceBusy: false, steps: LIFECYCLE.update });
+	});
+
+	it('ready with nothing available: no Update at all', () => {
+		expect(kinds('ready', { available: null, outdated: false })).not.toContain('update');
 	});
 
 	it('outdated: Update (enabled) + Start, hard-disabled unconditionally -- never gated by manifest data', () => {
@@ -259,5 +275,37 @@ describe('computeActions on Quiver’s own row', () => {
 			'QUIVER_RELEASE_ASSET_URL',
 			'QUIVER_RELEASE_CHECKSUM',
 		]);
+	});
+});
+
+/**
+ * quiver.core updates itself through its own channel (Settings → Engine), and
+ * its ARROW.md needs release variables the app does not resolve for it. The
+ * tile keeps saying an update is available, but never sends a request core
+ * would refuse -- or worse, run with stale stored values.
+ */
+describe('computeActions on quiver.core’s own row', () => {
+	const CORE = 'github.com/rabbytesoftware/quiver.core@stable';
+	const AHEAD = { ref: 'stable-26.6', commit: 'abc' };
+
+	it.each<[ArrowState, Partial<ArrowDetail>]>([
+		['outdated', {}],
+		['ready', { available: AHEAD, outdated: true }],
+	])('disables Update in %s with the reason, pointing at Settings', (state, extra) => {
+		const update = computeActions(detail({ namespace: CORE, state, ...extra }), PLATFORM).find(
+			(a) => a.kind === 'update'
+		);
+		expect(update).toMatchObject({ forceDisabled: true, disabledReasonKey: 'arrow.update.coreSelf' });
+	});
+
+	it.each([
+		['quiver.desktop', 'github.com/rabbytesoftware/quiver.desktop@stable'],
+		['an ordinary arrow', 'github.com/rabbyte/minecraft@v1.21.4'],
+	])('leaves Update enabled for %s', (_name, namespace) => {
+		const update = computeActions(detail({ namespace, state: 'outdated' }), PLATFORM).find(
+			(a) => a.kind === 'update'
+		);
+		expect(update?.forceDisabled).toBe(false);
+		expect(update?.disabledReasonKey).toBeUndefined();
 	});
 });

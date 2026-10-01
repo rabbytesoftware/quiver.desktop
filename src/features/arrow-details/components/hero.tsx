@@ -11,10 +11,12 @@ import { CONTENT_MAX_WIDTH, CONTENT_PADDING_X } from '@/features/arrow-details/l
 import { problemMessage, computeStatus, STATUS_BADGE_VARIANT, STATUS_ICONS } from '@/features/arrow-details/lib/status';
 import { useChannelSelection } from '@/features/arrow-details/lib/use-channel-selection';
 import { useHeroActions } from '@/features/arrow-details/lib/use-hero-actions';
+import { useSelectorSwitch } from '@/features/arrow-details/lib/use-selector-switch';
 import { ArrowIcon } from '@/features/sidebar/components/arrows/arrow-icon';
 import { cn } from '@/lib/cn';
 import { cssUrl } from '@/lib/css';
 import { useTranslation } from '@/lib/i18n';
+import { withSelector } from '@/lib/namespace';
 
 import { TriangleAlertIcon } from 'lucide-react';
 
@@ -22,6 +24,8 @@ import { ActionButton } from './action-button';
 import { ChannelVersionSelects } from './channel-version-selects';
 import { InferenceNotes } from './inference-notes';
 import { MessageModal } from './message-modal';
+import { SelectorSummary } from './selector-summary';
+import { SwitchSelectorDialog } from './switch-selector-dialog';
 
 interface HeroProps {
 	detail: ArrowDetail;
@@ -40,13 +44,20 @@ interface HeroProps {
 	 * future non-platform-aware host) sees today's behavior.
 	 */
 	platformResolved?: boolean;
+	/** Moves the page to another identity of this arrow -- the row Add to Library or a switch just created. */
+	onIdentityChange?: (namespace: string) => void;
 }
 
 /**
- * The arrow-details hero -- identity, status, tags, description, channel +
- * version + license, and the state-driven action row. Extends Collection's
- * existing hero pattern (banner + identity block) with everything specific
- * to a single arrow's lifecycle.
+ * The arrow-details hero -- identity, status, tags, description, what the
+ * entry follows + license, and the state-driven action row. Extends
+ * Collection's existing hero pattern (banner + identity block) with
+ * everything specific to a single arrow's lifecycle.
+ *
+ * What an entry follows is picked once, before it is in the library (the
+ * Channel/Version selects choose the identity Add to Library registers).
+ * After that it is read-only; following something else is the switch
+ * dialog's uninstall + reinstall.
  */
 export function Hero({
 	detail,
@@ -55,24 +66,42 @@ export function Hero({
 	onValueChange,
 	channelsLoading = false,
 	platformResolved = true,
+	onIdentityChange,
 }: HeroProps): JSX.Element {
 	const { t } = useTranslation();
 	const [problemOpen, setProblemOpen] = useState(false);
-	const channelSelection = useChannelSelection(detail);
+	const [switchOpen, setSwitchOpen] = useState(false);
+	const channelSelection = useChannelSelection(detail.selector, detail.channels);
+	const registerAs = channelSelection.selector
+		? withSelector(detail.namespace, channelSelection.selector)
+		: detail.namespace;
 	const {
 		pendingKind,
 		releaseError,
 		actionError,
+		retryKind,
+		upToDate,
 		platformWarning,
 		invoke,
 		dismissReleaseError,
 		dismissActionError,
 		dismissPlatformWarning,
-	} = useHeroActions(detail, values, channelSelection.selectedChannel);
+	} = useHeroActions(detail, values, registerAs, onIdentityChange);
+	const selectorSwitch = useSelectorSwitch(detail, values, (namespace) => {
+		setSwitchOpen(false);
+		onIdentityChange?.(namespace);
+	});
+	const switchFailure = selectorSwitch.failure;
+	const hasChannels = channelsLoading || detail.channels.length > 0;
 
 	const status = computeStatus(detail);
 	const problem = problemMessage(detail);
-	const actions = computeActions(detail, platform);
+	// While a switch is working on this identity, its steps -- not the user --
+	// drive install and uninstall here.
+	const actions = computeActions(detail, platform).map((action) =>
+		selectorSwitch.pending ? { ...action, forceDisabled: true } : action
+	);
+	const disabledReason = actions.find((action) => action.disabledReasonKey)?.disabledReasonKey;
 	// Always-visible, no click required to discover it -- unlike `problem`,
 	// which needs an active run or a detached process, this can be true for an
 	// arrow that has never been touched at all (the moment it's discovered).
@@ -155,14 +184,23 @@ export function Hero({
 					)}
 
 					<div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-						<ChannelVersionSelects
-							channels={detail.channels}
-							channelsLoading={channelsLoading}
-							selection={channelSelection}
-						/>
+						{detail.user_installed ? (
+							<SelectorSummary
+								detail={detail}
+								onSwitch={detail.channels.length > 0 ? () => setSwitchOpen(true) : undefined}
+								pending={selectorSwitch.pending}
+							/>
+						) : (
+							<ChannelVersionSelects
+								channels={detail.channels}
+								channelsLoading={channelsLoading}
+								disabled={pendingKind === 'addToLibrary'}
+								selection={channelSelection}
+							/>
+						)}
 						{detail.license && (
 							<>
-								{(channelsLoading || detail.channels.length > 0) && <span aria-hidden="true">–</span>}
+								{(detail.user_installed || hasChannels) && <span aria-hidden="true">–</span>}
 								<span>{detail.license}</span>
 							</>
 						)}
@@ -180,7 +218,17 @@ export function Hero({
 								variables={detail.variables}
 							/>
 						))}
+						{upToDate && (
+							<span className="text-xs text-muted-foreground" role="status">
+								{t('arrow.update.current')}
+							</span>
+						)}
 					</div>
+					{disabledReason && (
+						<p className="mt-2 text-xs text-muted-foreground" role="note">
+							{t(disabledReason)}
+						</p>
+					)}
 				</div>
 			</div>
 
@@ -211,14 +259,65 @@ export function Hero({
 				/>
 			)}
 
-			{actionError && (
-				<MessageModal
-					message={actionError}
-					onOpenChange={(open) => !open && dismissActionError()}
-					open
-					title={t('arrow.action.error.title')}
+			{actionError &&
+				(retryKind ? (
+					<MessageModal
+						cancelLabel={t('arrow.update.dismiss')}
+						confirmLabel={t('arrow.update.retry')}
+						message={`${t('arrow.update.busy')}\n\n${actionError}`}
+						onConfirm={() => {
+							dismissActionError();
+							void invoke(retryKind);
+						}}
+						onOpenChange={(open) => !open && dismissActionError()}
+						open
+						title={t('arrow.action.error.title')}
+					/>
+				) : (
+					<MessageModal
+						message={actionError}
+						onOpenChange={(open) => !open && dismissActionError()}
+						open
+						title={t('arrow.action.error.title')}
+					/>
+				))}
+
+			{switchOpen && (
+				<SwitchSelectorDialog
+					channelsLoading={channelsLoading}
+					detail={detail}
+					error={selectorSwitch.registerError}
+					onConfirm={(selector) => void selectorSwitch.switchTo(selector)}
+					onOpenChange={(open) => {
+						setSwitchOpen(open);
+						if (!open) selectorSwitch.dismissRegisterError();
+					}}
+					pending={selectorSwitch.pending}
 				/>
 			)}
+
+			{switchFailure &&
+				(switchFailure.step === 'install' ? (
+					<MessageModal
+						message={`${t('arrow.selector.failed.install', switchFailure)}\n\n${switchFailure.reason}`}
+						onOpenChange={(open) => !open && selectorSwitch.dismissFailure()}
+						open
+						title={t('arrow.selector.switchFailed')}
+					/>
+				) : (
+					<MessageModal
+						cancelLabel={t('arrow.selector.dismiss')}
+						confirmLabel={t('arrow.selector.openOld')}
+						message={`${t(`arrow.selector.failed.${switchFailure.step}`, switchFailure)}\n\n${switchFailure.reason}`}
+						onConfirm={() => {
+							selectorSwitch.dismissFailure();
+							onIdentityChange?.(switchFailure.from);
+						}}
+						onOpenChange={(open) => !open && selectorSwitch.dismissFailure()}
+						open
+						title={t('arrow.selector.switchFailed')}
+					/>
+				))}
 
 			{platformWarning !== null && (
 				<MessageModal

@@ -12,19 +12,21 @@ interface ChannelVersionSelectsProps {
 	selection: ChannelSelection;
 	/** True while `GET /v0/arrow/:ns/channels` is still in flight -- shows a disabled, "Loading…" Channel select instead of rendering nothing (which would be indistinguishable from an arrow that genuinely has none). */
 	channelsLoading: boolean;
+	/** Disables every field, e.g. while the pick is being registered. */
+	disabled?: boolean;
 }
 
 /**
- * The Hero's Channel and Version pickers -- pulled out of `Hero` itself
- * (react-doctor's `no-giant-component`) since the two selects, their pointer-
- * channel handling, and the version-option derivation are one self-contained
- * concern. `channels` is the arrow's full published list; the rest of the
- * current selection lives in `selection`, already resolved by `useChannelSelection`.
+ * The Channel and Version pickers that choose the selector a new library
+ * entry follows -- in the Hero before the arrow is added, and in the switch
+ * dialog after. `channels` is the arrow's full published list; the current
+ * pick lives in `selection`, already resolved by `useChannelSelection`.
  */
 export function ChannelVersionSelects({
 	channels,
 	selection,
 	channelsLoading,
+	disabled = false,
 }: ChannelVersionSelectsProps): JSX.Element {
 	const { t } = useTranslation();
 	const { selectedChannelEntry } = selection;
@@ -41,14 +43,14 @@ export function ChannelVersionSelects({
 			setRevertNonce((n) => n + 1);
 			return;
 		}
-		selection.selectVersion(selectedChannelEntry.name, value);
+		selection.selectVersion(value);
 	}
 
 	return (
 		<>
 			{(channelsLoading || channels.length > 0) && (
 				<Select
-					disabled={channelsLoading || selection.isPending}
+					disabled={channelsLoading || disabled}
 					onValueChange={(name) => name && selection.selectChannel(name)}
 					// `??` keeps this a controlled component from the very first render
 					// (`selectedChannel` starts `undefined` while channels are still
@@ -72,8 +74,8 @@ export function ChannelVersionSelects({
 			)}
 			{selectedChannelEntry?.kind === 'ordered' && (
 				<Select
-					disabled={selection.isPending}
-					onValueChange={(ref) => ref && selection.selectVersion(selectedChannelEntry.name, ref)}
+					disabled={disabled}
+					onValueChange={(ref) => ref && selection.selectVersion(ref)}
 					value={selection.selectedVersion}
 				>
 					<SelectTrigger aria-label={t('arrow.version.label')} className="h-6 w-auto font-mono text-xs">
@@ -92,12 +94,12 @@ export function ChannelVersionSelects({
 				// A pointer channel (a branch, a rolling tag) is open-ended -- there
 				// is no fixed list to rank, so this pins an arbitrary ref (a commit,
 				// a differently-named tag) rather than offering a closed choice of
-				// one. Uncontrolled + keyed so typing isn't fought by a round trip;
-				// commits on blur or Enter, never on every keystroke.
+				// one. Uncontrolled + keyed; commits on blur or Enter, never on
+				// every keystroke.
 				<Input
 					key={`${selectedChannelEntry.name}-${selection.selectedVersion}-${revertNonce}`}
 					defaultValue={selection.selectedVersion ?? selectedChannelEntry.latest}
-					disabled={selection.isPending}
+					disabled={disabled}
 					aria-label={t('arrow.version.label')}
 					className="h-6 w-24 font-mono text-xs"
 					onBlur={(e) => commitPointerVersion(e.target.value)}

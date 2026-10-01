@@ -1,4 +1,12 @@
-import type { ActiveRun, ArrowState, ArrowStepDefinition, StepProgress } from '@/domain/arrow';
+import type {
+	ActiveRun,
+	ArrowState,
+	ArrowStepDefinition,
+	AvailableVersion,
+	SelectorKind,
+	StepProgress,
+} from '@/domain/arrow';
+import { bareNamespace } from '@/lib/namespace';
 
 export type ScenarioName = 'normal' | 'extreme' | 'empty';
 
@@ -61,6 +69,7 @@ export interface MockChannel {
 
 export interface MockArrow {
 	namespace: string;
+	/** The identity selector the row is filed under -- `namespace@ref` is its key, and it never changes. */
 	ref: string;
 	version: string;
 	name: string;
@@ -84,8 +93,12 @@ export interface MockArrow {
 	targets: MockTarget[];
 	active_run: ActiveRun | null;
 	last_return: MockLastReturn | null;
-	/** The channel this arrow is currently tracking, e.g. `"stable"`. Undefined for one pinned to an exact ref with no tracked channel. */
-	channel?: string;
+	/** Undefined reads as core classifies it: a channel when `ref` names one of `channels`, a pin otherwise. See `selectorKindOf`. */
+	selector_kind?: SelectorKind;
+	/** The ref the row resolved to. Undefined reads as `ref` itself, or a channel's `latest`. See `resolvedRefOf`. */
+	resolved_ref?: string;
+	/** What is ahead of `resolved_ref`, undefined when current. `arrow()` gives every `outdated` fixture one. */
+	available?: AvailableVersion;
 	/** Every channel this arrow's repo publishes -- `GET /v0/arrow/:ns/channels`. Undefined (not `[]`) for a fixture that publishes none, same convention as `dependencies` below. */
 	channels?: MockChannel[];
 	/** Reported by both lanes; core takes it from the vault index. */
@@ -262,4 +275,28 @@ export function findArrow(arrows: Map<string, MockArrow>, ns: string): MockArrow
 	const exact = arrows.get(ns);
 	if (exact) return exact;
 	return [...arrows.values()].find((a) => a.namespace === ns);
+}
+
+/** Any row of the repository `ns` names, whatever selector it follows -- what a registration of a new selector is modelled on. */
+export function findRepository(arrows: Map<string, MockArrow>, ns: string): MockArrow | undefined {
+	const bare = bareNamespace(ns);
+	return [...arrows.values()].find((a) => a.namespace === bare);
+}
+
+/** Mirrors the order of core's `ClassifySelector`: a channel name, then a glob, then a bare commit, else a pin. */
+export function classifySelector(selector: string, channels: MockChannel[] = []): SelectorKind {
+	if (channels.some((c) => c.name === selector)) return 'channel';
+	if (/[*?[]/.test(selector)) return 'constraint';
+	if (/^[0-9a-f]{7,40}$/.test(selector)) return 'commit';
+	return 'pin';
+}
+
+export function selectorKindOf(arrow: MockArrow): SelectorKind {
+	return arrow.selector_kind ?? classifySelector(arrow.ref, arrow.channels);
+}
+
+export function resolvedRefOf(arrow: MockArrow): string {
+	if (arrow.resolved_ref !== undefined) return arrow.resolved_ref;
+	const channel = (arrow.channels ?? []).find((c) => c.name === arrow.ref);
+	return channel?.latest ?? arrow.ref;
 }

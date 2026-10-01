@@ -1,0 +1,40 @@
+{
+	"success": true,
+	"error": null,
+	"data": [
+		{
+			"namespace": "github.com/rabbytesoftware/quiver.core",
+			"name": "Quiver Core",
+			"description": "The Quiver package manager's own engine daemon.",
+			"tags": null,
+			"media": {
+				"icon": "https://raw.githubusercontent.com/rabbytesoftware/quiver.core/develop/docs/quiver-icon.svg",
+				"banner": "https://raw.githubusercontent.com/rabbytesoftware/quiver.core/develop/docs/quiver-banner.svg"
+			},
+			"versions": [
+				{
+					"ref": "stable",
+					"resolved_ref": "e2e",
+					"state": "ready"
+				}
+			]
+		},
+		{
+			"namespace": "localhost/tester/desk",
+			"name": "e2e.rolling-tool",
+			"description": "Rolling-tag fixture whose steps record the ref and build they ran for",
+			"tags": null,
+			"media": {
+				"icon": "",
+				"banner": ""
+			},
+			"versions": [
+				{
+					"ref": "stable",
+					"resolved_ref": "stable-26.5.0",
+					"state": "outdated"
+				}
+			]
+		}
+	]
+}

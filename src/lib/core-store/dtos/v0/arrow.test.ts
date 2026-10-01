@@ -22,7 +22,7 @@ describe('toArrowCatalogRecords', () => {
 					tags: ['t'],
 					media: { icon: 'i.png', banner: 'b.png' },
 					versions: [
-						{ ref: '1.0.0', version: '1.0.0', state: 'ready', installed_at: '2026-05-09T21:26:59Z' },
+						{ ref: '1.0.0', resolved_ref: '1.0.0', state: 'ready', installed_at: '2026-05-09T21:26:59Z' },
 					],
 				},
 			],
@@ -40,7 +40,7 @@ describe('toArrowCatalogRecords', () => {
 					name: 'a',
 					description: '',
 					tags: [],
-					versions: [{ ref: '1', version: '1', state: 'ready' }],
+					versions: [{ ref: '1', resolved_ref: '1', state: 'ready' }],
 				},
 			],
 			'local'
@@ -56,7 +56,7 @@ describe('toArrowCatalogRecords', () => {
 					name: 'a',
 					description: '',
 					tags: [],
-					versions: [{ ref: '1', version: '1', state: 'ready' }],
+					versions: [{ ref: '1', resolved_ref: '1', state: 'ready' }],
 				},
 			],
 			'remote-7'
@@ -73,14 +73,54 @@ describe('toArrowCatalogRecords', () => {
 					description: '',
 					tags: [],
 					versions: [
-						{ ref: '1', version: '1', state: 'ready' },
-						{ ref: '2', version: '2', state: 'absent' },
+						{ ref: '1', resolved_ref: '1', state: 'ready' },
+						{ ref: '2', resolved_ref: '2', state: 'absent' },
 					],
 				},
 			],
 			'local'
 		);
 		expect(records.map((r) => r.namespace)).toEqual(['a@1', 'a@2']);
+	});
+
+	it('files each row under its identity selector and carries the resolved ref as its version', () => {
+		const records = toArrowCatalogRecords(
+			[
+				{
+					namespace: 'github.com/char2cs/crowbar',
+					name: 'crowbar',
+					description: '',
+					tags: [],
+					versions: [
+						{ ref: 'stable', resolved_ref: 'v1.3.0', state: 'ready' },
+						{ ref: 'v1.*', resolved_ref: 'v1.3.0', state: 'absent' },
+						{ ref: 'nightly', resolved_ref: '', state: 'absent' },
+					],
+				},
+			],
+			'local'
+		);
+		expect(records.map((r) => [r.namespace, r.version])).toEqual([
+			['github.com/char2cs/crowbar@stable', 'v1.3.0'],
+			['github.com/char2cs/crowbar@v1.*', 'v1.3.0'],
+			['github.com/char2cs/crowbar@nightly', ''],
+		]);
+	});
+
+	it('reads a version row from an older core with no resolved_ref as unresolved', () => {
+		const [record] = toArrowCatalogRecords(
+			[
+				{
+					namespace: 'a',
+					name: 'a',
+					description: '',
+					tags: [],
+					versions: [{ ref: '1', state: 'ready' } as ArrowListResponseItemDTO['versions'][number]],
+				},
+			],
+			'local'
+		);
+		expect(record.version).toBe('');
 	});
 });
 
@@ -91,8 +131,8 @@ describe('origin on the arrow list', () => {
 		description: '',
 		tags: [],
 		versions: [
-			{ ref: '1', version: '1', state: 'ready' },
-			{ ref: '2', version: '2', state: 'ready' },
+			{ ref: '1', resolved_ref: '1', state: 'ready' },
+			{ ref: '2', resolved_ref: '2', state: 'ready' },
 		],
 		...extra,
 	});
@@ -132,7 +172,7 @@ describe('toInitialRuntimeUpdates', () => {
 				name: 'a',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'running' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'running' }],
 			},
 		]);
 		expect(updates).toEqual([{ namespace: 'a@1', state: 'running', active_run: null, last_return: null }]);
@@ -146,8 +186,8 @@ describe('toInitialRuntimeUpdates', () => {
 				description: '',
 				tags: [],
 				versions: [
-					{ ref: '1', version: '1', state: 'ready' },
-					{ ref: '2', version: '2', state: 'absent' },
+					{ ref: '1', resolved_ref: '1', state: 'ready' },
+					{ ref: '2', resolved_ref: '2', state: 'absent' },
 				],
 			},
 		]);
@@ -161,7 +201,7 @@ describe('toInitialRuntimeUpdates', () => {
 				name: 'a',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'running' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'running' }],
 			},
 		]);
 		expect(updates[0].active_run).toBeNull();
@@ -170,16 +210,18 @@ describe('toInitialRuntimeUpdates', () => {
 });
 
 const DETAIL: ArrowDetailDTO = {
-	namespace: 'github.com/rabbyte/minecraft',
+	namespace: 'github.com/rabbyte/minecraft@stable',
 	name: 'Minecraft Server',
-	version: '1.21.4',
 	description: 'A server.',
 	license: 'MIT',
 	state: 'ready',
 	tags: ['game'],
-	installed_ref: 'v1.21.4',
 	installed_at: '2026-05-09T21:26:59Z',
 	user_installed: true,
+	selector_kind: 'channel',
+	resolved_ref: 'v1.21.4',
+	installed_commit: '3f2a9c1d',
+	outdated: false,
 	active_run: null,
 	last_return: null,
 };
@@ -206,11 +248,18 @@ const MANIFEST: ArrowManifestDTO = {
 		},
 	},
 	manifest: {
-		url: 'https://github.com/rabbyte/minecraft',
-		maintainers: [{ name: 'rabbyte', url: 'https://rabbyte.dev' }],
-		credits: [{ name: 'Mojang' }],
-		media: { icon: 'icon.png', banner: 'banner.png' },
+		metadata: {
+			name: 'Minecraft Server',
+			description: 'A server.',
+			license: 'MIT',
+			url: 'https://github.com/rabbyte/minecraft',
+			maintainers: [{ name: 'rabbyte', url: 'https://rabbyte.dev' }],
+			credits: [{ name: 'Mojang' }],
+			media: { icon: 'icon.png', banner: 'banner.png' },
+		},
+		variables: null,
 		netbridge: [{ name: 'game', protocol: 'tcp', default: 25565, required: true }],
+		targets: {},
 	},
 };
 
@@ -302,13 +351,6 @@ describe('toArrowDetail origin', () => {
 });
 
 describe('toArrowDetail', () => {
-	it('never yields ns@undefined when neither the namespace nor installed_ref carries a ref', () => {
-		const result = toArrowDetail({ ...DETAIL, installed_ref: undefined }, MANIFEST, [], null, [], []);
-		expect(result.namespace).toBe('github.com/rabbyte/minecraft');
-		expect(result.installed_ref).toBe('');
-		expect(result.namespace).not.toContain('undefined');
-	});
-
 	it('carries the inference warnings, and none for a hand-written arrow', () => {
 		const inferred = toArrowDetail(
 			{
@@ -326,26 +368,105 @@ describe('toArrowDetail', () => {
 		expect(toArrowDetail(DETAIL, MANIFEST, [], null, [], []).warnings).toEqual([]);
 	});
 
-	it('combines the bare namespace with installed_ref, since every downstream call needs the full identifier', () => {
+	it('keeps the identity quiver.core sends, selector included', () => {
 		const result = toArrowDetail(DETAIL, MANIFEST, [], null, [], []);
-		expect(result.namespace).toBe('github.com/rabbyte/minecraft@v1.21.4');
+		expect(result.namespace).toBe('github.com/rabbyte/minecraft@stable');
+		expect(result.selector).toBe('stable');
 	});
 
-	it('uses detail.namespace as-is when it already carries a ref, deriving installed_ref from it', () => {
-		// quiver.core PR #225: GetDetail now resolves live for an uncatalogued
-		// namespace, stamping the resolved ref onto `namespace` itself and
-		// omitting `installed_ref` entirely -- unlike the catalogued case above,
-		// where the ref only ever shows up as `installed_ref`.
+	it('reads the row state: selector kind, resolved ref and installed commit', () => {
+		const result = toArrowDetail(DETAIL, MANIFEST, [], null, [], []);
+		expect(result.selector_kind).toBe('channel');
+		expect(result.resolved_ref).toBe('v1.21.4');
+		expect(result.installed_commit).toBe('3f2a9c1d');
+		expect(result.available).toBeNull();
+		expect(result.outdated).toBe(false);
+	});
+
+	it('reads what is ahead from available, and outdated from it', () => {
 		const result = toArrowDetail(
-			{ ...DETAIL, namespace: 'github.com/char2cs/crowbar@develop', installed_ref: undefined },
+			{ ...DETAIL, available: { ref: 'v1.22.0', commit: 'abc1234' }, outdated: true },
 			MANIFEST,
 			[],
 			null,
 			[],
 			[]
 		);
-		expect(result.namespace).toBe('github.com/char2cs/crowbar@develop');
-		expect(result.installed_ref).toBe('develop');
+		expect(result.available).toEqual({ ref: 'v1.22.0', commit: 'abc1234' });
+		expect(result.outdated).toBe(true);
+	});
+
+	it('derives outdated from available when a payload leaves it out', () => {
+		const partial = { ...DETAIL, available: { ref: 'v1.22.0', commit: 'abc1234' } } as Partial<ArrowDetailDTO>;
+		delete partial.outdated;
+		expect(toArrowDetail(partial as ArrowDetailDTO, MANIFEST, [], null, [], []).outdated).toBe(true);
+	});
+
+	it('reads a payload from an older core, with none of the row-state fields, as a pin with nothing resolved', () => {
+		const legacy = {
+			namespace: 'github.com/rabbyte/minecraft@v1.21.4',
+			name: 'Minecraft Server',
+			description: 'A server.',
+			state: 'ready',
+			tags: null,
+			user_installed: true,
+		} as unknown as ArrowDetailDTO;
+		const result = toArrowDetail(legacy, { ...MANIFEST, manifest: null }, [], null, [], []);
+		expect(result.selector_kind).toBe('pin');
+		expect(result.resolved_ref).toBe('');
+		expect(result.installed_commit).toBe('');
+		expect(result.available).toBeNull();
+		expect(result.outdated).toBe(false);
+		expect(result.license).toBe('');
+		expect(result.url).toBe('');
+		expect(result.media).toEqual({ icon: null, banner: null });
+	});
+
+	it('reads a selector kind it does not know as a pin', () => {
+		const result = toArrowDetail(
+			{ ...DETAIL, selector_kind: 'wildcard' as ArrowDetailDTO['selector_kind'] },
+			MANIFEST,
+			[],
+			null,
+			[],
+			[]
+		);
+		expect(result.selector_kind).toBe('pin');
+	});
+
+	it('ignores an available with no ref', () => {
+		const result = toArrowDetail({ ...DETAIL, available: { ref: '', commit: '' } }, MANIFEST, [], null, [], []);
+		expect(result.available).toBeNull();
+	});
+
+	it('reads an available with no commit as an empty commit', () => {
+		const result = toArrowDetail(
+			{ ...DETAIL, available: { ref: 'v1.22.0' } as ArrowDetailDTO['available'] },
+			MANIFEST,
+			[],
+			null,
+			[],
+			[]
+		);
+		expect(result.available).toEqual({ ref: 'v1.22.0', commit: '' });
+	});
+
+	it('reads null targets as none', () => {
+		const result = toArrowDetail(
+			DETAIL,
+			{ ...MANIFEST, targets: null as unknown as ArrowManifestDTO['targets'] },
+			[],
+			null,
+			[],
+			[]
+		);
+		expect(result.targets).toEqual([]);
+	});
+
+	it('falls back to the manifest license when the detail carries none', () => {
+		const partial = { ...DETAIL } as Partial<ArrowDetailDTO>;
+		delete partial.license;
+		expect(toArrowDetail(partial as ArrowDetailDTO, MANIFEST, [], null, [], []).license).toBe('MIT');
 	});
 
 	it('sources url/maintainers/credits/media from the nested raw manifest, not the base detail call', () => {
@@ -354,13 +475,16 @@ describe('toArrowDetail', () => {
 		expect(result.maintainers).toEqual([{ name: 'rabbyte', email: undefined, url: 'https://rabbyte.dev' }]);
 		expect(result.credits).toEqual([{ name: 'Mojang', email: undefined, url: undefined }]);
 		expect(result.media).toEqual({ icon: 'icon.png', banner: 'banner.png' });
-		expect(result.netbridge).toEqual(MANIFEST.manifest.netbridge);
+		expect(result.netbridge).toEqual(MANIFEST.manifest?.netbridge);
 	});
 
 	it('defaults media icon/banner to null rather than undefined when the manifest omits them', () => {
 		const result = toArrowDetail(
 			DETAIL,
-			{ ...MANIFEST, manifest: { ...MANIFEST.manifest, media: {} } },
+			{
+				...MANIFEST,
+				manifest: { ...MANIFEST.manifest!, metadata: { ...MANIFEST.manifest!.metadata, media: {} } },
+			},
 			[],
 			null,
 			[],
@@ -433,16 +557,6 @@ describe('toArrowDetail', () => {
 		expect(result.channels).toBe(channels);
 	});
 
-	it('reads the scalar channel field straight off the base detail', () => {
-		const result = toArrowDetail({ ...DETAIL, channel: 'beta' }, MANIFEST, [], null, [], []);
-		expect(result.channel).toBe('beta');
-	});
-
-	it('leaves channel undefined when the base detail omits it', () => {
-		const result = toArrowDetail(DETAIL, MANIFEST, [], null, [], []);
-		expect(result.channel).toBeUndefined();
-	});
-
 	it('carries the rest of the base detail fields straight through', () => {
 		const result = toArrowDetail(DETAIL, MANIFEST, [], null, [], []);
 		expect(result.name).toBe('Minecraft Server');
@@ -451,7 +565,6 @@ describe('toArrowDetail', () => {
 		expect(result.tags).toEqual(['game']);
 		expect(result.state).toBe('ready');
 		expect(result.user_installed).toBe(true);
-		expect(result.installed_ref).toBe('v1.21.4');
 		expect(result.installed_at).toBe('2026-05-09T21:26:59Z');
 	});
 });
@@ -476,7 +589,7 @@ describe('an arrow with no tags at all', () => {
 		name: 'Quiver',
 		description: 'The Quiver desktop application.',
 		tags: null,
-		versions: [{ ref: 'stable-1.0', version: '0.1', state: 'ready' as const }],
+		versions: [{ ref: 'stable', resolved_ref: 'stable-1.0', state: 'ready' as const }],
 	};
 
 	it('comes back from the catalog mapper with an empty list, not null', () => {
@@ -498,7 +611,11 @@ describe('an arrow with no tags at all', () => {
 			{
 				...MANIFEST,
 				variables: null,
-				manifest: { ...MANIFEST.manifest, maintainers: null, credits: null, netbridge: null },
+				manifest: {
+					...MANIFEST.manifest!,
+					metadata: { ...MANIFEST.manifest!.metadata, maintainers: null, credits: null },
+					netbridge: null,
+				},
 			},
 			[],
 			null,

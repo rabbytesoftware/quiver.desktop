@@ -1,0 +1,21 @@
+{
+	"success": true,
+	"error": null,
+	"data": {
+		"namespace": "localhost/tester/desk@stable",
+		"name": "e2e.rolling-tool",
+		"description": "Rolling-tag fixture whose steps record the ref and build they ran for",
+		"license": "",
+		"state": "outdated",
+		"tags": null,
+		"user_installed": true,
+		"selector_kind": "channel",
+		"resolved_ref": "stable-26.5.0",
+		"installed_commit": "caa0b0f9f0bfefe0db6f063e91d7c33291d14608",
+		"available": {
+			"ref": "stable-26.6.0",
+			"commit": "9be6b3cb7a07d0d2d48c8cead4f77af57d7a034b"
+		},
+		"outdated": true
+	}
+}

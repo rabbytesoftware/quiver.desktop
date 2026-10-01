@@ -53,11 +53,11 @@ describe('routing', () => {
 	});
 
 	it('decodes a percent-encoded namespace containing / @ and .', async () => {
-		const detail = await get<{ namespace: string; installed_ref: string }>(
+		const detail = await get<{ namespace: string; resolved_ref: string }>(
 			`/v0/arrow/${encodeURIComponent(MINECRAFT)}`
 		);
-		expect(detail.namespace).toBe(`${NS}/minecraft`);
-		expect(detail.installed_ref).toBe('v1.21.4');
+		expect(detail.namespace).toBe(MINECRAFT);
+		expect(detail.resolved_ref).toBe('v1.21.4');
 	});
 
 	it('404s an unrouted path loudly rather than answering it empty', async () => {
@@ -201,9 +201,9 @@ describe('the readme endpoint', () => {
 		expect(res.status).toBe(404);
 	});
 
-	it('400s when the namespace carries a ref, matching /manifest', async () => {
+	it('serves the readme at a full identity, the way /manifest is served', async () => {
 		const res = await mock.backend.fetch(`/v0/arrow/${encodeURIComponent(MINECRAFT)}/readme`);
-		expect(res.status).toBe(400);
+		expect(res.status).toBe(200);
 	});
 
 	it('404s for a namespace that does not exist at all', async () => {

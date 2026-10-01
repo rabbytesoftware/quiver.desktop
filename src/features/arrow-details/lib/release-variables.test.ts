@@ -1,17 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ResolvedReleaseAsset } from '@/domain/release';
+import { apiFetch } from '@/lib/transport/api';
 import type { Backend } from '@/lib/transport/backend';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
 
 import {
 	isSelfArrow,
 	releaseErrorMessageKey,
+	installTagFor,
 	releaseVariables,
+	updateReleaseVariables,
 	RELEASE_ASSET_URL,
 	RELEASE_CHECKSUM,
 	RELEASE_VARIABLE_NAMES,
 } from './release-variables';
+
+vi.mock('@/lib/transport/api', () => ({ apiFetch: vi.fn() }));
+const mockApiFetch = vi.mocked(apiFetch);
 
 const SUM = 'a'.repeat(64);
 
@@ -59,7 +65,62 @@ describe('isSelfArrow', () => {
 	});
 });
 
+describe('installTagFor', () => {
+	it('installs the ref the row resolved to, never the identity selector', () => {
+		expect(installTagFor({ resolved_ref: 'nightly-latest' })).toBe('nightly-latest');
+	});
+
+	it('has no tag for a row that resolved nothing, rather than guessing from the selector', () => {
+		expect(installTagFor({ resolved_ref: '' })).toBeUndefined();
+	});
+});
+
+describe('updateReleaseVariables', () => {
+	const NS = 'github.com/rabbytesoftware/quiver.desktop@stable';
+
+	it('reads the row fresh and resolves the asset of the release it is moving to', async () => {
+		mockApiFetch.mockResolvedValue({
+			namespace: NS,
+			resolved_ref: 'stable-26.5',
+			available: { ref: 'stable-26.9', commit: 'c' },
+		});
+		const resolve = backendResolving(ASSET);
+
+		await expect(updateReleaseVariables(NS)).resolves.toEqual({
+			[RELEASE_ASSET_URL]: ASSET.url,
+			[RELEASE_CHECKSUM]: SUM,
+		});
+		expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(NS)}`);
+		expect(resolve).toHaveBeenCalledWith('stable-26.9');
+	});
+
+	it('refuses, never falling back to the installed ref, when the fresh read has nothing available', async () => {
+		mockApiFetch.mockResolvedValue({ namespace: NS, resolved_ref: 'stable-26.5' });
+		const resolve = backendResolving(ASSET);
+
+		await expect(updateReleaseVariables(NS)).rejects.toMatchObject({ kind: 'nothing_ahead' });
+		expect(resolve).not.toHaveBeenCalled();
+	});
+
+	it('reports a failed read as offline, the kind that says to try again', async () => {
+		mockApiFetch.mockRejectedValue(new Error('down'));
+		await expect(updateReleaseVariables(NS)).rejects.toMatchObject({ kind: 'offline' });
+	});
+});
+
 describe('releaseVariables', () => {
+	it('asks the resolver for exactly the tag it is given', async () => {
+		const resolve = backendResolving(ASSET);
+		await releaseVariables('stable-26.9');
+		expect(resolve).toHaveBeenCalledWith('stable-26.9');
+	});
+
+	it('asks for the newest release when it has no tag', async () => {
+		const resolve = backendResolving(ASSET);
+		await releaseVariables(undefined);
+		expect(resolve).toHaveBeenCalledWith(undefined);
+	});
+
 	it('resolves the two variables ARROW.md declares without defaults', async () => {
 		backendResolving(ASSET);
 
@@ -146,6 +207,7 @@ describe('releaseErrorMessageKey', () => {
 		expect(releaseErrorMessageKey('no_asset')).toBe('arrow.release.noAsset');
 		expect(releaseErrorMessageKey('unsupported_platform')).toBe('arrow.release.unsupportedPlatform');
 		expect(releaseErrorMessageKey('unverifiable')).toBe('arrow.release.unverifiable');
+		expect(releaseErrorMessageKey('nothing_ahead')).toBe('arrow.release.nothingAhead');
 	});
 
 	it('falls back rather than rendering a raw key for a kind it does not know', () => {

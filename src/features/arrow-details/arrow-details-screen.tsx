@@ -59,9 +59,11 @@ const STICKY_RAIL = 'sticky top-[min(1.5rem,calc(100vh-var(--row)-1.5rem-var(--r
 
 interface ArrowDetailsScreenProps {
 	namespace: string;
+	/** Moves the page to another identity of this arrow -- see `Hero`'s own prop. */
+	onIdentityChange?: (namespace: string) => void;
 }
 
-export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.Element {
+export function ArrowDetailsScreen({ namespace, onIdentityChange }: ArrowDetailsScreenProps): JSX.Element {
 	const { t } = useTranslation();
 	// Fast `detail`+`manifest` merged with the four slower secondary queries
 	// (channels, readme, dependencies, dependents) and the reactive store's
@@ -227,6 +229,7 @@ export function ArrowDetailsScreen({ namespace }: ArrowDetailsScreenProps): JSX.
 			<Hero
 				channelsLoading={channelsLoading}
 				detail={detail}
+				onIdentityChange={onIdentityChange}
 				onValueChange={handleValueChange}
 				platform={platform}
 				platformResolved={platformResolved}

@@ -13,6 +13,11 @@ export const QUIVER_DESKTOP_NAMESPACE = 'github.com/rabbytesoftware/quiver.deskt
  */
 export const QUIVER_CORE_NAMESPACE = 'github.com/rabbytesoftware/quiver.core';
 
+/** Whether `namespace`, at any selector, is the quiver.core daemon's own row. */
+export function isQuiverCore(namespace: string): boolean {
+	return namespace.split('@')[0] === QUIVER_CORE_NAMESPACE;
+}
+
 /**
  * Whether `namespace` is one of Quiver's own two self-registered components --
  * quiver.desktop itself, or the quiver.core daemon it talks to. Refs are
@@ -90,7 +95,12 @@ export type ReleaseResolveErrorKind =
 	 * checksum for it. Raised on this side, because whether that blocks an
 	 * install is a policy decision rather than a resolution failure.
 	 */
-	| 'unverifiable';
+	| 'unverifiable'
+	/**
+	 * Not produced by Rust either: core reports nothing newer for the row an
+	 * update was asked of, so there is no release to fetch.
+	 */
+	| 'nothing_ahead';
 
 /** Whether an unknown value from the IPC boundary is one of these errors. */
 export function isReleaseResolveError(value: unknown): value is ReleaseResolveError {

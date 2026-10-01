@@ -30,9 +30,10 @@ source "$HERE/lib.sh"
 scenario_begin "3-desktop-update" \
 	"desktop seeds core; core updates alone; then desktop updates and reopens"
 
-CORE_ARROW_V1="$CORE_NS@$CORE_V1"
-DESK_ARROW_V1="$DESK_NS@$DESK_V1"
-DESK_ARROW_V2="$DESK_NS@$DESK_V2"
+# One row each, for their whole life: a catalog identity is namespace@channel,
+# and an update moves what that row has installed (resolved_ref) in place.
+CORE_ARROW="$CORE_NS@stable"
+DESK_ARROW="$DESK_NS@stable"
 INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/Quiver"
 INSTALL_PATH="$INSTALL_DIR/Quiver.AppImage"
 
@@ -93,23 +94,25 @@ assert_contains "$DAEMON_CMD" "quiver-appimage" "the seeded daemon's command lin
 screenshot "01-app-seeded-core"
 
 say "A. The seeded core registered its own arrow, unprompted"
-assert_eq "200" "$(api_status GET "/v0/arrow/$(ns_enc "$CORE_ARROW_V1")")" \
-	"GET /v0/arrow/$CORE_ARROW_V1"
-assert_eq "Quiver Core" "$(arrow_field "$CORE_ARROW_V1" '.data.name')" \
+assert_eq "200" "$(api_status GET "/v0/arrow/$(ns_enc "$CORE_ARROW")")" \
+	"GET /v0/arrow/$CORE_ARROW"
+assert_eq "Quiver Core" "$(arrow_field "$CORE_ARROW" '.data.name')" \
 	"the seeded core's self-registered arrow"
 
 say "A. And the app announced ITSELF to it"
-# announceSelf fires on every successful daemon connection, at the tag
-# build.rs baked in. Core's Add-time preinstalled probe then finds the app
-# already present at the manifest's own install path and lands the arrow at
-# Ready with no install ever running -- which is exactly the situation: the
-# user installed it outside Quiver.
-wait_for_catalogued "$DESK_ARROW_V1" 120 "the app announced itself"
-assert_eq "$DESK_V1" "$(catalogued_refs "$DESK_NS")" \
-	"the ref the running build announced itself under"
-wait_for_state "$DESK_ARROW_V1" ready 60
+# announceSelf fires on every successful daemon connection: a build stamped
+# with a stable-* tag by build.rs registers quiver.desktop@stable and adopts
+# that tag as what is installed. Core's Add-time preinstalled probe then finds
+# the app already present at the manifest's own install path and lands the
+# arrow at Ready with no install ever running -- which is exactly the
+# situation: the user installed it outside Quiver.
+wait_for_catalogued "$DESK_ARROW" 120 "the app announced itself"
+assert_eq "stable" "$(catalogued_refs "$DESK_NS")" \
+	"the selector the running build filed itself under"
+wait_for_resolved "$DESK_ARROW" "$DESK_V1" 60 "the build the app declared installed"
+wait_for_state "$DESK_ARROW" ready 60
 ok "core's preinstalled probe found the app already installed and marked it ready"
-arrow_detail "$DESK_ARROW_V1" | jq '.' >"$SCENARIO_DIR/desktop-arrow-before.json"
+arrow_detail "$DESK_ARROW" | jq '.' >"$SCENARIO_DIR/desktop-arrow-before.json"
 
 # ===========================================================================
 # B. Core updates alone; the desktop app is untouched
@@ -127,31 +130,29 @@ CORE_SUM="$(sha256_of "$BUILD_BIN/quiver-$CORE_V2")"
 say "B. Core notices its own drift; the desktop arrow must not"
 core_outdated=0
 for _ in $(seq 1 40); do
-	arrow_detail "$CORE_ARROW_V1" >/dev/null
-	arrow_detail "$DESK_ARROW_V1" >/dev/null
+	arrow_detail "$CORE_ARROW" >/dev/null
+	arrow_detail "$DESK_ARROW" >/dev/null
 	sleep 1
-	[ "$(arrow_field "$CORE_ARROW_V1" '.data.outdated')" = "true" ] && { core_outdated=1; break; }
+	[ "$(arrow_field "$CORE_ARROW" '.data.outdated')" = "true" ] && { core_outdated=1; break; }
 done
 [ "$core_outdated" = "1" ] || fail "core never noticed its own new release"
-ok "quiver.core's own arrow is outdated (recommended $(arrow_field "$CORE_ARROW_V1" '.data.recommended_ref'))"
+ok "quiver.core's own arrow is outdated (available $(arrow_field "$CORE_ARROW" '.data.available.ref'))"
 
-assert_eq "false" "$(arrow_field "$DESK_ARROW_V1" '.data.outdated')" \
+assert_eq "false" "$(arrow_field "$DESK_ARROW" '.data.outdated')" \
 	"the desktop arrow's outdated flag while only core has a new release"
-assert_eq "ready" "$(runtime_state "$DESK_ARROW_V1")" \
+assert_eq "ready" "$(runtime_state "$DESK_ARROW")" \
 	"the desktop arrow's state while only core has a new release"
 
-say "B. Bootstrapping and running core's own update"
-api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW_V1")/install" \
-	'{"variables":{}}' 202 >/dev/null
-# install on an Outdated arrow settles it back to ready; either is a legal
-# starting point for BeginUpdate.
+say "B. Running core's own update"
+# quiver.core settled its own runtime on boot; ready and outdated are both a
+# legal starting point for the update.
 for _ in $(seq 1 60); do
-	case "$(runtime_state "$CORE_ARROW_V1")" in ready|outdated) break ;; esac
+	case "$(runtime_state "$CORE_ARROW")" in ready|outdated) break ;; esac
 	sleep 1
 done
-info "core self-arrow state before update: $(runtime_state "$CORE_ARROW_V1")"
+info "core self-arrow state before update: $(runtime_state "$CORE_ARROW")"
 
-api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW_V1")/update" \
+api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW")/update" \
 	"$(jq -nc --arg u "$CORE_URL" --arg c "$CORE_SUM" \
 		'{variables:{QUIVER_RELEASE_ASSET_URL:$u,QUIVER_RELEASE_CHECKSUM:$c}}')" \
 	202 >/dev/null
@@ -198,17 +199,17 @@ assert_eq "$DESK_SUM_V1" "$(sha256_of "$INSTALL_PATH")" "the installed app is st
 say "C. quiver.core must show the user that quiver.desktop is behind"
 desk_outdated=0
 for _ in $(seq 1 60); do
-	arrow_detail "$DESK_ARROW_V1" >/dev/null
+	arrow_detail "$DESK_ARROW" >/dev/null
 	sleep 1
-	[ "$(arrow_field "$DESK_ARROW_V1" '.data.outdated')" = "true" ] && { desk_outdated=1; break; }
+	[ "$(arrow_field "$DESK_ARROW" '.data.outdated')" = "true" ] && { desk_outdated=1; break; }
 done
-[ "$desk_outdated" = "1" ] || fail "core never marked the desktop arrow outdated: $(arrow_detail "$DESK_ARROW_V1" | jq -c '.data | {state,outdated,recommended_ref}')"
+[ "$desk_outdated" = "1" ] || fail "core never marked the desktop arrow outdated: $(arrow_detail "$DESK_ARROW" | jq -c '.data | {state,resolved_ref,outdated,available}')"
 ok "the desktop arrow reports outdated=true"
-assert_eq "$DESK_V2" "$(arrow_field "$DESK_ARROW_V1" '.data.recommended_ref')" \
-	"the desktop version core is recommending"
-assert_eq "outdated" "$(runtime_state "$DESK_ARROW_V1")" \
+assert_eq "$DESK_V2" "$(arrow_field "$DESK_ARROW" '.data.available.ref')" \
+	"the desktop release core found ahead"
+assert_eq "outdated" "$(runtime_state "$DESK_ARROW")" \
 	"the desktop arrow's runtime state (what drives the badge in the UI)"
-arrow_detail "$DESK_ARROW_V1" | jq '.' >"$SCENARIO_DIR/desktop-arrow-outdated.json"
+arrow_detail "$DESK_ARROW" | jq '.' >"$SCENARIO_DIR/desktop-arrow-outdated.json"
 screenshot "03-core-reports-desktop-outdated"
 
 say "C. The user agrees, by actually clicking Update"
@@ -233,7 +234,9 @@ click_in_app 493 190
 sleep 3
 screenshot "04-quiver-own-page"
 
-RELEASES_API="/repos/rabbytesoftware/quiver.desktop/releases/latest"
+# The app resolves the asset of the release the row is moving to (the
+# detail's available.ref), not whatever is newest.
+RELEASES_API="/repos/rabbytesoftware/quiver.desktop/releases/tags/$DESK_V2"
 API_HITS_BEFORE="$(upstream_hits "$RELEASES_API")"
 info "the releases API has been asked $API_HITS_BEFORE times before the click"
 
@@ -249,12 +252,10 @@ say "C. The click must have sent the app to the releases API for its own asset"
 # because the app resolved its own release at click time: no step of the
 # manifest talks to the releases API, and this harness never calls it.
 #
-# NOT asserted by polling the runtime state: this arrow reports `outdated`
-# for the whole click-to-relaunch window, because the row stays at stable-1.0
-# (with upstream's latest at stable-1.1) until the update execution ends and
-# core's own onUpdateEnded reaction swaps it, near the bottom of this
-# scenario. A poll for a transient `updating` here would be racing a state
-# that does not clear until well after this point.
+# NOT asserted by polling the runtime state: the row keeps stable-1.0
+# installed until the update execution ends and core advances it, near the
+# bottom of this scenario, so a poll for a transient `updating` here would be
+# racing a state that does not settle until well after this point.
 wait_for_upstream_hit "$RELEASES_API" "$API_HITS_BEFORE" 30 \
 	"the app asked api.github.com for its own latest release when Update was clicked"
 
@@ -304,68 +305,27 @@ assert_contains "$RUNNING_EXE" "quiver-appimage/$DESK_V2/" \
 	"the executable path of the relaunched app"
 screenshot "06-desktop-reopened-after-update"
 
-say "C. And the new build's own row exists"
-# By this point the row may already exist through either of two paths: core's
-# own onUpdateEnded reaction (usecases/runtime.go), which notices the update
-# execution that just succeeded left the arrow resolving to a different ref
-# and swaps the catalog row onto it server-side, or the relaunched app's own
-# frontend loading, connecting to core and running announceSelf at the tag
-# build.rs baked into it -- an ordinary idempotent Add either way. Whichever
-# ran first, the row for the new build must exist.
-wait_for_catalogued "$DESK_ARROW_V2" 120 "the new build's own row exists"
+say "C. The same row now has the new build installed"
+# Core advances the row in place once the update's steps succeed and the
+# target tag still names the commit it staged; the relaunched app's own
+# announce then finds its tag already recorded and sends nothing more.
+wait_for_resolved "$DESK_ARROW" "$DESK_V2" 60 "the row advanced to the new build"
 api_body GET /v0/arrow | jq '.' >"$SCENARIO_DIR/catalog-after-update.json"
+assert_eq "stable" "$(catalogued_refs "$DESK_NS")" \
+	"the desktop rows in the catalog after the update (one row, never a second one per version)"
+assert_eq "false" "$(arrow_field "$DESK_ARROW" '.data.outdated')" \
+	"the row's outdated flag once it has the newest build"
 
 assert_daemon_count 1
 assert_daemon_alive "at the end of the scenario"
 assert_eq "$CORE_V2" "$(daemon_version)" "the daemon version at the end of the scenario"
-
-# --- the stale catalog row is retired, not left behind ---------------------
-#
-# Running an `update` lifecycle replaces what the manifest's steps replace; it
-# does not move the catalog row to the ref the version check recommended
-# (${REF} inside those steps is always the ref being updated FROM, never the
-# one being updated TO -- which is why the asset URL has to be supplied by the
-# caller rather than templated from ${REF}). Left alone, that would leave the
-# OLD row catalogued and outdated forever.
-#
-# The swap is core's own job, not the client's: onRuntimeEnded's reaction to
-# the just-completed update execution (usecases/runtime.go onUpdateEnded)
-# notices the arrow now resolves to a different ref than its row claims and
-# swaps the row onto it via the same generic UpgradeVersion path any arrow's
-# version bump uses, landing the new row Ready directly since the software is
-# already fetched, placed and running -- no install: runs a second time. The
-# old row is removed by that same swap's own reaction (onArrowUpgraded), not
-# by anything quiver.desktop calls. quiver.core's own self-arrow advances
-# through the identical mechanism when it updates itself.
-say "C. The stale stable-1.0 row is retired once the update lifecycle ends"
-deadline=$(( SECONDS + 30 ))
-while [ "$SECONDS" -lt "$deadline" ]; do
-	[ "$(catalogued_refs "$DESK_NS")" = "$DESK_V2" ] && break
-	sleep 1
-done
-assert_eq "$DESK_V2" "$(catalogued_refs "$DESK_NS")" \
-	"the desktop refs in the catalog after the update (only the version actually running, not the one it replaced)"
-# is_catalogued, never arrow_field/arrow_detail, for an existence check: GetDetail
-# falls back to a live remote preview for an uncatalogued namespace and answers
-# 200 with a full-looking body, which would make a removed row look present.
-if is_catalogued "$DESK_ARROW_V1"; then
-	fail "the old stable-1.0 row is still catalogued after the update"
-fi
-ok "the old stable-1.0 row is gone from the catalog"
-assert_eq "false" "$(arrow_field "$DESK_ARROW_V2" '.data.outdated')" \
-	"the current row's outdated flag now that it is the only installed version"
 
 say "C. The update lifecycle itself must have run to completion"
 # The runtime aggregate carries the whole execution: every step, and the
 # outcome. This is the real "core executed desktop's update" assertion --
 # stronger than any state name, because it names the four steps that ran.
 #
-# Read off the NEW row (stable-1.1), not the old one: the old row's own
-# runtime aggregate is gone by now, removed as part of the same swap that put
-# this execution's outcome here in the first place (onArrowUpgraded carries
-# LastReturn through MarkReady precisely so this detail survives the swap;
-# see usecases/runtime.go).
-UPDATE_RETURN="$(api_body GET "/v0/runtime/$(ns_enc "$DESK_ARROW_V2")" | jq -c '.data.last_return')"
+UPDATE_RETURN="$(api_body GET "/v0/runtime/$(ns_enc "$DESK_ARROW")" | jq -c '.data.last_return')"
 printf '%s\n' "$UPDATE_RETURN" | jq '.' >"$SCENARIO_DIR/update-execution.json"
 assert_eq "_update" "$(printf '%s' "$UPDATE_RETURN" | jq -r '.method')" \
 	"the lifecycle method that ran"

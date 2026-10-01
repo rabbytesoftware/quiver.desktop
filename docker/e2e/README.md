@@ -37,7 +37,7 @@ mid-test, and quiver.desktop has none published at all. `/etc/hosts` points
 the three GitHub hostnames at `fixtures/upstream.py`, behind a CA the
 container trusts (`fixtures/trust.sh`). Nothing in quiver.core is patched,
 stubbed or rebuilt for this: it still derives every URL from its own embedded
-`metadata.yaml`, still follows `/releases/latest` for its redirect, still runs
+`metadata.yaml`, still reads the repository's tags for its version check, still runs
 the same fetch and checksum code. Only name resolution and the trust store
 differ, which is what any TLS-inspecting corporate proxy does to every Go
 program on earth. The fixture also serves real git smart-HTTP through git's

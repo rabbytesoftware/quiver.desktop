@@ -14,7 +14,12 @@ import { splitNamespace } from '@/lib/namespace';
 
 import { INSTALL_STEPS, START_STEPS, STOP_STEPS, UNINSTALL_STEPS, UPDATE_STEPS } from '../world/scenarios/kit';
 import type { MockArrow, MockCollection, MockDiscoveryJob, MockMethod, MockTarget } from '../world/types';
-import { versioned } from '../world/types';
+import { resolvedRefOf, selectorKindOf, versioned } from '../world/types';
+
+/** Core stamps `installed_at` only while something is on disk. */
+function installedAtOf(arrow: MockArrow): { installed_at?: string } {
+	return arrow.installed_at && arrow.state !== 'absent' ? { installed_at: arrow.installed_at } : {};
+}
 
 // Every arrow's lifecycle preview uses this exact same step sequence per
 // phase -- handlers/runtime.ts simulates every arrow's install/execute/stop/
@@ -72,9 +77,9 @@ export function toArrowListDTO(arrows: MockArrow[]): ArrowListResponseItemDTO[] 
 		media: { icon: group[0].icon, banner: group[0].banner },
 		versions: group.map((a) => ({
 			ref: a.ref,
-			version: a.version,
+			resolved_ref: resolvedRefOf(a),
 			state: a.state,
-			installed_at: a.installed_at,
+			...installedAtOf(a),
 			...(a.last_used_at ? { last_used_at: a.last_used_at } : {}),
 		})),
 		origin: group[0].origin ?? 'declared',
@@ -91,7 +96,7 @@ export function toArrowFrame(arrow: MockArrow, event: 'upserted' | 'removed'): u
 		description: arrow.description,
 		tags: arrow.tags,
 		media: { icon: arrow.icon, banner: arrow.banner },
-		version: arrow.version,
+		user_installed: arrow.user_installed,
 		origin: arrow.origin ?? 'declared',
 		...(arrow.origin === 'inferred' && arrow.confidence ? { inference: { confidence: arrow.confidence } } : {}),
 	};
@@ -110,28 +115,33 @@ export function toRuntimeFrame(arrow: MockArrow): RuntimeUpdateDTO {
 
 /**
  * `GET /v0/arrow/:ns` -- matches quiver.core's real `ArrowDetailDTO`
- * (internal/api/v0/dto/arrow_detail.go) exactly. No media, maintainers,
- * credits, url, requirements, netbridge, variables, or methods here -- those
- * only ever come from `toArrowManifestDTO` below, over the separate
- * `/manifest` endpoint. Keeping the two split, even in the mock, is what lets
- * a client that wrongly assumes one combined endpoint get caught here instead
- * of failing against real quiver.core.
+ * (internal/api/v0/dto/arrow_detail.go) exactly: the identity as
+ * `namespace`, and the row state (selector kind, resolved ref, what is
+ * available). No media, maintainers, credits, url, requirements, netbridge,
+ * variables, or methods here -- those only ever come from
+ * `toArrowManifestDTO` below, over the separate `/manifest` endpoint. Keeping
+ * the two split, even in the mock, is what lets a client that wrongly assumes
+ * one combined endpoint get caught here instead of failing against real
+ * quiver.core.
  */
 export function toArrowDetailDTO(arrow: MockArrow): ArrowDetailDTO {
 	return {
-		namespace: arrow.namespace,
+		namespace: versioned(arrow),
 		name: arrow.name,
-		version: arrow.version,
 		description: arrow.description,
 		license: arrow.license,
 		state: arrow.state,
 		tags: arrow.tags,
-		installed_ref: arrow.ref,
-		installed_at: arrow.installed_at,
+		...installedAtOf(arrow),
+		...(arrow.last_used_at ? { last_used_at: arrow.last_used_at } : {}),
 		user_installed: arrow.user_installed,
+		selector_kind: selectorKindOf(arrow),
+		resolved_ref: resolvedRefOf(arrow),
+		installed_commit: '',
+		...(arrow.available ? { available: arrow.available } : {}),
+		outdated: arrow.available !== undefined,
 		active_run: arrow.active_run,
 		last_return: arrow.last_return,
-		...(arrow.channel ? { channel: arrow.channel } : {}),
 		origin: arrow.origin ?? 'declared',
 		...(arrow.origin === 'inferred'
 			? { inference: { generator: 'fletcher/1', ...(arrow.confidence ? { confidence: arrow.confidence } : {}) } }
@@ -152,23 +162,33 @@ export function toArrowChannelsDTO(arrow: MockArrow): ChannelListDTO {
 	};
 }
 
-/** `GET /v0/arrow/:ns/manifest` -- matches quiver.core's real `ArrowManifestDTO` (internal/api/v0/dto/arrow_manifest.go). */
+/** `GET /v0/arrow/:ns/manifest` -- matches quiver.core's real `ArrowManifestDTO` (internal/api/v0/dto/arrow_manifest.go): the author's manifest nested under `manifest`, its `metadata:` block whole. */
 export function toArrowManifestDTO(arrow: MockArrow): ArrowManifestDTO {
+	const targets = Object.fromEntries(
+		arrow.targets.map((target) => [target.platform, toTargetManifestDTO(target, arrow.requirement)])
+	);
 	return {
-		namespace: arrow.namespace,
+		namespace: versioned(arrow),
 		name: arrow.name,
 		description: arrow.description,
 		tags: arrow.tags,
 		variables: arrow.variables,
-		targets: Object.fromEntries(
-			arrow.targets.map((target) => [target.platform, toTargetManifestDTO(target, arrow.requirement)])
-		),
+		targets,
 		manifest: {
-			url: arrow.url,
-			maintainers: arrow.maintainers.map((name) => ({ name })),
-			credits: (arrow.credits ?? []).map((name) => ({ name })),
-			media: { icon: arrow.icon ?? undefined, banner: arrow.banner ?? undefined },
+			metadata: {
+				name: arrow.name,
+				description: arrow.description,
+				license: arrow.license,
+				url: arrow.url,
+				maintainers: arrow.maintainers.map((name) => ({ name })),
+				credits: (arrow.credits ?? []).map((name) => ({ name })),
+				media: { icon: arrow.icon ?? undefined, banner: arrow.banner ?? undefined },
+				tags: arrow.tags,
+			},
+			variables: arrow.variables,
 			netbridge: arrow.netbridge,
+			targets,
+			...(arrow.readme ? { readme: arrow.readme } : {}),
 		},
 	};
 }

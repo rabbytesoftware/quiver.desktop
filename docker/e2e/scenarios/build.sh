@@ -13,10 +13,11 @@
 #
 #   quiver.core   stable-26.5.90 and stable-26.5.91 -- v1 is what a scenario
 #                 starts with, v2 is what "upstream" publishes mid-scenario
-#                 so the self-update has somewhere real to go. The version is
-#                 an -ldflags stamp, exactly as the repo's own `make build`
-#                 does it, because selfarrow.EnsureRegistered refuses to
-#                 register an unstamped build at all.
+#                 so the self-update has somewhere real to go. Version,
+#                 commit and channel are -ldflags stamps, exactly as the
+#                 release workflows stamp them, because
+#                 selfarrow.EnsureRegistered refuses to register an unstamped
+#                 build at all and files a stamped one as quiver.core@stable.
 #
 #   quiver.desktop stable-1.0 and stable-1.1 -- same idea. The tag is baked in
 #                 by src-tauri/build.rs from QUIVER_DESKTOP_RELEASE_TAG, and
@@ -69,11 +70,16 @@ sync_sources() {
 build_core_at() {
 	local version="$1" out="$2"
 	echo "[core] building $version -> $out"
-	# buildID is cosmetic here (it only reaches `quiver version`), so it is
-	# pinned rather than derived from the clock, to keep two runs of this
-	# script byte-comparable.
+	# Stamped the way stable-release.yml stamps a release: the channel names
+	# the row quiver.core files itself under (quiver.core@stable), the commit
+	# is the one the stand-in repository's tags name (fixtures/seed-commit.sh
+	# gives upstream-up.sh the same one). buildID is cosmetic here (it only
+	# reaches `quiver version`), so it is pinned rather than derived from the
+	# clock, to keep two runs of this script byte-comparable.
+	local commit
+	commit="$("$E2E_DIR/fixtures/seed-commit.sh" "$(mktemp -d)" "$CORE_SRC/ARROW.md" develop)"
 	( cd "$CORE_SRC" && CGO_ENABLED=0 go build \
-		-ldflags "-X main.version=${version} -X main.buildID=9000" \
+		-ldflags "-X main.version=${version} -X main.commit=${commit} -X main.channel=stable -X main.buildID=9000" \
 		-o "$out" ./cmd/quiver )
 	"$out" version
 }

@@ -1,0 +1,775 @@
+{
+	"success": true,
+	"error": null,
+	"data": {
+		"namespace": "github.com/char2cs/crowbar@nightly",
+		"name": "crowbar",
+		"description": "Local-first desktop IDE where coding agents do the heavy lifting. Every branch becomes its own managed git worktree, Claude Code and Codex are interchangeable mid-conversation, and the diff review — inline comment threads and PR status — lives in the same window as the agent that wrote the code.",
+		"tags": ["ide", "development", "agents", "git", "desktop", "code-review"],
+		"variables": [],
+		"targets": {
+			"darwin/amd64": {
+				"requirements": {
+					"cpu_cores": 2,
+					"memory_gb": 4,
+					"disk_gb": 2
+				},
+				"tools": [],
+				"services": [],
+				"exports": {},
+				"lifecycle": {
+					"install": [
+						{
+							"type": "fetch",
+							"title": "Download the Crowbar universal disk image",
+							"exit_on_failure": true,
+							"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+							"to": "${INSTALL_PATH}/Crowbar.dmg",
+							"checksum": "",
+							"timeout": "15m"
+						},
+						{
+							"type": "run",
+							"title": "Install Crowbar.app into /Applications",
+							"exit_on_failure": true,
+							"command": "hdiutil attach -quiet -nobrowse -mountpoint /Volumes/crowbar-quiver \"${INSTALL_PATH}/Crowbar.dmg\" && rm -rf /Applications/Crowbar.app && cp -R /Volumes/crowbar-quiver/Crowbar.app /Applications/Crowbar.app; RC=$?; hdiutil detach /Volumes/crowbar-quiver -quiet >/dev/null 2>&1; exit $RC",
+							"elevated": false,
+							"timeout": "10m"
+						},
+						{
+							"type": "run",
+							"title": "Clear the quarantine flag and remove the disk image",
+							"exit_on_failure": false,
+							"command": "xattr -dr com.apple.quarantine /Applications/Crowbar.app >/dev/null 2>&1; rm -f \"${INSTALL_PATH}/Crowbar.dmg\"",
+							"elevated": false,
+							"timeout": "2m"
+						}
+					],
+					"update": [
+						{
+							"type": "fetch",
+							"title": "Download the requested Crowbar release",
+							"exit_on_failure": true,
+							"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+							"to": "${INSTALL_PATH}/Crowbar.dmg",
+							"checksum": "",
+							"timeout": "15m"
+						},
+						{
+							"type": "run",
+							"title": "Replace Crowbar.app in /Applications",
+							"exit_on_failure": true,
+							"command": "hdiutil attach -quiet -nobrowse -mountpoint /Volumes/crowbar-quiver \"${INSTALL_PATH}/Crowbar.dmg\" && rm -rf /Applications/Crowbar.app && cp -R /Volumes/crowbar-quiver/Crowbar.app /Applications/Crowbar.app; RC=$?; hdiutil detach /Volumes/crowbar-quiver -quiet >/dev/null 2>&1; exit $RC",
+							"elevated": false,
+							"timeout": "10m"
+						},
+						{
+							"type": "run",
+							"title": "Clear the quarantine flag and remove the disk image",
+							"exit_on_failure": false,
+							"command": "xattr -dr com.apple.quarantine /Applications/Crowbar.app >/dev/null 2>&1; rm -f \"${INSTALL_PATH}/Crowbar.dmg\"",
+							"elevated": false,
+							"timeout": "2m"
+						}
+					],
+					"execute": [],
+					"stop": [],
+					"uninstall": [
+						{
+							"type": "run",
+							"title": "Remove Crowbar.app",
+							"exit_on_failure": false,
+							"command": "rm -rf /Applications/Crowbar.app \"${INSTALL_PATH}/Crowbar.dmg\"",
+							"elevated": false,
+							"timeout": "2m"
+						}
+					],
+					"preinstalled": []
+				},
+				"methods": {}
+			},
+			"darwin/arm64": {
+				"requirements": {
+					"cpu_cores": 2,
+					"memory_gb": 4,
+					"disk_gb": 2
+				},
+				"tools": [],
+				"services": [],
+				"exports": {},
+				"lifecycle": {
+					"install": [
+						{
+							"type": "fetch",
+							"title": "Download the Crowbar universal disk image",
+							"exit_on_failure": true,
+							"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+							"to": "${INSTALL_PATH}/Crowbar.dmg",
+							"checksum": "",
+							"timeout": "15m"
+						},
+						{
+							"type": "run",
+							"title": "Install Crowbar.app into /Applications",
+							"exit_on_failure": true,
+							"command": "hdiutil attach -quiet -nobrowse -mountpoint /Volumes/crowbar-quiver \"${INSTALL_PATH}/Crowbar.dmg\" && rm -rf /Applications/Crowbar.app && cp -R /Volumes/crowbar-quiver/Crowbar.app /Applications/Crowbar.app; RC=$?; hdiutil detach /Volumes/crowbar-quiver -quiet >/dev/null 2>&1; exit $RC",
+							"elevated": false,
+							"timeout": "10m"
+						},
+						{
+							"type": "run",
+							"title": "Clear the quarantine flag and remove the disk image",
+							"exit_on_failure": false,
+							"command": "xattr -dr com.apple.quarantine /Applications/Crowbar.app >/dev/null 2>&1; rm -f \"${INSTALL_PATH}/Crowbar.dmg\"",
+							"elevated": false,
+							"timeout": "2m"
+						}
+					],
+					"update": [
+						{
+							"type": "fetch",
+							"title": "Download the requested Crowbar release",
+							"exit_on_failure": true,
+							"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+							"to": "${INSTALL_PATH}/Crowbar.dmg",
+							"checksum": "",
+							"timeout": "15m"
+						},
+						{
+							"type": "run",
+							"title": "Replace Crowbar.app in /Applications",
+							"exit_on_failure": true,
+							"command": "hdiutil attach -quiet -nobrowse -mountpoint /Volumes/crowbar-quiver \"${INSTALL_PATH}/Crowbar.dmg\" && rm -rf /Applications/Crowbar.app && cp -R /Volumes/crowbar-quiver/Crowbar.app /Applications/Crowbar.app; RC=$?; hdiutil detach /Volumes/crowbar-quiver -quiet >/dev/null 2>&1; exit $RC",
+							"elevated": false,
+							"timeout": "10m"
+						},
+						{
+							"type": "run",
+							"title": "Clear the quarantine flag and remove the disk image",
+							"exit_on_failure": false,
+							"command": "xattr -dr com.apple.quarantine /Applications/Crowbar.app >/dev/null 2>&1; rm -f \"${INSTALL_PATH}/Crowbar.dmg\"",
+							"elevated": false,
+							"timeout": "2m"
+						}
+					],
+					"execute": [],
+					"stop": [],
+					"uninstall": [
+						{
+							"type": "run",
+							"title": "Remove Crowbar.app",
+							"exit_on_failure": false,
+							"command": "rm -rf /Applications/Crowbar.app \"${INSTALL_PATH}/Crowbar.dmg\"",
+							"elevated": false,
+							"timeout": "2m"
+						}
+					],
+					"preinstalled": []
+				},
+				"methods": {}
+			},
+			"linux/amd64": {
+				"requirements": {
+					"cpu_cores": 2,
+					"memory_gb": 4,
+					"disk_gb": 2
+				},
+				"tools": [
+					{
+						"Namespace": "github.com/rabbytesoftware/quiver.essentials/appimage-runtime",
+						"Constraint": "",
+						"Type": "tool"
+					}
+				],
+				"services": [],
+				"exports": {},
+				"lifecycle": {
+					"install": [
+						{
+							"type": "fetch",
+							"title": "Download the Crowbar AppImage",
+							"exit_on_failure": true,
+							"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_amd64.AppImage",
+							"to": "${INSTALL_PATH}/Crowbar.AppImage",
+							"checksum": "",
+							"timeout": "15m"
+						},
+						{
+							"type": "fetch",
+							"title": "Download the Crowbar icon",
+							"exit_on_failure": false,
+							"url": "https://raw.githubusercontent.com/char2cs/crowbar/${REF}/desktop/src-tauri/icons/128x128@2x.png",
+							"to": "${INSTALL_PATH}/crowbar.png",
+							"checksum": "",
+							"timeout": "2m"
+						},
+						{
+							"type": "run",
+							"title": "Extracting the Crowbar AppImage",
+							"exit_on_failure": true,
+							"command": "${github.com/rabbytesoftware/quiver.essentials/appimage-runtime.extract} \"${INSTALL_PATH}/Crowbar.AppImage\"",
+							"elevated": false,
+							"timeout": "1m"
+						},
+						{
+							"type": "run",
+							"title": "Install the crowbar launcher into ~/.local/bin",
+							"exit_on_failure": true,
+							"command": "mkdir -p \"$HOME/.local/bin\" && printf '#!/bin/sh\\nexec \"%s/squashfs-root/AppRun\" \"$@\"\\n' \"${INSTALL_PATH}\" > \"$HOME/.local/bin/crowbar\" && chmod +x \"$HOME/.local/bin/crowbar\"",
+							"elevated": false,
+							"timeout": "1m"
+						},
+						{
+							"type": "run",
+							"title": "Register the Crowbar desktop entry",
+							"exit_on_failure": false,
+							"command": "mkdir -p \"$HOME/.local/share/applications\" && printf '[Desktop Entry]\\nType=Application\\nName=Crowbar\\nComment=The IDE where agents do the heavy lifting\\nExec=%s\\nIcon=%s\\nTerminal=false\\nCategories=Development;IDE;\\n' \"$HOME/.local/bin/crowbar\" \"${INSTALL_PATH}/crowbar.png\" > \"$HOME/.local/share/applications/crowbar.desktop\"",
+							"elevated": false,
+							"timeout": "1m"
+						}
+					],
+					"update": [
+						{
+							"type": "fetch",
+							"title": "Download the requested Crowbar release",
+							"exit_on_failure": true,
+							"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_amd64.AppImage",
+							"to": "${INSTALL_PATH}/Crowbar.AppImage",
+							"checksum": "",
+							"timeout": "15m"
+						},
+						{
+							"type": "run",
+							"title": "Clear the previous extraction",
+							"exit_on_failure": true,
+							"command": "rm -rf \"${INSTALL_PATH}/squashfs-root\"",
+							"elevated": false,
+							"timeout": "1m"
+						},
+						{
+							"type": "run",
+							"title": "Extracting the Crowbar AppImage",
+							"exit_on_failure": true,
+							"command": "${github.com/rabbytesoftware/quiver.essentials/appimage-runtime.extract} \"${INSTALL_PATH}/Crowbar.AppImage\"",
+							"elevated": false,
+							"timeout": "1m"
+						}
+					],
+					"execute": [],
+					"stop": [],
+					"uninstall": [
+						{
+							"type": "run",
+							"title": "Remove Crowbar",
+							"exit_on_failure": false,
+							"command": "rm -f \"$HOME/.local/bin/crowbar\" \"$HOME/.local/share/applications/crowbar.desktop\" \"${INSTALL_PATH}/Crowbar.AppImage\" \"${INSTALL_PATH}/crowbar.png\" && rm -rf \"${INSTALL_PATH}/squashfs-root\"",
+							"elevated": false,
+							"timeout": "2m"
+						}
+					],
+					"preinstalled": []
+				},
+				"methods": {}
+			},
+			"linux/arm64": {
+				"requirements": {
+					"cpu_cores": 2,
+					"memory_gb": 4,
+					"disk_gb": 2
+				},
+				"tools": [
+					{
+						"Namespace": "github.com/rabbytesoftware/quiver.essentials/appimage-runtime",
+						"Constraint": "",
+						"Type": "tool"
+					}
+				],
+				"services": [],
+				"exports": {},
+				"lifecycle": {
+					"install": [
+						{
+							"type": "fetch",
+							"title": "Download the Crowbar AppImage",
+							"exit_on_failure": true,
+							"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_aarch64.AppImage",
+							"to": "${INSTALL_PATH}/Crowbar.AppImage",
+							"checksum": "",
+							"timeout": "15m"
+						},
+						{
+							"type": "fetch",
+							"title": "Download the Crowbar icon",
+							"exit_on_failure": false,
+							"url": "https://raw.githubusercontent.com/char2cs/crowbar/${REF}/desktop/src-tauri/icons/128x128@2x.png",
+							"to": "${INSTALL_PATH}/crowbar.png",
+							"checksum": "",
+							"timeout": "2m"
+						},
+						{
+							"type": "run",
+							"title": "Extracting the Crowbar AppImage",
+							"exit_on_failure": true,
+							"command": "${github.com/rabbytesoftware/quiver.essentials/appimage-runtime.extract} \"${INSTALL_PATH}/Crowbar.AppImage\"",
+							"elevated": false,
+							"timeout": "1m"
+						},
+						{
+							"type": "run",
+							"title": "Install the crowbar launcher into ~/.local/bin",
+							"exit_on_failure": true,
+							"command": "mkdir -p \"$HOME/.local/bin\" && printf '#!/bin/sh\\nexec \"%s/squashfs-root/AppRun\" \"$@\"\\n' \"${INSTALL_PATH}\" > \"$HOME/.local/bin/crowbar\" && chmod +x \"$HOME/.local/bin/crowbar\"",
+							"elevated": false,
+							"timeout": "1m"
+						},
+						{
+							"type": "run",
+							"title": "Register the Crowbar desktop entry",
+							"exit_on_failure": false,
+							"command": "mkdir -p \"$HOME/.local/share/applications\" && printf '[Desktop Entry]\\nType=Application\\nName=Crowbar\\nComment=The IDE where agents do the heavy lifting\\nExec=%s\\nIcon=%s\\nTerminal=false\\nCategories=Development;IDE;\\n' \"$HOME/.local/bin/crowbar\" \"${INSTALL_PATH}/crowbar.png\" > \"$HOME/.local/share/applications/crowbar.desktop\"",
+							"elevated": false,
+							"timeout": "1m"
+						}
+					],
+					"update": [
+						{
+							"type": "fetch",
+							"title": "Download the requested Crowbar release",
+							"exit_on_failure": true,
+							"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_aarch64.AppImage",
+							"to": "${INSTALL_PATH}/Crowbar.AppImage",
+							"checksum": "",
+							"timeout": "15m"
+						},
+						{
+							"type": "run",
+							"title": "Clear the previous extraction",
+							"exit_on_failure": true,
+							"command": "rm -rf \"${INSTALL_PATH}/squashfs-root\"",
+							"elevated": false,
+							"timeout": "1m"
+						},
+						{
+							"type": "run",
+							"title": "Extracting the Crowbar AppImage",
+							"exit_on_failure": true,
+							"command": "${github.com/rabbytesoftware/quiver.essentials/appimage-runtime.extract} \"${INSTALL_PATH}/Crowbar.AppImage\"",
+							"elevated": false,
+							"timeout": "1m"
+						}
+					],
+					"execute": [],
+					"stop": [],
+					"uninstall": [
+						{
+							"type": "run",
+							"title": "Remove Crowbar",
+							"exit_on_failure": false,
+							"command": "rm -f \"$HOME/.local/bin/crowbar\" \"$HOME/.local/share/applications/crowbar.desktop\" \"${INSTALL_PATH}/Crowbar.AppImage\" \"${INSTALL_PATH}/crowbar.png\" && rm -rf \"${INSTALL_PATH}/squashfs-root\"",
+							"elevated": false,
+							"timeout": "2m"
+						}
+					],
+					"preinstalled": []
+				},
+				"methods": {}
+			}
+		},
+		"manifest": {
+			"metadata": {
+				"name": "crowbar",
+				"description": "Local-first desktop IDE where coding agents do the heavy lifting. Every branch becomes its own managed git worktree, Claude Code and Codex are interchangeable mid-conversation, and the diff review — inline comment threads and PR status — lives in the same window as the agent that wrote the code.",
+				"license": "AGPL-3.0-only OR LicenseRef-Commercial",
+				"url": "https://github.com/char2cs/crowbar",
+				"maintainers": [
+					{
+						"name": "char2cs",
+						"url": "https://char2cs.net"
+					}
+				],
+				"credits": [
+					{
+						"name": "Rabbyte Software",
+						"url": "https://github.com/rabbytesoftware"
+					}
+				],
+				"tags": ["ide", "development", "agents", "git", "desktop", "code-review"],
+				"media": {
+					"icon": "https://raw.githubusercontent.com/char2cs/crowbar/develop/.github/crowbar-icon.png",
+					"banner": "https://raw.githubusercontent.com/char2cs/crowbar/develop/.github/crowbar-banner.png"
+				}
+			},
+			"variables": [],
+			"netbridge": [],
+			"targets": {
+				"darwin/amd64": {
+					"requirements": {
+						"cpu_cores": 2,
+						"memory_gb": 4,
+						"disk_gb": 2
+					},
+					"tools": [],
+					"services": [],
+					"exports": {},
+					"lifecycle": {
+						"install": [
+							{
+								"type": "fetch",
+								"title": "Download the Crowbar universal disk image",
+								"exit_on_failure": true,
+								"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+								"to": "${INSTALL_PATH}/Crowbar.dmg",
+								"checksum": "",
+								"timeout": "15m"
+							},
+							{
+								"type": "run",
+								"title": "Install Crowbar.app into /Applications",
+								"exit_on_failure": true,
+								"command": "hdiutil attach -quiet -nobrowse -mountpoint /Volumes/crowbar-quiver \"${INSTALL_PATH}/Crowbar.dmg\" && rm -rf /Applications/Crowbar.app && cp -R /Volumes/crowbar-quiver/Crowbar.app /Applications/Crowbar.app; RC=$?; hdiutil detach /Volumes/crowbar-quiver -quiet >/dev/null 2>&1; exit $RC",
+								"elevated": false,
+								"timeout": "10m"
+							},
+							{
+								"type": "run",
+								"title": "Clear the quarantine flag and remove the disk image",
+								"exit_on_failure": false,
+								"command": "xattr -dr com.apple.quarantine /Applications/Crowbar.app >/dev/null 2>&1; rm -f \"${INSTALL_PATH}/Crowbar.dmg\"",
+								"elevated": false,
+								"timeout": "2m"
+							}
+						],
+						"update": [
+							{
+								"type": "fetch",
+								"title": "Download the requested Crowbar release",
+								"exit_on_failure": true,
+								"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+								"to": "${INSTALL_PATH}/Crowbar.dmg",
+								"checksum": "",
+								"timeout": "15m"
+							},
+							{
+								"type": "run",
+								"title": "Replace Crowbar.app in /Applications",
+								"exit_on_failure": true,
+								"command": "hdiutil attach -quiet -nobrowse -mountpoint /Volumes/crowbar-quiver \"${INSTALL_PATH}/Crowbar.dmg\" && rm -rf /Applications/Crowbar.app && cp -R /Volumes/crowbar-quiver/Crowbar.app /Applications/Crowbar.app; RC=$?; hdiutil detach /Volumes/crowbar-quiver -quiet >/dev/null 2>&1; exit $RC",
+								"elevated": false,
+								"timeout": "10m"
+							},
+							{
+								"type": "run",
+								"title": "Clear the quarantine flag and remove the disk image",
+								"exit_on_failure": false,
+								"command": "xattr -dr com.apple.quarantine /Applications/Crowbar.app >/dev/null 2>&1; rm -f \"${INSTALL_PATH}/Crowbar.dmg\"",
+								"elevated": false,
+								"timeout": "2m"
+							}
+						],
+						"execute": [],
+						"stop": [],
+						"uninstall": [
+							{
+								"type": "run",
+								"title": "Remove Crowbar.app",
+								"exit_on_failure": false,
+								"command": "rm -rf /Applications/Crowbar.app \"${INSTALL_PATH}/Crowbar.dmg\"",
+								"elevated": false,
+								"timeout": "2m"
+							}
+						],
+						"preinstalled": []
+					},
+					"methods": {}
+				},
+				"darwin/arm64": {
+					"requirements": {
+						"cpu_cores": 2,
+						"memory_gb": 4,
+						"disk_gb": 2
+					},
+					"tools": [],
+					"services": [],
+					"exports": {},
+					"lifecycle": {
+						"install": [
+							{
+								"type": "fetch",
+								"title": "Download the Crowbar universal disk image",
+								"exit_on_failure": true,
+								"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+								"to": "${INSTALL_PATH}/Crowbar.dmg",
+								"checksum": "",
+								"timeout": "15m"
+							},
+							{
+								"type": "run",
+								"title": "Install Crowbar.app into /Applications",
+								"exit_on_failure": true,
+								"command": "hdiutil attach -quiet -nobrowse -mountpoint /Volumes/crowbar-quiver \"${INSTALL_PATH}/Crowbar.dmg\" && rm -rf /Applications/Crowbar.app && cp -R /Volumes/crowbar-quiver/Crowbar.app /Applications/Crowbar.app; RC=$?; hdiutil detach /Volumes/crowbar-quiver -quiet >/dev/null 2>&1; exit $RC",
+								"elevated": false,
+								"timeout": "10m"
+							},
+							{
+								"type": "run",
+								"title": "Clear the quarantine flag and remove the disk image",
+								"exit_on_failure": false,
+								"command": "xattr -dr com.apple.quarantine /Applications/Crowbar.app >/dev/null 2>&1; rm -f \"${INSTALL_PATH}/Crowbar.dmg\"",
+								"elevated": false,
+								"timeout": "2m"
+							}
+						],
+						"update": [
+							{
+								"type": "fetch",
+								"title": "Download the requested Crowbar release",
+								"exit_on_failure": true,
+								"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+								"to": "${INSTALL_PATH}/Crowbar.dmg",
+								"checksum": "",
+								"timeout": "15m"
+							},
+							{
+								"type": "run",
+								"title": "Replace Crowbar.app in /Applications",
+								"exit_on_failure": true,
+								"command": "hdiutil attach -quiet -nobrowse -mountpoint /Volumes/crowbar-quiver \"${INSTALL_PATH}/Crowbar.dmg\" && rm -rf /Applications/Crowbar.app && cp -R /Volumes/crowbar-quiver/Crowbar.app /Applications/Crowbar.app; RC=$?; hdiutil detach /Volumes/crowbar-quiver -quiet >/dev/null 2>&1; exit $RC",
+								"elevated": false,
+								"timeout": "10m"
+							},
+							{
+								"type": "run",
+								"title": "Clear the quarantine flag and remove the disk image",
+								"exit_on_failure": false,
+								"command": "xattr -dr com.apple.quarantine /Applications/Crowbar.app >/dev/null 2>&1; rm -f \"${INSTALL_PATH}/Crowbar.dmg\"",
+								"elevated": false,
+								"timeout": "2m"
+							}
+						],
+						"execute": [],
+						"stop": [],
+						"uninstall": [
+							{
+								"type": "run",
+								"title": "Remove Crowbar.app",
+								"exit_on_failure": false,
+								"command": "rm -rf /Applications/Crowbar.app \"${INSTALL_PATH}/Crowbar.dmg\"",
+								"elevated": false,
+								"timeout": "2m"
+							}
+						],
+						"preinstalled": []
+					},
+					"methods": {}
+				},
+				"linux/amd64": {
+					"requirements": {
+						"cpu_cores": 2,
+						"memory_gb": 4,
+						"disk_gb": 2
+					},
+					"tools": [
+						{
+							"Namespace": "github.com/rabbytesoftware/quiver.essentials/appimage-runtime",
+							"Constraint": "",
+							"Type": "tool"
+						}
+					],
+					"services": [],
+					"exports": {},
+					"lifecycle": {
+						"install": [
+							{
+								"type": "fetch",
+								"title": "Download the Crowbar AppImage",
+								"exit_on_failure": true,
+								"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_amd64.AppImage",
+								"to": "${INSTALL_PATH}/Crowbar.AppImage",
+								"checksum": "",
+								"timeout": "15m"
+							},
+							{
+								"type": "fetch",
+								"title": "Download the Crowbar icon",
+								"exit_on_failure": false,
+								"url": "https://raw.githubusercontent.com/char2cs/crowbar/${REF}/desktop/src-tauri/icons/128x128@2x.png",
+								"to": "${INSTALL_PATH}/crowbar.png",
+								"checksum": "",
+								"timeout": "2m"
+							},
+							{
+								"type": "run",
+								"title": "Extracting the Crowbar AppImage",
+								"exit_on_failure": true,
+								"command": "${github.com/rabbytesoftware/quiver.essentials/appimage-runtime.extract} \"${INSTALL_PATH}/Crowbar.AppImage\"",
+								"elevated": false,
+								"timeout": "1m"
+							},
+							{
+								"type": "run",
+								"title": "Install the crowbar launcher into ~/.local/bin",
+								"exit_on_failure": true,
+								"command": "mkdir -p \"$HOME/.local/bin\" && printf '#!/bin/sh\\nexec \"%s/squashfs-root/AppRun\" \"$@\"\\n' \"${INSTALL_PATH}\" > \"$HOME/.local/bin/crowbar\" && chmod +x \"$HOME/.local/bin/crowbar\"",
+								"elevated": false,
+								"timeout": "1m"
+							},
+							{
+								"type": "run",
+								"title": "Register the Crowbar desktop entry",
+								"exit_on_failure": false,
+								"command": "mkdir -p \"$HOME/.local/share/applications\" && printf '[Desktop Entry]\\nType=Application\\nName=Crowbar\\nComment=The IDE where agents do the heavy lifting\\nExec=%s\\nIcon=%s\\nTerminal=false\\nCategories=Development;IDE;\\n' \"$HOME/.local/bin/crowbar\" \"${INSTALL_PATH}/crowbar.png\" > \"$HOME/.local/share/applications/crowbar.desktop\"",
+								"elevated": false,
+								"timeout": "1m"
+							}
+						],
+						"update": [
+							{
+								"type": "fetch",
+								"title": "Download the requested Crowbar release",
+								"exit_on_failure": true,
+								"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_amd64.AppImage",
+								"to": "${INSTALL_PATH}/Crowbar.AppImage",
+								"checksum": "",
+								"timeout": "15m"
+							},
+							{
+								"type": "run",
+								"title": "Clear the previous extraction",
+								"exit_on_failure": true,
+								"command": "rm -rf \"${INSTALL_PATH}/squashfs-root\"",
+								"elevated": false,
+								"timeout": "1m"
+							},
+							{
+								"type": "run",
+								"title": "Extracting the Crowbar AppImage",
+								"exit_on_failure": true,
+								"command": "${github.com/rabbytesoftware/quiver.essentials/appimage-runtime.extract} \"${INSTALL_PATH}/Crowbar.AppImage\"",
+								"elevated": false,
+								"timeout": "1m"
+							}
+						],
+						"execute": [],
+						"stop": [],
+						"uninstall": [
+							{
+								"type": "run",
+								"title": "Remove Crowbar",
+								"exit_on_failure": false,
+								"command": "rm -f \"$HOME/.local/bin/crowbar\" \"$HOME/.local/share/applications/crowbar.desktop\" \"${INSTALL_PATH}/Crowbar.AppImage\" \"${INSTALL_PATH}/crowbar.png\" && rm -rf \"${INSTALL_PATH}/squashfs-root\"",
+								"elevated": false,
+								"timeout": "2m"
+							}
+						],
+						"preinstalled": []
+					},
+					"methods": {}
+				},
+				"linux/arm64": {
+					"requirements": {
+						"cpu_cores": 2,
+						"memory_gb": 4,
+						"disk_gb": 2
+					},
+					"tools": [
+						{
+							"Namespace": "github.com/rabbytesoftware/quiver.essentials/appimage-runtime",
+							"Constraint": "",
+							"Type": "tool"
+						}
+					],
+					"services": [],
+					"exports": {},
+					"lifecycle": {
+						"install": [
+							{
+								"type": "fetch",
+								"title": "Download the Crowbar AppImage",
+								"exit_on_failure": true,
+								"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_aarch64.AppImage",
+								"to": "${INSTALL_PATH}/Crowbar.AppImage",
+								"checksum": "",
+								"timeout": "15m"
+							},
+							{
+								"type": "fetch",
+								"title": "Download the Crowbar icon",
+								"exit_on_failure": false,
+								"url": "https://raw.githubusercontent.com/char2cs/crowbar/${REF}/desktop/src-tauri/icons/128x128@2x.png",
+								"to": "${INSTALL_PATH}/crowbar.png",
+								"checksum": "",
+								"timeout": "2m"
+							},
+							{
+								"type": "run",
+								"title": "Extracting the Crowbar AppImage",
+								"exit_on_failure": true,
+								"command": "${github.com/rabbytesoftware/quiver.essentials/appimage-runtime.extract} \"${INSTALL_PATH}/Crowbar.AppImage\"",
+								"elevated": false,
+								"timeout": "1m"
+							},
+							{
+								"type": "run",
+								"title": "Install the crowbar launcher into ~/.local/bin",
+								"exit_on_failure": true,
+								"command": "mkdir -p \"$HOME/.local/bin\" && printf '#!/bin/sh\\nexec \"%s/squashfs-root/AppRun\" \"$@\"\\n' \"${INSTALL_PATH}\" > \"$HOME/.local/bin/crowbar\" && chmod +x \"$HOME/.local/bin/crowbar\"",
+								"elevated": false,
+								"timeout": "1m"
+							},
+							{
+								"type": "run",
+								"title": "Register the Crowbar desktop entry",
+								"exit_on_failure": false,
+								"command": "mkdir -p \"$HOME/.local/share/applications\" && printf '[Desktop Entry]\\nType=Application\\nName=Crowbar\\nComment=The IDE where agents do the heavy lifting\\nExec=%s\\nIcon=%s\\nTerminal=false\\nCategories=Development;IDE;\\n' \"$HOME/.local/bin/crowbar\" \"${INSTALL_PATH}/crowbar.png\" > \"$HOME/.local/share/applications/crowbar.desktop\"",
+								"elevated": false,
+								"timeout": "1m"
+							}
+						],
+						"update": [
+							{
+								"type": "fetch",
+								"title": "Download the requested Crowbar release",
+								"exit_on_failure": true,
+								"url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_aarch64.AppImage",
+								"to": "${INSTALL_PATH}/Crowbar.AppImage",
+								"checksum": "",
+								"timeout": "15m"
+							},
+							{
+								"type": "run",
+								"title": "Clear the previous extraction",
+								"exit_on_failure": true,
+								"command": "rm -rf \"${INSTALL_PATH}/squashfs-root\"",
+								"elevated": false,
+								"timeout": "1m"
+							},
+							{
+								"type": "run",
+								"title": "Extracting the Crowbar AppImage",
+								"exit_on_failure": true,
+								"command": "${github.com/rabbytesoftware/quiver.essentials/appimage-runtime.extract} \"${INSTALL_PATH}/Crowbar.AppImage\"",
+								"elevated": false,
+								"timeout": "1m"
+							}
+						],
+						"execute": [],
+						"stop": [],
+						"uninstall": [
+							{
+								"type": "run",
+								"title": "Remove Crowbar",
+								"exit_on_failure": false,
+								"command": "rm -f \"$HOME/.local/bin/crowbar\" \"$HOME/.local/share/applications/crowbar.desktop\" \"${INSTALL_PATH}/Crowbar.AppImage\" \"${INSTALL_PATH}/crowbar.png\" && rm -rf \"${INSTALL_PATH}/squashfs-root\"",
+								"elevated": false,
+								"timeout": "2m"
+							}
+						],
+						"preinstalled": []
+					},
+					"methods": {}
+				}
+			},
+			"readme": "# Crowbar\n\n_The IDE where agents do the heavy lifting._\n\nCoding agents can now produce more code in an afternoon than anyone can carefully read, and the tooling around them has not kept up. They run l"
+		}
+	}
+}

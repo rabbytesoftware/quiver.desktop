@@ -114,7 +114,7 @@ beforeEach(() => {
 		handlers.set(event as string, handler as (e: { payload: unknown }) => Promise<void> | void);
 		return Promise.resolve(() => {});
 	});
-	mockSubscribeArrowStream.mockReturnValue(vi.fn());
+	mockSubscribeArrowStream.mockReturnValue(Object.assign(vi.fn(), { reseed: vi.fn() }));
 	mockGetArrowsFor.mockResolvedValue([]);
 	mockApiFetch.mockResolvedValue([]);
 	mockWipe.mockResolvedValue(undefined);
@@ -375,6 +375,23 @@ describe('setupListeners', () => {
 		expect(wsManager.subscribe).toHaveBeenCalledWith('/v0/runtime', expect.any(Function));
 	});
 
+	it('lets anything re-read the catalog through the store while the stream is up, and not after', async () => {
+		const stream = Object.assign(vi.fn(), { reseed: vi.fn() });
+		mockSubscribeArrowStream.mockReturnValue(stream);
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+
+		useArrowStore.getState().refreshCatalog();
+		expect(stream.reseed).toHaveBeenCalledTimes(1);
+
+		mockSubscribeArrowStream.mock.calls[0][0].onUnversionedUpsert?.('x@stable');
+		expect(stream.reseed).toHaveBeenCalledTimes(2);
+
+		await emit('core://status', { status: 'starting' });
+		useArrowStore.getState().refreshCatalog();
+		expect(stream.reseed).toHaveBeenCalledTimes(2);
+	});
+
 	it("the arrow stream's seed GETs the user-installed catalog and stamps the active connection", async () => {
 		mockApiFetch.mockResolvedValue([
 			{
@@ -382,7 +399,7 @@ describe('setupListeners', () => {
 				name: 'a',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'ready' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'ready' }],
 			},
 		]);
 		await setupListeners();
@@ -424,7 +441,7 @@ describe('setupListeners', () => {
 				name: 'a',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'running' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'running' }],
 			},
 		]);
 		mockGetArrowsFor.mockResolvedValue([catalogRecord('a@1')]);
@@ -458,7 +475,7 @@ describe('setupListeners', () => {
 				name: 'a',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'ready' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'ready' }],
 			},
 		]);
 		await setupListeners();
@@ -476,14 +493,14 @@ describe('setupListeners', () => {
 				name: 'a',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'ready' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'ready' }],
 			},
 			{
 				namespace: 'b',
 				name: 'b',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'running' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'running' }],
 			},
 		]);
 		await opts.seed();
@@ -504,14 +521,14 @@ describe('setupListeners', () => {
 				name: 'a',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'ready' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'ready' }],
 			},
 			{
 				namespace: 'b',
 				name: 'b',
 				description: '',
 				tags: [],
-				versions: [{ ref: '1', version: '1', state: 'running' }],
+				versions: [{ ref: '1', resolved_ref: '1', state: 'running' }],
 			},
 		]);
 		await setupListeners();
@@ -532,7 +549,7 @@ describe('setupListeners', () => {
 	});
 
 	it('clears the projection and stops the arrow stream when core restarts', async () => {
-		const dispose = vi.fn();
+		const dispose = Object.assign(vi.fn(), { reseed: vi.fn() });
 		mockSubscribeArrowStream.mockReturnValue(dispose);
 		await setupListeners();
 		await emit('core://status', { status: 'ready' });
@@ -674,6 +691,60 @@ describe('setupListeners', () => {
 		const cb = runtimeSubscriber();
 		cb({ namespace: 'ghost@1', state: 'running', active_run: null, last_return: null });
 		expect(useArrowStore.getState().arrows.has('ghost@1')).toBe(false);
+	});
+
+	it('re-reads the catalog when an update run ends successfully, on whatever page the user is', async () => {
+		const stream = Object.assign(vi.fn(), { reseed: vi.fn() });
+		mockSubscribeArrowStream.mockReturnValue(stream);
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+		useArrowStore.getState().setCatalog([catalogRecord('a@stable')]);
+		const cb = runtimeSubscriber();
+
+		cb({
+			namespace: 'a@stable',
+			state: 'updating',
+			active_run: { method: '_update', variables: {}, steps: [] },
+			last_return: null,
+		});
+		expect(stream.reseed).not.toHaveBeenCalled();
+		cb({
+			namespace: 'a@stable',
+			state: 'ready',
+			active_run: null,
+			last_return: { method: '_update', outcome: 'success' },
+		});
+		expect(stream.reseed).toHaveBeenCalledTimes(1);
+
+		cb({
+			namespace: 'a@stable',
+			state: 'running',
+			active_run: null,
+			last_return: { method: '_update', outcome: 'success' },
+		});
+		expect(stream.reseed).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([
+		['a failed update', { method: '_update', outcome: 'failed' }],
+		['a successful execute', { method: '_execute', outcome: 'success' }],
+	])('does not re-read the catalog when %s ends', async (_name, lastReturn) => {
+		const stream = Object.assign(vi.fn(), { reseed: vi.fn() });
+		mockSubscribeArrowStream.mockReturnValue(stream);
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+		useArrowStore.getState().setCatalog([catalogRecord('a@stable')]);
+		const cb = runtimeSubscriber();
+
+		cb({
+			namespace: 'a@stable',
+			state: 'updating',
+			active_run: { method: lastReturn.method, variables: {}, steps: [] },
+			last_return: null,
+		});
+		cb({ namespace: 'a@stable', state: 'ready', active_run: null, last_return: lastReturn });
+
+		expect(stream.reseed).not.toHaveBeenCalled();
 	});
 
 	it('ignores the reconnect sentinel on the runtime channel', async () => {

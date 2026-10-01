@@ -262,6 +262,26 @@ export interface ArrowChannel {
 	members?: string[];
 }
 
+/**
+ * How a catalog identity's selector is followed, as quiver.core classified it
+ * once when the row was created: a channel's newest member, the highest tag a
+ * constraint matches, exactly one ref, or exactly one commit.
+ */
+export type SelectorKind = 'pin' | 'channel' | 'constraint' | 'commit';
+
+const SELECTOR_KINDS: readonly SelectorKind[] = ['pin', 'channel', 'constraint', 'commit'];
+
+/** An older core sends no kind at all, which quiver.core itself reads as a pin of the identity's ref. */
+export function parseSelectorKind(value: string | undefined | null): SelectorKind {
+	return SELECTOR_KINDS.find((kind) => kind === value) ?? 'pin';
+}
+
+/** A newer ref an installed row's selector points at, and the commit it resolves to. */
+export interface AvailableVersion {
+	ref: string;
+	commit: string;
+}
+
 /** One resolved entry from `GET /v0/arrow/:ns/dependencies` -- an arrow this one needs, namespace and ref already resolved. */
 export interface ArrowDependency {
 	namespace: string;
@@ -291,23 +311,27 @@ export interface ArrowDetail extends ArrowOriginFields {
 	targets: ArrowTarget[];
 	state: ArrowState;
 	user_installed: boolean;
-	installed_ref: string;
 	installed_at?: string;
-	installed_constraint?: string;
+	/**
+	 * The selector this catalog row follows -- the part of `namespace` after
+	 * its first `@`. It never changes for the life of the row: following
+	 * something else is a different row (uninstall, then install that one).
+	 */
+	selector: string;
+	selector_kind: SelectorKind;
+	/** The ref this row resolved to -- what is installed, or what an install would put on disk. Empty until one is resolved. */
+	resolved_ref: string;
+	installed_commit: string;
+	/** What the last version check found ahead of `resolved_ref`, or `null` when current. */
+	available: AvailableVersion | null;
+	/** True exactly when `available` is set. */
+	outdated: boolean;
 	active_run: ActiveRun | null;
 	last_return: LastReturnDetail | null;
 	/**
-	 * The channel THIS installed/resolved arrow is currently tracking -- e.g.
-	 * `"beta"`. Genuinely optional: empty/absent for an arrow pinned to an
-	 * exact ref with no tracked channel. Answers "what is it on", not "what
-	 * could it be on" -- see `channels` for that.
-	 */
-	channel?: string;
-	/**
 	 * Every channel this arrow's repo publishes -- `GET /v0/arrow/:ns/channels`.
-	 * Always an array, empty when there is nothing to show: unlike `channel`,
-	 * this comes from its own dedicated fetch, which always resolves to
-	 * *something*. Answers "what could it be on", not "what is it on".
+	 * Always an array, empty when there is nothing to show. Answers "what could
+	 * a new identity follow", not "what does this one follow" -- see `selector`.
 	 */
 	channels: ArrowChannel[];
 	/**
