@@ -402,6 +402,49 @@ describe('runtime verbs that do run', () => {
 		expect(arrow.active_run).toBeNull();
 	});
 
+	it('stages an update for an arrow that applies it on restart, leaving the row where it was', async () => {
+		const ns = `${NS}/terraria@v1.4.4.9`;
+		const arrow = mock.world.arrows.get(ns)!;
+		arrow.stages_update = true;
+		await call('POST', `/v0/runtime/${enc(ns)}/update`, {});
+		await vi.advanceTimersByTimeAsync(700 * 6);
+
+		expect(arrow.state).toBe('ready');
+		expect(arrow.resolved_ref).not.toBe('v1.4.5.0');
+		expect(arrow.pending_activation?.version).toBe('v1.4.5.0');
+		const detail = (await call('GET', `/v0/arrow/${enc(ns)}`)).body!.data as {
+			pending_activation: { version: string };
+		};
+		expect(detail.pending_activation.version).toBe('v1.4.5.0');
+	});
+
+	it('activates a staged update: the row advances, nothing stays pending, and a frame says so', async () => {
+		const ns = `${NS}/terraria@v1.4.4.9`;
+		const arrow = mock.world.arrows.get(ns)!;
+		arrow.stages_update = true;
+		await call('POST', `/v0/runtime/${enc(ns)}/update`, {});
+		await vi.advanceTimersByTimeAsync(700 * 6);
+
+		const frames: unknown[] = [];
+		mock.backend.openSocket('/v0/runtime').onmessage = (e) => frames.push(JSON.parse(e.data));
+		const { status } = await call('POST', `/v0/runtime/${enc(ns)}/activate`, {});
+
+		expect(status).toBe(202);
+		expect(arrow.resolved_ref).toBe('v1.4.5.0');
+		expect(arrow.pending_activation).toBeUndefined();
+		expect(frames).toContainEqual(expect.objectContaining({ namespace: ns, pending_activation: null }));
+	});
+
+	it('answers activate with nothing pending as a 200 no-op', async () => {
+		const { status } = await call('POST', `/v0/runtime/${enc(POSTGRES)}/activate`, {});
+		expect(status).toBe(200);
+	});
+
+	it('accepts a version check for a known arrow and 404s an unknown one', async () => {
+		expect((await call('POST', `/v0/arrow/${enc(POSTGRES)}/check`)).status).toBe(202);
+		expect((await call('POST', `/v0/arrow/${enc('nope/nope@v1')}/check`)).status).toBe(404);
+	});
+
 	it('refuses update outside ready/outdated', async () => {
 		// MINECRAFT is 'running' -- past the broad STARTABLE gate, so this
 		// exercises update's own narrower check specifically.

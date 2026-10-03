@@ -48,6 +48,7 @@ function toEntry(record: ArrowCatalogRecord, overlay: RuntimeUpdate | undefined)
 		state: overlay?.state ?? NEUTRAL_STATE,
 		active_run: overlay?.active_run ?? null,
 		last_return: overlay?.last_return ?? null,
+		pending_activation: overlay?.pending_activation,
 		last_used_at: record.last_used_at,
 		origin: record.origin,
 		confidence: record.confidence,
@@ -60,6 +61,7 @@ function resolveOverlay(existing: ArrowEntry, update: RuntimeUpdate): RuntimeUpd
 		state: update.state,
 		active_run: update.active_run,
 		last_return: update.last_return ?? existing.last_return,
+		pending_activation: update.pending_activation,
 	};
 }
 
@@ -69,6 +71,7 @@ function patchOverlay(existing: ArrowEntry, overlay: RuntimeUpdate): ArrowEntry 
 		state: overlay.state,
 		active_run: overlay.active_run,
 		last_return: overlay.last_return,
+		pending_activation: overlay.pending_activation,
 	};
 }
 

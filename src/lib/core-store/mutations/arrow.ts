@@ -22,3 +22,11 @@ export function useRemoveArrow() {
 			apiFetch<void>(`/v0/arrow/${namespaceSegment(namespace)}`, { method: 'DELETE' }),
 	});
 }
+
+/** `POST /v0/arrow/:ns/check`: asks core to look for a newer version now. It answers 202 and reports any result over the runtime stream. */
+export function useCheckForUpdate() {
+	return useMutation({
+		mutationFn: ({ namespace }: { namespace: string }) =>
+			apiFetch<void>(`/v0/arrow/${namespaceSegment(namespace)}/check`, { method: 'POST' }),
+	});
+}

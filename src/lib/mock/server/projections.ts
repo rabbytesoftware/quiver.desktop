@@ -110,6 +110,7 @@ export function toRuntimeFrame(arrow: MockArrow): RuntimeUpdateDTO {
 		last_return: arrow.last_return
 			? { method: arrow.last_return.method, outcome: arrow.last_return.outcome }
 			: null,
+		pending_activation: arrow.pending_activation ?? null,
 	};
 }
 
@@ -142,6 +143,7 @@ export function toArrowDetailDTO(arrow: MockArrow): ArrowDetailDTO {
 		outdated: arrow.available !== undefined,
 		active_run: arrow.active_run,
 		last_return: arrow.last_return,
+		pending_activation: arrow.pending_activation ?? null,
 		origin: arrow.origin ?? 'declared',
 		...(arrow.origin === 'inferred'
 			? { inference: { generator: 'fletcher/1', ...(arrow.confidence ? { confidence: arrow.confidence } : {}) } }

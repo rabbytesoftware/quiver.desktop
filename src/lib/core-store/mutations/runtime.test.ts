@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vites
 
 import { apiFetch, apiRequest } from '@/lib/transport/api';
 
-import { useExecute, useExecuteArrow, useInstall, useStop, useUninstall, useUpdate } from './runtime';
+import { useActivate, useExecute, useExecuteArrow, useInstall, useStop, useUninstall, useUpdate } from './runtime';
 
 vi.mock('@/lib/transport/api', () => ({ apiFetch: vi.fn(), apiRequest: vi.fn() }));
 
@@ -112,5 +112,32 @@ describe('useExecuteArrow', () => {
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ variables: { PORT: '25565' } }),
 		});
+	});
+});
+
+describe('useActivate', () => {
+	it('POSTs to /v0/runtime/:ns/activate and reports a 202 as started', async () => {
+		mockApiRequest.mockResolvedValue({ status: 202, data: undefined });
+		const { result } = renderHook(() => useActivate(), { wrapper: wrapper() });
+		let outcome;
+		await act(async () => {
+			outcome = await result.current.mutateAsync({ namespace: 'ns@v1' });
+		});
+		expect(outcome).toBe('started');
+		expect(apiRequest).toHaveBeenCalledWith('/v0/runtime/ns%40v1/activate', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ variables: {} }),
+		});
+	});
+
+	it('reports a 200 as nothing pending to apply', async () => {
+		mockApiRequest.mockResolvedValue({ status: 200, data: undefined });
+		const { result } = renderHook(() => useActivate(), { wrapper: wrapper() });
+		let outcome;
+		await act(async () => {
+			outcome = await result.current.mutateAsync({ namespace: 'ns@v1' });
+		});
+		expect(outcome).toBe('nothing_pending');
 	});
 });

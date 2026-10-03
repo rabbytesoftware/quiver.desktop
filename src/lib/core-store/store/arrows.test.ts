@@ -70,6 +70,40 @@ describe('setCatalog', () => {
 	});
 });
 
+describe('pending activation overlay', () => {
+	const staged = { version: 'nightly-2', staged_at: '2026-10-03T10:00:00Z' };
+
+	it('has no pending activation until a runtime frame reports one', () => {
+		useArrowStore.getState().setCatalog([catalogRecord('a@1')]);
+		expect(useArrowStore.getState().arrows.get('a@1')?.pending_activation).toBeUndefined();
+	});
+
+	it('carries a staged activation from a frame, keeps it across a reseed, and clears it when a frame says so', () => {
+		const rec = catalogRecord('a@1');
+		useArrowStore.getState().setCatalog([rec]);
+		useArrowStore.getState().applyRuntimeUpdate({
+			namespace: 'a@1',
+			state: 'ready',
+			active_run: null,
+			last_return: null,
+			pending_activation: staged,
+		});
+		expect(useArrowStore.getState().arrows.get('a@1')?.pending_activation).toEqual(staged);
+
+		useArrowStore.getState().setCatalog([rec]);
+		expect(useArrowStore.getState().arrows.get('a@1')?.pending_activation).toEqual(staged);
+
+		useArrowStore.getState().applyRuntimeUpdate({
+			namespace: 'a@1',
+			state: 'ready',
+			active_run: null,
+			last_return: null,
+			pending_activation: null,
+		});
+		expect(useArrowStore.getState().arrows.get('a@1')?.pending_activation).toBeNull();
+	});
+});
+
 describe('setCatalog origin', () => {
 	it('carries an inferred record and its confidence onto the entry', () => {
 		useArrowStore.getState().setCatalog([{ ...catalogRecord('a@1'), origin: 'inferred', confidence: 'high' }]);

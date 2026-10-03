@@ -9,7 +9,7 @@ import {
 	type MockArrow,
 	type MockWorld,
 } from '../../world/types';
-import { fail, mutated, ok } from '../envelope';
+import { accepted, fail, mutated, ok } from '../envelope';
 import {
 	toArrowChannelsDTO,
 	toArrowDependenciesDTO,
@@ -182,6 +182,17 @@ export const arrowRoutes: Route[] = [
 				constrained_deps: [],
 				...(arrow.available ? { available: arrow.available } : {}),
 			});
+		},
+	},
+	{
+		// Answers before the check has run, like core: whatever it finds reaches
+		// the app as a runtime frame. The mock has nothing to find.
+		method: 'POST',
+		pattern: '/v0/arrow/:ns/check',
+		fault: 'arrows',
+		handler: (req, world) => {
+			if (!findArrow(world.arrows, req.params.ns)) return fail(`arrow ${req.params.ns} not found`, 404);
+			return accepted();
 		},
 	},
 	{

@@ -1046,7 +1046,7 @@ describe('Hero, picking what an entry follows', () => {
 describe('Hero, updating', () => {
 	const AHEAD = { ref: 'v1.22.0', commit: 'abc1234' };
 
-	it('keeps quiver.core’s update available but disabled, says why, and sends nothing', async () => {
+	it('lets quiver.core update like any other arrow, sending no variables', async () => {
 		const user = userEvent.setup();
 		renderHero({
 			detail: detail({
@@ -1059,15 +1059,12 @@ describe('Hero, updating', () => {
 
 		expect(screen.getByText('Update available')).toBeInTheDocument();
 		const update = screen.getByRole('button', { name: 'Update' });
-		expect(update).toBeDisabled();
-		expect(screen.getByRole('note')).toHaveTextContent('Settings → Engine');
+		expect(update).toBeEnabled();
 		await user.click(update);
-		expect(apiFetch).not.toHaveBeenCalled();
-	});
-
-	it('shows no such note for an ordinary arrow', () => {
-		renderHero({ detail: detail({ state: 'outdated', available: AHEAD, outdated: true }) });
-		expect(screen.queryByRole('note')).not.toBeInTheDocument();
+		await waitFor(() =>
+			expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/update'), expect.anything())
+		);
+		expect(bodyOf(lastCall())).toEqual({ variables: {} });
 	});
 
 	it.each([200, 202])(

@@ -11,6 +11,7 @@ import type {
 	ArrowTarget,
 	AvailableVersion,
 	DependencyType,
+	PendingActivation,
 	RuntimeUpdate,
 	StepProgress,
 } from '@/domain/arrow';
@@ -102,6 +103,8 @@ export interface ArrowDetailDTO {
 	outdated?: boolean;
 	active_run?: ActiveRun | null;
 	last_return?: LastReturnDTO | null;
+	/** Omitted on a daemon that predates staged activation. */
+	pending_activation?: PendingActivation | null;
 	/** Absent on a daemon that predates inference; reads as declared. */
 	origin?: string;
 	/** Omitted unless the arrow is inferred. */
@@ -396,6 +399,7 @@ export function toArrowDetail(
 		outdated: detail.outdated ?? available !== null,
 		active_run: detail.active_run ?? null,
 		last_return: detail.last_return ?? null,
+		pending_activation: detail.pending_activation ?? null,
 		origin: parseArrowOrigin(detail.origin),
 		confidence: parseInferenceConfidence(detail.inference?.confidence),
 		warnings: detail.inference?.warnings ?? [],

@@ -109,6 +109,8 @@ export interface ArrowEntry extends ArrowOriginFields {
 	state: ArrowState;
 	active_run: ActiveRun | null;
 	last_return: LastReturn | null;
+	/** Set only from a runtime frame; `undefined` until one has arrived for this arrow. */
+	pending_activation?: PendingActivation | null;
 	/**
 	 * When this arrow's `execute` last completed successfully. Optional because
 	 * quiver.core doesn't stamp it yet (tracked separately, enhancement/last_used) --
@@ -118,11 +120,24 @@ export interface ArrowEntry extends ArrowOriginFields {
 	last_used_at?: string | null;
 }
 
+/**
+ * A finished update that is downloaded and verified but not yet running: the
+ * daemon applies it on `activate`, or at its next start. `null` when nothing is
+ * staged.
+ */
+export interface PendingActivation {
+	version: string;
+	/** RFC3339 timestamp of when the update was staged. */
+	staged_at: string;
+}
+
 export interface RuntimeUpdate {
 	namespace: string;
 	state: ArrowState;
 	active_run: ActiveRun | null;
 	last_return: LastReturn | null;
+	/** Optional so a record built by hand or by an older daemon reads as nothing staged. */
+	pending_activation?: PendingActivation | null;
 }
 
 /**
@@ -328,6 +343,8 @@ export interface ArrowDetail extends ArrowOriginFields {
 	outdated: boolean;
 	active_run: ActiveRun | null;
 	last_return: LastReturnDetail | null;
+	/** An update staged for this arrow that only a restart applies. Absent reads as nothing staged. */
+	pending_activation?: PendingActivation | null;
 	/**
 	 * Every channel this arrow's repo publishes -- `GET /v0/arrow/:ns/channels`.
 	 * Always an array, empty when there is nothing to show. Answers "what could
