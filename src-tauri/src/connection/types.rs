@@ -26,6 +26,8 @@ pub struct ConnectionConfig {
 
 // ── QuiverConnection trait ───────────────────────────────────────────────────
 
+// `async_trait` pins each method's future in a `#[must_use]` box, which newer clippy reports as a double `must_use`.
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait QuiverConnection: Send + Sync {
 	async fn start(&self, app: &AppHandle);
