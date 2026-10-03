@@ -219,11 +219,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         directory = STATE / "releases" / user / repo / tag
         assets = []
+        # A `.nodigest` marker in the tag's directory publishes the release the
+        # way an older GitHub did: assets without a digest. It is how a
+        # scenario provokes the no-published-digest failure for real.
+        undigested = (directory / ".nodigest").exists()
         if directory.is_dir():
             for item in sorted(directory.iterdir()):
-                if not item.is_file():
+                if not item.is_file() or item.name.startswith("."):
                     continue
-                assets.append({
+                entry = {
                     "name": item.name,
                     # Nested, exactly as the real document nests it. Not
                     # decoration: install.sh parses this without jq, and a
@@ -240,7 +244,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "digest": "sha256:" + sha256_of(item),
                     "browser_download_url":
                         f"https://github.com/{user}/{repo}/releases/download/{tag}/{item.name}",
-                })
+                }
+                if undigested:
+                    del entry["digest"]
+                assets.append(entry)
         # Pretty-printed, because api.github.com pretty-prints. A fixture that
         # answered on one line would hide every line-oriented parsing bug the
         # real document can provoke.
@@ -248,6 +255,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
             {"tag_name": tag, "name": tag, "assets": assets}, indent=2
         ).encode()
         self.send_bytes(200, body, "application/json")
+
+    def expanded_assets(self, user, repo, tag):
+        """The fragment github.com serves for a release's asset list.
+
+        quiver.core resolves a release's assets by reading this page, not the
+        REST API, so this is what its release-bound variables are answered
+        from. The shape follows the real fragment: a list item per asset with
+        the download link and, beside it, the digest GitHub records. The
+        `.nodigest` marker (see route_api) leaves the digest out.
+        """
+        directory = STATE / "releases" / user / repo / tag
+        undigested = (directory / ".nodigest").exists()
+        items = []
+        if directory.is_dir():
+            for item in sorted(directory.iterdir()):
+                if not item.is_file() or item.name.startswith("."):
+                    continue
+                digest = "" if undigested else (
+                    '<span class="Truncate-text">sha256:' + sha256_of(item) + "</span>")
+                items.append(
+                    '<li class="Box-row"><a href="/%s/%s/releases/download/%s/%s" rel="nofollow">'
+                    '<span class="text-bold">%s</span></a>%s</li>'
+                    % (user, repo, tag, item.name, item.name, digest)
+                )
+        return '<div class="Box"><ul data-view-component="true">' + "".join(items) + "</ul></div>"
 
     def route_github(self, method, parsed):
         parts = [p for p in parsed.path.split("/") if p]
@@ -274,6 +306,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             location = f"https://github.com/{user}/{repo}/releases/tag/{tag}"
             log_event(event="releases.latest", user=user, repo=repo, tag=tag)
             self.send_redirect(location)
+            return
+
+        # /releases/expanded_assets/{tag}       -> the asset list quiver.core's
+        #                                          host reads for a release
+        if len(tail) == 2 and tail[0] == "expanded_assets":
+            self.send_bytes(200, self.expanded_assets(user, repo, tail[1]).encode(),
+                            "text/html; charset=utf-8")
+            log_event(event="assets.listed", user=user, repo=repo, tag=tail[1])
             return
 
         # /releases/tag/{tag}                   -> the page the redirect lands on

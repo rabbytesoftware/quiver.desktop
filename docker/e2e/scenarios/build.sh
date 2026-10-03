@@ -11,9 +11,10 @@
 #
 # WHAT GETS BUILT, AND WHY TWO OF EACH:
 #
-#   quiver.core   stable-26.5.90 and stable-26.5.91 -- v1 is what a scenario
+#   quiver.core   stable-26.5.90 to .93: v1 is what a scenario
 #                 starts with, v2 is what "upstream" publishes mid-scenario
-#                 so the self-update has somewhere real to go. Version,
+#                 so the self-update has somewhere real to go, and v3 is the
+#                 releases after that, for scenarios that update more than once. Version,
 #                 commit and channel are -ldflags stamps, exactly as the
 #                 release workflows stamp them, because
 #                 selfarrow.EnsureRegistered refuses to register an unstamped
@@ -49,6 +50,13 @@ step() { echo; echo "=== $* ==="; }
 sync_sources() {
 	step "syncing sources into the build volume"
 	mkdir -p "$CORE_SRC" "$DESK_SRC"
+
+	# Extracting over the previous run's copy keeps every file a newer checkout
+	# deleted or renamed, and a stale Go file beside the current ones fails the
+	# build with errors in code nobody touched. Only node_modules survives: it
+	# is what makes a rebuild fast, and it is keyed by the lockfile, not the tree.
+	find "$CORE_SRC" -mindepth 1 -delete
+	find "$DESK_SRC" -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf {} +
 
 	tar -C /workspace/quiver.core -cf - \
 		--exclude=./bin --exclude=./coverage --exclude=./.git \
@@ -89,6 +97,8 @@ build_core() {
 	mkdir -p "$BUILD_BIN"
 	build_core_at "$CORE_V1" "$BUILD_BIN/quiver-$CORE_V1"
 	build_core_at "$CORE_V2" "$BUILD_BIN/quiver-$CORE_V2"
+	build_core_at "$CORE_V3" "$BUILD_BIN/quiver-$CORE_V3"
+	build_core_at "$CORE_V4" "$BUILD_BIN/quiver-$CORE_V4"
 }
 
 # --- quiver.desktop --------------------------------------------------------
@@ -163,12 +173,20 @@ package_artifacts() {
 	ls -la "$BUILD_BIN"
 }
 
+# WDIO_ONLY=1 builds what scenarios/run-wdio.sh drives: the three core builds
+# and one desktop build, without the second desktop build and the AppImages the
+# shell scenarios publish.
 main() {
 	sync_sources
 	build_core
 	build_frontend
-	build_desktop
-	package_artifacts
+	if [ "${WDIO_ONLY:-0}" = "1" ]; then
+		step "building quiver.desktop (one build, for the WebDriver scenarios)"
+		build_desktop_at "$DESK_V1" "$BUILD_BIN/quiverdesktop-$DESK_V1"
+	else
+		build_desktop
+		package_artifacts
+	fi
 	step "build complete"
 }
 
