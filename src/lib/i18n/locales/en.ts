@@ -178,6 +178,13 @@ export const en = {
 	'settings.engine.selfUpdate.channelDescription': 'Which release channel quiver.core tracks for its own updates',
 	'settings.engine.selfUpdate.loading': 'Loading channels…',
 	'settings.engine.selfUpdate.unset': 'Not set',
+	'settings.engine.selfUpdate.installed': 'Installed version',
+	'settings.engine.selfUpdate.available': 'Available version',
+	'settings.engine.selfUpdate.current': 'Up to date',
+	'settings.engine.selfUpdate.unknown': 'Unknown',
+	'settings.engine.selfUpdate.check': 'Check for updates',
+	'settings.engine.selfUpdate.restarts':
+		'quiver.core restarts to finish updating. The connection drops for a moment and comes back on its own.',
 	'settings.engine.selfUpdate.unavailable': "Couldn't load quiver.core's channels",
 
 	'settings.engine.autoRegister.title': 'Arrows',
@@ -251,8 +258,6 @@ export const en = {
 	'arrow.update.current': 'Already up to date',
 	'arrow.update.busy':
 		'Another update is underway, or the last one is still being applied. Wait a moment and try again.',
-	'arrow.update.coreSelf':
-		'Quiver updates its engine on its own, from the update channel chosen in Settings → Engine.',
 	'arrow.update.retry': 'Try again',
 	'arrow.update.dismiss': 'Dismiss',
 
