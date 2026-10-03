@@ -203,6 +203,10 @@ export const en = {
 	'settings.engine.selfUpdate.error.rate_limited': 'The release server is limiting requests. Try again later.',
 	'settings.engine.selfUpdate.error.offline':
 		"Couldn't reach quiver.core or the release server. Check the connection and try again.",
+	'settings.engine.selfUpdate.error.unverifiable':
+		'This release publishes no checksum, so it cannot be verified. Nothing was changed.',
+	'settings.engine.selfUpdate.error.unavailable':
+		'This release has no download for this machine. Nothing was changed.',
 	'settings.engine.selfUpdate.error.failed': 'The update did not complete.',
 
 	'settings.engine.autoRegister.title': 'Arrows',

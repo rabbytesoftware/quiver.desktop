@@ -1174,6 +1174,20 @@ describe('Hero, updating', () => {
 		expect(mockApiFetch.mock.calls[1][0]).toContain('/update');
 	});
 
+	it('reports a release core could not resolve as final, not as a racing update', async () => {
+		const message = 'begin update: release unresolved: unverifiable: release has no published digest';
+		mockApiFetch.mockRejectedValueOnce(new ApiError(message, 422));
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ state: 'outdated', available: AHEAD, outdated: true }) });
+
+		await user.click(screen.getByRole('button', { name: 'Update' }));
+
+		const dialog = await screen.findByRole('dialog');
+		expect(dialog).toHaveTextContent('no published digest');
+		expect(dialog).not.toHaveTextContent('Another update is underway');
+		expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+	});
+
 	it('closes the retry dialog without retrying', async () => {
 		mockApiFetch.mockRejectedValueOnce(new ApiError('state violation', 422));
 		const user = userEvent.setup();

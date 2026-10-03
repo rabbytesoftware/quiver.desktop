@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ApiError } from '@/lib/transport/api';
 
-import { classifyUpdateError, deriveUpdateState, isConnectionDrop } from './update-state';
+import { classifyUpdateError, deriveUpdateState, isConnectionDrop, isReleaseFailure } from './update-state';
 
 const IDLE = { restarting: false, running: false, error: null, pending: false, available: false };
 
@@ -56,12 +56,41 @@ describe('classifyUpdateError', () => {
 		expect(classifyUpdateError(new ApiError('nope', status))).toEqual({ kind, message: 'nope' });
 	});
 
+	const RELEASE_UNRESOLVED = (kind: string) =>
+		`begin update: resolve QUIVER_RELEASE_ASSET_URL from release x@v2: release unresolved: ${kind}: manifold: nope`;
+
+	it.each([
+		['unverifiable', 'unverifiable'],
+		['no_release', 'unavailable'],
+		['no_asset', 'unavailable'],
+		['unsupported_platform', 'unavailable'],
+	])('reads a 422 for release %s as %s, never as a busy daemon', (releaseKind, kind) => {
+		const message = RELEASE_UNRESOLVED(releaseKind);
+		expect(classifyUpdateError(new ApiError(message, 422))).toEqual({ kind, message });
+	});
+
+	it('keeps rate limits and outages on their own kinds when the message is typed', () => {
+		expect(classifyUpdateError(new ApiError(RELEASE_UNRESOLVED('rate_limited'), 429)).kind).toBe('rate_limited');
+		expect(classifyUpdateError(new ApiError(RELEASE_UNRESOLVED('offline'), 502)).kind).toBe('offline');
+	});
+
 	it('reads a thrown Error as a failure with its message', () => {
 		expect(classifyUpdateError(new Error('socket hang up'))).toEqual({ kind: 'failed', message: 'socket hang up' });
 	});
 
 	it('reads a thrown non-Error as a failure with its text', () => {
 		expect(classifyUpdateError('weird')).toEqual({ kind: 'failed', message: 'weird' });
+	});
+});
+
+describe('isReleaseFailure', () => {
+	it("recognises core's typed release error by its message", () => {
+		expect(isReleaseFailure(new ApiError('x: release unresolved: unverifiable: y', 422))).toBe(true);
+	});
+
+	it('is false for a state violation and for anything that is not an API error', () => {
+		expect(isReleaseFailure(new ApiError('cannot update: arrow is updating', 422))).toBe(false);
+		expect(isReleaseFailure(new Error('release unresolved: unverifiable'))).toBe(false);
 	});
 });
 

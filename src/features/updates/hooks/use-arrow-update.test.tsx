@@ -220,6 +220,19 @@ describe('useArrowUpdate update', () => {
 	});
 });
 
+describe('useArrowUpdate release failures', () => {
+	it('reports a release core could not verify as its own kind, not as a busy daemon', async () => {
+		const message = 'begin update: release unresolved: unverifiable: release has no published digest';
+		mockApiRequest.mockRejectedValueOnce(new ApiError(message, 422));
+		const { result } = setup(detail({ available: { ref: 'stable-26.6', commit: 'abc' } }));
+		await act(async () => {
+			await expect(result.current.update()).rejects.toThrow('no published digest');
+		});
+		expect(result.current.state).toBe('error');
+		expect(result.current.error).toEqual({ kind: 'unverifiable', message });
+	});
+});
+
 describe('useArrowUpdate activate', () => {
 	it('is restarting from the click until the new version reports with nothing pending', async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
