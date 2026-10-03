@@ -936,8 +936,8 @@ describe("the Engine panel's update rows", () => {
 
 		await waitFor(() =>
 			expect(fetch).toHaveBeenCalledWith(
-				`/v0/arrow/${encodeURIComponent(CORE)}/check`,
-				expect.objectContaining({ method: 'POST' })
+				`/v0/arrow/${encodeURIComponent(CORE)}`,
+				expect.objectContaining({ method: 'PATCH' })
 			)
 		);
 	});

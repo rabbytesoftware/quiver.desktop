@@ -49,9 +49,9 @@ describe('useRemoveArrow', () => {
 });
 
 describe('useCheckForUpdate', () => {
-	it('POSTs /v0/arrow/:ns/check with no body', async () => {
+	it('PATCHes /v0/arrow/:ns with no body', async () => {
 		const { result } = renderHook(() => useCheckForUpdate(), { wrapper: wrapper() });
 		await act(() => result.current.mutateAsync({ namespace: 'github.com/x/y@stable' }));
-		expect(apiFetch).toHaveBeenCalledWith('/v0/arrow/github.com%2Fx%2Fy%40stable/check', { method: 'POST' });
+		expect(apiFetch).toHaveBeenCalledWith('/v0/arrow/github.com%2Fx%2Fy%40stable', { method: 'PATCH' });
 	});
 });

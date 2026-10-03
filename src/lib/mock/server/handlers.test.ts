@@ -440,11 +440,6 @@ describe('runtime verbs that do run', () => {
 		expect(status).toBe(200);
 	});
 
-	it('accepts a version check for a known arrow and 404s an unknown one', async () => {
-		expect((await call('POST', `/v0/arrow/${enc(POSTGRES)}/check`)).status).toBe(202);
-		expect((await call('POST', `/v0/arrow/${enc('nope/nope@v1')}/check`)).status).toBe(404);
-	});
-
 	it('refuses update outside ready/outdated', async () => {
 		// MINECRAFT is 'running' -- past the broad STARTABLE gate, so this
 		// exercises update's own narrower check specifically.

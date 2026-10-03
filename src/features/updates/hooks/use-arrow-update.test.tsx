@@ -136,7 +136,7 @@ describe('useArrowUpdate check', () => {
 			pending = result.current.check();
 		});
 		await waitFor(() => expect(result.current.checking).toBe(true));
-		expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(NS)}/check`, { method: 'POST' });
+		expect(mockApiFetch).toHaveBeenCalledWith(`/v0/arrow/${encodeURIComponent(NS)}`, { method: 'PATCH' });
 
 		await act(async () => {
 			release();
