@@ -1,6 +1,6 @@
 # `e2e/` — tauri-driver scenarios for self-update and self-arrows
 
-Three scenarios driven through the **real, built** Quiver Desktop app and a
+Four scenarios driven through the **real, built** Quiver Desktop app and a
 **real** `quiver.core` daemon: no mocks, no stubbed resolver, no in-process
 test seam.
 
@@ -9,6 +9,49 @@ test seam.
 | `scenarios/bootstrap.spec.ts` | A clean `QUIVER_HOME` comes up with a self-installed Core at `<QUIVER_HOME>/self/quiver`, both self-arrows are registered `user_installed: true`, and quiver.desktop is filed under one channel identity (`<ns>@<channel>`), never a pin of its version. |
 | `scenarios/self-update-while-running.spec.ts` | A process Core supervises keeps its PID across Core's own self-update handover. |
 | `scenarios/generic-outdated-badge.spec.ts` | An outdated self-arrow gets the *generic* outdated badge, via the *generic* `/v0/runtime` broadcast. |
+| `scenarios/update-and-restart.spec.ts` | Updating quiver.core from the arrow page and from Settings, Engine downloads and stages with nothing restarted, Restart to apply swaps the daemon in place, a staged build is promoted at the next boot, and a release that cannot be verified is refused. **Runs only in the E2E box**, see below. |
+
+`self-update-while-running.spec.ts` also needs the box now: an update only stages
+a build, so it publishes a release, stages it, activates it, and checks the
+supervised process across the handover.
+
+## Running the update and restart scenario (Linux container)
+
+`update-and-restart.spec.ts` publishes new quiver.core releases mid-test and
+reads the daemon replacing itself, so it needs more than a runner can give: a
+GitHub stand-in that can gain a release, quiver.core builds that really differ,
+and a desktop to click in. `docker/e2e` provides all of it. From the repository
+root, with a quiver.core checkout at `QUIVER_CORE_DEV_PATH`:
+
+```bash
+make test-e2e-box QUIVER_CORE_DEV_PATH=../quiver.core                       # every spec
+make test-e2e-box QUIVER_CORE_DEV_PATH=../quiver.core SPECS=update-and-restart
+# or, without make:
+QUIVER_CORE_DEV_PATH=../quiver.core docker compose -f docker/e2e/docker-compose.yml \
+  run --rm e2e scenarios/run-wdio.sh update-and-restart
+```
+
+`SKIP_BUILD=1` (pass it with `-e SKIP_BUILD=1` to `docker compose run`) reuses the
+builds from the previous run; only `e2e/` is re-synced, so editing a spec does not
+rebuild anything. The first run compiles quiver.core four times (Go) and the app
+once (Rust) and is slow; later runs reuse the build volume.
+
+What it runs, in order, on one installation: Settings shows the installed and
+available versions and checks for updates; Update from the arrow page stages
+without restarting the daemon or the supervised arrow it runs; Restart to apply
+shows the restarting state and reconnects on the same socket; Update from
+Settings, then the app is closed and reopened without applying, and the daemon
+promotes the staged build at boot; Update and Restart to apply from Settings; a
+release published without a digest is refused with the typed error and nothing
+changes; a CLI update with an empty required variable is rejected naming it.
+
+Logs, per-spec daemon logs, the stand-in's request log and screenshots land in
+`docker/e2e/results/wdio/`. In CI this is the `e2e-box` job of
+`.github/workflows/e2e.yml`.
+
+Natively (`bun run test`, outside the box) this spec and
+`self-update-while-running.spec.ts` are left out of the run: they need the
+stand-in's `QUIVER_E2E_UPSTREAM_STATE`.
 
 ## Platform support — read this first
 
