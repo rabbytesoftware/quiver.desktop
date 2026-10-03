@@ -33,16 +33,19 @@ describe('an outdated self-arrow gets the generic outdated badge', () => {
 
 	it('bootstraps the self-arrow to ready so it can legally go outdated', async () => {
 		// absent -> outdated is not a legal ArrowState transition, only
-		// ready -> outdated is, so it needs an Install first.
+		// ready -> outdated is, so it has to be ready first.
 		const { status, body } = await coreClient(home).post(`/v0/runtime/${encodeURIComponent(versionedNs)}/install`, {
 			variables: {
 				QUIVER_RELEASE_ASSET_URL: 'unused-for-install',
 				QUIVER_RELEASE_CHECKSUM: 'unused-for-install',
 			},
 		});
-		if (status !== 202) {
+		// A self-arrow is installed by definition: the daemon lands it at
+		// ready on boot, so installing it again is a 200 no-op. A 202 means an
+		// install really started.
+		if (status !== 202 && status !== 200) {
 			throw new Error(
-				`install of ${versionedNs} answered ${status}, expected 202. Body: ${JSON.stringify(body)}`
+				`install of ${versionedNs} answered ${status}, expected 200 or 202. Body: ${JSON.stringify(body)}`
 			);
 		}
 

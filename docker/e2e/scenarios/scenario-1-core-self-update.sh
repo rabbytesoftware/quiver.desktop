@@ -115,6 +115,9 @@ api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW")/update" \
 	202 >/dev/null
 ok "POST /v0/runtime/$CORE_ARROW/update accepted (202)"
 
+say "The update stages the new build and waits to be applied"
+activate_staged "$CORE_ARROW" "$CORE_V2" "$CORE_V1"
+
 # --- assert: the process actually became the new build ---------------------
 
 say "Waiting for the handover"
