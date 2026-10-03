@@ -1199,6 +1199,60 @@ describe('Hero, updating', () => {
 	});
 });
 
+describe('Hero, restart to apply', () => {
+	const STAGED = { version: 'v1.22.0', staged_at: '2026-10-03T10:00:00Z' };
+	const AHEAD = { ref: 'v1.22.0', commit: 'abc1234' };
+
+	it.each([
+		['quiver.core', 'github.com/rabbytesoftware/quiver.core@stable'],
+		['an ordinary arrow', 'github.com/rabbyte/minecraft@v1.21.4'],
+	])('offers Restart to apply instead of Update on %s once an update is staged', (_name, namespace) => {
+		renderHero({ detail: detail({ namespace, available: AHEAD, outdated: true, pending_activation: STAGED }) });
+		expect(screen.getByRole('button', { name: 'Restart to apply' })).toBeEnabled();
+		expect(screen.queryByRole('button', { name: 'Update' })).not.toBeInTheDocument();
+	});
+
+	it('activates the staged update and shows a restarting state while the daemon comes back', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ pending_activation: STAGED }) });
+
+		await user.click(screen.getByRole('button', { name: 'Restart to apply' }));
+
+		await waitFor(() =>
+			expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/activate'), expect.anything())
+		);
+		expect(await screen.findByRole('button', { name: /Restarting/ })).toBeDisabled();
+	});
+
+	it('goes back to Start once the new version reports nothing staged', async () => {
+		const user = userEvent.setup();
+		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		const props = { channelsLoading: false, onValueChange: vi.fn(), platform: PLATFORM, values: {} };
+		const view = render(<Hero {...props} detail={detail({ pending_activation: STAGED })} />, {
+			wrapper: wrapper(client),
+		});
+		await user.click(screen.getByRole('button', { name: 'Restart to apply' }));
+		await screen.findByRole('button', { name: /Restarting/ });
+
+		view.rerender(<Hero {...props} detail={detail({ resolved_ref: 'v1.22.0', pending_activation: null })} />);
+
+		await waitFor(() => expect(screen.queryByRole('button', { name: /Restarting/ })).not.toBeInTheDocument());
+		expect(screen.queryByRole('button', { name: 'Restart to apply' })).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled();
+	});
+
+	it('reports a refused activation instead of showing a restart', async () => {
+		mockApiFetch.mockRejectedValueOnce(new ApiError('handover could not start', 500));
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ pending_activation: STAGED }) });
+
+		await user.click(screen.getByRole('button', { name: 'Restart to apply' }));
+
+		expect(await screen.findByText('handover could not start')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /Restarting/ })).not.toBeInTheDocument();
+	});
+});
+
 /**
  * `isPlatformSupported` (an exact match, no fallback) is what both of these
  * are driven by -- `TARGET.platform` is `PLATFORM` by default, so every test

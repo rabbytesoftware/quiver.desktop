@@ -179,6 +179,26 @@ describe('useArrowUpdate update', () => {
 		expect(result.current.error).toBeNull();
 	});
 
+	it('is downloading from the click, before the runtime frame for the run arrives', async () => {
+		let answer!: () => void;
+		mockApiRequest.mockImplementation(
+			() => new Promise((resolve) => (answer = () => resolve({ status: 202, data: undefined })))
+		);
+		const { result } = setup(detail({ available: { ref: 'stable-26.6', commit: 'abc' } }));
+
+		let started!: Promise<void>;
+		act(() => {
+			started = result.current.update();
+		});
+		await waitFor(() => expect(result.current.state).toBe('downloading'));
+
+		await act(async () => {
+			answer();
+			await started;
+		});
+		await waitFor(() => expect(result.current.state).toBe('available'));
+	});
+
 	it('re-reads the detail when core answers that nothing is newer', async () => {
 		mockApiRequest.mockResolvedValue({ status: 200, data: undefined });
 		const { result } = setup(detail({ available: { ref: 'stable-26.6', commit: 'abc' } }));

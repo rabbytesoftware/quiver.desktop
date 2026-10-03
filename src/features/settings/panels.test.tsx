@@ -14,6 +14,8 @@ import { QUIVER_CORE_NAMESPACE } from '@/domain/release';
 import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import { useThemeStore } from '@/features/shell';
 import { useShellStore } from '@/features/shell/stores/shell-store';
+import { useArrowStore } from '@/lib/core-store';
+import { toRuntimeUpdate } from '@/lib/core-store/dtos/v0/runtime';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
 import { createMockBackend, currentMock, disposeMock, installMock } from '@/lib/mock';
 import { setMockCorrected } from '@/lib/mock/server/handlers/config';
@@ -53,6 +55,15 @@ afterEach(() => {
 	disposeMock();
 	resetBackend();
 });
+
+function renderEngine() {
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+	return render(
+		<QueryClientProvider client={client}>
+			<EngineSettings />
+		</QueryClientProvider>
+	);
+}
 
 function renderApp(path: string) {
 	const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) });
@@ -418,20 +429,20 @@ describe('the Engine panel', () => {
 	});
 
 	it('shows the daemon values once loaded', async () => {
-		render(<EngineSettings />);
+		renderEngine();
 		expect(await screen.findByDisplayValue('49152')).toBeInTheDocument();
 		expect(screen.getByDisplayValue('65535')).toBeInTheDocument();
 	});
 
 	it('says nothing about restarting until something is pending', async () => {
-		render(<EngineSettings />);
+		renderEngine();
 		await screen.findByDisplayValue('49152');
 		expect(screen.queryByText(/restart/i)).not.toBeInTheDocument();
 	});
 
 	it('announces the restart once a change is pending', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		const start = await screen.findByDisplayValue('49152');
 		await user.clear(start);
 		await user.type(start, '27015');
@@ -441,7 +452,7 @@ describe('the Engine panel', () => {
 
 	it('shows the daemon default again after a reset', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		const start = await screen.findByDisplayValue('49152');
 		await user.clear(start);
 		await user.type(start, '27015');
@@ -453,7 +464,7 @@ describe('the Engine panel', () => {
 
 	it('reports settings the daemon had to replace with defaults, including why', async () => {
 		setMockCorrected(currentMock()!.world, ['vault.ttl']);
-		render(<EngineSettings />);
+		renderEngine();
 		expect(
 			await screen.findByText(/could not use these settings.*vault\.ttl \(unusable value, default applied\)/i)
 		).toBeInTheDocument();
@@ -461,7 +472,7 @@ describe('the Engine panel', () => {
 
 	it('marks the row the daemon refused, attributed to the lowest port', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		const start = await screen.findByDisplayValue('49152');
 		await user.clear(start);
 		await user.type(start, '99999');
@@ -471,7 +482,7 @@ describe('the Engine panel', () => {
 
 	it('attributes a rejection on the highest port to that field, not the lowest', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		const end = await screen.findByDisplayValue('65535');
 		await user.clear(end);
 		await user.type(end, '99999');
@@ -482,7 +493,7 @@ describe('the Engine panel', () => {
 
 	it('reverts a rejected port to the daemon value, while still showing why', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		const start = await screen.findByDisplayValue('49152');
 		await user.clear(start);
 		await user.type(start, '99999');
@@ -497,7 +508,7 @@ describe('the Engine panel', () => {
 
 	it('shows an error instead of the panel when the daemon cannot be reached', async () => {
 		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 100 } });
-		render(<EngineSettings />);
+		renderEngine();
 		expect(await screen.findByText(/mock fault: config/i)).toBeInTheDocument();
 		expect(screen.queryByDisplayValue('49152')).not.toBeInTheDocument();
 	});
@@ -505,7 +516,7 @@ describe('the Engine panel', () => {
 	it('offers a retry once the daemon cannot be reached, and recovers once it can', async () => {
 		const user = userEvent.setup();
 		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 100 } });
-		render(<EngineSettings />);
+		renderEngine();
 		const retry = await screen.findByRole('button', { name: 'Try again' });
 
 		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 0 } });
@@ -516,7 +527,7 @@ describe('the Engine panel', () => {
 
 	it('drives the write-to-disk switch and resets it', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		await screen.findByDisplayValue('49152');
 
 		const reset = screen.getByRole('button', { name: 'Reset Write logs to disk' });
@@ -532,7 +543,7 @@ describe('the Engine panel', () => {
 
 	it('drives the log level select and resets it', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		await screen.findByDisplayValue('49152');
 
 		await user.click(screen.getByLabelText('Level'));
@@ -544,7 +555,7 @@ describe('the Engine panel', () => {
 	});
 
 	it('marks the log level row the daemon refused', async () => {
-		render(<EngineSettings />);
+		renderEngine();
 		await screen.findByDisplayValue('49152');
 
 		// The Select only ever offers values the mock accepts, so a rejected
@@ -558,7 +569,7 @@ describe('the Engine panel', () => {
 
 	it('leaves a non-integer port untouched, without contacting the daemon', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		const start = await screen.findByDisplayValue('49152');
 		await user.clear(start);
 		await user.type(start, '1.5');
@@ -570,7 +581,7 @@ describe('the Engine panel', () => {
 
 	it('sends nothing when a port field is left empty, and it snaps back to the daemon value', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		const start = await screen.findByDisplayValue('49152');
 		await user.clear(start);
 		await user.tab();
@@ -584,7 +595,7 @@ describe('the Engine panel', () => {
 
 	it('resets the high end of the port range on its own', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		const end = await screen.findByDisplayValue('65535');
 		await user.clear(end);
 		await user.type(end, '60000');
@@ -600,7 +611,7 @@ describe('the Engine panel', () => {
 	});
 
 	it('shows a loading state before the first view arrives, instead of an empty panel', async () => {
-		render(<EngineSettings />);
+		renderEngine();
 		const status = screen.getByRole('status', { name: 'Loading engine settings' });
 		expect(status).toHaveAttribute('aria-busy', 'true');
 		expect(screen.queryByDisplayValue('49152')).not.toBeInTheDocument();
@@ -612,7 +623,7 @@ describe('the Engine panel', () => {
 
 	it('clears a stale rejection when the panel is left and revisited', async () => {
 		const user = userEvent.setup();
-		const { unmount } = render(<EngineSettings />);
+		const { unmount } = renderEngine();
 
 		const start = await screen.findByDisplayValue('49152');
 		await user.clear(start);
@@ -634,7 +645,7 @@ describe('the Engine panel', () => {
 		// valid value — neither the earlier rejection nor the patch error
 		// must survive the trip.
 		unmount();
-		render(<EngineSettings />);
+		renderEngine();
 
 		await screen.findByDisplayValue('49152');
 		expect(screen.queryByText(/port out of range/i)).not.toBeInTheDocument();
@@ -643,7 +654,7 @@ describe('the Engine panel', () => {
 
 	it('keeps the panel and its rows on screen when a patch fails, showing the error inline', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		await screen.findByDisplayValue('49152');
 
 		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 100 } });
@@ -657,7 +668,7 @@ describe('the Engine panel', () => {
 	});
 
 	it('normalises an on-disk log level alias for display', async () => {
-		render(<EngineSettings />);
+		renderEngine();
 		await screen.findByDisplayValue('49152');
 
 		// The mock accepts `warning` as a valid on-disk alias (core does too;
@@ -681,14 +692,14 @@ describe("the Engine panel's auto-register row", () => {
 	});
 
 	it('starts off, matching the daemon default', async () => {
-		render(<EngineSettings />);
+		renderEngine();
 		expect(await screen.findByRole('switch', { name: LABEL })).not.toBeChecked();
 		expect(screen.getByRole('button', { name: `Reset ${LABEL}` })).toBeDisabled();
 	});
 
 	it('patches Fletcher on, leaves search alone, and says the daemon must restart', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		await user.click(await screen.findByRole('switch', { name: LABEL }));
 
 		await waitFor(() => expect(screen.getByRole('switch', { name: LABEL })).toBeChecked());
@@ -702,7 +713,7 @@ describe("the Engine panel's auto-register row", () => {
 
 	it('patches Fletcher off again and drops the restart note', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		await user.click(await screen.findByRole('switch', { name: LABEL }));
 		await waitFor(() => expect(screen.getByRole('switch', { name: LABEL })).toBeChecked());
 
@@ -715,7 +726,7 @@ describe("the Engine panel's auto-register row", () => {
 
 	it('resets the switch to the daemon default', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		await user.click(await screen.findByRole('switch', { name: LABEL }));
 		await waitFor(() => expect(screen.getByRole('switch', { name: LABEL })).toBeChecked());
 
@@ -726,7 +737,7 @@ describe("the Engine panel's auto-register row", () => {
 	it('is on when Fletcher is already on in the daemon, with nothing pending', async () => {
 		const { configured, running } = currentMock()!.world.config;
 		for (const doc of [configured, running]) doc.manifold.fletcher = { enabled: true };
-		render(<EngineSettings />);
+		renderEngine();
 		expect(await screen.findByRole('switch', { name: LABEL })).toBeChecked();
 		expect(screen.queryByText(/restart/i)).not.toBeInTheDocument();
 	});
@@ -734,14 +745,14 @@ describe("the Engine panel's auto-register row", () => {
 	it('reads as off, without crashing, on a daemon that predates the keys', async () => {
 		const { configured, running } = currentMock()!.world.config;
 		for (const doc of [configured, running]) delete doc.manifold.fletcher;
-		render(<EngineSettings />);
+		renderEngine();
 		expect(await screen.findByRole('switch', { name: LABEL })).not.toBeChecked();
 		expect(screen.getByDisplayValue('49152')).toBeInTheDocument();
 	});
 
 	it('shows the daemon’s refusal on the row when it does not know the keys', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		const toggle = await screen.findByRole('switch', { name: LABEL });
 		vi.spyOn(engineApi, 'patchConfig').mockResolvedValueOnce({
 			applied: [],
@@ -756,7 +767,7 @@ describe("the Engine panel's auto-register row", () => {
 
 	it('reports a failed patch inline and keeps the panel', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		const toggle = await screen.findByRole('switch', { name: LABEL });
 		useMockStore.setState({ faults: { ...useMockStore.getState().faults, config: 100 } });
 
@@ -774,7 +785,7 @@ describe("the Engine panel's self-update channel row", () => {
 	});
 
 	it('disables the picker and explains why when quiver.core has not self-registered yet', async () => {
-		render(<EngineSettings />);
+		renderEngine();
 		await screen.findByDisplayValue('49152');
 
 		expect(await screen.findByText("Couldn't load quiver.core's channels")).toBeInTheDocument();
@@ -804,7 +815,7 @@ describe("the Engine panel's self-update channel row", () => {
 			})
 		);
 
-		render(<EngineSettings />);
+		renderEngine();
 		await screen.findByDisplayValue('49152');
 
 		const select = await screen.findByRole('combobox', { name: 'Update channel' });
@@ -828,7 +839,7 @@ describe("the Engine panel's self-update channel row", () => {
 			})
 		);
 
-		render(<EngineSettings />);
+		renderEngine();
 		await screen.findByDisplayValue('49152');
 
 		const select = await screen.findByRole('combobox', { name: 'Update channel' });
@@ -842,6 +853,181 @@ describe("the Engine panel's self-update channel row", () => {
 
 		await user.click(screen.getByRole('button', { name: 'Reset Update channel' }));
 		await waitFor(() => expect(useEngineStore.getState().view?.configured.arrows?.self_update_channel).toBe(''));
+	});
+});
+
+describe("the Engine panel's update rows", () => {
+	const CORE = `${QUIVER_CORE_NAMESPACE}@stable-26.5`;
+	const AHEAD = { ref: 'stable-26.6', commit: 'abc' };
+	const STAGED = { version: 'stable-26.6', staged_at: '2026-10-03T10:00:00Z' };
+
+	function registerCore(overrides: Partial<ReturnType<typeof arrow>> = {}) {
+		currentMock()!.world.arrows.set(
+			CORE,
+			arrow({
+				namespace: QUIVER_CORE_NAMESPACE,
+				name: 'Quiver Core',
+				ref: 'stable-26.5',
+				version: '26.5',
+				state: 'ready',
+				stages_update: true,
+				...overrides,
+			})
+		);
+		useArrowStore.getState().reset();
+		useArrowStore.getState().setCatalog([
+			{
+				connectionId: 'local',
+				namespace: CORE,
+				name: 'Quiver Core',
+				description: '',
+				tags: [],
+				icon: null,
+				banner: null,
+				version: 'stable-26.5',
+			},
+		]);
+		useArrowStore.getState().applyRuntimeUpdate({
+			namespace: CORE,
+			state: overrides.state ?? 'ready',
+			active_run: overrides.active_run ?? null,
+			last_return: null,
+		});
+	}
+
+	beforeEach(() => {
+		installMock('normal');
+		useEngineStore.setState({ view: null, rejected: [], loading: true, error: null, patchError: null });
+		useArrowStore.getState().reset();
+		// What the app's runtime listener does with each frame the daemon pushes.
+		currentMock()!.backend.openSocket('/v0/runtime').onmessage = (e) =>
+			useArrowStore.getState().applyRuntimeUpdate(toRuntimeUpdate(JSON.parse(e.data)));
+	});
+
+	it('says plainly that it has no version to show before quiver.core has registered itself', async () => {
+		renderEngine();
+		await screen.findByDisplayValue('49152');
+
+		expect(await screen.findByText("Version information isn't available yet.")).toBeInTheDocument();
+		expect(screen.getByText('Unknown')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Check for updates' })).toBeDisabled();
+	});
+
+	it('shows the installed version and that it is up to date, offering only a check', async () => {
+		registerCore();
+		renderEngine();
+
+		expect(await screen.findByText('stable-26.5')).toBeInTheDocument();
+		expect(await screen.findByText('quiver.core is up to date.')).toBeInTheDocument();
+		expect(screen.getByText('None')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Check for updates' })).toBeEnabled();
+		expect(screen.queryByRole('button', { name: 'Update' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Restart to apply' })).not.toBeInTheDocument();
+	});
+
+	it('asks core to check now when Check for updates is pressed', async () => {
+		const user = userEvent.setup();
+		registerCore();
+		renderEngine();
+		await screen.findByText('quiver.core is up to date.');
+		const fetch = vi.spyOn(currentMock()!.backend, 'fetch');
+
+		await user.click(screen.getByRole('button', { name: 'Check for updates' }));
+
+		await waitFor(() =>
+			expect(fetch).toHaveBeenCalledWith(
+				`/v0/arrow/${encodeURIComponent(CORE)}/check`,
+				expect.objectContaining({ method: 'POST' })
+			)
+		);
+	});
+
+	it('shows the available version and offers Update', async () => {
+		registerCore({ state: 'outdated', available: AHEAD });
+		renderEngine();
+
+		expect(await screen.findByText('Version stable-26.6 is available.')).toBeInTheDocument();
+		expect(screen.getAllByText('stable-26.6').length).toBeGreaterThan(0);
+		expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled();
+	});
+
+	it('starts the update without any variables and shows it downloading, leaving a second press out of reach', async () => {
+		const user = userEvent.setup();
+		registerCore({ state: 'outdated', available: AHEAD });
+		renderEngine();
+		await user.click(await screen.findByRole('button', { name: 'Update' }));
+
+		expect(await screen.findByText(/Downloading and checking the new version/)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /Updating/ })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Check for updates' })).toBeDisabled();
+	});
+
+	it('offers Restart to apply once an update is staged, naming the version', async () => {
+		registerCore({ pending_activation: STAGED, available: AHEAD });
+		renderEngine();
+
+		expect(await screen.findByText(/Version stable-26\.6 is downloaded and checked/)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Restart to apply' })).toBeEnabled();
+		expect(screen.queryByRole('button', { name: 'Update' })).not.toBeInTheDocument();
+	});
+
+	it('restarts, then shows the new version with nothing left to apply', async () => {
+		const user = userEvent.setup();
+		registerCore({ pending_activation: STAGED, available: AHEAD });
+		renderEngine();
+		await user.click(await screen.findByRole('button', { name: 'Restart to apply' }));
+
+		expect(await screen.findByText(/Restarting quiver\.core/)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Restarting…' })).toBeDisabled();
+
+		expect(await screen.findByText('quiver.core is up to date.', {}, { timeout: 5000 })).toBeInTheDocument();
+		expect(screen.getByText('stable-26.6')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Restart to apply' })).not.toBeInTheDocument();
+	});
+
+	it('reports a failed check with the cause and retries it', async () => {
+		const user = userEvent.setup();
+		registerCore();
+		renderEngine();
+		await screen.findByText('quiver.core is up to date.');
+		useMockStore.getState().setFault('arrows', 100);
+
+		await user.click(screen.getByRole('button', { name: 'Check for updates' }));
+
+		expect(await screen.findByText(/The update did not complete\. simulated failure/)).toBeInTheDocument();
+		useMockStore.getState().resetFaults();
+		await user.click(screen.getByRole('button', { name: 'Try again' }));
+		expect(await screen.findByText('quiver.core is up to date.')).toBeInTheDocument();
+	});
+
+	it('retries a failed update as an update', async () => {
+		const user = userEvent.setup();
+		registerCore({ state: 'outdated', available: AHEAD });
+		renderEngine();
+		await screen.findByRole('button', { name: 'Update' });
+		useMockStore.getState().setFault('runtime', 100);
+		await user.click(screen.getByRole('button', { name: 'Update' }));
+		await screen.findByText(/The update did not complete/);
+		useMockStore.getState().resetFaults();
+
+		await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+		expect(await screen.findByText(/Downloading and checking the new version/)).toBeInTheDocument();
+	});
+
+	it('retries a refused restart as a restart', async () => {
+		const user = userEvent.setup();
+		registerCore({ pending_activation: STAGED });
+		renderEngine();
+		await screen.findByRole('button', { name: 'Restart to apply' });
+		useMockStore.getState().setFault('runtime', 100);
+		await user.click(screen.getByRole('button', { name: 'Restart to apply' }));
+		await screen.findByText(/The update did not complete/);
+		useMockStore.getState().resetFaults();
+
+		await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+		expect(await screen.findByText(/Restarting quiver\.core/)).toBeInTheDocument();
 	});
 });
 
@@ -864,20 +1050,20 @@ describe('the Command line section of the Engine panel', () => {
 	});
 
 	it('offers to set up PATH, naming where it would be configured', async () => {
-		render(<EngineSettings />);
+		renderEngine();
 		expect(await screen.findByRole('button', { name: 'Set up PATH' })).toBeEnabled();
 		expect(screen.getByText(/Configuration: \/home\/mock\/\.zshrc, \/home\/mock\/\.bashrc\./)).toBeInTheDocument();
 	});
 
 	it('shows a checking state until the status arrives', async () => {
-		render(<EngineSettings />);
+		renderEngine();
 		await screen.findByDisplayValue('49152');
 		await screen.findByRole('button', { name: 'Set up PATH' });
 	});
 
 	it('sets up PATH and asks for a new terminal, without offering the button again', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		await user.click(await screen.findByRole('button', { name: 'Set up PATH' }));
 
 		expect(await screen.findByText(/Open a new terminal/)).toBeInTheDocument();
@@ -892,7 +1078,7 @@ describe('the Command line section of the Engine panel', () => {
 			configured: true,
 			files: [],
 		});
-		render(<EngineSettings />);
+		renderEngine();
 		expect(await screen.findByText('Ready')).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Set up PATH' })).not.toBeInTheDocument();
 		expect(screen.queryByText(/Configuration:/)).not.toBeInTheDocument();
@@ -900,7 +1086,7 @@ describe('the Command line section of the Engine panel', () => {
 
 	it('shows a setup failure inline and keeps the button', async () => {
 		const user = userEvent.setup();
-		render(<EngineSettings />);
+		renderEngine();
 		const button = await screen.findByRole('button', { name: 'Set up PATH' });
 		useMockStore.getState().setFault('path', 100);
 		await user.click(button);
@@ -912,7 +1098,7 @@ describe('the Command line section of the Engine panel', () => {
 	it('offers a retry when the status cannot be loaded', async () => {
 		const user = userEvent.setup();
 		useMockStore.getState().setFault('path', 100);
-		render(<EngineSettings />);
+		renderEngine();
 		await screen.findByDisplayValue('49152');
 		const retry = await screen.findAllByRole('button', { name: 'Try again' });
 
@@ -923,7 +1109,7 @@ describe('the Command line section of the Engine panel', () => {
 
 	it('hides the entry on a core without the endpoint', async () => {
 		vi.spyOn(pathApi, 'getPathStatus').mockRejectedValue(new ApiError('not found', 404));
-		render(<EngineSettings />);
+		renderEngine();
 		await screen.findByDisplayValue('49152');
 		await waitFor(() => expect(usePathStore.getState().unavailable).toBe(true));
 		expect(screen.queryByText('Command line')).not.toBeInTheDocument();

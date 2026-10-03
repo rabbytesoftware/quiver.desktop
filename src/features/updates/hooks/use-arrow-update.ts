@@ -52,14 +52,17 @@ export function useArrowUpdate(detail: ArrowDetail | undefined): ArrowUpdate {
 	const updateMutation = useUpdate();
 	const activateMutation = useActivate();
 
-	const [restarting, setRestarting] = useState(false);
+	// The staging this tab asked to apply. Restarting lasts exactly while that same staging is still
+	// what the daemon reports, so it ends by derivation instead of by an effect that resets state.
+	const [activating, setActivating] = useState<string | null>(null);
 	const [error, setError] = useState<UpdateError | null>(null);
 	const [checking, setChecking] = useState(false);
 
 	const namespace = detail?.namespace ?? '';
 	const pending = detail?.pending_activation ?? null;
+	const restarting = activating !== null && stagingKey(pending) === activating;
 	const available = detail?.available?.ref ?? null;
-	const running = detail?.state === 'updating' || detail?.active_run?.method === 'update';
+	const running = detail?.state === 'updating' || detail?.active_run?.method === 'update' || updateMutation.isPending;
 
 	const reread = useCallback(
 		() => queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix }),
@@ -82,7 +85,7 @@ export function useArrowUpdate(detail: ArrowDetail | undefined): ArrowUpdate {
 		if (!restarting) return;
 		const poll = setInterval(() => void reread(), RESTART_POLL_MS);
 		const giveUp = setTimeout(() => {
-			setRestarting(false);
+			setActivating(null);
 			setError({ kind: 'offline', message: '' });
 		}, RESTART_GIVE_UP_MS);
 		return () => {
@@ -91,15 +94,17 @@ export function useArrowUpdate(detail: ArrowDetail | undefined): ArrowUpdate {
 		};
 	}, [restarting, reread]);
 
-	// The new process reporting nothing staged is the only proof the handover
-	// finished: a reply to `activate` or a reconnected socket is not.
-	const finished = restarting && detail !== undefined && pending === null;
+	// The new process reporting something other than the staging we applied is
+	// the only proof the handover finished: a reply to `activate` or a
+	// reconnected socket is not.
+	const wasRestarting = useRef(false);
 	useEffect(() => {
-		if (!finished) return;
-		setRestarting(false);
-		useArrowStore.getState().refreshCatalog();
-		void reread();
-	}, [finished, reread]);
+		if (wasRestarting.current && !restarting) {
+			useArrowStore.getState().refreshCatalog();
+			void reread();
+		}
+		wasRestarting.current = restarting;
+	}, [restarting, reread]);
 
 	async function guarded(run: () => Promise<void>): Promise<void> {
 		setError(null);
@@ -132,16 +137,16 @@ export function useArrowUpdate(detail: ArrowDetail | undefined): ArrowUpdate {
 
 	async function activate(): Promise<void> {
 		setError(null);
-		setRestarting(true);
+		setActivating(stagingKey(pending));
 		try {
 			const outcome = await activateMutation.mutateAsync({ namespace });
 			if (outcome === 'nothing_pending') {
-				setRestarting(false);
+				setActivating(null);
 				await reread();
 			}
 		} catch (err) {
 			if (isConnectionDrop(err)) return;
-			setRestarting(false);
+			setActivating(null);
 			setError(classifyUpdateError(err));
 			throw err;
 		}

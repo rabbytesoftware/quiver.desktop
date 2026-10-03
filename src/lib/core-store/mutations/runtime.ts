@@ -33,9 +33,9 @@ function runtimeMethod(input: RuntimeMethodInput): Promise<void> {
 export type UpdateOutcome = 'started' | 'current';
 
 /**
- * What `POST /v0/runtime/:ns/activate` did: `started` (202) -- the daemon is
- * handing over to the staged build and will drop the connection -- or
- * `nothing_pending` (200), a no-op that changed nothing.
+ * What `POST /v0/runtime/:ns/activate` did. `started` (202): the daemon is
+ * handing over to the staged build and will drop the connection.
+ * `nothing_pending` (200): a no-op that changed nothing.
  */
 export type ActivateOutcome = 'started' | 'nothing_pending';
 

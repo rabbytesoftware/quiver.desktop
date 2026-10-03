@@ -14,6 +14,7 @@ import {
 	type ReleaseMessageKey,
 } from '@/features/arrow-details/lib/release-variables';
 import { resolveRealPlatform } from '@/features/arrow-details/lib/use-real-platform';
+import { useArrowUpdate } from '@/features/updates/hooks/use-arrow-update';
 import {
 	useArrowStore,
 	useExecuteArrow,
@@ -104,6 +105,7 @@ export function useHeroActions(
 	const update = useUpdate();
 	const execute = useExecuteArrow();
 	const refreshCatalog = useArrowStore((state) => state.refreshCatalog);
+	const arrowUpdate = useArrowUpdate(detail);
 
 	useEffect(() => {
 		if (!upToDate) return;
@@ -216,6 +218,9 @@ export function useHeroActions(
 					refreshCatalog();
 					break;
 				}
+				case 'activate':
+					await arrowUpdate.activate();
+					break;
 				case 'execute':
 					await execute.mutateAsync({ namespace: detail.namespace, variables: values });
 					break;
@@ -257,7 +262,9 @@ export function useHeroActions(
 	}, [detail.state, execute]);
 
 	return {
-		pendingKind,
+		// Activation outlives its own request: the daemon is gone until the new
+		// version reports, so the button stays busy for all of it.
+		pendingKind: arrowUpdate.state === 'restarting' ? 'activate' : pendingKind,
 		releaseError,
 		actionError,
 		retryKind,

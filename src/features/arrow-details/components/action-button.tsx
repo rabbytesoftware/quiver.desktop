@@ -26,6 +26,7 @@ const ACTION_ICONS: Partial<Record<ArrowActionKind, LucideIcon>> = {
 	reinstall: RefreshCwIcon,
 	execute: PlayIcon,
 	restart: RefreshCwIcon,
+	activate: RefreshCwIcon,
 	stop: SquareIcon,
 	update: RefreshCwIcon,
 	uninstall: Trash2Icon,
