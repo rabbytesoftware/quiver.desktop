@@ -13,6 +13,7 @@ use super::{quiver_home, LocalHost};
 
 const HEALTH_RETRY_MS: u64 = 200;
 const HEALTH_MAX_ATTEMPTS: u32 = 25;
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(3);
 
 pub struct SidecarManager {
 	host: LocalHost,
@@ -131,7 +132,9 @@ impl SidecarManager {
 		// each `LocalConnection` builds its own manager — but a handle displaced
 		// from this slot is a daemon nothing can ever kill, so it is reaped
 		// rather than overwritten.
-		self.reap();
+		if let Some(displaced) = take_spawned(&self.child) {
+			kill(displaced);
+		}
 		self.store(child);
 
 		// The receiver is the daemon's stdout and stderr, and dropping it (which
@@ -192,49 +195,37 @@ impl SidecarManager {
 		*self.child.lock().unwrap_or_else(|e| e.into_inner()) = Some(child);
 	}
 
-	/// Kill the daemon this app spawned, if this app spawned one.
+	/// Stop the daemon this app spawned, if this app spawned one.
 	///
-	/// Reached from two places: `LocalConnection::teardown`, which
-	/// `ConnectionManager::retire_streams_and_teardown` runs when the app
-	/// switches away from local, and the `RunEvent::ExitRequested`/`Exit` handler
-	/// in `lib.rs`, which runs when the app quits. Before either existed, the
-	/// daemon simply outlived the app: `CommandChild` has no `Drop`, so quitting
-	/// Quiver left a `quiver daemon` running until the machine was rebooted or
-	/// somebody found it in Activity Monitor.
+	/// Asks it to exit over its own socket (`POST /v0/system/shutdown`) and only
+	/// kills the remembered pid if that fails or times out. The socket is the
+	/// right address because a self-update swaps the binary and restarts the
+	/// daemon under a NEW pid, so the pid recorded at spawn may be gone or
+	/// reused by then, while the socket still reaches whichever daemon is live.
 	///
-	/// Both callers can fire, and either can fire twice — `ExitRequested` and
-	/// `Exit` both arrive on a normal quit. Taking the handle out of the slot is
-	/// what makes every call after the first a no-op, rather than a second kill
-	/// aimed at a pid the OS may by then have given to something else.
+	/// Reached from `LocalConnection::teardown`, which runs when the app
+	/// switches away from local and when it quits (`ExitRequested` and `Exit`
+	/// both fire, hence idempotent: taking the handle out of the slot makes every
+	/// call after the first a no-op).
 	///
-	/// TWO THINGS THIS DELIBERATELY DOES NOT DO.
-	///
-	/// It does not kill whatever holds the local address. The slot is filled only
-	/// by `spawn`, and `ensure_running` returns before spawning when a daemon is
-	/// already answering `/v0/health` — so a `quiver daemon` a developer started
-	/// in a terminal, or one belonging to a second instance of this app, is not
-	/// ours, is not in the slot, and survives. Killing by port or by process name
-	/// would take those down too.
-	///
-	/// And it does not hold the lock across the kill. `take_spawned` hands the
-	/// child back and drops the guard; `kill()` then consumes it and signals the
-	/// OS outside any critical section — which matters because `teardown` takes
-	/// `&self`, so the lock is shared with every other caller, and this runs on
-	/// the way out of the app where a block is a hang the user cannot escape.
-	pub fn reap(&self) {
+	/// It does not stop whatever else holds the local address. The slot is filled
+	/// only by `spawn`; a daemon `ensure_running` adopted belongs to whoever
+	/// started it. The lock is never held across the request or the kill, which
+	/// run on the way out of the app where a block is a hang the user cannot
+	/// escape.
+	pub async fn reap(&self, transport: &dyn Transport) {
 		let Some(child) = take_spawned(&self.child) else {
 			log::debug!(
 				"[local] nothing to reap: this app did not spawn the local daemon"
 			);
 			return;
 		};
-		let pid = child.pid();
-		match child.kill() {
-			Ok(()) => {
-				log::info!("[local] killed the quiver.core we spawned (pid {pid})")
-			}
-			Err(e) => log::warn!("[local] could not kill quiver.core (pid {pid}): {e}"),
+		if request_shutdown(transport, SHUTDOWN_TIMEOUT).await {
+			log::info!("[local] asked quiver.core to shut down");
+			return;
 		}
+		log::warn!("[local] shutdown request failed, killing the spawned pid instead");
+		kill(child);
 	}
 
 	/// See [`Self::spawn`]: private for the same reason.
@@ -297,6 +288,29 @@ fn platform_default_home() -> PathBuf {
 /// react to somebody else's bug.
 fn take_spawned<C>(slot: &Mutex<Option<C>>) -> Option<C> {
 	slot.lock().unwrap_or_else(|e| e.into_inner()).take()
+}
+
+fn kill(child: CommandChild) {
+	let pid = child.pid();
+	match child.kill() {
+		Ok(()) => log::info!("[local] killed the quiver.core we spawned (pid {pid})"),
+		Err(e) => log::warn!("[local] could not kill quiver.core (pid {pid}): {e}"),
+	}
+}
+
+/// One `POST /v0/system/shutdown`: did the daemon accept it in time?
+async fn request_shutdown(transport: &dyn Transport, timeout: Duration) -> bool {
+	let Ok(req) = tauri::http::Request::builder()
+		.method("POST")
+		.uri("quiver://localhost/v0/system/shutdown")
+		.body(Vec::new())
+	else {
+		return false;
+	};
+	matches!(
+		tokio::time::timeout(timeout, transport.request(req)).await,
+		Ok(Ok(resp)) if resp.status().is_success()
+	)
 }
 
 /// Drain the daemon's event stream into the log, for as long as it lasts.
@@ -401,6 +415,8 @@ mod tests {
 		AStranger,
 		/// Nothing is listening at all.
 		Absent,
+		/// Accepts the connection and never answers.
+		Hung,
 	}
 
 	struct StubTransport(Peer);
@@ -423,6 +439,7 @@ mod tests {
 				Peer::Absent => {
 					Err(TransportError::Connect("connection refused".into()))
 				}
+				Peer::Hung => std::future::pending().await,
 			}
 		}
 
@@ -499,17 +516,14 @@ mod tests {
 	}
 
 	/// The ownership rule, through the real type. `ensure_running` adopts a daemon
-	/// that is already answering `/v0/health` rather than spawning one, and takes
-	/// its early return before `spawn` — so no handle is recorded, and reaping must
-	/// be a quiet no-op. A daemon this app did not start is not this app's to stop:
-	/// killing by port or by process name would take down a developer's own
-	/// `quiver daemon`, and a `reap` that unwrapped instead of returning would take
-	/// down the app's quit with a panic.
-	#[test]
-	fn a_daemon_this_app_did_not_spawn_is_left_alone() {
+	/// that is already answering `/v0/health` rather than spawning one, so no
+	/// handle is recorded, and reaping must be a quiet no-op that does not even
+	/// ask the adopted daemon to shut down.
+	#[tokio::test]
+	async fn a_daemon_this_app_did_not_spawn_is_left_alone() {
 		let manager = SidecarManager::new(test_host());
 
-		manager.reap();
+		manager.reap(&StubTransport(Peer::Healthy)).await;
 
 		assert!(
 			manager.child
@@ -518,6 +532,21 @@ mod tests {
 				.is_none(),
 			"only `spawn` may fill this slot"
 		);
+	}
+
+	const TICK: Duration = Duration::from_millis(50);
+
+	#[tokio::test]
+	async fn a_daemon_that_accepts_shutdown_is_not_killed() {
+		assert!(request_shutdown(&StubTransport(Peer::Healthy), TICK).await);
+	}
+
+	/// Each of these must fall back to killing the remembered pid.
+	#[tokio::test]
+	async fn a_refused_or_unreachable_or_hung_shutdown_reports_failure() {
+		assert!(!request_shutdown(&StubTransport(Peer::AStranger), TICK).await);
+		assert!(!request_shutdown(&StubTransport(Peer::Absent), TICK).await);
+		assert!(!request_shutdown(&StubTransport(Peer::Hung), TICK).await);
 	}
 
 	// ── The daemon's own output ──────────────────────────────────────────────
