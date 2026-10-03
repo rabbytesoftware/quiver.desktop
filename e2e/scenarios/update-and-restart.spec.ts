@@ -114,7 +114,12 @@ describe('update quiver.core and apply it with Restart to apply', () => {
 		const detail = (await getArrow(home, NS_CORE)).body;
 		expect(detail).not.toBeNull();
 		coreIdentity = detail!.namespace;
-		await waitForArrow(home, coreIdentity, (d) => d.state === 'ready' || d.state === 'outdated', 'a settled quiver.core');
+		await waitForArrow(
+			home,
+			coreIdentity,
+			(d) => d.state === 'ready' || d.state === 'outdated',
+			'a settled quiver.core'
+		);
 		expect(await daemonVersion(home)).toBe(V1);
 
 		if (!FIXTURE_NS || !REQUIRED_NS) {
@@ -123,9 +128,13 @@ describe('update quiver.core and apply it with Restart to apply', () => {
 		const client = coreClient(home);
 		expect([200, 201]).toContain((await client.post(`/v0/arrow/${encodeURIComponent(FIXTURE_NS)}`)).status);
 		supervisedIdentity = (await getArrow(home, FIXTURE_NS)).body!.namespace;
-		expect((await client.post(`/v0/runtime/${encodeURIComponent(supervisedIdentity)}/install`, {})).status).toBe(202);
+		expect((await client.post(`/v0/runtime/${encodeURIComponent(supervisedIdentity)}/install`, {})).status).toBe(
+			202
+		);
 		await waitForArrow(home, supervisedIdentity, (d) => d.state === 'ready', 'the supervised arrow installed');
-		expect((await client.post(`/v0/runtime/${encodeURIComponent(supervisedIdentity)}/execute`, {})).status).toBe(202);
+		expect((await client.post(`/v0/runtime/${encodeURIComponent(supervisedIdentity)}/execute`, {})).status).toBe(
+			202
+		);
 		const running = await waitForArrow(
 			home,
 			supervisedIdentity,
@@ -229,9 +238,15 @@ describe('update quiver.core and apply it with Restart to apply', () => {
 		});
 
 		it('installs the new build as the self-installed binary', async () => {
-			await waitFor('the self-installed binary to be the new build', async () => {
-				return fs.existsSync(selfInstalledCore(home)) && sha256(selfInstalledCore(home)) === sha256OfBuild(V2);
-			}, 60_000);
+			await waitFor(
+				'the self-installed binary to be the new build',
+				async () => {
+					return (
+						fs.existsSync(selfInstalledCore(home)) && sha256(selfInstalledCore(home)) === sha256OfBuild(V2)
+					);
+				},
+				60_000
+			);
 		});
 	});
 
@@ -272,9 +287,13 @@ describe('update quiver.core and apply it with Restart to apply', () => {
 			await waitForDaemonVersion(V3);
 
 			expect(await stagedVersion()).toBeUndefined();
-			await waitFor('the self-installed binary to be the staged build', async () => {
-				return sha256(selfInstalledCore(home)) === sha256OfBuild(V3);
-			}, 60_000);
+			await waitFor(
+				'the self-installed binary to be the staged build',
+				async () => {
+					return sha256(selfInstalledCore(home)) === sha256OfBuild(V3);
+				},
+				60_000
+			);
 
 			await openEngineSettings();
 			await waitForSettingValue('Installed version', V3);
@@ -325,7 +344,11 @@ describe('update quiver.core and apply it with Restart to apply', () => {
 			await check();
 			await waitForSettingValue('Available version', V5);
 			await button('Update').click();
-			await waitFor('the error to show', async () => (await settingDescription(UPDATE_ROW)).includes('digest'), 60_000);
+			await waitFor(
+				'the error to show',
+				async () => (await settingDescription(UPDATE_ROW)).includes('digest'),
+				60_000
+			);
 			await shot('13-settings-no-digest');
 
 			const shown = await settingDescription(UPDATE_ROW);
@@ -337,9 +360,7 @@ describe('update quiver.core and apply it with Restart to apply', () => {
 			await expectUntouched(V4, daemonBefore);
 			expect(await stagedVersion()).toBeUndefined();
 			expect(sha256(selfInstalledCore(home))).toBe(binaryBefore);
-			expect(
-				upstreamHits(`/rabbytesoftware/quiver.core/releases/download/${V5}/${upstream.coreAsset}`)
-			).toBe(0);
+			expect(upstreamHits(`/rabbytesoftware/quiver.core/releases/download/${V5}/${upstream.coreAsset}`)).toBe(0);
 		});
 
 		it('shows the same typed error on the arrow page', async () => {
@@ -368,7 +389,10 @@ describe('update quiver.core and apply it with Restart to apply', () => {
 			await client.patch(`/v0/arrow/${encodeURIComponent(identity)}`, {});
 			await waitForArrow(home, identity, (d) => d.available?.ref === 'stable-1.1', 'e2e-required outdated');
 
-			for (const args of [['update', identity, '--data', 'E2E_TOKEN='], ['update', identity]]) {
+			for (const args of [
+				['update', identity, '--data', 'E2E_TOKEN='],
+				['update', identity],
+			]) {
 				const result = quiverCli(home, args);
 				expect(result.status).not.toBe(0);
 				expect(`${result.stdout}\n${result.stderr}`).toContain('E2E_TOKEN');

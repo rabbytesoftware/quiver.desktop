@@ -14,7 +14,10 @@ export async function buttonExists(label: string): Promise<boolean> {
 }
 
 export async function waitForButton(label: string, timeout = 60_000): Promise<void> {
-	await button(label).waitForExist({ timeout, timeoutMsg: `no button labelled "${label}" appeared within ${timeout}ms` });
+	await button(label).waitForExist({
+		timeout,
+		timeoutMsg: `no button labelled "${label}" appeared within ${timeout}ms`,
+	});
 }
 
 export async function waitForNoButton(label: string, timeout = 60_000): Promise<void> {

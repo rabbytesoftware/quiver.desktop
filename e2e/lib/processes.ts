@@ -5,10 +5,7 @@ import { processAlive } from './core-api';
 
 function pgrep(args: string[]): number[] {
 	try {
-		return execFileSync('pgrep', args, { encoding: 'utf8' })
-			.split('\n')
-			.filter(Boolean)
-			.map(Number);
+		return execFileSync('pgrep', args, { encoding: 'utf8' }).split('\n').filter(Boolean).map(Number);
 	} catch {
 		return [];
 	}
