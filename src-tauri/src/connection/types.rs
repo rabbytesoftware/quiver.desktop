@@ -27,6 +27,8 @@ pub struct ConnectionConfig {
 // ── QuiverConnection trait ───────────────────────────────────────────────────
 
 #[async_trait]
+// async_trait expands to a must_use return type, which clippy flags against any #[must_use] on the trait.
+#[allow(clippy::double_must_use)]
 pub trait QuiverConnection: Send + Sync {
 	async fn start(&self, app: &AppHandle);
 	async fn teardown(&self);
