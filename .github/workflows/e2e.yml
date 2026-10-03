@@ -5,6 +5,10 @@ name: E2E (pre-release)
 # is far too slow and too stateful to run on every push.
 on:
   workflow_dispatch:
+    inputs:
+      core_ref:
+        description: 'quiver.core ref the E2E box builds its daemon from (e2e-box job)'
+        default: develop
   push:
     tags:
       - 'stable-*'
@@ -37,8 +41,8 @@ concurrency:
 # quiver.core build (both locally and once, deliberately, against a genuine
 # CI-shaped setup) confirms the harness itself is correct and that the
 # generic-outdated-badge scenario genuinely passes end to end once the app is
-# actually behind the latest release. But three preconditions this job cannot
-# yet control mean a `stable-*` tag push will currently still show real,
+# actually behind the latest release. But the preconditions below this job
+# cannot yet control mean a `stable-*` tag push will currently still show real,
 # expected failures here, not harness bugs:
 #
 #   1. bootstrap.spec.ts: quiver.desktop's own ARROW.md has to be published at
@@ -59,10 +63,10 @@ concurrency:
 #      (It originally announced `@0.1.0` -- tauri.conf.json's productVersion
 #      -- which demanded a git ref literally named `0.1.0`. Nothing in this
 #      repo ever creates one, so that 404 was permanent rather than pending.)
-#   2. self-update-while-running.spec.ts: needs a fixture arrow a production
-#      daemon can actually resolve (QUIVER_E2E_FIXTURE_NS) -- no such fixture
-#      mechanism reaches a real daemon yet, only the Go integration suite's
-#      in-process stub resolver.
+#   2. (cleared) self-update-while-running.spec.ts needed a fixture arrow a
+#      production daemon can resolve and a release to update to. It now runs
+#      in the e2e-box job below, against the box's GitHub stand-in, together
+#      with update-core.spec.ts; this job leaves both out.
 #   3. generic-outdated-badge.spec.ts: `make fetch-sidecar` always fetches the
 #      HIGHEST matching stable release, so the app under test is always
 #      exactly at the latest tag -- CheckVersionDrift can never find drift
@@ -201,4 +205,43 @@ jobs:
           path: |
             e2e/logs/
             /tmp/quiver-e2e/**/.quiver/logs/
+          if-no-files-found: ignore
+
+  # The same WebDriver specs inside docker/e2e: a Linux desktop (Xvfb, a window
+  # manager), tauri-driver, a quiver.core daemon built from source, and a local
+  # stand-in for github.com that can publish a newer release mid-test. It is
+  # what lets update-core.spec.ts download, verify, swap and fail for
+  # real. Self-contained, so unlike the job above it is not continue-on-error.
+  e2e-box:
+    name: Update E2E (Linux desktop container)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout quiver.desktop
+        uses: actions/checkout@v4
+        with:
+          path: quiver.desktop
+
+      - name: Checkout quiver.core
+        uses: actions/checkout@v4
+        with:
+          repository: rabbytesoftware/quiver.core
+          ref: ${{ inputs.core_ref || 'develop' }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: quiver.core
+
+      - name: Run the WebDriver specs in the box
+        env:
+          QUIVER_CORE_DEV_PATH: ${{ github.workspace }}/quiver.core
+        run: >
+          docker compose -f quiver.desktop/docker/e2e/docker-compose.yml
+          run --rm e2e scenarios/run-wdio.sh
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-box-results
+          path: quiver.desktop/docker/e2e/results/
           if-no-files-found: ignore

@@ -1,3 +1,4 @@
+import { browser } from '@wdio/globals';
 import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -40,6 +41,15 @@ import { APP_BINARY, E2E_TMP, homeForSpec, quiverHome, selfInstalledCore } from 
  * see README.md.
  */
 
+/**
+ * The specs that publish releases to the E2E box's GitHub stand-in cannot run
+ * against the real github.com, so a native run leaves them out. The box sets
+ * QUIVER_E2E_UPSTREAM_STATE (docker/e2e/scenarios/run-wdio.sh).
+ */
+const BOX_ONLY_SPECS = ['update-core', 'self-update-while-running'].map((name) =>
+	path.join(import.meta.dirname, 'scenarios', `${name}.spec.ts`)
+);
+
 const DRIVER_PORT = Number(process.env.QUIVER_E2E_DRIVER_PORT ?? 4444);
 const NATIVE_PORT = Number(process.env.QUIVER_E2E_NATIVE_PORT ?? 4445);
 
@@ -78,6 +88,7 @@ export const config: WebdriverIO.Config = {
 	tsConfigPath: path.join(import.meta.dirname, 'tsconfig.json'),
 
 	specs: [path.join(import.meta.dirname, 'scenarios', '**', '*.spec.ts')],
+	exclude: process.env.QUIVER_E2E_UPSTREAM_STATE ? [] : BOX_ONLY_SPECS,
 
 	// One real GUI window at a time. These scenarios each own a whole
 	// QUIVER_HOME and a whole daemon; running two concurrently would have them
@@ -146,6 +157,15 @@ export const config: WebdriverIO.Config = {
 		fs.rmSync(home, { recursive: true, force: true });
 		fs.mkdirSync(quiverHome(home), { recursive: true });
 
+		// The version check is throttled to one remote call per arrow per hour,
+		// which no scenario that publishes a release a minute in can live with.
+		if (process.env.QUIVER_E2E_VERSION_CHECK_TTL) {
+			fs.writeFileSync(
+				path.join(quiverHome(home), 'config.yaml'),
+				`config:\n  arrows:\n    version_check_ttl: ${process.env.QUIVER_E2E_VERSION_CHECK_TTL}\n`
+			);
+		}
+
 		// The "no self-installed Core yet" precondition has to be recorded
 		// HERE and not inside a spec. By the time Mocha runs its first `it`,
 		// tauri-driver has already launched the app, the app has already
@@ -178,6 +198,20 @@ export const config: WebdriverIO.Config = {
 		});
 
 		await waitForPort(DRIVER_PORT);
+	},
+
+	/** A failing test leaves the screen it failed on. */
+	async afterTest(test, _context, { passed }) {
+		const dir = process.env.QUIVER_E2E_RESULTS;
+		if (passed || !dir) return;
+		const folder = path.join(dir, process.env.QUIVER_E2E_SPEC ?? 'spec');
+		fs.mkdirSync(folder, { recursive: true });
+		const name = test.title.replace(/[^a-z0-9]+/gi, '-').slice(0, 80);
+		try {
+			await browser.saveScreenshot(path.join(folder, `FAILED-${name}.png`));
+		} catch {
+			/* the session may already be gone */
+		}
 	},
 
 	afterSession() {

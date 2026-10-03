@@ -86,7 +86,9 @@ describe('bootstrap: a clean QUIVER_HOME comes up self-installed', () => {
 		const names = await waitForSidebarArrow('Quiver Core');
 		expect(names).toContain('Quiver Core');
 
+		// The sidebar lists the name in each arrow's manifest, and the
+		// desktop's ARROW.md names it "Quiver Desktop".
 		const all = await sidebarArrowNames();
-		expect(all).toContain('Quiver');
+		expect(all).toContain('Quiver Desktop');
 	});
 });

@@ -120,12 +120,9 @@ arrow_detail "$DESK_ARROW" | jq '.' >"$SCENARIO_DIR/desktop-arrow-before.json"
 
 say "B. Publishing a new quiver.core, and nothing new for quiver.desktop"
 publish_manifest rabbytesoftware/quiver.core "$CORE_V2" "/workspace/build/src/quiver.core/ARROW.md"
-publish_release rabbytesoftware/quiver.core "$CORE_V2" "$BUILD_BIN/quiver-$CORE_V2"
+publish_core_asset "$CORE_V2"
 git_tag rabbytesoftware/quiver.core "$CORE_V2"
 mark_latest rabbytesoftware/quiver.core "$CORE_V2"
-
-CORE_URL="https://github.com/rabbytesoftware/quiver.core/releases/download/$CORE_V2/quiver-$CORE_V2"
-CORE_SUM="$(sha256_of "$BUILD_BIN/quiver-$CORE_V2")"
 
 say "B. Core notices its own drift; the desktop arrow must not"
 core_outdated=0
@@ -152,10 +149,7 @@ for _ in $(seq 1 60); do
 done
 info "core self-arrow state before update: $(runtime_state "$CORE_ARROW")"
 
-api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW")/update" \
-	"$(jq -nc --arg u "$CORE_URL" --arg c "$CORE_SUM" \
-		'{variables:{QUIVER_RELEASE_ASSET_URL:$u,QUIVER_RELEASE_CHECKSUM:$c}}')" \
-	202 >/dev/null
+api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW")/update" '{}' 202 >/dev/null
 
 became_v2=0
 for _ in $(seq 1 90); do
@@ -171,7 +165,7 @@ assert_daemon_count 1
 say "B. The desktop app must have survived core replacing itself"
 # The ledger flags an unmitigated SIGPIPE hazard in the other direction (a
 # spawned sidecar dying when its reader goes away). This is the same pipe
-# from the other end: core exec'd itself while the app still held its
+# from the other end: core was replaced while the app still held its
 # stdout/stderr. The app must still be the same process, still on screen.
 assert_desktop_count 1
 assert_eq "$DESKTOP_PID_V1" "$(desktop_pid)" "the desktop pid across core's self-update"
@@ -225,12 +219,14 @@ say "C. The user agrees, by actually clicking Update"
 # variables and 422'd. Driving the pointer is the only way to prove the wiring
 # rather than assert it.
 say "C. Opening Quiver's own page in the running app"
-# The Library shelf's card for Quiver, which is a real router Link to
+# The Library shelf's card for Quiver Desktop, which is a real router Link to
 # /arrow/$ (collection-arrow-tile.tsx) -- the same thing a person clicks. The
 # card, not the sidebar row: it is a ~450x220 target rather than a ~20px-tall
-# one, so this does not depend on the sidebar's exact line height. The
-# screenshot taken immediately above shows the layout being clicked into.
-click_in_app 493 190
+# one, so this does not depend on the sidebar's exact line height. The shelf
+# lists quiver.core's own card first and this one second, so it is the right
+# hand card; the screenshot taken immediately above shows the layout being
+# clicked into.
+click_in_app 952 190
 sleep 3
 screenshot "04-quiver-own-page"
 

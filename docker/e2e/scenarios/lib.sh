@@ -18,6 +18,10 @@ DESK_NS="github.com/rabbytesoftware/quiver.desktop"
 
 CORE_V1="stable-26.5.90"
 CORE_V2="stable-26.5.91"
+CORE_V3="stable-26.5.92"
+CORE_V4="stable-26.5.93"
+# Published without a digest by the failure-path scenario; never built.
+CORE_V5="stable-26.5.94"
 DESK_V1="stable-1.0"
 DESK_V2="stable-1.1"
 
@@ -491,6 +495,27 @@ publish_release() {
 	local f
 	for f in "$@"; do cp "$f" "$dir/"; done
 	info "published $repo@$tag: $*"
+}
+
+# core_arch -- the arch suffix of a quiver.core release asset on this machine.
+core_arch() {
+	case "$(uname -m)" in
+		aarch64) echo arm64 ;;
+		x86_64) echo amd64 ;;
+		*) uname -m ;;
+	esac
+}
+
+# publish_core_asset TAG -- the quiver.core build for TAG as the release asset
+# its own manifest downloads, with the checksums.txt it verifies against.
+publish_core_asset() {
+	local tag="$1" name dir
+	name="quiver-linux-$(core_arch)"
+	dir="$UPSTREAM_STATE/releases/rabbytesoftware/quiver.core/$tag"
+	mkdir -p "$dir"
+	cp "$BUILD_BIN/quiver-$tag" "$dir/$name"
+	printf '%s  ./%s\n' "$(sha256_of "$dir/$name")" "$name" >"$dir/checksums.txt"
+	info "published rabbytesoftware/quiver.core@$tag: $name, checksums.txt"
 }
 
 # mark_latest USER/REPO TAG -- what /releases/latest redirects to, i.e. what

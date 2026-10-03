@@ -12,6 +12,26 @@ docker compose -f docker/e2e/docker-compose.yml run --rm e2e scenarios/run-all.s
 SKIP_BUILD=1 docker compose -f docker/e2e/docker-compose.yml run --rm e2e scenarios/run-all.sh
 ```
 
+The WebDriver specs under `e2e/` run in the same box:
+
+```
+docker compose -f docker/e2e/docker-compose.yml run --rm e2e scenarios/run-wdio.sh
+docker compose -f docker/e2e/docker-compose.yml run --rm e2e scenarios/run-wdio.sh update-core
+```
+
+`update-core` publishes releases of quiver.core as the daemon sees them on GitHub: a
+`quiver-linux-<arch>` asset and the `checksums.txt` the manifest's `fetch` step verifies it
+against, both under `releases/<user>/<repo>/<tag>/` in the stand-in's state. It also
+publishes a release that lists a wrong checksum and one whose asset hands over to a real
+build's `self-update` but is not a daemon itself, to prove the refusal and the rollback.
+
+`QUIVER_CORE_DEV_PATH` names the quiver.core checkout both commands build from. The
+`e2e-box` job of `.github/workflows/e2e.yml` runs it; `e2e/README.md` says what each
+spec covers. Results go to `docker/e2e/results/wdio/`. The stand-in serves
+whatever sits in a release's directory at `releases/download/<tag>/<asset>`, which
+includes the `checksums.txt` quiver.core's own update verifies against, and answers
+`releases/expanded_assets/<tag>`, which is how quiver.core lists a release's assets.
+
 To watch it happen instead, bring the box up on its own and open
 <http://localhost:6080/vnc.html>:
 

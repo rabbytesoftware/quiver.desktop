@@ -15,6 +15,7 @@ import { socketPath } from './paths';
 export interface CoreClient {
 	get<T>(path: string): Promise<{ status: number; body: T | null }>;
 	post<T>(path: string, body?: unknown): Promise<{ status: number; body: T | null }>;
+	patch<T>(path: string, body?: unknown): Promise<{ status: number; body: T | null }>;
 }
 
 /**
@@ -108,6 +109,7 @@ export function coreClient(home: string): CoreClient {
 	return {
 		get: (p) => request(home, 'GET', p),
 		post: (p, b) => request(home, 'POST', p, b),
+		patch: (p, b) => request(home, 'PATCH', p, b),
 	};
 }
 
@@ -173,4 +175,42 @@ export function processAlive(pid: number): boolean {
 	} catch (err) {
 		return (err as NodeJS.ErrnoException).code === 'EPERM';
 	}
+}
+
+/** `GET /versions`: the build of the process holding the socket right now, not of any file on disk. */
+export async function daemonVersion(home: string): Promise<string | null> {
+	try {
+		const { body } = await coreClient(home).get<{ version?: string }>('/versions');
+		return body?.version ?? null;
+	} catch {
+		return null;
+	}
+}
+
+/** The check the Settings button runs: `PATCH /v0/arrow/:ns` re-resolves the row against a fresh snapshot. */
+export async function checkNow(home: string, namespace: string): Promise<{ status: number }> {
+	const { status } = await coreClient(home).patch(`/v0/arrow/${encodeURIComponent(namespace)}`, {});
+	return { status };
+}
+
+/** Polls until `predicate` holds for the arrow detail, or throws with the last detail seen. */
+export async function waitForArrow(
+	home: string,
+	namespace: string,
+	predicate: (detail: ArrowDetailDTO) => boolean,
+	what: string,
+	timeoutMs = 120_000
+): Promise<ArrowDetailDTO> {
+	const deadline = Date.now() + timeoutMs;
+	let last: ArrowDetailDTO | null = null;
+	while (Date.now() < deadline) {
+		try {
+			last = (await getArrow(home, namespace)).body;
+		} catch {
+			last = null;
+		}
+		if (last && predicate(last)) return last;
+		await new Promise((r) => setTimeout(r, 500));
+	}
+	throw new Error(`${namespace} never reached: ${what}. Last seen: ${JSON.stringify(last)}`);
 }
