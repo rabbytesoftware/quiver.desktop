@@ -40,6 +40,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncReadWrite for T {}
 /// arm: `uri_mode` picks it from the scheme, and no TLS code runs.
 pub type WsStream = WebSocketStream<MaybeTlsStream<Box<dyn AsyncReadWrite>>>;
 
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait Transport: Send + Sync {
 	/// Forward one request and return the daemon's whole response.

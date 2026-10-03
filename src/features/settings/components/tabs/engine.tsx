@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 
+import { CoreUpdateRows } from '@/features/settings/components/core-update-rows';
 import { PathSettings } from '@/features/settings/components/path-settings';
 import { useCoreChannels } from '@/features/settings/hooks/use-core-channels';
 import {
@@ -249,6 +250,7 @@ export function EngineSettings() {
 							</SelectContent>
 						</Select>
 					</SettingRow>
+					<CoreUpdateRows />
 				</Section>
 
 				<Section title={t('settings.engine.autoRegister.title')}>

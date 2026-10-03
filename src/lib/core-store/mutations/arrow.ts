@@ -22,3 +22,11 @@ export function useRemoveArrow() {
 			apiFetch<void>(`/v0/arrow/${namespaceSegment(namespace)}`, { method: 'DELETE' }),
 	});
 }
+
+/** `PATCH /v0/arrow/:ns`: asks core to look for a newer version now. It re-resolves against fresh refs and answers once the check has run. */
+export function useCheckForUpdate() {
+	return useMutation({
+		mutationFn: ({ namespace }: { namespace: string }) =>
+			apiFetch<void>(`/v0/arrow/${namespaceSegment(namespace)}`, { method: 'PATCH' }),
+	});
+}

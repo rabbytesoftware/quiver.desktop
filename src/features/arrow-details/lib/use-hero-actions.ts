@@ -14,6 +14,8 @@ import {
 	type ReleaseMessageKey,
 } from '@/features/arrow-details/lib/release-variables';
 import { resolveRealPlatform } from '@/features/arrow-details/lib/use-real-platform';
+import { useArrowUpdate } from '@/features/updates/hooks/use-arrow-update';
+import { isReleaseFailure } from '@/features/updates/lib/update-state';
 import {
 	useArrowStore,
 	useExecuteArrow,
@@ -30,10 +32,12 @@ import { ApiError } from '@/lib/transport/api';
 /**
  * A state violation (422) or conflict (409) on update is a race with another
  * update -- one underway, or the last one's commit still pending -- which a
- * retry a moment later settles. Every other failure is final as reported.
+ * retry a moment later settles. Every other failure is final as reported,
+ * including a release that cannot be resolved: core answers it with the same
+ * 422, and waiting does not make a release publish a checksum.
  */
 function isRetryableUpdateError(err: unknown): boolean {
-	return err instanceof ApiError && (err.status === 409 || err.status === 422);
+	return err instanceof ApiError && (err.status === 409 || err.status === 422) && !isReleaseFailure(err);
 }
 
 export interface HeroActions {
@@ -104,6 +108,7 @@ export function useHeroActions(
 	const update = useUpdate();
 	const execute = useExecuteArrow();
 	const refreshCatalog = useArrowStore((state) => state.refreshCatalog);
+	const arrowUpdate = useArrowUpdate(detail);
 
 	useEffect(() => {
 		if (!upToDate) return;
@@ -216,6 +221,9 @@ export function useHeroActions(
 					refreshCatalog();
 					break;
 				}
+				case 'activate':
+					await arrowUpdate.activate();
+					break;
 				case 'execute':
 					await execute.mutateAsync({ namespace: detail.namespace, variables: values });
 					break;
@@ -257,7 +265,9 @@ export function useHeroActions(
 	}, [detail.state, execute]);
 
 	return {
-		pendingKind,
+		// Activation outlives its own request: the daemon is gone until the new
+		// version reports, so the button stays busy for all of it.
+		pendingKind: arrowUpdate.state === 'restarting' ? 'activate' : pendingKind,
 		releaseError,
 		actionError,
 		retryKind,

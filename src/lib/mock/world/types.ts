@@ -3,6 +3,7 @@ import type {
 	ArrowState,
 	ArrowStepDefinition,
 	AvailableVersion,
+	PendingActivation,
 	SelectorKind,
 	StepProgress,
 } from '@/domain/arrow';
@@ -99,6 +100,10 @@ export interface MockArrow {
 	resolved_ref?: string;
 	/** What is ahead of `resolved_ref`, undefined when current. `arrow()` gives every `outdated` fixture one. */
 	available?: AvailableVersion;
+	/** An update that finishes by staging for a restart, as quiver.core's own does, instead of advancing the row. */
+	stages_update?: boolean;
+	/** A staged update waiting for `activate`. */
+	pending_activation?: PendingActivation;
 	/** Every channel this arrow's repo publishes -- `GET /v0/arrow/:ns/channels`. Undefined (not `[]`) for a fixture that publishes none, same convention as `dependencies` below. */
 	channels?: MockChannel[];
 	/** Reported by both lanes; core takes it from the vault index. */

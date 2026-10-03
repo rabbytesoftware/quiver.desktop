@@ -30,4 +30,18 @@ describe('toRuntimeUpdate', () => {
 		const result = toRuntimeUpdate({ namespace: 'ns@v1', state: 'ready', last_return: lastReturn });
 		expect(result.last_return).toEqual(lastReturn);
 	});
+
+	it('defaults pending_activation to null when absent', () => {
+		const result = toRuntimeUpdate({ namespace: 'ns@v1', state: 'ready' });
+		expect(result.pending_activation).toBeNull();
+	});
+
+	it('maps a staged activation from wire to domain', () => {
+		const result = toRuntimeUpdate({
+			namespace: 'ns@v1',
+			state: 'ready',
+			pending_activation: { version: 'nightly-2', staged_at: '2026-10-03T10:00:00Z' },
+		});
+		expect(result.pending_activation).toEqual({ version: 'nightly-2', staged_at: '2026-10-03T10:00:00Z' });
+	});
 });

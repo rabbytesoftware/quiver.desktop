@@ -81,7 +81,7 @@ RUN GOARCH_DEB="$(dpkg --print-architecture)" \
     && curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-${GOARCH_DEB}.tar.gz | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:${PATH}"
 
-ARG RUST_VERSION=1.88
+ARG RUST_VERSION=1.90
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH="/usr/local/cargo/bin:${PATH}"
@@ -90,6 +90,25 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
 
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
+
+# --- WebDriver harness (e2e/): Node, WebKitWebDriver, tauri-driver ---------
+# The native driver tauri-driver wraps on Linux. It must come from the same
+# distribution as libwebkit2gtk above, or the two disagree about the protocol.
+# xz-utils is for unpacking Node.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    webkit2gtk-driver \
+    xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node as well as bun: expect-webdriverio, which WebdriverIO pulls in, refuses
+# to load under bun alone. The tarball name maps dpkg's arch to Node's, so the
+# image builds on amd64 (CI) and arm64 (Apple silicon) alike.
+ARG NODE_VERSION=24.9.0
+RUN NODE_ARCH="$(dpkg --print-architecture | sed 's/amd64/x64/')" \
+    && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" \
+       | tar -C /usr/local --strip-components=1 -xJ
+
+RUN cargo install tauri-driver --locked
 
 # webkit2gtk's own sandbox needs privileges a default container does not have,
 # and its GPU/DMA-BUF paths need a GPU a container does not have either. Set

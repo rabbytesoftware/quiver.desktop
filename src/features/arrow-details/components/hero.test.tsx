@@ -1046,7 +1046,7 @@ describe('Hero, picking what an entry follows', () => {
 describe('Hero, updating', () => {
 	const AHEAD = { ref: 'v1.22.0', commit: 'abc1234' };
 
-	it('keeps quiver.core’s update available but disabled, says why, and sends nothing', async () => {
+	it('lets quiver.core update like any other arrow, sending no variables', async () => {
 		const user = userEvent.setup();
 		renderHero({
 			detail: detail({
@@ -1059,15 +1059,12 @@ describe('Hero, updating', () => {
 
 		expect(screen.getByText('Update available')).toBeInTheDocument();
 		const update = screen.getByRole('button', { name: 'Update' });
-		expect(update).toBeDisabled();
-		expect(screen.getByRole('note')).toHaveTextContent('Settings → Engine');
+		expect(update).toBeEnabled();
 		await user.click(update);
-		expect(apiFetch).not.toHaveBeenCalled();
-	});
-
-	it('shows no such note for an ordinary arrow', () => {
-		renderHero({ detail: detail({ state: 'outdated', available: AHEAD, outdated: true }) });
-		expect(screen.queryByRole('note')).not.toBeInTheDocument();
+		await waitFor(() =>
+			expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/update'), expect.anything())
+		);
+		expect(bodyOf(lastCall())).toEqual({ variables: {} });
 	});
 
 	it.each([200, 202])(
@@ -1177,6 +1174,20 @@ describe('Hero, updating', () => {
 		expect(mockApiFetch.mock.calls[1][0]).toContain('/update');
 	});
 
+	it('reports a release core could not resolve as final, not as a racing update', async () => {
+		const message = 'begin update: release unresolved: unverifiable: release has no published digest';
+		mockApiFetch.mockRejectedValueOnce(new ApiError(message, 422));
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ state: 'outdated', available: AHEAD, outdated: true }) });
+
+		await user.click(screen.getByRole('button', { name: 'Update' }));
+
+		const dialog = await screen.findByRole('dialog');
+		expect(dialog).toHaveTextContent('no published digest');
+		expect(dialog).not.toHaveTextContent('Another update is underway');
+		expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+	});
+
 	it('closes the retry dialog without retrying', async () => {
 		mockApiFetch.mockRejectedValueOnce(new ApiError('state violation', 422));
 		const user = userEvent.setup();
@@ -1199,6 +1210,60 @@ describe('Hero, updating', () => {
 
 		expect(await screen.findByText('fetch failed')).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+	});
+});
+
+describe('Hero, restart to apply', () => {
+	const STAGED = { version: 'v1.22.0', staged_at: '2026-10-03T10:00:00Z' };
+	const AHEAD = { ref: 'v1.22.0', commit: 'abc1234' };
+
+	it.each([
+		['quiver.core', 'github.com/rabbytesoftware/quiver.core@stable'],
+		['an ordinary arrow', 'github.com/rabbyte/minecraft@v1.21.4'],
+	])('offers Restart to apply instead of Update on %s once an update is staged', (_name, namespace) => {
+		renderHero({ detail: detail({ namespace, available: AHEAD, outdated: true, pending_activation: STAGED }) });
+		expect(screen.getByRole('button', { name: 'Restart to apply' })).toBeEnabled();
+		expect(screen.queryByRole('button', { name: 'Update' })).not.toBeInTheDocument();
+	});
+
+	it('activates the staged update and shows a restarting state while the daemon comes back', async () => {
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ pending_activation: STAGED }) });
+
+		await user.click(screen.getByRole('button', { name: 'Restart to apply' }));
+
+		await waitFor(() =>
+			expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/activate'), expect.anything())
+		);
+		expect(await screen.findByRole('button', { name: /Restarting/ })).toBeDisabled();
+	});
+
+	it('goes back to Start once the new version reports nothing staged', async () => {
+		const user = userEvent.setup();
+		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		const props = { channelsLoading: false, onValueChange: vi.fn(), platform: PLATFORM, values: {} };
+		const view = render(<Hero {...props} detail={detail({ pending_activation: STAGED })} />, {
+			wrapper: wrapper(client),
+		});
+		await user.click(screen.getByRole('button', { name: 'Restart to apply' }));
+		await screen.findByRole('button', { name: /Restarting/ });
+
+		view.rerender(<Hero {...props} detail={detail({ resolved_ref: 'v1.22.0', pending_activation: null })} />);
+
+		await waitFor(() => expect(screen.queryByRole('button', { name: /Restarting/ })).not.toBeInTheDocument());
+		expect(screen.queryByRole('button', { name: 'Restart to apply' })).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled();
+	});
+
+	it('reports a refused activation instead of showing a restart', async () => {
+		mockApiFetch.mockRejectedValueOnce(new ApiError('handover could not start', 500));
+		const user = userEvent.setup();
+		renderHero({ detail: detail({ pending_activation: STAGED }) });
+
+		await user.click(screen.getByRole('button', { name: 'Restart to apply' }));
+
+		expect(await screen.findByText('handover could not start')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /Restarting/ })).not.toBeInTheDocument();
 	});
 });
 

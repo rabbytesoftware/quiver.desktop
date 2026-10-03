@@ -18,6 +18,10 @@ DESK_NS="github.com/rabbytesoftware/quiver.desktop"
 
 CORE_V1="stable-26.5.90"
 CORE_V2="stable-26.5.91"
+CORE_V3="stable-26.5.92"
+CORE_V4="stable-26.5.93"
+# Published without a digest by the failure-path scenario; never built.
+CORE_V5="stable-26.5.94"
 DESK_V1="stable-1.0"
 DESK_V2="stable-1.1"
 
@@ -280,6 +284,24 @@ wait_for_state() {
 	local dump
 	dump="$(api_body GET "/v0/runtime/$(ns_enc "$ns")" | jq -c '.data // .' 2>/dev/null)"
 	fail "$ns never reached '$want' within ${timeout}s (last seen '$seen'); runtime: $dump"
+}
+
+# activate_staged IDENTITY VERSION OLD -- an update of quiver.core only stages
+# the new build; the daemon swaps itself in when asked. This waits for VERSION
+# to be staged, checks nothing has restarted yet, and then asks.
+activate_staged() {
+	local ns="$1" want="$2" old="$3"
+	local deadline=$(( SECONDS + 120 )) staged=""
+	while [ "$SECONDS" -lt "$deadline" ]; do
+		staged="$(arrow_field "$ns" '.data.pending_activation.version // "none"')"
+		[ "$staged" = "$want" ] && break
+		sleep 1
+	done
+	[ "$staged" = "$want" ] || fail "$ns never staged $want (staged: $staged)"
+	ok "$ns has $want staged"
+	assert_eq "$old" "$(daemon_version)" "the version the daemon runs while $want is only staged"
+	api_ok POST "/v0/runtime/$(ns_enc "$ns")/activate" '{}' 202 >/dev/null
+	ok "POST /v0/runtime/$ns/activate accepted (202)"
 }
 
 # --- processes -------------------------------------------------------------

@@ -5,7 +5,7 @@
 	build-frontend build-rust build \
 	fetch-sidecar fetch-sidecar-local dev dev-desktop dev-local dev-mock dev-web build-app dev-bundle icon \
 	test-frontend coverage-frontend \
-	test-rust coverage-rust \
+	test-rust coverage-rust test-e2e-box \
 	pr-checks clean doctor-frontend
 
 .DEFAULT_GOAL := help
@@ -152,6 +152,8 @@ help:
 	@echo "  make coverage-frontend     - Run TypeScript tests with coverage (≥95%)"
 	@echo "  make test-rust             - Run Rust tests"
 	@echo "  make coverage-rust         - Run Rust tests with coverage (≥95%)"
+	@echo "  make test-e2e-box          - Run the WebDriver E2E specs in the Linux desktop container (Docker)"
+	@echo "                               SPECS=update-and-restart limits it; QUIVER_CORE_DEV_PATH names the quiver.core checkout"
 	@echo ""
 	@echo "✅ CI/PR:"
 	@echo "  make pr-checks             - Run every CI check locally: quality, build, coverage"
@@ -407,6 +409,13 @@ test-rust:
 	@echo "🧪 Running Rust tests..."
 	@cd src-tauri && $(CARGO) test || (echo "❌ Rust tests failed" && exit 1)
 	@echo "✅ Rust tests passed"
+
+# The WebDriver specs under e2e/ need a Linux desktop, a quiver.core build and a
+# GitHub stand-in, which docker/e2e provides. QUIVER_CORE_DEV_PATH is the
+# quiver.core checkout the daemon under test is built from.
+test-e2e-box:
+	@if [ -z "$(QUIVER_CORE_DEV_PATH)" ]; then echo "❌ set QUIVER_CORE_DEV_PATH to a quiver.core checkout" && exit 1; fi
+	@QUIVER_CORE_DEV_PATH="$(QUIVER_CORE_DEV_PATH)" docker compose -f docker/e2e/docker-compose.yml run --rm e2e scenarios/run-wdio.sh $(SPECS)
 
 coverage-rust:
 	@echo "🧪 Running Rust tests with coverage..."

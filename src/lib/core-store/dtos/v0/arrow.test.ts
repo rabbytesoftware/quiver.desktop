@@ -396,6 +396,19 @@ describe('toArrowDetail', () => {
 		expect(result.outdated).toBe(true);
 	});
 
+	it('reads a staged activation, and null when core sends none', () => {
+		const staged = toArrowDetail(
+			{ ...DETAIL, pending_activation: { version: 'stable-26.6.0', staged_at: '2026-10-03T10:00:00Z' } },
+			MANIFEST,
+			[],
+			null,
+			[],
+			[]
+		);
+		expect(staged.pending_activation).toEqual({ version: 'stable-26.6.0', staged_at: '2026-10-03T10:00:00Z' });
+		expect(toArrowDetail(DETAIL, MANIFEST, [], null, [], []).pending_activation).toBeNull();
+	});
+
 	it('derives outdated from available when a payload leaves it out', () => {
 		const partial = { ...DETAIL, available: { ref: 'v1.22.0', commit: 'abc1234' } } as Partial<ArrowDetailDTO>;
 		delete partial.outdated;

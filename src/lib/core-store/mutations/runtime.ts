@@ -32,6 +32,13 @@ function runtimeMethod(input: RuntimeMethodInput): Promise<void> {
  */
 export type UpdateOutcome = 'started' | 'current';
 
+/**
+ * What `POST /v0/runtime/:ns/activate` did. `started` (202): the daemon is
+ * handing over to the staged build and will drop the connection.
+ * `nothing_pending` (200): a no-op that changed nothing.
+ */
+export type ActivateOutcome = 'started' | 'nothing_pending';
+
 export function useInstall() {
 	return useMutation({
 		mutationFn: ({ namespace, variables = {} }: { namespace: string; variables?: Record<string, string> }) =>
@@ -64,6 +71,15 @@ export function useUpdate() {
 		}): Promise<UpdateOutcome> => {
 			const { status } = await apiRequest<void>(...runtimeRequest({ namespace, method: 'update', variables }));
 			return status === 202 ? 'started' : 'current';
+		},
+	});
+}
+
+export function useActivate() {
+	return useMutation({
+		mutationFn: async ({ namespace }: { namespace: string }): Promise<ActivateOutcome> => {
+			const { status } = await apiRequest<void>(...runtimeRequest({ namespace, method: 'activate' }));
+			return status === 202 ? 'started' : 'nothing_pending';
 		},
 	});
 }

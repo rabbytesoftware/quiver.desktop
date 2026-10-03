@@ -278,34 +278,63 @@ describe('computeActions on Quiver’s own row', () => {
 	});
 });
 
-/**
- * quiver.core updates itself through its own channel (Settings → Engine), and
- * its ARROW.md needs release variables the app does not resolve for it. The
- * tile keeps saying an update is available, but never sends a request core
- * would refuse -- or worse, run with stale stored values.
- */
-describe('computeActions on quiver.core’s own row', () => {
-	const CORE = 'github.com/rabbytesoftware/quiver.core@stable';
-	const AHEAD = { ref: 'stable-26.6', commit: 'abc' };
+const STAGED = { version: 'stable-26.6', staged_at: '2026-10-03T10:00:00Z' };
+const AHEAD = { ref: 'stable-26.6', commit: 'abc' };
+const CORE = 'github.com/rabbytesoftware/quiver.core@stable';
+const ORDINARY = 'github.com/rabbyte/minecraft@v1.21.4';
 
+describe('computeActions has no special case for quiver.core', () => {
 	it.each<[ArrowState, Partial<ArrowDetail>]>([
 		['outdated', {}],
 		['ready', { available: AHEAD, outdated: true }],
-	])('disables Update in %s with the reason, pointing at Settings', (state, extra) => {
-		const update = computeActions(detail({ namespace: CORE, state, ...extra }), PLATFORM).find(
-			(a) => a.kind === 'update'
-		);
-		expect(update).toMatchObject({ forceDisabled: true, disabledReasonKey: 'arrow.update.coreSelf' });
+		['updating', {}],
+		['ready', { pending_activation: STAGED }],
+	])('gives quiver.core the same actions as any other arrow in %s', (state, extra) => {
+		const core = computeActions(detail({ namespace: CORE, state, ...extra }), PLATFORM);
+		const other = computeActions(detail({ namespace: ORDINARY, state, ...extra }), PLATFORM);
+		expect(core).toEqual(other);
 	});
 
-	it.each([
-		['quiver.desktop', 'github.com/rabbytesoftware/quiver.desktop@stable'],
-		['an ordinary arrow', 'github.com/rabbyte/minecraft@v1.21.4'],
-	])('leaves Update enabled for %s', (_name, namespace) => {
-		const update = computeActions(detail({ namespace, state: 'outdated' }), PLATFORM).find(
+	it('leaves Update enabled', () => {
+		const update = computeActions(detail({ namespace: CORE, state: 'outdated' }), PLATFORM).find(
 			(a) => a.kind === 'update'
 		);
 		expect(update?.forceDisabled).toBe(false);
-		expect(update?.disabledReasonKey).toBeUndefined();
+	});
+});
+
+describe('computeActions with a staged activation', () => {
+	it.each<[ArrowState, Partial<ArrowDetail>]>([
+		['ready', { pending_activation: STAGED }],
+		['ready', { pending_activation: STAGED, available: AHEAD, outdated: true }],
+		['outdated', { pending_activation: STAGED, available: AHEAD, outdated: true }],
+	])('swaps Update for Restart to apply in %s, for any arrow', (state, extra) => {
+		for (const namespace of [CORE, ORDINARY]) {
+			const actions = computeActions(detail({ namespace, state, ...extra }), PLATFORM);
+			expect(actions.map((a) => a.kind)).not.toContain('update');
+			expect(actions[0]).toMatchObject({
+				kind: 'activate',
+				labelKey: 'arrow.action.restartToApply',
+				busyLabelKey: 'arrow.action.restartingToApply',
+				variant: 'default',
+				steps: [],
+				usesVariables: [],
+				forceBusy: false,
+				forceDisabled: false,
+			});
+		}
+	});
+
+	it('keeps Start and Uninstall where they were in ready', () => {
+		expect(kinds('ready', { pending_activation: STAGED })).toEqual(['activate', 'execute', 'uninstall']);
+	});
+
+	it('shows no Restart to apply when nothing is staged', () => {
+		expect(kinds('ready', { pending_activation: null })).not.toContain('activate');
+		expect(kinds('ready')).not.toContain('activate');
+	});
+
+	it('does not offer Restart to apply for an arrow that is not in the library', () => {
+		expect(kinds('absent', { user_installed: false, pending_activation: STAGED })).toEqual(['addToLibrary']);
 	});
 });

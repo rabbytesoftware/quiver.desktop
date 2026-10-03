@@ -86,7 +86,7 @@ say "Adding quiver.desktop through the CLI, exactly as a user would"
 quiver arrow add "$DESK_ARROW" 2>&1 | tee "$SCENARIO_DIR/cli-add.log"
 assert_eq "200" "$(api_status GET "/v0/arrow/$(ns_enc "$DESK_ARROW")")" \
 	"quiver.desktop is in the catalog after 'quiver arrow add'"
-assert_eq "Quiver" "$(arrow_field "$DESK_ARROW" '.data.name')" \
+assert_eq "Quiver Desktop" "$(arrow_field "$DESK_ARROW" '.data.name')" \
 	"the resolved manifest's product name"
 assert_daemon_count 1
 

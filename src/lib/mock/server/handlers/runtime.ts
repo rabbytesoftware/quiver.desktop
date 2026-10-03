@@ -139,10 +139,24 @@ export const runtimeRoutes: Route[] = [
 					const target = arrow.available;
 					if (!target && arrow.state !== 'outdated') return ok(null);
 					runSteps(world, arrow, 'update', UPDATE_STEPS, {}, 'updating', 'ready', undefined, () => {
+						if (arrow.stages_update && target) {
+							arrow.pending_activation = { version: target.ref, staged_at: new Date().toISOString() };
+							return;
+						}
 						// The same row advances in place; its identity never changes.
 						if (target) arrow.resolved_ref = target.ref;
 						arrow.available = undefined;
 					});
+					return accepted();
+				}
+
+				case 'activate': {
+					const staged = arrow.pending_activation;
+					if (!staged) return ok(null);
+					arrow.resolved_ref = staged.version;
+					arrow.available = undefined;
+					arrow.pending_activation = undefined;
+					push(world, arrow);
 					return accepted();
 				}
 

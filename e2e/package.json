@@ -8,6 +8,7 @@
 		"test:bootstrap": "wdio run ./wdio.conf.ts --spec ./scenarios/bootstrap.spec.ts",
 		"test:self-update": "wdio run ./wdio.conf.ts --spec ./scenarios/self-update-while-running.spec.ts",
 		"test:outdated-badge": "wdio run ./wdio.conf.ts --spec ./scenarios/generic-outdated-badge.spec.ts",
+		"test:update-and-restart": "wdio run ./wdio.conf.ts --spec ./scenarios/update-and-restart.spec.ts",
 		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {

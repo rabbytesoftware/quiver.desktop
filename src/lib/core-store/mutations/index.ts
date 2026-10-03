@@ -1,5 +1,5 @@
-export { useInstall, useUninstall, useExecute, useExecuteArrow, useStop, useUpdate } from './runtime';
-export { useRegisterArrow, useRemoveArrow } from './arrow';
+export { useActivate, useInstall, useUninstall, useExecute, useExecuteArrow, useStop, useUpdate } from './runtime';
+export { useCheckForUpdate, useRegisterArrow, useRemoveArrow } from './arrow';
 export { useFollowCollection, useUnfollowCollection } from './collection';
 export {
 	useCheckRemoteHealth,

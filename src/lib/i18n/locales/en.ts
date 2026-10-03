@@ -179,6 +179,35 @@ export const en = {
 	'settings.engine.selfUpdate.loading': 'Loading channels…',
 	'settings.engine.selfUpdate.unset': 'Not set',
 	'settings.engine.selfUpdate.unavailable': "Couldn't load quiver.core's channels",
+	'settings.engine.selfUpdate.installed': 'Installed version',
+	'settings.engine.selfUpdate.available': 'Available version',
+	'settings.engine.selfUpdate.unknown': 'Unknown',
+	'settings.engine.selfUpdate.none': 'None',
+	'settings.engine.selfUpdate.action': 'Update quiver.core',
+	'settings.engine.selfUpdate.check': 'Check for updates',
+	'settings.engine.selfUpdate.checking': 'Checking…',
+	'settings.engine.selfUpdate.update': 'Update',
+	'settings.engine.selfUpdate.updating': 'Updating…',
+	'settings.engine.selfUpdate.restartToApply': 'Restart to apply',
+	'settings.engine.selfUpdate.restarting': 'Restarting…',
+	'settings.engine.selfUpdate.retry': 'Try again',
+	'settings.engine.selfUpdate.state.unknown': "Version information isn't available yet.",
+	'settings.engine.selfUpdate.state.upToDate': 'quiver.core is up to date.',
+	'settings.engine.selfUpdate.state.available': 'Version {version} is available.',
+	'settings.engine.selfUpdate.state.downloading':
+		'Downloading and checking the new version. Nothing restarts until you say so.',
+	'settings.engine.selfUpdate.state.staged':
+		'Version {version} is downloaded and checked. Restart to apply it. Running arrows keep running but show as Detached while quiver.core restarts.',
+	'settings.engine.selfUpdate.state.restarting': 'Restarting quiver.core. This takes a few seconds.',
+	'settings.engine.selfUpdate.error.busy': 'Another update is underway. Wait a moment and try again.',
+	'settings.engine.selfUpdate.error.rate_limited': 'The release server is limiting requests. Try again later.',
+	'settings.engine.selfUpdate.error.offline':
+		"Couldn't reach quiver.core or the release server. Check the connection and try again.",
+	'settings.engine.selfUpdate.error.unverifiable':
+		'This release publishes no checksum, so it cannot be verified. Nothing was changed.',
+	'settings.engine.selfUpdate.error.unavailable':
+		'This release has no download for this machine. Nothing was changed.',
+	'settings.engine.selfUpdate.error.failed': 'The update did not complete.',
 
 	'settings.engine.autoRegister.title': 'Arrows',
 	'settings.engine.autoRegister.label': 'Auto-register arrows from repositories without an ARROW.md',
@@ -245,14 +274,14 @@ export const en = {
 	'arrow.action.draining': 'Draining…',
 	'arrow.action.restart': 'Restart',
 	'arrow.action.reinstall': 'Reinstall',
+	'arrow.action.restartToApply': 'Restart to apply',
+	'arrow.action.restartingToApply': 'Restarting…',
 	'arrow.action.info': 'What this does',
 	'arrow.action.error.title': "Couldn't complete the action",
 
 	'arrow.update.current': 'Already up to date',
 	'arrow.update.busy':
 		'Another update is underway, or the last one is still being applied. Wait a moment and try again.',
-	'arrow.update.coreSelf':
-		'Quiver updates its engine on its own, from the update channel chosen in Settings → Engine.',
 	'arrow.update.retry': 'Try again',
 	'arrow.update.dismiss': 'Dismiss',
 

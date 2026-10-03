@@ -1,6 +1,5 @@
 import type { ArrowDetail, ArrowStepDefinition } from '@/domain/arrow';
 import { targetForPlatform } from '@/domain/arrow';
-import { isQuiverCore } from '@/domain/release';
 import { isSelfArrow, RELEASE_VARIABLE_NAMES } from '@/features/arrow-details/lib/release-variables';
 import type { MessageKey } from '@/lib/i18n';
 
@@ -19,7 +18,8 @@ export type ArrowActionKind =
 	| 'update'
 	| 'stop'
 	| 'restart'
-	| 'reinstall';
+	| 'reinstall'
+	| 'activate';
 
 export type ArrowActionVariant = 'default' | 'outline' | 'destructive' | 'destructive-outline';
 
@@ -49,12 +49,7 @@ export interface ArrowAction {
 	forceBusy: boolean;
 	/** Not runnable from the current state -- plainly greyed, no busy label, info trigger stays clickable. */
 	forceDisabled: boolean;
-	/** Why a disabled action is disabled, when that is not just the state -- shown beside the action row. */
-	disabledReasonKey?: ArrowActionReasonKey;
 }
-
-/** The `arrow.update.*` sentences an action can carry as its disabled reason. Narrowed for the same reason as `ArrowActionLabelKey`. */
-export type ArrowActionReasonKey = Extract<MessageKey, 'arrow.update.coreSelf'>;
 
 /**
  * The variables this arrow's configure form should ask for.
@@ -74,6 +69,23 @@ function allVariableNames(detail: ArrowDetail): string[] {
 }
 
 /**
+ * Applies an update that is already downloaded and verified. It takes Update's
+ * place wherever Update would be offered, for any arrow that has one staged:
+ * running Update again would stage nothing new, and the person's next step is
+ * choosing the moment to restart.
+ */
+const RESTART_TO_APPLY: ArrowAction = {
+	kind: 'activate',
+	labelKey: 'arrow.action.restartToApply',
+	busyLabelKey: 'arrow.action.restartingToApply',
+	variant: 'default',
+	steps: [],
+	usesVariables: [],
+	forceBusy: false,
+	forceDisabled: false,
+};
+
+/**
  * The hero's action set for the current state, verified state-by-state
  * against quiver.core's real gating this session (see docs/arrow-details-spec.md
  * §4 and §7.2). `execute` (the universal "Start") is hard-gated to `ready`
@@ -81,20 +93,6 @@ function allVariableNames(detail: ArrowDetail): string[] {
  * -- never render it enabled outside `ready`, even speculatively.
  */
 export function computeActions(detail: ArrowDetail, platform: string): ArrowAction[] {
-	const actions = actionsForState(detail, platform);
-	if (!isQuiverCore(detail.namespace)) return actions;
-	// quiver.core updates itself through its own channel, and its update
-	// needs release variables this app does not resolve for it: the tile keeps
-	// its "update available" state, but never sends a request core would
-	// refuse, or run with whatever the Settings panel happens to hold.
-	return actions.map((action) =>
-		action.kind === 'update' && !action.forceBusy
-			? { ...action, forceDisabled: true, disabledReasonKey: 'arrow.update.coreSelf' }
-			: action
-	);
-}
-
-function actionsForState(detail: ArrowDetail, platform: string): ArrowAction[] {
 	if (!detail.user_installed) {
 		return [
 			{
@@ -178,7 +176,9 @@ function actionsForState(detail: ArrowDetail, platform: string): ArrowAction[] {
 			// `available` is the row's own record of what is ahead; the runtime's
 			// `outdated` state is reconciled from it, but a detail read can land
 			// before that reconciliation does.
-			if (detail.available) {
+			if (detail.pending_activation) {
+				actions.push(RESTART_TO_APPLY);
+			} else if (detail.available) {
 				actions.push({
 					kind: 'update',
 					labelKey: 'arrow.action.update',
@@ -204,15 +204,17 @@ function actionsForState(detail: ArrowDetail, platform: string): ArrowAction[] {
 
 		case 'outdated': {
 			const actions: ArrowAction[] = [
-				{
-					kind: 'update',
-					labelKey: 'arrow.action.update',
-					variant: 'default',
-					steps: lifecycle?.update ?? [],
-					usesVariables: [],
-					forceBusy: false,
-					forceDisabled: false,
-				},
+				detail.pending_activation
+					? RESTART_TO_APPLY
+					: {
+							kind: 'update',
+							labelKey: 'arrow.action.update',
+							variant: 'default',
+							steps: lifecycle?.update ?? [],
+							usesVariables: [],
+							forceBusy: false,
+							forceDisabled: false,
+						},
 			];
 			// Never conditional: execute is ready-only for every arrow, always --
 			// not gated by manifest AvailableIn the way custom methods are.

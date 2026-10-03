@@ -12,6 +12,19 @@ docker compose -f docker/e2e/docker-compose.yml run --rm e2e scenarios/run-all.s
 SKIP_BUILD=1 docker compose -f docker/e2e/docker-compose.yml run --rm e2e scenarios/run-all.sh
 ```
 
+The WebDriver specs under `e2e/` run in the same box:
+
+```
+docker compose -f docker/e2e/docker-compose.yml run --rm e2e scenarios/run-wdio.sh
+docker compose -f docker/e2e/docker-compose.yml run --rm e2e scenarios/run-wdio.sh update-and-restart
+```
+
+`QUIVER_CORE_DEV_PATH` names the quiver.core checkout both commands build from. The
+`e2e-box` job of `.github/workflows/e2e.yml` runs it; `e2e/README.md` says what each
+spec covers. Results go to `docker/e2e/results/wdio/`. The stand-in also answers
+`releases/expanded_assets/<tag>`, which is how quiver.core lists a release's assets,
+and a `.nodigest` file in a release's directory publishes it with no digests.
+
 To watch it happen instead, bring the box up on its own and open
 <http://localhost:6080/vnc.html>:
 

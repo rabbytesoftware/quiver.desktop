@@ -156,6 +156,7 @@ api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW")/update" \
 	"$(jq -nc --arg u "$CORE_URL" --arg c "$CORE_SUM" \
 		'{variables:{QUIVER_RELEASE_ASSET_URL:$u,QUIVER_RELEASE_CHECKSUM:$c}}')" \
 	202 >/dev/null
+activate_staged "$CORE_ARROW" "$CORE_V2" "$CORE_V1"
 
 became_v2=0
 for _ in $(seq 1 90); do
@@ -225,12 +226,14 @@ say "C. The user agrees, by actually clicking Update"
 # variables and 422'd. Driving the pointer is the only way to prove the wiring
 # rather than assert it.
 say "C. Opening Quiver's own page in the running app"
-# The Library shelf's card for Quiver, which is a real router Link to
+# The Library shelf's card for Quiver Desktop, which is a real router Link to
 # /arrow/$ (collection-arrow-tile.tsx) -- the same thing a person clicks. The
 # card, not the sidebar row: it is a ~450x220 target rather than a ~20px-tall
-# one, so this does not depend on the sidebar's exact line height. The
-# screenshot taken immediately above shows the layout being clicked into.
-click_in_app 493 190
+# one, so this does not depend on the sidebar's exact line height. The shelf
+# lists quiver.core's own card first and this one second, so it is the right
+# hand card; the screenshot taken immediately above shows the layout being
+# clicked into.
+click_in_app 952 190
 sleep 3
 screenshot "04-quiver-own-page"
 
