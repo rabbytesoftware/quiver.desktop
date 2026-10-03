@@ -197,7 +197,7 @@ export const en = {
 	'settings.engine.selfUpdate.state.downloading':
 		'Downloading and checking the new version. Nothing restarts until you say so.',
 	'settings.engine.selfUpdate.state.staged':
-		'Version {version} is downloaded and checked. Restart to apply it. Running arrows stop while quiver.core restarts.',
+		'Version {version} is downloaded and checked. Restart to apply it. Running arrows keep running but show as Detached while quiver.core restarts.',
 	'settings.engine.selfUpdate.state.restarting': 'Restarting quiver.core. This takes a few seconds.',
 	'settings.engine.selfUpdate.error.busy': 'Another update is underway. Wait a moment and try again.',
 	'settings.engine.selfUpdate.error.rate_limited': 'The release server is limiting requests. Try again later.',
