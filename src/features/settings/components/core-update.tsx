@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 
 import { QUIVER_CORE_NAMESPACE } from '@/domain/release';
+import { problemMessage } from '@/features/arrow-details/lib/status';
 import { useAssembledArrowDetail } from '@/features/arrow-details/lib/use-assembled-arrow-detail';
 import { useRecheckArrow, useUpdate } from '@/lib/core-store';
 import { arrowDetailQueryKeyPrefix } from '@/lib/core-store/queries/arrow';
@@ -40,7 +41,13 @@ export function CoreUpdate() {
 
 	const updating = detail.state === 'updating' || update.isPending;
 	const failure = update.error ?? recheck.error;
-	const description = failure ? failure.message : updating ? t('settings.engine.selfUpdate.restarts') : undefined;
+	// An update core accepted can still fail afterwards; its own run records why.
+	const problem = problemMessage(detail);
+	const failedRun =
+		!updating && !failure && problem?.reason === 'failed'
+			? (problem.detail ?? t('arrow.problem.failedNote'))
+			: undefined;
+	const description = failure ? failure.message : updating ? t('settings.engine.selfUpdate.restarts') : failedRun;
 
 	return (
 		<>

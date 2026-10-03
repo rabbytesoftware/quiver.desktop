@@ -95,6 +95,21 @@ describe('CoreUpdate', () => {
 		expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled();
 	});
 
+	it('says why an accepted update failed afterwards', async () => {
+		seedCore({
+			state: 'outdated',
+			available: { ref: 'stable-2.0', commit: 'abc' },
+			last_return: {
+				method: 'update',
+				outcome: 'failed',
+				variables: {},
+				steps: [{ index: 0, title: 'Download', type: 'fetch', status: 'failed', error: 'checksum mismatch' }],
+			},
+		});
+		renderPanel();
+		expect(await screen.findByText('checksum mismatch')).toBeInTheDocument();
+	});
+
 	it('shows a refusal plainly and offers no retry when retrying cannot help', async () => {
 		const user = userEvent.setup();
 		seedCore({ state: 'outdated' });
