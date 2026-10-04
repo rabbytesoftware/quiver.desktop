@@ -3,6 +3,7 @@ import type { Route } from '../router';
 import { arrowRoutes } from './arrow';
 import { collectionRoutes } from './collection';
 import { configRoutes } from './config';
+import { consoleRoutes } from './console';
 import { homeRoutes } from './home';
 import { pathRoutes } from './path';
 import { runtimeRoutes } from './runtime';
@@ -26,4 +27,5 @@ export const ALL_ROUTES: Route[] = [
 	...homeRoutes,
 	...configRoutes,
 	...pathRoutes,
+	...consoleRoutes,
 ];

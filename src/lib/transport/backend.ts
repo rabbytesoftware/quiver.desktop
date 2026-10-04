@@ -4,7 +4,10 @@ import { listen } from '@tauri-apps/api/event';
 import type { ConnectionConfig, ConnectionStatus } from '@/domain/connection';
 import type { ResolvedReleaseAsset } from '@/domain/release';
 
+import { startConsoleExec, type ConsoleRun } from './console-exec';
 import { QuiverWebSocket } from './quiver-socket';
+
+export type { ConsoleRun } from './console-exec';
 
 export const SOCKET_OPEN = 1;
 
@@ -29,6 +32,20 @@ export interface ConnectionsSnapshot {
 	active_id: string;
 }
 
+/**
+ * What `src-tauri/build.rs` baked into this binary for the build indicator
+ * (`commands::build_info::BuildStamp`). Every field is null for a build that was
+ * not stamped.
+ */
+export interface BuildStamp {
+	/** The full 40-character commit. */
+	commit: string | null;
+	/** Unix seconds. */
+	built_at: number | null;
+	/** The release tag this build is published as, in any channel. */
+	label: string | null;
+}
+
 export interface Backend {
 	fetch(path: string, init?: RequestInit): Promise<Response>;
 	openSocket(path: string): SocketLike;
@@ -42,6 +59,17 @@ export interface Backend {
 	 * `src-tauri/src/commands/build_info.rs`.
 	 */
 	getBuildTag(): Promise<string | null>;
+	/** The stamps the build indicator shows for this binary; see {@link BuildStamp}. */
+	getBuildStamp(): Promise<BuildStamp>;
+	/**
+	 * Runs `line` on the active daemon's console and streams its frames to
+	 * `onFrame` -- one NDJSON line each, ending in an `exit` or `error` frame
+	 * (`docs/console-spec.md`). Native-side because the `quiver://` proxy
+	 * returns a response whole and cannot carry a stream.
+	 *
+	 * The line is sent exactly as typed: the daemon owns the grammar.
+	 */
+	execConsole(line: string, onFrame: (frame: string) => void): ConsoleRun;
 	/**
 	 * This machine's real `"os/arch"` platform key -- e.g. `"darwin/arm64"` --
 	 * the way quiver.core's manifest `targets` are keyed.
@@ -90,6 +118,14 @@ export const realBackend: Backend = {
 
 	getBuildTag() {
 		return invoke<string | null>('get_build_tag');
+	},
+
+	getBuildStamp() {
+		return invoke<BuildStamp>('get_build_stamp');
+	},
+
+	execConsole(line, onFrame) {
+		return startConsoleExec(line, onFrame);
 	},
 
 	getPlatform() {

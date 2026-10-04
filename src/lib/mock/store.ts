@@ -17,6 +17,7 @@ export const FAULT_KEYS = [
 	'health',
 	'config',
 	'path',
+	'console',
 ] as const;
 
 export type FaultKey = (typeof FAULT_KEYS)[number];

@@ -151,6 +151,7 @@ export const en = {
 	'settings.developer.faults.health': 'Health probe',
 	'settings.developer.faults.config': 'Daemon config',
 	'settings.developer.faults.path': 'Command line PATH',
+	'settings.developer.faults.console': 'Console',
 
 	'settings.engine.loading': 'Loading engine settings',
 	'settings.engine.restart': 'These settings take effect the next time quiver.core restarts.',
