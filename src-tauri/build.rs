@@ -35,16 +35,89 @@ fn main() {
 	if let Some(tag) = release_tag_candidate() {
 		println!("cargo:rustc-env={BAKED_ENV}={tag}");
 	}
+	emit_build_stamps();
 
 	// Without this, a cached `target/` (CI restores one; see the `Cache Cargo
 	// dependencies` step in .github/actions/build-tauri) could carry a previous
 	// release's stamp into the next one: nothing else about the source
 	// changes between two consecutive `stable-*` builds.
 	println!("cargo:rerun-if-env-changed={TAG_ENV}");
+	for var in [COMMIT_ENV, LABEL_ENV, "SOURCE_DATE_EPOCH", "GITHUB_SHA"] {
+		println!("cargo:rerun-if-env-changed={var}");
+	}
 	println!("cargo:rerun-if-changed=build.rs");
 	track_git_head();
 
 	tauri_build::build()
+}
+
+/// What a workflow passes in so the console indicator can name this build:
+/// the commit it was cut from, when the checkout cannot say (a shallow CI
+/// checkout can, but a source tarball cannot).
+const COMMIT_ENV: &str = "QUIVER_DESKTOP_STAMP_COMMIT";
+
+/// The release tag of ANY channel this build is published as
+/// (`stable-26.5.1`, `beta-26.5-2`, `hotfix-26.5.1-1`). Display only: unlike
+/// [`TAG_ENV`] it is never announced to quiver.core as a ref, so it does not
+/// have to name something a daemon can resolve and it is not limited to
+/// `stable-*`.
+const LABEL_ENV: &str = "QUIVER_DESKTOP_STAMP_LABEL";
+
+/// The three stamps the build indicator shows, baked in under names the
+/// shell cannot reach (the same reasoning as `BAKED_ENV`). Every one is a
+/// CANDIDATE: `commands::build_info` validates them at runtime, where
+/// `cargo test` reaches, so a malformed value degrades to "unstamped".
+///
+/// `built_at` is when this script last ran, which is the build time for a
+/// release build (CI starts from a clean checkout and sets
+/// `SOURCE_DATE_EPOCH` for reproducibility). For an incremental local build it
+/// is the time of the last build that re-ran this script -- a commit or tag
+/// change -- which is what a dev build wants to report anyway.
+fn emit_build_stamps() {
+	if let Some(commit) = commit_candidate() {
+		println!("cargo:rustc-env=QUIVER_DESKTOP_BUILD_COMMIT={commit}");
+	}
+	if let Some(epoch) = built_at_epoch() {
+		println!("cargo:rustc-env=QUIVER_DESKTOP_BUILD_EPOCH={epoch}");
+	}
+	if let Some(label) = env_nonempty(LABEL_ENV) {
+		println!("cargo:rustc-env=QUIVER_DESKTOP_BUILD_LABEL={label}");
+	}
+}
+
+fn env_nonempty(name: &str) -> Option<String> {
+	let raw = std::env::var(name).ok()?;
+	let trimmed = raw.trim().to_owned();
+	(!trimmed.is_empty()).then_some(trimmed)
+}
+
+/// Workflow-named commit first (`QUIVER_DESKTOP_STAMP_COMMIT`, then
+/// `GITHUB_SHA`), else the checkout's own HEAD.
+fn commit_candidate() -> Option<String> {
+	env_nonempty(COMMIT_ENV)
+		.or_else(|| env_nonempty("GITHUB_SHA"))
+		.or_else(|| {
+			let out = Command::new("git")
+				.args(["rev-parse", "HEAD"])
+				.output()
+				.ok()?;
+			if !out.status.success() {
+				return None;
+			}
+			let sha = String::from_utf8(out.stdout).ok()?.trim().to_owned();
+			(!sha.is_empty()).then_some(sha)
+		})
+}
+
+/// `SOURCE_DATE_EPOCH` (the reproducible-builds convention) else now.
+fn built_at_epoch() -> Option<u64> {
+	if let Some(raw) = env_nonempty("SOURCE_DATE_EPOCH") {
+		return raw.parse().ok();
+	}
+	std::time::SystemTime::now()
+		.duration_since(std::time::UNIX_EPOCH)
+		.ok()
+		.map(|d| d.as_secs())
 }
 
 /// The tag this build claims, from the workflow if it named one, else from git.
