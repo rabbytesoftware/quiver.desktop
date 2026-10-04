@@ -11,8 +11,8 @@ use async_trait::async_trait;
 use tauri::http::{Request, Response};
 use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeClient};
 
-use super::stream::{open_ws_over, request_over};
-use super::{Transport, TransportError, WsStream};
+use super::stream::{open_ws_over, request_over, request_stream_over};
+use super::{StreamResponse, Transport, TransportError, WsStream};
 
 /// `ERROR_PIPE_BUSY`: every instance of the pipe is momentarily serving
 /// another client. The daemon frees one within milliseconds, so this is worth
@@ -65,6 +65,14 @@ impl Transport for PipeTransport {
 
 	async fn open_ws(&self, path: &str) -> Result<WsStream, TransportError> {
 		open_ws_over(self.connect().await?, path).await
+	}
+
+	async fn request_stream(
+		&self,
+		req: Request<Vec<u8>>,
+		deadline: Duration,
+	) -> Result<StreamResponse, TransportError> {
+		request_stream_over(self.connect().await?, req, deadline).await
 	}
 }
 

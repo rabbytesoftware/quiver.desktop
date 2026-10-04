@@ -3,24 +3,22 @@
 //! A unix socket and a Windows named pipe differ only in how the stream is
 //! opened, so each transport connects and hands the stream here.
 
+use std::time::Duration;
+
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::Request as HyperRequest;
 use hyper_util::rt::TokioIo;
 use tauri::http::{self, Request, Response};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
-use super::{AsyncReadWrite, TransportError, WsStream};
+use super::{AsyncReadWrite, StreamResponse, TransportError, WsStream, STREAM_BUFFER};
 
-/// Forward one request over `stream` and return the daemon's whole response.
-pub(super) async fn request_over<S>(
-	stream: S,
-	req: Request<Vec<u8>>,
-) -> Result<Response<Vec<u8>>, TransportError>
-where
-	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-{
+/// The hyper request for `req`: request line from its path-and-query, the
+/// headers carried over, a `Host` supplied when absent.
+fn upstream_request(req: Request<Vec<u8>>) -> Result<HyperRequest<Full<Bytes>>, TransportError> {
 	// hyper only needs the path-and-query for the request line; the
 	// authority in `quiver://localhost/...` is meaningless over a socket.
 	let path_and_query = req
@@ -28,13 +26,6 @@ where
 		.path_and_query()
 		.map(|pq| pq.as_str().to_string())
 		.unwrap_or_else(|| req.uri().path().to_string());
-
-	let (mut sender, conn) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
-		.await
-		.map_err(|e| TransportError::Protocol(e.to_string()))?;
-	tokio::spawn(async move {
-		let _ = conn.await;
-	});
 
 	let (parts, body) = req.into_parts();
 	let mut builder = HyperRequest::builder()
@@ -54,9 +45,26 @@ where
 		}
 	}
 
-	let upstream = builder
-		.body(Full::<Bytes>::new(body.into()))
+	builder.body(Full::<Bytes>::new(body.into()))
+		.map_err(|e| TransportError::Protocol(e.to_string()))
+}
+
+/// Forward one request over `stream` and return the daemon's whole response.
+pub(super) async fn request_over<S>(
+	stream: S,
+	req: Request<Vec<u8>>,
+) -> Result<Response<Vec<u8>>, TransportError>
+where
+	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+	let upstream = upstream_request(req)?;
+
+	let (mut sender, conn) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
+		.await
 		.map_err(|e| TransportError::Protocol(e.to_string()))?;
+	tokio::spawn(async move {
+		let _ = conn.await;
+	});
 
 	let resp = sender
 		.send_request(upstream)
@@ -78,6 +86,77 @@ where
 	}
 	out.body(collected)
 		.map_err(|e| TransportError::Protocol(e.to_string()))
+}
+
+/// Forward one request over `stream` and hand back the response as it
+/// arrives, not once it is complete.
+///
+/// The status is known as soon as the head is, so it is returned directly; the
+/// body is pumped into the returned channel by a task that stops as soon as the
+/// receiver is dropped -- which drops the connection, and with it the
+/// request on the daemon's side. `deadline` bounds the whole exchange.
+pub(super) async fn request_stream_over<S>(
+	stream: S,
+	req: Request<Vec<u8>>,
+	deadline: Duration,
+) -> Result<StreamResponse, TransportError>
+where
+	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+	let upstream = upstream_request(req)?;
+
+	let (mut sender, conn) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
+		.await
+		.map_err(|e| TransportError::Protocol(e.to_string()))?;
+	tokio::spawn(async move {
+		let _ = conn.await;
+	});
+
+	let resp = tokio::time::timeout(deadline, sender.send_request(upstream))
+		.await
+		.map_err(|_| TransportError::Protocol("timed out waiting for the response".into()))?
+		.map_err(|e| TransportError::Protocol(e.to_string()))?;
+	let status = resp.status().as_u16();
+	let mut body = resp.into_body();
+
+	let (tx, rx) = mpsc::channel(STREAM_BUFFER);
+	tokio::spawn(async move {
+		let pump = async {
+			// `tx.closed()` is what makes an abandoned request prompt: a command
+			// that is running silently would otherwise leave this task parked on
+			// the next frame, holding the connection, until the daemon wrote
+			// something -- and the daemon only cancels the command when it sees
+			// the connection close.
+			loop {
+				let frame = tokio::select! {
+					_ = tx.closed() => return,
+					frame = body.frame() => match frame {
+						Some(frame) => frame,
+						None => return,
+					},
+				};
+				let item = match frame {
+					Ok(frame) => match frame.into_data() {
+						Ok(data) => Ok(data.to_vec()),
+						// Trailers carry nothing this app reads.
+						Err(_) => continue,
+					},
+					Err(e) => Err(TransportError::Protocol(e.to_string())),
+				};
+				let failed = item.is_err();
+				if tx.send(item).await.is_err() || failed {
+					return;
+				}
+			}
+		};
+		if tokio::time::timeout(deadline, pump).await.is_err() {
+			let _ = tx
+				.send(Err(TransportError::Protocol("timed out".into())))
+				.await;
+		}
+	});
+
+	Ok(StreamResponse { status, chunks: rx })
 }
 
 /// Complete the WebSocket upgrade for `path` (a full `/v0/...` route) over
