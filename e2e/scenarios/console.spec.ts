@@ -72,7 +72,6 @@ async function logGeometry(): Promise<string> {
 
 interface LogRow {
 	level: string;
-	component: string;
 	msg: string;
 	fields: Record<string, string>;
 }
@@ -87,7 +86,7 @@ async function logRows(): Promise<LogRow[]> {
 	return browser.execute(() =>
 		Array.from(document.querySelectorAll('[data-slot="log-row"]'), (row) => {
 			const cells = row.querySelectorAll(':scope > button > span');
-			const message = cells[3];
+			const message = cells[2];
 			const fields: Record<string, string> = {};
 			message?.querySelectorAll(':scope > span.inline-block').forEach((field) => {
 				const [key, value] = Array.from(field.children, (c) => c.textContent ?? '');
@@ -95,7 +94,6 @@ async function logRows(): Promise<LogRow[]> {
 			});
 			return {
 				level: row.getAttribute('data-level') ?? '',
-				component: cells[2]?.textContent ?? '',
 				msg: message?.firstElementChild?.textContent ?? '',
 				fields,
 			};
@@ -103,7 +101,7 @@ async function logRows(): Promise<LogRow[]> {
 	);
 }
 
-/** The daemon's own audit record of a command it ran (`component=console msg=exec`). */
+/** The daemon's own audit record of a command it ran (`msg=exec` with a device, a line and a code; the row draws no component). */
 async function waitForAudit(line: string, code: number, timeout = 60_000): Promise<void> {
 	let rows: LogRow[] = [];
 	try {
@@ -112,7 +110,6 @@ async function waitForAudit(line: string, code: number, timeout = 60_000): Promi
 				rows = await logRows();
 				return rows.some(
 					(r) =>
-						r.component === 'console' &&
 						r.msg === 'exec' &&
 						r.fields.line === line &&
 						r.fields.code === String(code)
@@ -121,9 +118,9 @@ async function waitForAudit(line: string, code: number, timeout = 60_000): Promi
 			{ timeout, interval: 300 }
 		);
 	} catch {
-		const seen = rows.filter((r) => r.component === 'console').map((r) => JSON.stringify(r.fields));
+		const seen = rows.filter((r) => r.msg === 'exec').map((r) => JSON.stringify(r.fields));
 		throw new Error(
-			`the log never showed the daemon's audit record of "${line}" (code ${code}); log pane ${await logGeometry()}; console rows: ${seen.join(' | ') || 'none'}`
+			`the log never showed the daemon's audit record of "${line}" (code ${code}); log pane ${await logGeometry()}; exec rows: ${seen.join(' | ') || 'none'}`
 		);
 	}
 }

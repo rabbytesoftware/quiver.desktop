@@ -37,8 +37,9 @@ export interface LogRowProps {
 }
 
 /**
- * One daemon log line: time, level, component, then the message and every
- * other key as `key=value`. Clicking it reveals the record as JSON.
+ * One daemon log line: time, level, then the message and every other key as
+ * `key=value`. The component is not a column of its own (most lines have none,
+ * which left a gap after the level); it is in the raw JSON, one click away.
  */
 export const LogRow = memo(function LogRow({ id, record, expanded, onToggle }: LogRowProps): JSX.Element {
 	return (
@@ -48,7 +49,7 @@ export const LogRow = memo(function LogRow({ id, record, expanded, onToggle }: L
 				aria-expanded={expanded}
 				onClick={() => onToggle(id)}
 				className={cn(
-					'grid w-full cursor-pointer grid-cols-[88px_44px_72px_minmax(0,1fr)] gap-x-2.5 px-4 py-[3px] text-left font-mono text-xs leading-[18px] text-console-foreground outline-none hover:bg-console-row-hover focus-visible:bg-console-row-hover',
+					'grid w-full cursor-pointer grid-cols-[88px_44px_minmax(0,1fr)] gap-x-2.5 px-4 py-[3px] text-left font-mono text-xs leading-[18px] text-console-foreground outline-none hover:bg-console-row-hover focus-visible:bg-console-row-hover',
 					expanded && 'bg-console-row-open'
 				)}
 			>
@@ -56,7 +57,6 @@ export const LogRow = memo(function LogRow({ id, record, expanded, onToggle }: L
 				<span className={cn('font-semibold tracking-[0.04em]', LEVEL_CLASS[record.level])}>
 					{record.level.toUpperCase()}
 				</span>
-				<span className="truncate text-console-dim">{record.component}</span>
 				<span className="[overflow-wrap:anywhere]">
 					<span className={MESSAGE_CLASS[record.level]}>{record.msg}</span>
 					{record.fields.map((field) => (
@@ -77,7 +77,7 @@ function JsonView({ record }: { record: LogRecord }): JSX.Element {
 	return (
 		<div
 			data-slot="log-json"
-			className="bg-console-row-open py-1.5 pr-4 pl-[250px] font-mono text-xs leading-[18px] text-console-dim"
+			className="bg-console-row-open py-1.5 pr-4 pl-[168px] font-mono text-xs leading-[18px] text-console-dim"
 		>
 			<div>{'{'}</div>
 			{jsonLines(record).map((line, i, all) => (

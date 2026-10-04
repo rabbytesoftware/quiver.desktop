@@ -99,7 +99,7 @@ Request `{"line":"install github.com/char2cs/crowbar"}`, no leading `quiver`. Th
 ## 5. The console
 
 - Layout: log and prompt, nothing else. No title bar, filters, chips or shortcut hints. Escape closes; so does the indicator.
-- A log line: `time  LEVEL  component  message key=value …`. Only warn and error colour their level and message. Values: numbers and durations blue, booleans green, paths underlined, `err`/`error` red. Clicking a line shows the record as JSON.
+- A log line: `time  LEVEL  message key=value …` (no column for the component: most lines have none and an empty column left a gap after the level; it is in the raw JSON one click away). Only warn and error colour their level and message. Values: numbers and durations blue, booleans green, paths underlined, `err`/`error` red. Clicking a line shows the record as JSON.
 - The buffer holds 5000 entries, oldest dropped first, in a virtualized list that follows the newest line until the user scrolls up.
 - History: Up/Down, 200 entries, kept across connection switches.
 - Follows the app theme (light and dark).

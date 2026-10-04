@@ -31,7 +31,7 @@ describe('the command line', () => {
 		renderPrompt();
 		expect(screen.getByRole('textbox', { name: 'Command' })).toBe(input());
 		// The hint is a command the daemon accepts: there is no bare `add`.
-		expect(input()).toHaveAttribute('placeholder', 'install github.com/char2cs/crowbar');
+		expect(input()).toHaveAttribute('placeholder', 'info github.com/rabbytesoftware/quiver.core');
 	});
 
 	it('does not let the OS fix what is typed', () => {

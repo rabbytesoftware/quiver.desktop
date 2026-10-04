@@ -36,11 +36,13 @@ function renderEntry(entry: ConsoleEntry, expanded = false, onToggle = vi.fn()) 
 }
 
 describe('a daemon log line', () => {
-	it('shows time, level, component and message', () => {
+	it('shows time, level and message, with no column for the component', () => {
 		renderEntry({ id: 7, kind: 'log', record: record({ level: 'warn' }) });
 		expect(screen.getByText('14:02:14.390')).toBeInTheDocument();
 		expect(screen.getByText('WARN')).toBeInTheDocument();
-		expect(screen.getByText('release')).toBeInTheDocument();
+		// Most lines have no component, and an empty column left a gap after the
+		// level; the component lives in the raw JSON instead.
+		expect(screen.queryByText('release')).not.toBeInTheDocument();
 		expect(screen.getByText('channel lookup slow')).toBeInTheDocument();
 	});
 

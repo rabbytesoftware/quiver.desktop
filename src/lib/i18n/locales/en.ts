@@ -214,7 +214,7 @@ export const en = {
 	'console.panel.label': 'Daemon console',
 	'console.log.label': 'Daemon log',
 	'console.prompt.label': 'Command',
-	'console.prompt.placeholder': 'install github.com/char2cs/crowbar',
+	'console.prompt.placeholder': 'info github.com/rabbytesoftware/quiver.core',
 	'console.stream.reconnecting': 'Reconnecting…',
 	'console.unsupported': 'This daemon has no console. Update quiver.core to use it.',
 	'console.note.restarted': 'Daemon restarted',
