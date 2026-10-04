@@ -4,6 +4,10 @@ import { createMockConsole, MOCK_COMMANDS, MOCK_CORE_VERSIONS, tokenise } from '
 import { createClock } from './world/clock';
 import { createSocketHub } from './socket';
 
+function last<T>(items: T[]): T | undefined {
+	return items[items.length - 1];
+}
+
 beforeEach(() => {
 	vi.useFakeTimers();
 });
@@ -93,26 +97,26 @@ describe('exec', () => {
 	it('ends an accepted run with exactly one exit frame, after its output', () => {
 		const { frames } = run('install github.com/char2cs/crowbar');
 		const types = frames.map((f) => (f as { type: string }).type);
-		expect(types.at(-1)).toBe('exit');
+		expect(last(types)).toBe('exit');
 		expect(types.filter((t) => t === 'exit')).toHaveLength(1);
 		expect(types.filter((t) => t === 'out').length).toBeGreaterThan(1);
-		expect(frames.at(-1)).toEqual({ type: 'exit', code: 0, error: '' });
+		expect(last(frames)).toEqual({ type: 'exit', code: 0, error: '' });
 	});
 
 	it('a command that fails exits non-zero with its reason', () => {
 		const { frames } = run('install');
-		expect(frames.at(-1)).toEqual({ type: 'exit', code: 2, error: 'missing namespace' });
+		expect(last(frames)).toEqual({ type: 'exit', code: 2, error: 'missing namespace' });
 	});
 
 	it('answers a confirmation with no, and says to pass --yes', () => {
 		const { frames } = run('uninstall github.com/char2cs/crowbar');
 		expect(JSON.stringify(frames)).toContain('--yes');
-		expect(frames.at(-1)).toMatchObject({ type: 'exit', code: 1 });
-		expect(run('uninstall github.com/char2cs/crowbar --yes').frames.at(-1)).toMatchObject({ code: 0 });
+		expect(last(frames)).toMatchObject({ type: 'exit', code: 1 });
+		expect(last(run('uninstall github.com/char2cs/crowbar --yes').frames)).toMatchObject({ code: 0 });
 	});
 
 	it('runs an alias', () => {
-		expect(run('ls').frames.at(-1)).toMatchObject({ type: 'exit', code: 0 });
+		expect(last(run('ls').frames)).toMatchObject({ type: 'exit', code: 0 });
 	});
 
 	it('stops delivering once cancelled', () => {
@@ -150,7 +154,7 @@ describe('the log stream', () => {
 
 		vi.advanceTimersByTime(4100);
 		expect(frames.length).toBeGreaterThan(ready + 1);
-		expect(frames.at(-1)).toMatchObject({ type: 'log' });
+		expect(last(frames)).toMatchObject({ type: 'log' });
 
 		socket.close();
 		clock.cancelAll();

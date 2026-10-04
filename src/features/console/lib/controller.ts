@@ -1,0 +1,258 @@
+import type { Backend, ConsoleRun } from '@/lib/transport/backend';
+
+import { renderHelp, type ConsoleCommand } from './commands';
+import { parseExecFrame, type LogFrame } from './frames';
+import { createLogStream, type LogStream, type LogStreamState } from './log-stream';
+import type { CoreVersions } from './versions';
+import { useConsoleStore, type NewEntry } from '../stores/console-store';
+
+const ANSI = /\u001b\[[0-9;?]*[A-Za-z]/g;
+
+/** Frames from the stream are folded into the store in batches, not one render each. */
+export const FLUSH_MS = 50;
+
+export interface ControllerDeps {
+	backend: () => Backend;
+	fetchVersions: () => Promise<CoreVersions | null>;
+	fetchCommands: () => Promise<ConsoleCommand[]>;
+	now?: () => number;
+	timers?: {
+		set: (fn: () => void, ms: number) => unknown;
+		clear: (handle: unknown) => void;
+	};
+}
+
+export interface ConsoleController {
+	/** The connection or its readiness changed. */
+	sync(connectionId: string, ready: boolean): void;
+	submit(line: string): void;
+	dispose(): void;
+}
+
+function clean(text: string): string {
+	return text.replace(ANSI, '').replace(/\r$/, '');
+}
+
+/**
+ * Everything the console does that is not rendering: noticing whether the
+ * daemon has a console, keeping the log stream open while the console is, and
+ * running commands.
+ *
+ * It holds no state of its own beyond handles; what the user sees is in
+ * {@link useConsoleStore}.
+ */
+export function createConsoleController(deps: ControllerDeps): ConsoleController {
+	const store = useConsoleStore;
+	const timers = deps.timers ?? {
+		set: (fn, ms) => setTimeout(fn, ms),
+		clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+	};
+	const now = deps.now ?? Date.now;
+
+	let ready = false;
+	/** Bumped on every connection change, so a slow answer for the previous connection is ignored. */
+	let epoch = 0;
+	let queue: LogFrame[] = [];
+	let flushTimer: unknown = null;
+	const runs = new Set<ConsoleRun>();
+
+	function flush(): void {
+		if (flushTimer !== null) timers.clear(flushTimer);
+		flushTimer = null;
+		if (queue.length === 0) return;
+		const frames = queue;
+		queue = [];
+		if (store.getState().ingest(frames)) stream.restart();
+	}
+
+	const stream: LogStream = createLogStream({
+		open: (path) => deps.backend().openSocket(path),
+		cursor: () => store.getState().cursor,
+		onFrames: (frames) => {
+			queue.push(...frames);
+			flushTimer ??= timers.set(flush, FLUSH_MS);
+		},
+		onState: (state: LogStreamState) => store.getState().setStream(state),
+		timers,
+	});
+
+	function reconcile(): void {
+		const s = store.getState();
+		const wanted = s.open && s.support === 'supported' && ready;
+		if (wanted && !stream.running()) stream.start();
+		if (!wanted && stream.running()) {
+			flush();
+			stream.stop();
+		}
+	}
+
+	const unsubscribe = store.subscribe((s, prev) => {
+		if (s.open !== prev.open || s.support !== prev.support) reconcile();
+	});
+
+	function cancelRuns(): void {
+		for (const run of runs) run.cancel();
+		runs.clear();
+		while (store.getState().running > 0) store.getState().runEnded();
+	}
+
+	async function refresh(mine: number): Promise<void> {
+		let versions: CoreVersions | null;
+		try {
+			versions = await deps.fetchVersions();
+		} catch {
+			// Unreachable: keep what is known; the next `ready` tries again.
+			return;
+		}
+		if (mine !== epoch) return;
+		store.getState().setVersions(versions);
+		if (store.getState().support === 'supported' && !store.getState().commandsLoaded) {
+			try {
+				const commands = await deps.fetchCommands();
+				if (mine === epoch) store.getState().setCommands(commands);
+			} catch {
+				// Help and completion are conveniences; the console works without them.
+			}
+		}
+		reconcile();
+	}
+
+	async function showHelp(mine: number): Promise<void> {
+		let s = store.getState();
+		if (!s.commandsLoaded) {
+			try {
+				const commands = await deps.fetchCommands();
+				if (mine !== epoch) return;
+				store.getState().setCommands(commands);
+			} catch {
+				store.getState().push([{ kind: 'note', tone: 'error', note: { type: 'helpUnavailable' } }]);
+				return;
+			}
+			s = store.getState();
+		}
+		store
+			.getState()
+			.push(renderHelp(s.commands).map((text): NewEntry => ({ kind: 'out', stream: 'stdout', text })));
+	}
+
+	function run(line: string, mine: number): void {
+		store.getState().runStarted();
+		const pending = { stdout: '', stderr: '' };
+		let finished = false;
+
+		const emitLines = (stream: 'stdout' | 'stderr', data: string): void => {
+			const parts = (pending[stream] + data).split('\n');
+			pending[stream] = parts.pop() ?? '';
+			store.getState().push(parts.map((text): NewEntry => ({ kind: 'out', stream, text: clean(text) })));
+		};
+		const flushPending = (): void => {
+			for (const stream of ['stdout', 'stderr'] as const) {
+				if (pending[stream] !== '') {
+					store.getState().push([{ kind: 'out', stream, text: clean(pending[stream]) }]);
+					pending[stream] = '';
+				}
+			}
+		};
+		const end = (): void => {
+			if (finished) return;
+			finished = true;
+			flushPending();
+			if (handle) runs.delete(handle);
+			if (mine === epoch) store.getState().runEnded();
+		};
+
+		// Null until `execConsole` returns: a backend may answer before it does.
+		let handle: ConsoleRun | null = null;
+		handle = deps.backend().execConsole(line, (text) => {
+			if (mine !== epoch || finished) return;
+			const frame = parseExecFrame(text);
+			switch (frame.type) {
+				case 'out':
+					emitLines(frame.stream, frame.data);
+					break;
+				case 'exit':
+					flushPending();
+					if (frame.code !== 0) {
+						store
+							.getState()
+							.push([
+								{
+									kind: 'note',
+									tone: 'error',
+									note: { type: 'exit', code: frame.code, error: frame.error },
+								},
+							]);
+					}
+					end();
+					break;
+				case 'error':
+					flushPending();
+					store
+						.getState()
+						.push([
+							frame.status > 0
+								? {
+										kind: 'note',
+										tone: 'error',
+										note: { type: 'refused', status: frame.status, message: frame.message },
+									}
+								: { kind: 'note', tone: 'error', note: { type: 'text', text: frame.message } },
+						]);
+					end();
+					break;
+				case 'raw':
+					store.getState().push([{ kind: 'raw', text: frame.text }]);
+					break;
+			}
+		});
+		if (!finished) runs.add(handle);
+	}
+
+	return {
+		sync(connectionId, isReady) {
+			const changed = store.getState().connectionId !== connectionId;
+			const becameReady = isReady && !ready;
+			ready = isReady;
+			if (changed) {
+				epoch++;
+				flush();
+				stream.stop();
+				cancelRuns();
+				queue = [];
+				store.getState().adopt(connectionId);
+			}
+			if (isReady && (changed || becameReady)) void refresh(epoch);
+			reconcile();
+		},
+
+		submit(line) {
+			const text = line.trim();
+			if (text === '') return;
+			const s = store.getState();
+			s.remember(text);
+			if (text === 'clear') {
+				s.clear();
+				return;
+			}
+			s.push([{ kind: 'cmd', text, at: now() }]);
+			if (text === 'help') {
+				void showHelp(epoch);
+				return;
+			}
+			if (s.support === 'unsupported') {
+				s.push([{ kind: 'note', tone: 'error', note: { type: 'unsupported' } }]);
+				return;
+			}
+			run(text, epoch);
+		},
+
+		dispose() {
+			unsubscribe();
+			stream.stop();
+			cancelRuns();
+			if (flushTimer !== null) timers.clear(flushTimer);
+			flushTimer = null;
+			queue = [];
+		},
+	};
+}
