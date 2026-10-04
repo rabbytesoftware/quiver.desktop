@@ -50,8 +50,12 @@ pub const PROXY_ERROR_HEADER: &str = "x-quiver-proxy";
 /// because no browser credential is ever attached — the webview sends no
 /// cookies to this scheme and the bearer token is added by the transport, in
 /// Rust, after the request has left the page. A wildcard would matter if a
-/// hostile origin could reach this handler, and none can: the scheme is
-/// registered on this app's own webview and is not routable from anywhere else.
+/// foreign origin could read what this handler returns, so `proxy_once` refuses
+/// any request whose `Origin` is not one of the app's own (`origin_allowed`)
+/// before a connection is even resolved. That matters because arrow pages
+/// (`arrow-app://...`) run in iframes of this same webview, where this scheme
+/// is reachable; they are additionally confined by their CSP
+/// (`connect-src 'self'`).
 const ALLOW_ORIGIN: HeaderValue = HeaderValue::from_static("*");
 
 /// The methods `apiFetch` and the connection commands actually send. Listing
@@ -145,6 +149,24 @@ fn preflight_response() -> Response<Vec<u8>> {
 	resp
 }
 
+/// Origins the app's own pages send. Arrow pages (`arrow-app://...`) share
+/// this webview process, so anything else must not reach the daemon through
+/// this scheme. Requests without an Origin (same-origin GETs, navigations)
+/// are allowed; the arrow CSP (`connect-src 'self'`) is what stops those.
+const OWN_ORIGINS: [&str; 4] = [
+	"tauri://localhost",
+	"http://tauri.localhost",
+	"https://tauri.localhost",
+	"http://localhost:1420",
+];
+
+pub fn origin_allowed(req: &Request<Vec<u8>>) -> bool {
+	match req.headers().get(header::ORIGIN) {
+		None => true,
+		Some(origin) => origin.to_str().is_ok_and(|o| OWN_ORIGINS.contains(&o)),
+	}
+}
+
 /// The whole proxy decision, free of Tauri's responder so it can be driven
 /// against a real socket. Everything worth asserting on lives here.
 ///
@@ -160,6 +182,10 @@ pub async fn proxy_once<F>(transport: F, req: Request<Vec<u8>>) -> Response<Vec<
 where
 	F: Future<Output = Arc<dyn Transport>>,
 {
+	if !origin_allowed(&req) {
+		return error_response(403, "origin not allowed");
+	}
+
 	// Answered before the transport is even resolved: a preflight asks what
 	// THIS proxy permits, and no daemon can answer that.
 	if req.method() == Method::OPTIONS {
@@ -506,5 +532,50 @@ mod tests {
 			.map(|v| v.to_str().unwrap_or_default().to_string())
 			.collect();
 		assert_eq!(origins, vec!["*".to_string()], "got {origins:?}");
+	}
+
+	/// Arrow pages live in iframes of this very webview, so `quiver://` is
+	/// reachable from them. A request they make carries their own Origin and
+	/// must be refused before any connection is resolved.
+	#[tokio::test]
+	async fn quiver_scheme_refuses_foreign_origins_before_resolving() {
+		for origin in [
+			"arrow-app://abc",
+			"http://arrow-app.abc",
+			"https://evil.example",
+			"null",
+		] {
+			let mut r = req("GET", "/v0/arrow");
+			r.headers_mut()
+				.insert(header::ORIGIN, origin.parse().unwrap());
+
+			let resp = proxy_once(resolved(NeverDialled), r).await;
+			assert_eq!(resp.status(), 403, "{origin}");
+		}
+	}
+
+	#[tokio::test]
+	async fn quiver_scheme_refuses_a_foreign_preflight_too() {
+		let mut r = req("OPTIONS", "/v0/arrow");
+		r.headers_mut()
+			.insert(header::ORIGIN, "arrow-app://abc".parse().unwrap());
+		let resp = proxy_once(resolved(NeverDialled), r).await;
+		assert_eq!(resp.status(), 403);
+	}
+
+	#[test]
+	fn the_apps_own_origins_and_a_missing_origin_are_allowed() {
+		for origin in [
+			"tauri://localhost",
+			"http://tauri.localhost",
+			"https://tauri.localhost",
+			"http://localhost:1420",
+		] {
+			let mut r = req("GET", "/v0/arrow");
+			r.headers_mut()
+				.insert(header::ORIGIN, origin.parse().unwrap());
+			assert!(origin_allowed(&r), "{origin}");
+		}
+		assert!(origin_allowed(&req("GET", "/v0/arrow")));
 	}
 }
