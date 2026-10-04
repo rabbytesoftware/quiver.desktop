@@ -4,8 +4,8 @@ import { apiFetch } from '@/lib/transport/api';
 
 vi.mock('@/lib/transport/api', () => ({ apiFetch: vi.fn() }));
 
-import { getConsoleController } from './instance';
-import { useConsoleStore } from '../stores/console-store';
+import { getConsoleController } from './console-controller';
+import { useConsoleStore } from './console-store';
 
 const mockFetch = vi.mocked(apiFetch);
 

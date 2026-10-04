@@ -1,10 +1,10 @@
 import { useEffect, type JSX } from 'react';
 
+import { getConsoleController } from '@/features/console/stores/console-controller';
 import { useConnectionStore } from '@/lib/connection/store';
 import { useStatusStore } from '@/lib/core-store';
 
 import { ConsolePanel } from './console-panel';
-import { getConsoleController } from '../lib/instance';
 
 /**
  * Hosts the console in the content column and keeps it in step with the

@@ -2,10 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, type JSX } from 'react
 
 import { useVirtualizer } from '@tanstack/react-virtual';
 
+import type { ConsoleEntry } from '@/features/console/lib/entries';
 import { useTranslation } from '@/lib/i18n';
 
 import { EntryRow } from './entry-row';
-import type { ConsoleEntry } from '../stores/console-store';
 
 /** A rough row height; each row is measured once it has rendered. */
 const ESTIMATED_ROW = 20;

@@ -1,10 +1,10 @@
 import type { Backend, ConsoleRun } from '@/lib/transport/backend';
 
 import { renderHelp, type ConsoleCommand } from './commands';
+import type { NewEntry, StreamState, Support } from './entries';
 import { parseExecFrame, type LogFrame } from './frames';
-import { createLogStream, type LogStream, type LogStreamState } from './log-stream';
+import { createLogStream, type LogStream } from './log-stream';
 import type { CoreVersions } from './versions';
-import { useConsoleStore, type NewEntry } from '../stores/console-store';
 
 // Built from the character code: a control character in a regex literal is what `no-control-regex` exists to forbid, and here it is the point.
 const ANSI = new RegExp(String.raw`${String.fromCharCode(27)}\[[0-9;?]*[A-Za-z]`, 'g');
@@ -12,7 +12,42 @@ const ANSI = new RegExp(String.raw`${String.fromCharCode(27)}\[[0-9;?]*[A-Za-z]`
 /** Frames from the stream are folded into the store in batches, not one render each. */
 export const FLUSH_MS = 50;
 
+/**
+ * What the controller reads of the console's state and the actions it takes on
+ * it. The app's Zustand store satisfies this as it is; the controller is written
+ * against the shape, so this file stays pure logic -- no store, no React -- and the
+ * store is handed to it where it is wired up (`stores/console-controller.ts`).
+ */
+export interface ConsoleView {
+	open: boolean;
+	support: Support;
+	connectionId: string | null;
+	cursor: number | null;
+	commands: ConsoleCommand[];
+	commandsLoaded: boolean;
+	running: number;
+
+	adopt: (connectionId: string) => void;
+	setVersions: (versions: CoreVersions | null) => void;
+	setCommands: (commands: ConsoleCommand[]) => void;
+	setStream: (state: StreamState) => void;
+	ingest: (frames: readonly LogFrame[]) => void;
+	push: (entries: readonly NewEntry[]) => void;
+	clear: () => void;
+	remember: (line: string) => void;
+	followTail: () => void;
+	runStarted: () => void;
+	runEnded: () => void;
+}
+
+/** The store as the controller sees it: read it, and hear about changes to it. */
+export interface ConsoleStore {
+	getState: () => ConsoleView;
+	subscribe: (listener: (state: ConsoleView, previous: ConsoleView) => void) => () => void;
+}
+
 export interface ControllerDeps {
+	store: ConsoleStore;
 	backend: () => Backend;
 	fetchVersions: () => Promise<CoreVersions | null>;
 	fetchCommands: () => Promise<ConsoleCommand[]>;
@@ -39,11 +74,11 @@ function clean(text: string): string {
  * daemon has a console, keeping the log stream open while the console is, and
  * running commands.
  *
- * It holds no state of its own beyond handles; what the user sees is in
- * {@link useConsoleStore}.
+ * It holds no state of its own beyond handles; what the user sees is in the
+ * store it is given.
  */
 export function createConsoleController(deps: ControllerDeps): ConsoleController {
-	const store = useConsoleStore;
+	const store = deps.store;
 	const timers = deps.timers ?? {
 		set: (fn, ms) => setTimeout(fn, ms),
 		clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
@@ -90,7 +125,7 @@ export function createConsoleController(deps: ControllerDeps): ConsoleController
 			}
 			if (queue.length > 0) flushTimer ??= timers.set(flush, FLUSH_MS);
 		},
-		onState: (state: LogStreamState) => {
+		onState: (state) => {
 			// Every new socket begins with a replay -- and its frames can beat `onopen`,
 			// so this starts at the attempt, not at the open.
 			if (state === 'connecting' || state === 'reconnecting') replay = [];

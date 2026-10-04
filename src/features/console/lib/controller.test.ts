@@ -94,6 +94,7 @@ function build(options: { syncExec?: boolean } = {}): Rig {
 	});
 
 	const controller = createConsoleController({
+		store: useConsoleStore,
 		backend: () => backend,
 		fetchVersions,
 		fetchCommands,

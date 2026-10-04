@@ -2,9 +2,9 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { stubLayout } from '@/__mocks__/stub-layout';
+import type { ConsoleEntry } from '@/features/console/lib/entries';
 
 import { ConsoleLog } from './console-log';
-import type { ConsoleEntry } from '../stores/console-store';
 
 function entries(n: number, from = 1): ConsoleEntry[] {
 	return Array.from({ length: n }, (_, i) => ({

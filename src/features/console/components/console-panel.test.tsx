@@ -8,7 +8,7 @@ import { ConsolePanel } from './console-panel';
 import { useConsoleStore } from '../stores/console-store';
 
 const submit = vi.fn();
-vi.mock('../lib/instance', () => ({ getConsoleController: () => ({ submit }) }));
+vi.mock('@/features/console/stores/console-controller', () => ({ getConsoleController: () => ({ submit }) }));
 
 let restoreLayout: () => void;
 

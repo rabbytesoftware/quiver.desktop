@@ -1,6 +1,6 @@
 import type { Translator } from '@/lib/i18n';
 
-import type { Note } from '../stores/console-store';
+import type { Note } from './entries';
 
 /** What the console says about itself, in words. */
 export function noteText(note: Note, t: Translator['t']): string {

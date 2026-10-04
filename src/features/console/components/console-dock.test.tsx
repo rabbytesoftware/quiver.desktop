@@ -5,7 +5,9 @@ import { useConnectionStore } from '@/lib/connection/store';
 import { useStatusStore } from '@/lib/core-store';
 
 const sync = vi.fn();
-vi.mock('../lib/instance', () => ({ getConsoleController: () => ({ sync, submit: vi.fn() }) }));
+vi.mock('@/features/console/stores/console-controller', () => ({
+	getConsoleController: () => ({ sync, submit: vi.fn() }),
+}));
 
 import { ConsoleDock } from './console-dock';
 

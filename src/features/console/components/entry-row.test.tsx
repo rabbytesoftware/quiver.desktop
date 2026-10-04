@@ -2,9 +2,10 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
+import type { ConsoleEntry } from '@/features/console/lib/entries';
+
 import { EntryRow } from './entry-row';
 import type { LogRecord } from '../lib/frames';
-import type { ConsoleEntry } from '../stores/console-store';
 
 beforeAll(() => {
 	vi.stubEnv('TZ', 'UTC');

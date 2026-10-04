@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { createTranslator } from '@/lib/i18n';
 
+import type { Note } from './entries';
 import { noteText } from './notes';
-import type { Note } from '../stores/console-store';
 
 const { t } = createTranslator('en');
 

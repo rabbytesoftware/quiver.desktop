@@ -1,12 +1,12 @@
 import type { JSX } from 'react';
 
+import type { ConsoleEntry } from '@/features/console/lib/entries';
 import { cn } from '@/lib/cn';
 import { useTranslation } from '@/lib/i18n';
 
 import { LogRow } from './log-row';
 import { formatLogTime } from '../lib/frames';
 import { noteText } from '../lib/notes';
-import type { ConsoleEntry } from '../stores/console-store';
 
 const OUTPUT =
 	'px-4 pl-[114px] font-mono text-xs leading-[18px] min-h-[18px] whitespace-pre-wrap [overflow-wrap:anywhere]';
