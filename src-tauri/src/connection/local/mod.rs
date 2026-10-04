@@ -229,20 +229,10 @@ impl QuiverConnection for LocalConnection {
 		app.emit_core_status(CoreStatus::Ready);
 	}
 
-	/// Kill the daemon this connection spawned — and only that one.
-	///
-	/// Reached on a switch away from local (`ConnectionManager::switch_to`, via
-	/// `retire_streams_and_teardown`) and on the way out of the app
-	/// (`ConnectionManager::shutdown`, from `lib.rs`'s `RunEvent` handler). Until
-	/// this had a body the daemon outlived both: nothing in the app held its
-	/// child handle, and `CommandChild` has no `Drop`.
-	///
-	/// All of the care is in [`SidecarManager::reap`]: it kills only a handle
-	/// `spawn` recorded, so an already-running daemon that `ensure_running`
-	/// adopted is left alone, and it takes that handle out of its slot before
-	/// killing, so nothing is locked while the kill blocks.
+	/// Stop the daemon this connection spawned, and only that one. See
+	/// [`SidecarManager::reap`].
 	async fn teardown(&self) {
-		self.sidecar.reap();
+		self.sidecar.reap(self.transport.as_ref()).await;
 	}
 
 	fn transport(&self) -> Arc<dyn Transport> {

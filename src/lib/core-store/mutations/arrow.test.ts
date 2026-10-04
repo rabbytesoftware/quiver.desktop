@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vites
 
 import { apiFetch } from '@/lib/transport/api';
 
-import { useRegisterArrow, useRemoveArrow } from './arrow';
+import { useRecheckArrow, useRegisterArrow, useRemoveArrow } from './arrow';
 
 vi.mock('@/lib/transport/api', () => ({ apiFetch: vi.fn() }));
 
@@ -45,5 +45,15 @@ describe('useRemoveArrow', () => {
 		const { result } = renderHook(() => useRemoveArrow(), { wrapper: wrapper() });
 		await act(() => result.current.mutateAsync({ namespace: 'github.com/x/y@v1' }));
 		expect(apiFetch).toHaveBeenCalledWith('/v0/arrow/github.com%2Fx%2Fy%40v1', { method: 'DELETE' });
+	});
+});
+
+describe('useRecheckArrow', () => {
+	it('PATCHes /v0/arrow/:ns and returns what is available', async () => {
+		mockApiFetch.mockResolvedValue({ available: { ref: 'stable-2', commit: 'abc' } });
+		const { result } = renderHook(() => useRecheckArrow(), { wrapper: wrapper() });
+		const out = await act(() => result.current.mutateAsync({ namespace: 'github.com/x/y@v1' }));
+		expect(apiFetch).toHaveBeenCalledWith('/v0/arrow/github.com%2Fx%2Fy%40v1', { method: 'PATCH' });
+		expect(out).toEqual({ available: { ref: 'stable-2', commit: 'abc' } });
 	});
 });

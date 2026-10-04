@@ -35,7 +35,7 @@ reset_upstream
 assert_daemon_count 0
 
 publish_manifest rabbytesoftware/quiver.core "$CORE_V1" "/workspace/build/src/quiver.core/ARROW.md"
-publish_release rabbytesoftware/quiver.core "$CORE_V1" "$BUILD_BIN/quiver-$CORE_V1"
+publish_core_asset "$CORE_V1"
 mark_latest rabbytesoftware/quiver.core "$CORE_V1"
 git_tag rabbytesoftware/quiver.core "$CORE_V1"
 
@@ -74,15 +74,12 @@ assert_eq "absent" "$(arrow_field "$CORE_ARROW" '.data.available // "absent"')" 
 
 say "Publishing quiver.core $CORE_V2 upstream"
 publish_manifest rabbytesoftware/quiver.core "$CORE_V2" "/workspace/build/src/quiver.core/ARROW.md"
-publish_release rabbytesoftware/quiver.core "$CORE_V2" "$BUILD_BIN/quiver-$CORE_V2"
+publish_core_asset "$CORE_V2"
 git_tag rabbytesoftware/quiver.core "$CORE_V2"
 mark_latest rabbytesoftware/quiver.core "$CORE_V2"
 
-NEW_ASSET="$UPSTREAM_STATE/releases/rabbytesoftware/quiver.core/$CORE_V2/quiver-$CORE_V2"
-NEW_URL="https://github.com/rabbytesoftware/quiver.core/releases/download/$CORE_V2/quiver-$CORE_V2"
-NEW_SUM="$(sha256_of "$NEW_ASSET")"
-info "upstream asset: $NEW_URL"
-info "sha256:         $NEW_SUM"
+NEW_ASSET="$UPSTREAM_STATE/releases/rabbytesoftware/quiver.core/$CORE_V2/quiver-linux-$(core_arch)"
+info "upstream asset: $NEW_ASSET"
 
 # --- assert: core NOTICES, through its own drift check ---------------------
 
@@ -109,20 +106,17 @@ arrow_detail "$CORE_ARROW" | jq '.' >"$SCENARIO_DIR/self-arrow-outdated.json"
 # --- act: run the update ---------------------------------------------------
 
 say "Executing quiver.core's own update lifecycle"
-api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW")/update" \
-	"$(jq -nc --arg u "$NEW_URL" --arg c "$NEW_SUM" \
-		'{variables:{QUIVER_RELEASE_ASSET_URL:$u,QUIVER_RELEASE_CHECKSUM:$c}}')" \
-	202 >/dev/null
+api_ok POST "/v0/runtime/$(ns_enc "$CORE_ARROW")/update" '{}' 202 >/dev/null
 ok "POST /v0/runtime/$CORE_ARROW/update accepted (202)"
 
 # --- assert: the process actually became the new build ---------------------
 
-say "Waiting for the handover"
-# On unix the handover is syscall.Exec: same PID, new process image. So the
-# assertion that proves it is NOT "a new pid appeared" -- it is "the same
-# process now answers with a different version".
+say "Waiting for the swap"
+# The updater stops the old daemon, puts the new binary at the self path and
+# starts it on the same socket, so the assertion is a different process
+# answering as the new version.
 became_v2=0
-for _ in $(seq 1 90); do
+for _ in $(seq 1 120); do
 	if [ "$(api_status GET /versions)" = "200" ] && [ "$(daemon_version)" = "$CORE_V2" ]; then
 		became_v2=1
 		break
@@ -134,20 +128,22 @@ done
 assert_eq "$CORE_V2" "$(daemon_version)" "the version the live daemon now reports"
 assert_daemon_count 1
 DAEMON_PID_AFTER="$(daemon_pid)"
-assert_eq "$DAEMON_PID_BEFORE" "$DAEMON_PID_AFTER" \
-	"the pid across the handover (unix exec replaces the image, keeps the pid)"
+[ "$DAEMON_PID_BEFORE" != "$DAEMON_PID_AFTER" ] || fail "the same pid answers after the swap: the daemon was not replaced"
+ok "a new process holds the socket ($DAEMON_PID_BEFORE -> $DAEMON_PID_AFTER)"
 
-# The promoted self-install path is what a later cold start -- a reboot, or
-# quiver.desktop spawning a fresh sidecar -- will pick up.
-assert_file "$HOME/.quiver/self/quiver" "the promoted self-installed binary"
+# The self path is what a later cold start, or quiver.desktop spawning a fresh
+# sidecar, will pick up.
+assert_file "$HOME/.quiver/self/quiver" "the swapped-in self-installed binary"
 # `quiver version` reports two lines when a daemon is reachable (client and
 # daemon), so this asserts on the client line, which is the one that names the
 # binary being run.
 PROMOTED_VERSION="$("$HOME/.quiver/self/quiver" version | awk '/^client /{print $2}')"
 assert_eq "$CORE_V2" "$PROMOTED_VERSION" \
-	"the version of the promoted self-installed binary"
+	"the version of the self-installed binary"
 assert_eq "$(sha256_of "$BUILD_BIN/quiver-$CORE_V2")" "$(sha256_of "$HOME/.quiver/self/quiver")" \
-	"the promoted binary is byte-identical to the published $CORE_V2 asset"
+	"the self-installed binary is byte-identical to the published $CORE_V2 asset"
+left="$(ls "$HOME/.quiver/self" | grep -c '^quiver.old-' || true)"
+assert_eq "0" "$left" "previous binaries left beside the self path"
 
 # --- assert: the download really happened, over the wire -------------------
 

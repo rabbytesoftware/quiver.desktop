@@ -41,6 +41,8 @@ impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncReadWrite for T {}
 pub type WsStream = WebSocketStream<MaybeTlsStream<Box<dyn AsyncReadWrite>>>;
 
 #[async_trait]
+// async_trait expands to a must_use return type, which clippy flags against any #[must_use] on the trait.
+#[allow(clippy::double_must_use)]
 pub trait Transport: Send + Sync {
 	/// Forward one request and return the daemon's whole response.
 	async fn request(&self, req: Request<Vec<u8>>)
