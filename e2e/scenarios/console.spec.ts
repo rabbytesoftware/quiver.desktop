@@ -1,4 +1,4 @@
-import { browser, $, $$, expect } from '@wdio/globals';
+import { browser, $, expect } from '@wdio/globals';
 
 import { waitForAppReady } from '../lib/app-ready';
 import { coreClient, waitForCore } from '../lib/core-api';
@@ -44,6 +44,11 @@ async function run(line: string): Promise<void> {
 		timeout: 10_000,
 		timeoutMsg: `the console never took "${line}"`,
 	});
+}
+
+/** How many error-toned notes the console shows right now. */
+async function errorNotes(): Promise<number> {
+	return browser.execute(() => document.querySelectorAll('[data-slot="console-note"][data-tone="error"]').length);
 }
 
 async function consoleText(): Promise<string> {
@@ -105,13 +110,14 @@ describe('console: the build indicator and the daemon console', () => {
 		await openConsole();
 		await $('[data-slot="log-row"]').waitForExist({ timeout: 30_000, timeoutMsg: 'the daemon log never appeared' });
 
-		const rows = await $$('[data-slot="log-row"]');
-		const count = rows.length;
-		expect(count).toBeGreaterThan(0);
+		// Read in the page itself: WebdriverIO types a list of elements as promises all
+		// the way down, and one round trip is also all the rows that are rendered now.
+		const levels = await browser.execute(() =>
+			Array.from(document.querySelectorAll('[data-slot="log-row"]'), (row) => row.getAttribute('data-level'))
+		);
+		expect(levels.length).toBeGreaterThan(0);
 		// Every row carries a level the styling keys off.
-		for (let i = 0; i < Math.min(count, 20); i++) {
-			expect(['debug', 'info', 'warn', 'error']).toContain(await rows[i].getAttribute('data-level'));
-		}
+		for (const level of levels.slice(0, 20)) expect(['debug', 'info', 'warn', 'error']).toContain(level);
 		await shot('console-open');
 	});
 
@@ -133,7 +139,7 @@ describe('console: the build indicator and the daemon console', () => {
 		await run('list');
 		await browser.pause(1500);
 		// A clean exit says nothing extra; a failure ends in an alert line.
-		expect((await $$('[data-slot="console-note"][data-tone="error"]')).length).toBe(0);
+		expect(await errorNotes()).toBe(0);
 	});
 
 	it('refuses what the daemon does not offer, in the daemon\'s own words', async () => {
@@ -147,7 +153,7 @@ describe('console: the build indicator and the daemon console', () => {
 	it('never waits on a confirmation: a destructive command without --yes refuses at once', async () => {
 		await run('arrow remove github.com/example/not-there');
 		await waitForConsoleText(/requires --yes/);
-		expect((await $$('[data-slot="console-note"][data-tone="error"]')).length).toBeGreaterThan(0);
+		expect(await errorNotes()).toBeGreaterThan(0);
 	});
 
 	it('logs the commands it ran, as the daemon records them', async () => {
