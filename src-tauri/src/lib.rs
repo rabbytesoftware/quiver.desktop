@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod connection;
+pub mod console;
 pub mod fdlimit;
 #[cfg(target_os = "macos")]
 pub mod menu;
@@ -26,6 +27,7 @@ pub(crate) static FD_TESTS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_n
 use connection::bridge::{open_bridge, WsBridgeManager};
 use connection::proxy::proxy_once;
 use connection::ConnectionManager;
+use console::ConsoleExecManager;
 use tauri::http::Request;
 use tauri::ipc::Channel;
 use tauri::{Manager, Runtime, State, UriSchemeContext, UriSchemeResponder};
@@ -199,6 +201,7 @@ pub fn run() {
 
 	builder.manage(ConnectionManager::new())
 		.manage(WsBridgeManager::new())
+		.manage(ConsoleExecManager::new())
 		// A page load orphans every bridged connection the outgoing page owned:
 		// its JS is gone and will never close ids it no longer remembers, and
 		// the new page opens its own. Nothing else can notice — a `Channel`
@@ -212,6 +215,12 @@ pub fn run() {
 				return;
 			}
 			webview.app_handle().state::<WsBridgeManager>().close_all();
+			// The same orphaning applies to a command the outgoing page started:
+			// nobody is left to read its frames, and ending it closes its connection,
+			// which cancels it on the daemon.
+			webview.app_handle()
+				.state::<ConsoleExecManager>()
+				.cancel_all();
 		})
 		.setup(move |app| {
 			// Report the descriptor ceiling now that a logger exists. It is the
@@ -243,6 +252,8 @@ pub fn run() {
 			ws_open,
 			ws_send,
 			ws_close,
+			console::console_exec,
+			console::console_exec_cancel,
 		])
 		// `build` + `run(callback)` rather than `run(context)`, for the sake of the
 		// callback: it is the only place the app can notice that it is exiting, and
