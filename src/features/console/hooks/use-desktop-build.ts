@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { describeDesktop, type BuildDescriptor } from '@/features/console/lib/build-info';
 import { backend, type BuildStamp } from '@/lib/transport/backend';
 
-
 const UNSTAMPED: BuildStamp = { commit: null, built_at: null, label: null };
 
 /** Whatever the native side sent, as a stamp: a missing answer or a missing field reads as unstamped. */

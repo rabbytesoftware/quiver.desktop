@@ -140,11 +140,12 @@ describe('Tab completion', () => {
 });
 
 describe('Escape', () => {
-	it('closes the console', async () => {
+	it('is left to the panel around the prompt, which closes the console', () => {
 		store().setOpen(true);
 		renderPrompt();
-		await userEvent.type(input(), 'x{Escape}');
-		expect(store().open).toBe(false);
+		// The prompt does not handle it itself: the key is neither claimed nor acted on here.
+		expect(fireEvent.keyDown(input(), { key: 'Escape' })).toBe(true);
+		expect(store().open).toBe(true);
 	});
 });
 

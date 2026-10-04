@@ -1,6 +1,5 @@
 import { useEffect, useRef, type FormEvent, type JSX, type KeyboardEvent } from 'react';
 
-
 import { completeLine } from '@/features/console/lib/commands';
 import { useConsoleStore } from '@/features/console/stores/console-store';
 import { useTranslation } from '@/lib/i18n';
@@ -28,10 +27,6 @@ function onKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
 			}
 			break;
 		}
-		case 'Escape':
-			event.preventDefault();
-			store.setOpen(false);
-			break;
 	}
 }
 
@@ -43,7 +38,8 @@ export interface ConsolePromptProps {
 
 /**
  * The command line. Enter runs, Up and Down walk the history, Tab completes a
- * command word from the daemon's own table, and Escape closes the console.
+ * command word from the daemon's own table. Escape, which closes the console,
+ * is handled by the panel around it so that it works from anywhere inside.
  */
 export function ConsolePrompt({ onSubmit, focused }: ConsolePromptProps): JSX.Element {
 	const { t } = useTranslation();

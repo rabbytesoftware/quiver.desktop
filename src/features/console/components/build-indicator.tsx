@@ -1,6 +1,5 @@
 import type { JSX } from 'react';
 
-
 import { useBuildIndicatorSetting } from '@/features/console/hooks/use-build-indicator';
 import { useDesktopBuild } from '@/features/console/hooks/use-desktop-build';
 import { describeBuildLong, describeCore, formatBuild, type BuildDescriptor } from '@/features/console/lib/build-info';

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -102,5 +102,72 @@ describe('the console panel', () => {
 		useConsoleStore.setState({ open: true, support: 'unknown' });
 		render(<ConsolePanel />);
 		expect(screen.getByRole('textbox')).toBeInTheDocument();
+	});
+
+	describe('Escape', () => {
+		const record = {
+			seq: 1,
+			iso: '2026-10-04T14:02:14Z',
+			level: 'info' as const,
+			component: 'daemon',
+			msg: 'daemon listening',
+			fields: [],
+			fieldsTruncated: false,
+		};
+
+		function openWithALine(): void {
+			useConsoleStore.setState({ open: true });
+			useConsoleStore.getState().ingest([{ type: 'log', record }]);
+		}
+
+		it('closes the console from the prompt', async () => {
+			openWithALine();
+			render(<ConsolePanel />);
+			await userEvent.type(screen.getByRole('textbox'), 'x{Escape}');
+			expect(useConsoleStore.getState().open).toBe(false);
+		});
+
+		it('closes it from a focused log line', async () => {
+			openWithALine();
+			render(<ConsolePanel />);
+			const line = screen.getByRole('button', { name: /daemon listening/ });
+			line.focus();
+			await userEvent.keyboard('{Escape}');
+			expect(useConsoleStore.getState().open).toBe(false);
+		});
+
+		it('closes it from the focused log pane', async () => {
+			openWithALine();
+			render(<ConsolePanel />);
+			screen.getByRole('log').focus();
+			expect(screen.getByRole('log')).toHaveFocus();
+			await userEvent.keyboard('{Escape}');
+			expect(useConsoleStore.getState().open).toBe(false);
+		});
+
+		it('claims the key it acts on, and only that key', () => {
+			openWithALine();
+			render(<ConsolePanel />);
+			const input = screen.getByRole('textbox');
+			expect(fireEvent.keyDown(input, { key: 'Escape' })).toBe(false);
+			expect(fireEvent.keyDown(input, { key: 'a' })).toBe(true);
+			expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(true);
+		});
+
+		it('leaves the key to an input method that is composing', () => {
+			openWithALine();
+			render(<ConsolePanel />);
+			fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape', isComposing: true });
+			expect(useConsoleStore.getState().open).toBe(true);
+		});
+
+		it('stops listening when the panel is gone', () => {
+			openWithALine();
+			const { unmount } = render(<ConsolePanel />);
+			const input = screen.getByRole('textbox');
+			unmount();
+			fireEvent.keyDown(input, { key: 'Escape' });
+			expect(useConsoleStore.getState().open).toBe(true);
+		});
 	});
 });

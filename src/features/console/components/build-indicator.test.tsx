@@ -2,7 +2,6 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-
 import { parseVersions } from '@/features/console/lib/versions';
 import { useBuildIndicatorStore } from '@/features/console/stores/build-indicator-store';
 import { useConsoleStore } from '@/features/console/stores/console-store';
