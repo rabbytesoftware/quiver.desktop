@@ -14,28 +14,23 @@ function entries(n: number, from = 1): ConsoleEntry[] {
 	}));
 }
 
-let scrollTo: ReturnType<typeof vi.fn>;
 let restoreLayout: () => void;
 
 beforeEach(() => {
 	restoreLayout = stubLayout();
-	scrollTo = vi.fn();
-	HTMLElement.prototype.scrollTo = scrollTo as unknown as typeof HTMLElement.prototype.scrollTo;
 });
 
-afterEach(() => {
-	restoreLayout();
-	// @ts-expect-error -- jsdom has none; remove what the test installed.
-	delete HTMLElement.prototype.scrollTo;
-});
-
-function geometry(el: HTMLElement, g: { scrollHeight: number; clientHeight: number; scrollTop: number }) {
-	Object.defineProperty(el, 'scrollHeight', { value: g.scrollHeight, configurable: true });
-	Object.defineProperty(el, 'clientHeight', { value: g.clientHeight, configurable: true });
-	el.scrollTop = g.scrollTop;
-}
+afterEach(() => restoreLayout());
 
 const log = () => document.querySelector('[data-slot="console-log"]') as HTMLElement;
+
+/** The user dragging the scrollbar to `top`. */
+function scrollTo(top: number): void {
+	log().scrollTop = top;
+	fireEvent.scroll(log());
+}
+
+const props = { expandedId: null, onToggle: () => {}, revealKey: false } as const;
 
 describe('the console log', () => {
 	it('is a log region', () => {
@@ -82,47 +77,93 @@ describe('the console log', () => {
 		expect(onToggle).toHaveBeenCalledWith(41);
 	});
 
-	it('follows the newest line as lines arrive', () => {
-		const { rerender } = render(
-			<ConsoleLog entries={entries(50)} expandedId={null} onToggle={() => {}} revealKey={false} />
-		);
-		scrollTo.mockClear();
-
-		rerender(<ConsoleLog entries={entries(60)} expandedId={null} onToggle={() => {}} revealKey={false} />);
-		expect(scrollTo).toHaveBeenCalled();
+	it('starts at the newest line', () => {
+		render(<ConsoleLog entries={entries(50)} {...props} />);
+		expect(log().scrollTop).toBe(log().scrollHeight);
+		expect(log().scrollTop).toBeGreaterThan(0);
 	});
 
-	it('stops following once the user scrolls up, and resumes when they return to the bottom', () => {
-		const { rerender } = render(
-			<ConsoleLog entries={entries(50)} expandedId={null} onToggle={() => {}} revealKey={false} />
-		);
+	it('follows the newest line as lines arrive', () => {
+		const { rerender } = render(<ConsoleLog entries={entries(50)} {...props} />);
+		rerender(<ConsoleLog entries={entries(60)} {...props} />);
+		expect(log().scrollTop).toBe(log().scrollHeight);
+		rerender(<ConsoleLog entries={entries(200)} {...props} />);
+		expect(log().scrollTop).toBe(log().scrollHeight);
+	});
 
-		geometry(log(), { scrollHeight: 1000, clientHeight: 400, scrollTop: 100 });
+	it('renders the newest lines, not the oldest, once there are more than fit', () => {
+		const { rerender } = render(<ConsoleLog entries={entries(50)} {...props} />);
+		rerender(<ConsoleLog entries={entries(400)} {...props} />);
 		fireEvent.scroll(log());
-		scrollTo.mockClear();
-		rerender(<ConsoleLog entries={entries(60)} expandedId={null} onToggle={() => {}} revealKey={false} />);
-		expect(scrollTo).not.toHaveBeenCalled();
+		expect(screen.getByText('line 400')).toBeInTheDocument();
+		expect(screen.queryByText('line 1')).toBeNull();
+	});
 
-		geometry(log(), { scrollHeight: 1000, clientHeight: 400, scrollTop: 590 });
+	it('follows rows that turn out taller than estimated: the content grows under a view already at the bottom', () => {
+		restoreLayout();
+		restoreLayout = stubLayout({ width: 800, height: 400 }, 60);
+		render(<ConsoleLog entries={entries(30)} {...props} />);
+		// Estimated at 20px a row, measured at 60: the total height changed after the
+		// first pin, and the view must have followed it.
+		expect(log().scrollHeight).toBe(30 * 60);
+		expect(log().scrollTop).toBe(log().scrollHeight);
+	});
+
+	it('is not un-pinned by the content growing: a scroll that did not go up is not the user leaving', () => {
+		const { rerender } = render(<ConsoleLog entries={entries(50)} {...props} />);
+		const pinned = log().scrollTop;
+
+		// Stale geometry after a burst of lines: the content is far taller than the
+		// position, but the position did not move up.
+		const inner = log().firstElementChild as HTMLElement;
+		inner.style.height = '5000px';
 		fireEvent.scroll(log());
-		rerender(<ConsoleLog entries={entries(70)} expandedId={null} onToggle={() => {}} revealKey={false} />);
-		expect(scrollTo).toHaveBeenCalled();
+		expect(log().scrollTop).toBe(pinned);
+
+		rerender(<ConsoleLog entries={entries(80)} {...props} />);
+		expect(log().scrollTop).toBe(log().scrollHeight);
+	});
+
+	it('stops following once the user scrolls up', () => {
+		const { rerender } = render(<ConsoleLog entries={entries(50)} {...props} />);
+		scrollTo(100);
+
+		rerender(<ConsoleLog entries={entries(60)} {...props} />);
+		expect(log().scrollTop).toBe(100);
+	});
+
+	it('resumes when the user comes back to the bottom', () => {
+		const { rerender } = render(<ConsoleLog entries={entries(50)} {...props} />);
+		scrollTo(100);
+		rerender(<ConsoleLog entries={entries(60)} {...props} />);
+		expect(log().scrollTop).toBe(100);
+
+		scrollTo(log().scrollHeight - log().clientHeight);
+		rerender(<ConsoleLog entries={entries(70)} {...props} />);
+		expect(log().scrollTop).toBe(log().scrollHeight);
+	});
+
+	it('stays put while the user reads, however many lines arrive', () => {
+		const { rerender } = render(<ConsoleLog entries={entries(50)} {...props} />);
+		scrollTo(300);
+		for (const n of [60, 120, 400, 900]) rerender(<ConsoleLog entries={entries(n)} {...props} />);
+		expect(log().scrollTop).toBe(300);
 	});
 
 	it('returns to the newest line when the console is shown again', () => {
-		const { rerender } = render(
-			<ConsoleLog entries={entries(50)} expandedId={null} onToggle={() => {}} revealKey={false} />
-		);
-		geometry(log(), { scrollHeight: 1000, clientHeight: 400, scrollTop: 0 });
-		fireEvent.scroll(log());
-		scrollTo.mockClear();
+		const { rerender } = render(<ConsoleLog entries={entries(50)} {...props} />);
+		scrollTo(0);
+		rerender(<ConsoleLog entries={entries(50)} {...props} revealKey={true} />);
+		expect(log().scrollTop).toBe(log().scrollHeight);
+	});
 
-		rerender(<ConsoleLog entries={entries(50)} expandedId={null} onToggle={() => {}} revealKey={true} />);
-		expect(scrollTo).toHaveBeenCalled();
+	it('does not scroll an empty log', () => {
+		render(<ConsoleLog entries={[]} {...props} />);
+		expect(log().scrollTop).toBe(0);
 	});
 
 	it('ignores a scroll event with no element behind it', () => {
-		render(<ConsoleLog entries={entries(2)} expandedId={null} onToggle={() => {}} revealKey={false} />);
+		render(<ConsoleLog entries={entries(2)} {...props} />);
 		expect(() => act(() => void fireEvent.scroll(log()))).not.toThrow();
 	});
 });

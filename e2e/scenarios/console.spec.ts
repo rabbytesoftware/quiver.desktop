@@ -106,10 +106,12 @@ describe('console: the build indicator and the daemon console', () => {
 		await $('[data-slot="log-row"]').waitForExist({ timeout: 30_000, timeoutMsg: 'the daemon log never appeared' });
 
 		const rows = await $$('[data-slot="log-row"]');
-		expect(rows.length).toBeGreaterThan(0);
+		const count = rows.length;
+		expect(count).toBeGreaterThan(0);
 		// Every row carries a level the styling keys off.
-		const levels = await Promise.all(rows.slice(0, 20).map((row) => row.getAttribute('data-level')));
-		for (const level of levels) expect(['debug', 'info', 'warn', 'error']).toContain(level);
+		for (let i = 0; i < Math.min(count, 20); i++) {
+			expect(['debug', 'info', 'warn', 'error']).toContain(await rows[i].getAttribute('data-level'));
+		}
 		await shot('console-open');
 	});
 
@@ -155,7 +157,7 @@ describe('console: the build indicator and the daemon console', () => {
 	it('refuses, on the wire, what the console must never run', async () => {
 		for (const line of ['daemon', 'self-update /tmp/x', 'context list', 'list --server tcp://127.0.0.1:1']) {
 			const { status } = await coreClient(home).post<unknown>('/v0/console/exec', { line });
-			expect(status, line).toBe(403);
+			expect({ line, status }).toEqual({ line, status: 403 });
 		}
 		const empty = await coreClient(home).post<unknown>('/v0/console/exec', { line: '   ' });
 		expect(empty.status).toBe(400);
