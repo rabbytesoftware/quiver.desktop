@@ -10,7 +10,7 @@ pub mod handler;
 pub mod hosts;
 pub mod inject;
 pub mod uri;
-// pub mod ws;
+pub mod ws;
 
 /// The custom URI scheme arrow interfaces are served from.
 pub const SCHEME: &str = "arrow-app";
