@@ -84,9 +84,9 @@ export function createLogStream(deps: LogStreamDeps): LogStream {
 			delay = RECONNECT_BASE_MS;
 			deps.onState('live');
 		};
-		next.onmessage = (event) => {
+		next.onmessage = ({ data }) => {
 			if (mine !== generation) return;
-			deps.onFrames([parseLogFrame(event.data)]);
+			deps.onFrames([parseLogFrame(data)]);
 		};
 		next.onclose = () => {
 			if (mine !== generation || !active) return;

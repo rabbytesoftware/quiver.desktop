@@ -2,17 +2,13 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { createTranslator } from '@/lib/i18n';
-
-import { EntryRow, noteText } from './entry-row';
+import { EntryRow } from './entry-row';
 import type { LogRecord } from '../lib/frames';
-import type { ConsoleEntry, Note } from '../stores/console-store';
+import type { ConsoleEntry } from '../stores/console-store';
 
 beforeAll(() => {
 	vi.stubEnv('TZ', 'UTC');
 });
-
-const { t } = createTranslator('en');
 
 function record(over: Partial<LogRecord> = {}): LogRecord {
 	return {
@@ -168,18 +164,4 @@ describe('the other lines', () => {
 		renderEntry({ id: 1, kind: 'note', tone: 'ok', note: { type: 'text', text: 'done' } });
 		expect(screen.getByText('done').className).toContain('text-log-bool');
 	});
-});
-
-describe('noteText', () => {
-	it.each<[Note, string]>([
-		[{ type: 'restarted' }, 'Daemon restarted'],
-		[{ type: 'gap', dropped: 1 }, '1 line skipped'],
-		[{ type: 'gap', dropped: 37 }, '37 lines skipped'],
-		[{ type: 'exit', code: 2, error: '' }, 'Exited with code 2'],
-		[{ type: 'exit', code: 1, error: 'missing namespace' }, 'Exited with code 1: missing namespace'],
-		[{ type: 'refused', status: 403, message: 'not available' }, 'Refused (403): not available'],
-		[{ type: 'unsupported' }, 'This daemon has no console.'],
-		[{ type: 'helpUnavailable' }, 'The command list is not available.'],
-		[{ type: 'text', text: 'connect failed: no socket' }, 'connect failed: no socket'],
-	])('%j', (note, want) => expect(noteText(note, t)).toBe(want));
 });

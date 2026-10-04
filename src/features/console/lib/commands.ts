@@ -147,8 +147,7 @@ export function completeLine(line: string, commands: readonly ConsoleCommand[]):
 	for (const command of commands) {
 		const names = [command.path, ...command.aliases.map((alias) => [...command.path.slice(0, -1), alias])];
 		for (const path of names) {
-			if (path.length <= before.length) continue;
-			if (!before.every((word, i) => path[i] === word)) continue;
+			if (path.length <= before.length || !before.every((word, i) => path[i] === word)) continue;
 			const next = path[before.length];
 			if (next.startsWith(typed)) candidates.add(next);
 		}

@@ -5,6 +5,36 @@ import { useTranslation } from '@/lib/i18n';
 import { completeLine } from '../lib/commands';
 import { useConsoleStore } from '../stores/console-store';
 
+/** The keys the prompt claims. Everything else is the input's. */
+function onKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+	if (event.nativeEvent.isComposing) return;
+	const store = useConsoleStore.getState();
+	switch (event.key) {
+		case 'ArrowUp':
+			event.preventDefault();
+			store.stepHistory('up');
+			break;
+		case 'ArrowDown':
+			event.preventDefault();
+			store.stepHistory('down');
+			break;
+		case 'Tab': {
+			const result = completeLine(store.draft, store.commands);
+			if (result.candidates.length === 0) return;
+			event.preventDefault();
+			if (result.line !== store.draft) store.setDraft(result.line);
+			else if (result.candidates.length > 1) {
+				store.push([{ kind: 'out', stream: 'stdout', text: result.candidates.join('  ') }]);
+			}
+			break;
+		}
+		case 'Escape':
+			event.preventDefault();
+			store.setOpen(false);
+			break;
+	}
+}
+
 export interface ConsolePromptProps {
 	onSubmit: (line: string) => void;
 	/** Becomes true when the console is shown, which is when the prompt takes focus. */
@@ -30,35 +60,6 @@ export function ConsolePrompt({ onSubmit, focused }: ConsolePromptProps): JSX.El
 	function submit(event: FormEvent): void {
 		event.preventDefault();
 		onSubmit(draft);
-	}
-
-	function onKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
-		if (event.nativeEvent.isComposing) return;
-		const store = useConsoleStore.getState();
-		switch (event.key) {
-			case 'ArrowUp':
-				event.preventDefault();
-				store.stepHistory('up');
-				break;
-			case 'ArrowDown':
-				event.preventDefault();
-				store.stepHistory('down');
-				break;
-			case 'Tab': {
-				const result = completeLine(store.draft, store.commands);
-				if (result.candidates.length === 0) return;
-				event.preventDefault();
-				if (result.line !== store.draft) store.setDraft(result.line);
-				else if (result.candidates.length > 1) {
-					store.push([{ kind: 'out', stream: 'stdout', text: result.candidates.join('  ') }]);
-				}
-				break;
-			}
-			case 'Escape':
-				event.preventDefault();
-				store.setOpen(false);
-				break;
-		}
 	}
 
 	return (
