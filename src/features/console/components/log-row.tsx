@@ -1,8 +1,8 @@
 import { memo, type JSX } from 'react';
 
+import { formatLogTime, jsonLines, type FieldKind, type LogLevel, type LogRecord } from '@/features/console/lib/frames';
 import { cn } from '@/lib/cn';
 
-import { formatLogTime, jsonLines, type FieldKind, type LogLevel, type LogRecord } from '../lib/frames';
 
 const LEVEL_CLASS: Record<LogLevel, string> = {
 	debug: 'text-log-debug',

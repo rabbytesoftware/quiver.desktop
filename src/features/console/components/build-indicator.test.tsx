@@ -2,12 +2,13 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+
+import { parseVersions } from '@/features/console/lib/versions';
+import { useBuildIndicatorStore } from '@/features/console/stores/build-indicator-store';
+import { useConsoleStore } from '@/features/console/stores/console-store';
 import { installBackend, resetBackend, type Backend, type BuildStamp } from '@/lib/transport/backend';
 
 import { BuildIndicator } from './build-indicator';
-import { parseVersions } from '../lib/versions';
-import { useBuildIndicatorStore } from '../stores/build-indicator-store';
-import { useConsoleStore } from '../stores/console-store';
 
 // 2026-10-04T14:02:09Z
 const APP_STAMP: BuildStamp = { commit: '7b4dc02' + 'a'.repeat(33), built_at: 1_791_122_529, label: null };

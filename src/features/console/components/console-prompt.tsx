@@ -1,9 +1,9 @@
 import { useEffect, useRef, type FormEvent, type JSX, type KeyboardEvent } from 'react';
 
-import { useTranslation } from '@/lib/i18n';
 
-import { completeLine } from '../lib/commands';
-import { useConsoleStore } from '../stores/console-store';
+import { completeLine } from '@/features/console/lib/commands';
+import { useConsoleStore } from '@/features/console/stores/console-store';
+import { useTranslation } from '@/lib/i18n';
 
 /** The keys the prompt claims. Everything else is the input's. */
 function onKeyDown(event: KeyboardEvent<HTMLInputElement>): void {

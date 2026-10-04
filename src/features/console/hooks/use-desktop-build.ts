@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 
+import { describeDesktop, type BuildDescriptor } from '@/features/console/lib/build-info';
 import { backend, type BuildStamp } from '@/lib/transport/backend';
 
-import { describeDesktop, type BuildDescriptor } from '../lib/build-info';
 
 const UNSTAMPED: BuildStamp = { commit: null, built_at: null, label: null };
 

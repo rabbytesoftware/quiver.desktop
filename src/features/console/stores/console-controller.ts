@@ -1,4 +1,3 @@
-
 import { parseCommands } from '@/features/console/lib/commands';
 import { createConsoleController, type ConsoleController } from '@/features/console/lib/controller';
 import { fetchCoreVersions } from '@/features/console/lib/versions';

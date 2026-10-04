@@ -1,8 +1,9 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BUILD_INDICATOR_STORAGE_KEY, useBuildIndicatorStore } from '@/features/console/stores/build-indicator-store';
+
 import { useBuildIndicatorSetting } from './use-build-indicator';
-import { BUILD_INDICATOR_STORAGE_KEY, useBuildIndicatorStore } from '../stores/build-indicator-store';
 
 beforeEach(() => {
 	localStorage.removeItem(BUILD_INDICATOR_STORAGE_KEY);

@@ -1,11 +1,11 @@
 import type { JSX } from 'react';
 
-import { useTranslation } from '@/lib/i18n';
 
-import { useBuildIndicatorSetting } from '../hooks/use-build-indicator';
-import { useDesktopBuild } from '../hooks/use-desktop-build';
-import { describeBuildLong, describeCore, formatBuild, type BuildDescriptor } from '../lib/build-info';
-import { useConsoleStore } from '../stores/console-store';
+import { useBuildIndicatorSetting } from '@/features/console/hooks/use-build-indicator';
+import { useDesktopBuild } from '@/features/console/hooks/use-desktop-build';
+import { describeBuildLong, describeCore, formatBuild, type BuildDescriptor } from '@/features/console/lib/build-info';
+import { useConsoleStore } from '@/features/console/stores/console-store';
+import { useTranslation } from '@/lib/i18n';
 
 // The full line needs about 160px (label + `nightly MM-DD HH:mm` at 10px mono);
 // below that the time of day is dropped. Written out, not built from a number:

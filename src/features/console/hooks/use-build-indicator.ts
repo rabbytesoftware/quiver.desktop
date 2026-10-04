@@ -1,5 +1,5 @@
-import { indicatorShownByDefault, normaliseChannel } from '../lib/build-info';
-import { useBuildIndicatorStore } from '../stores/build-indicator-store';
+import { indicatorShownByDefault, normaliseChannel } from '@/features/console/lib/build-info';
+import { useBuildIndicatorStore } from '@/features/console/stores/build-indicator-store';
 
 /** This desktop's own channel, from what the release pipeline baked in; an unstamped build is `dev`. */
 function buildChannel() {

@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { ConsoleEntry } from '@/features/console/lib/entries';
+import type { LogRecord } from '@/features/console/lib/frames';
 
 import { EntryRow } from './entry-row';
-import type { LogRecord } from '../lib/frames';
 
 beforeAll(() => {
 	vi.stubEnv('TZ', 'UTC');

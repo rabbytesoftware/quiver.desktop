@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useConsoleStore } from '@/features/console/stores/console-store';
 import type { Backend, ConsoleRun, SocketLike } from '@/lib/transport/backend';
 
 import type { ConsoleCommand } from './commands';
 import { createConsoleController, FLUSH_MS, type ConsoleController } from './controller';
 import { parseVersions, type CoreVersions } from './versions';
-import { useConsoleStore } from '../stores/console-store';
 
 class FakeSocket implements SocketLike {
 	readyState = 1;

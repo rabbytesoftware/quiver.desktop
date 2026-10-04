@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { stubLayout } from '@/__mocks__/stub-layout';
+import { useConsoleStore } from '@/features/console/stores/console-store';
 
 import { ConsolePanel } from './console-panel';
-import { useConsoleStore } from '../stores/console-store';
 
 const submit = vi.fn();
 vi.mock('@/features/console/stores/console-controller', () => ({ getConsoleController: () => ({ submit }) }));

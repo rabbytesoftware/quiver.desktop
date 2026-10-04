@@ -2,9 +2,10 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ConsoleCommand } from '@/features/console/lib/commands';
+import { useConsoleStore } from '@/features/console/stores/console-store';
+
 import { ConsolePrompt } from './console-prompt';
-import type { ConsoleCommand } from '../lib/commands';
-import { useConsoleStore } from '../stores/console-store';
 
 const COMMANDS: ConsoleCommand[] = [
 	{ path: ['install'], short: '', usage: 'install', aliases: [], flags: [] },
