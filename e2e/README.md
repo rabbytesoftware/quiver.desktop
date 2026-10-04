@@ -1,4 +1,4 @@
-# `e2e/` — tauri-driver scenarios for self-update and self-arrows
+# `e2e/` — tauri-driver scenarios for self-update, self-arrows and the console
 
 Five scenarios driven through the **real, built** Quiver Desktop app and a
 **real** `quiver.core` daemon: no mocks, no stubbed resolver, no in-process

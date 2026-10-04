@@ -24,7 +24,7 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 	const hub = createSocketHub();
 	const world = buildWorld(scenario, hub);
 	const router = createRouter(ALL_ROUTES);
-	const console_ = createMockConsole(hub, world.clock);
+	const mockConsole = createMockConsole(hub, world.clock);
 	const descriptor = getScenario(scenario);
 
 	const connection: ConnectionConfig = {
@@ -57,7 +57,7 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 		},
 
 		openSocket(path) {
-			if (path.split('?')[0] === '/v0/console/logs') return console_.openLogs(path);
+			if (path.split('?')[0] === '/v0/console/logs') return mockConsole.openLogs(path);
 			return hub.open(path);
 		},
 
@@ -72,7 +72,7 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 		},
 
 		execConsole(line, onFrame) {
-			return console_.exec(line, onFrame);
+			return mockConsole.exec(line, onFrame);
 		},
 
 		// `null`, and not a plausible-looking `stable-*` string: the build tag

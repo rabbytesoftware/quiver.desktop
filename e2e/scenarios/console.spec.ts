@@ -108,12 +108,7 @@ async function waitForAudit(line: string, code: number, timeout = 60_000): Promi
 		await browser.waitUntil(
 			async () => {
 				rows = await logRows();
-				return rows.some(
-					(r) =>
-						r.msg === 'exec' &&
-						r.fields.line === line &&
-						r.fields.code === String(code)
-				);
+				return rows.some((r) => r.msg === 'exec' && r.fields.line === line && r.fields.code === String(code));
 			},
 			{ timeout, interval: 300 }
 		);
@@ -143,7 +138,9 @@ async function waitForNotes(pattern: RegExp, atLeast: number, timeout = 30_000):
 			{ timeout, interval: 300 }
 		);
 	} catch {
-		throw new Error(`the console never showed ${atLeast} note(s) matching ${pattern}; notes: ${JSON.stringify(seen)}; log pane ${await logGeometry()}`);
+		throw new Error(
+			`the console never showed ${atLeast} note(s) matching ${pattern}; notes: ${JSON.stringify(seen)}; log pane ${await logGeometry()}`
+		);
 	}
 }
 
@@ -162,7 +159,9 @@ async function waitForConsoleText(pattern: RegExp, timeout = 60_000): Promise<vo
 			{ timeout, interval: 300 }
 		);
 	} catch {
-		throw new Error(`the console never showed ${pattern}; log pane ${await logGeometry()}; it shows:\n${seen.slice(-600)}`);
+		throw new Error(
+			`the console never showed ${pattern}; log pane ${await logGeometry()}; it shows:\n${seen.slice(-600)}`
+		);
 	}
 }
 
@@ -202,7 +201,7 @@ describe('console: the build indicator and the daemon console', () => {
 		await expect($(PANEL)).toHaveAttribute('inert');
 	});
 
-	it('opens from the indicator and shows the daemon\'s own log, typed', async () => {
+	it("opens from the indicator and shows the daemon's own log, typed", async () => {
 		await openConsole();
 		await $('[data-slot="log-row"]').waitForExist({ timeout: 30_000, timeoutMsg: 'the daemon log never appeared' });
 
@@ -239,7 +238,7 @@ describe('console: the build indicator and the daemon console', () => {
 		expect(await errorNotes()).toBe(0);
 	});
 
-	it('refuses what the daemon does not offer, in the daemon\'s own words', async () => {
+	it("refuses what the daemon does not offer, in the daemon's own words", async () => {
 		await run('daemon');
 		await waitForNotes(/^Refused \(403\): /, 1);
 		await run('add github.com/char2cs/crowbar');

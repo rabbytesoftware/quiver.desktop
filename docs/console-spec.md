@@ -6,12 +6,12 @@ The rail's top row shows which builds are running, `core` over `app`. Clicking i
 
 ## 1. What desktop does and does not own
 
-| Daemon (quiver.core) | Desktop (here) |
-|---|---|
-| The command grammar and which commands are reachable | Nothing. There is **no command list in this repo**: help and Tab completion read `GET /v0/console/commands`. |
-| Redacting secrets from log records | Never logging frame contents to its own log (`console_exec` and the bridge log no payloads). |
-| Limits on a command line, its output, its duration and its concurrency | Moving bytes, bounding its own memory, cancelling by closing the connection. |
-| Auth (bearer token over TCP, trusted socket locally) | Using the active connection's transport, which already carries it. |
+| Daemon (quiver.core)                                                   | Desktop (here)                                                                                               |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| The command grammar and which commands are reachable                   | Nothing. There is **no command list in this repo**: help and Tab completion read `GET /v0/console/commands`. |
+| Redacting secrets from log records                                     | Never logging frame contents to its own log (`console_exec` and the bridge log no payloads).                 |
+| Limits on a command line, its output, its duration and its concurrency | Moving bytes, bounding its own memory, cancelling by closing the connection.                                 |
+| Auth (bearer token over TCP, trusted socket locally)                   | Using the active connection's transport, which already carries it.                                           |
 
 Default-deny is the daemon's. Desktop's only policy is to send the line exactly as typed and to show what comes back.
 
@@ -34,13 +34,13 @@ core  nightly 10-04 13:47
 app   nightly 10-04 14:02
 ```
 
-| Build | At rest | On hover or focus |
-|---|---|---|
+| Build             | At rest                                                    | On hover or focus         |
+| ----------------- | ---------------------------------------------------------- | ------------------------- |
 | rolling (nightly) | `nightly MM-DD HH:mm`, the build time in the viewer's zone | `nightly <7-char commit>` |
-| stable | `stable 26.5.1` | `stable <commit>` |
-| beta, hotfix | `beta 26.5 #4`: series and the tag's trailing build count | `beta <commit>` |
-| unstamped | `dev` | `dev <commit>` when known |
-| not yet known | `—` | |
+| stable            | `stable 26.5.1`                                            | `stable <commit>`         |
+| beta, hotfix      | `beta 26.5 #4`: series and the tag's trailing build count  | `beta <commit>`           |
+| unstamped         | `dev`                                                      | `dev <commit>` when known |
+| not yet known     | `—`                                                        |                           |
 
 Setting: Settings, General, Builds has a Build indicator switch. With no choice made it is off on a stable release and on for beta, hotfix, nightly and unstamped builds (`indicatorShownByDefault`, decided by this desktop's own `VITE_QUIVER_BUILD_CHANNEL`). Choosing the default stores nothing, so a build that changes channel follows its new default. Off, the indicator leaves only drag space in the rail row. Because the indicator is otherwise the way into the console, the same section has an Open console button; Escape closes it.
 
@@ -50,9 +50,9 @@ Where the values come from:
 
 - **core**: `/versions` `version`, `commit`, `built_at`, `channel`. `channel` is the pipeline's raw value (`stable`, `beta`, `hotfix`, `nightly-latest`); any `nightly*` is the rolling channel. A release's version arrives as its tag (`beta-26.5-4`) or bare (`26.5-4`).
 - **app**: `get_build_stamp` (compile time, `src-tauri/build.rs`) and `VITE_QUIVER_BUILD_CHANNEL`:
-  - `commit`: `QUIVER_DESKTOP_STAMP_COMMIT`, else `GITHUB_SHA`, else `git rev-parse HEAD`.
-  - `built_at`: `SOURCE_DATE_EPOCH`, else the time the build script ran.
-  - `label`: the release tag in any channel, from the `build-label` input of `.github/actions/build-tauri` (stable falls back to `release-tag`). Display only; it is never announced to quiver.core as a ref. Nightly passes none and is identified by commit and time.
+    - `commit`: `QUIVER_DESKTOP_STAMP_COMMIT`, else `GITHUB_SHA`, else `git rev-parse HEAD`.
+    - `built_at`: `SOURCE_DATE_EPOCH`, else the time the build script ran.
+    - `label`: the release tag in any channel, from the `build-label` input of `.github/actions/build-tauri` (stable falls back to `release-tag`). Display only; it is never announced to quiver.core as a ref. Nightly passes none and is identified by commit and time.
 
 The traffic-light gutter exists only on macOS with the rail on the left (`railOwnsControls`). Back/forward and the connection switcher stay in the same row.
 
