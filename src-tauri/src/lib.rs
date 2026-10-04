@@ -1,3 +1,4 @@
+pub mod arrow_app;
 pub mod commands;
 pub mod connection;
 pub mod fdlimit;

@@ -25,6 +25,7 @@ tauri-build = { version = "2", features = [] }
 # Quiver's shell is opaque. Tauri cross-checks this list against the allowlist
 # implied by tauri.conf.json, so it has to come out alongside macOSPrivateApi.
 tauri = { version = "2", features = [] }
+sha2 = "0.10"
 tauri-plugin-opener = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-store = "2"
