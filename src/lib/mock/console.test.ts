@@ -66,6 +66,23 @@ describe('the mock daemon advertises the console', () => {
 		expect(MOCK_COMMANDS.length).toBeGreaterThan(0);
 	});
 
+	it('lists flags, including the confirmation flag on destructive commands', () => {
+		const flagsOf = (name: string[]) =>
+			MOCK_COMMANDS.find((c) => c.path.join(' ') === name.join(' '))?.flags.map((f) => f.name);
+		expect(flagsOf(['uninstall'])).toContain('yes');
+		expect(flagsOf(['arrow', 'remove'])).toContain('yes');
+		expect(flagsOf(['list'])).toContain('output');
+		expect(MOCK_COMMANDS.find((c) => c.path[0] === 'status')?.flags.map((f) => f.name)).not.toContain('watch');
+	});
+
+	it('does not list a bare add', () => {
+		expect(MOCK_COMMANDS.map((c) => c.path.join(' '))).not.toContain('add');
+	});
+
+	it('reports the channel the way the pipeline does', () => {
+		expect(MOCK_CORE_VERSIONS.channel).toBe('nightly-latest');
+	});
+
 	it('does not offer commands the contract says are never reachable', () => {
 		const names = MOCK_COMMANDS.flatMap((c) => [c.path[0], ...c.aliases]);
 		for (const forbidden of ['daemon', 'self-update', 'context', 'auth', 'completion']) {
@@ -105,7 +122,7 @@ describe('exec', () => {
 
 	it('a command that fails exits non-zero with its reason', () => {
 		const { frames } = run('install');
-		expect(last(frames)).toEqual({ type: 'exit', code: 2, error: 'missing namespace' });
+		expect(last(frames)).toEqual({ type: 'exit', code: 2, error: 'missing argument' });
 	});
 
 	it('answers a confirmation with no, and says to pass --yes', () => {
@@ -121,9 +138,44 @@ describe('exec', () => {
 		expect(last(run('info github.com/char2cs/crowbar').frames)).toMatchObject({ type: 'exit', code: 0 });
 	});
 
-	it('wants a namespace to uninstall, and says which when it has one', () => {
-		expect(JSON.stringify(run('uninstall').frames)).toContain('this arrow');
-		expect(JSON.stringify(run('uninstall --yes').frames)).toContain('uninstalled');
+	it('wants an argument to uninstall, and uninstalls once told which', () => {
+		expect(last(run('uninstall').frames)).toMatchObject({ type: 'exit', code: 2 });
+		expect(JSON.stringify(run('uninstall x --yes').frames)).toContain('uninstalled x');
+		expect(JSON.stringify(run('uninstall x -y').frames)).toContain('uninstalled x');
+	});
+
+	it('never prompts: a destructive command without --yes refuses at once, on stderr', () => {
+		for (const line of ['uninstall x', 'arrow remove x']) {
+			const { frames } = run(line);
+			expect(frames[0]).toMatchObject({ type: 'out', stream: 'stderr' });
+			expect(JSON.stringify(frames)).toContain('requires --yes/-y when not running interactively');
+			expect(JSON.stringify(frames)).not.toContain('[y/N]');
+			expect(last(frames)).toMatchObject({ type: 'exit', code: 1 });
+		}
+		expect(last(run('arrow remove x --yes').frames)).toMatchObject({ type: 'exit', code: 0 });
+	});
+
+	it('has no bare add: the arrow verbs live under arrow', () => {
+		expect(run('add github.com/char2cs/crowbar').frames).toEqual([
+			{ type: 'error', status: 403, message: 'command "add" is not available in the console' },
+		]);
+		expect(last(run('arrow add github.com/char2cs/crowbar').frames)).toMatchObject({ type: 'exit', code: 0 });
+		expect(JSON.stringify(run('arrow add github.com/char2cs/crowbar').frames)).toContain('added crowbar');
+	});
+
+	it('refuses a group that is not a command in itself, and the root dispatch', () => {
+		expect(run('arrow').frames[0]).toMatchObject({ type: 'error', status: 403 });
+		expect(run('github.com/char2cs/crowbar').frames[0]).toMatchObject({ type: 'error', status: 403 });
+	});
+
+	it('refuses status --watch, which would never end', () => {
+		for (const line of ['status --watch', 'status -w']) expect(run(line).frames[0]).toMatchObject({ status: 403 });
+		expect(last(run('status').frames)).toMatchObject({ type: 'exit', code: 0 });
+	});
+
+	it('matches the daemon: the longest listed path wins', () => {
+		expect(JSON.stringify(run('arrow list').frames)).toContain('crowbar');
+		expect(last(run('collection list').frames)).toMatchObject({ code: 0 });
 	});
 
 	it('runs an alias', () => {
@@ -206,6 +258,26 @@ describe('the log stream', () => {
 		await Promise.resolve();
 		await Promise.resolve();
 		expect(frames.filter((f) => f.type === 'log')).toHaveLength(3);
+		socket.close();
+		clock.cancelAll();
+	});
+
+	it('says reset when the cursor is ahead of the daemon, and replays what it has', async () => {
+		const { frames, socket, clock } = open('/v0/console/logs?level=debug&since=9000');
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(frames.filter((f) => f.type === 'log').length).toBeGreaterThan(0);
+		const ready = frames.find((f) => f.type === 'ready');
+		expect(ready).toMatchObject({ reset: true });
+		socket.close();
+		clock.cancelAll();
+	});
+
+	it('does not say reset for an ordinary resume', async () => {
+		const { frames, socket, clock } = open('/v0/console/logs?level=debug&since=6');
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(frames.find((f) => f.type === 'ready')).not.toHaveProperty('reset');
 		socket.close();
 		clock.cancelAll();
 	});

@@ -197,6 +197,18 @@ describe('describeCore', () => {
 		).toEqual({ channel: 'stable', version: 'stable-26.5.1', commit: SHA, builtAt: BUILT });
 	});
 
+	it('reads the rolling channel the way the pipeline names it', () => {
+		const core = describeCore({
+			version: 'nightly-latest',
+			commit: SHA,
+			builtAt: '2026-10-04T14:02:09Z',
+			channel: 'nightly-latest',
+		});
+		expect(core?.channel).toBe('nightly');
+		expect(formatBuild(core!)).toBe('nightly 10-04 14:02');
+		expect(formatBuild(core!, { hover: true })).toBe('nightly 7b4dc02');
+	});
+
 	it('is dev when the daemon reports no channel and a version that is no release', () => {
 		const core = describeCore({ version: 'dev', commit: '', builtAt: '', channel: '' });
 		expect(core).toEqual({ channel: 'dev', version: 'dev', commit: null, builtAt: null });

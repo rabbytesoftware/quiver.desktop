@@ -45,25 +45,60 @@ describe('ingest', () => {
 		expect(store().cursor).toBe(3);
 	});
 
-	it('treats a daemon whose newest record is behind the cursor as restarted', () => {
+	it('a reset ready discards the daemon lines held, then shows the replay', () => {
 		store().ingest([log(40), log(41)]);
-		const restarted = store().ingest([{ type: 'ready', seq: 5 }]);
-		expect(restarted).toBe(true);
-		expect(store().cursor).toBeNull();
-		const last = store().entries[store().entries.length - 1];
-		expect(last).toMatchObject({ kind: 'note', note: { type: 'restarted' } });
+		store().ingest([log(1), log(2), { type: 'ready', seq: 2, reset: true }]);
+
+		const entries = store().entries;
+		expect(entries.filter((e) => e.kind === 'log').map((e) => e.kind === 'log' && e.record.seq)).toEqual([1, 2]);
+		expect(entries.some((e) => e.kind === 'note' && e.note.type === 'restarted')).toBe(true);
+		expect(store().cursor).toBe(2);
 	});
 
-	it('does not call an ordinary ready a restart', () => {
+	it('shows the replay of a restarted daemon even though its seqs are behind the old cursor', () => {
+		store().ingest([log(900)]);
+		store().ingest([log(1), { type: 'ready', seq: 1, reset: true }]);
+		expect(store().entries.filter((e) => e.kind === 'log')).toHaveLength(1);
+	});
+
+	it('a reset keeps what the user typed and what it printed', () => {
+		store().ingest([log(5)]);
+		store().push([
+			{ kind: 'cmd', text: 'list', at: 0 },
+			{ kind: 'out', stream: 'stdout', text: 'github.com/char2cs/crowbar' },
+		]);
+		store().ingest([log(1), { type: 'ready', seq: 1, reset: true }]);
+
+		const kinds = store().entries.map((e) => e.kind);
+		expect(kinds).toContain('cmd');
+		expect(kinds).toContain('out');
+		expect(store().entries.filter((e) => e.kind === 'log')).toHaveLength(1);
+	});
+
+	it('a reset collapses the open line: it belonged to the old daemon', () => {
+		store().ingest([log(1)]);
+		store().toggleExpanded(1);
+		store().ingest([log(1), { type: 'ready', seq: 1, reset: true }]);
+		expect(store().expandedId).toBeNull();
+	});
+
+	it('an ordinary ready changes nothing', () => {
 		store().ingest([log(1), log(2)]);
-		expect(store().ingest([{ type: 'ready', seq: 2 }])).toBe(false);
-		expect(store().ingest([{ type: 'ready', seq: 9 }])).toBe(false);
+		store().ingest([{ type: 'ready', seq: 2, reset: false }]);
+		store().ingest([{ type: 'ready', seq: 9, reset: false }]);
+		expect(store().entries).toHaveLength(2);
 		expect(store().cursor).toBe(2);
 	});
 
 	it('does not call the first ready a restart', () => {
-		expect(store().ingest([{ type: 'ready', seq: 0 }])).toBe(false);
+		store().ingest([{ type: 'ready', seq: 0, reset: false }]);
 		expect(store().entries).toHaveLength(0);
+	});
+
+	it('still drops a record at or behind the cursor when the daemon has not restarted', () => {
+		store().ingest([log(10), log(11)]);
+		store().ingest([log(11), log(10), log(12), { type: 'ready', seq: 12, reset: false }]);
+		expect(store().entries.filter((e) => e.kind === 'log')).toHaveLength(3);
 	});
 
 	it('shows what the daemon dropped, and what it could not decode', () => {

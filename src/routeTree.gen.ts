@@ -9,39 +9,19 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from "./routes/__root"
-import { Route as IndexRouteImport } from "./routes/index"
-import { Route as CollectionsRouteImport } from "./routes/collections"
-import { Route as LibraryRouteImport } from "./routes/library"
-import { Route as RecommendedRouteImport } from "./routes/recommended"
-import { Route as RemoteRouteImport } from "./routes/remote"
-import { Route as SearchRouteImport } from "./routes/search"
 import { Route as SettingsRouteImport } from "./routes/settings"
-import { Route as ArrowSplatRouteImport } from "./routes/arrow.$"
+import { Route as SearchRouteImport } from "./routes/search"
+import { Route as RemoteRouteImport } from "./routes/remote"
+import { Route as RecommendedRouteImport } from "./routes/recommended"
+import { Route as LibraryRouteImport } from "./routes/library"
+import { Route as CollectionsRouteImport } from "./routes/collections"
+import { Route as IndexRouteImport } from "./routes/index"
 import { Route as CollectionSplatRouteImport } from "./routes/collection.$"
+import { Route as ArrowSplatRouteImport } from "./routes/arrow.$"
 
-const IndexRoute = IndexRouteImport.update({
-  id: "/",
-  path: "/",
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CollectionsRoute = CollectionsRouteImport.update({
-  id: "/collections",
-  path: "/collections",
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LibraryRoute = LibraryRouteImport.update({
-  id: "/library",
-  path: "/library",
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RecommendedRoute = RecommendedRouteImport.update({
-  id: "/recommended",
-  path: "/recommended",
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RemoteRoute = RemoteRouteImport.update({
-  id: "/remote",
-  path: "/remote",
+const SettingsRoute = SettingsRouteImport.update({
+  id: "/settings",
+  path: "/settings",
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
@@ -49,19 +29,39 @@ const SearchRoute = SearchRouteImport.update({
   path: "/search",
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: "/settings",
-  path: "/settings",
+const RemoteRoute = RemoteRouteImport.update({
+  id: "/remote",
+  path: "/remote",
   getParentRoute: () => rootRouteImport,
 } as any)
-const ArrowSplatRoute = ArrowSplatRouteImport.update({
-  id: "/arrow/$",
-  path: "/arrow/$",
+const RecommendedRoute = RecommendedRouteImport.update({
+  id: "/recommended",
+  path: "/recommended",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryRoute = LibraryRouteImport.update({
+  id: "/library",
+  path: "/library",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollectionsRoute = CollectionsRouteImport.update({
+  id: "/collections",
+  path: "/collections",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: "/",
+  path: "/",
   getParentRoute: () => rootRouteImport,
 } as any)
 const CollectionSplatRoute = CollectionSplatRouteImport.update({
   id: "/collection/$",
   path: "/collection/$",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArrowSplatRoute = ArrowSplatRouteImport.update({
+  id: "/arrow/$",
+  path: "/arrow/$",
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -149,39 +149,11 @@ export interface RootRouteChildren {
 
 declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    "/": {
-      id: "/"
-      path: "/"
-      fullPath: "/"
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    "/collections": {
-      id: "/collections"
-      path: "/collections"
-      fullPath: "/collections"
-      preLoaderRoute: typeof CollectionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    "/library": {
-      id: "/library"
-      path: "/library"
-      fullPath: "/library"
-      preLoaderRoute: typeof LibraryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    "/recommended": {
-      id: "/recommended"
-      path: "/recommended"
-      fullPath: "/recommended"
-      preLoaderRoute: typeof RecommendedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    "/remote": {
-      id: "/remote"
-      path: "/remote"
-      fullPath: "/remote"
-      preLoaderRoute: typeof RemoteRouteImport
+    "/settings": {
+      id: "/settings"
+      path: "/settings"
+      fullPath: "/settings"
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/search": {
@@ -191,18 +163,39 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/settings": {
-      id: "/settings"
-      path: "/settings"
-      fullPath: "/settings"
-      preLoaderRoute: typeof SettingsRouteImport
+    "/remote": {
+      id: "/remote"
+      path: "/remote"
+      fullPath: "/remote"
+      preLoaderRoute: typeof RemoteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/arrow/$": {
-      id: "/arrow/$"
-      path: "/arrow/$"
-      fullPath: "/arrow/$"
-      preLoaderRoute: typeof ArrowSplatRouteImport
+    "/recommended": {
+      id: "/recommended"
+      path: "/recommended"
+      fullPath: "/recommended"
+      preLoaderRoute: typeof RecommendedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/library": {
+      id: "/library"
+      path: "/library"
+      fullPath: "/library"
+      preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/collections": {
+      id: "/collections"
+      path: "/collections"
+      fullPath: "/collections"
+      preLoaderRoute: typeof CollectionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/": {
+      id: "/"
+      path: "/"
+      fullPath: "/"
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/collection/$": {
@@ -210,6 +203,13 @@ declare module "@tanstack/react-router" {
       path: "/collection/$"
       fullPath: "/collection/$"
       preLoaderRoute: typeof CollectionSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/arrow/$": {
+      id: "/arrow/$"
+      path: "/arrow/$"
+      fullPath: "/arrow/$"
+      preLoaderRoute: typeof ArrowSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

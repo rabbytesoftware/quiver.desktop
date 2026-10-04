@@ -109,7 +109,13 @@ describe('parseLogFrame', () => {
 	});
 
 	it('decodes ready and gap', () => {
-		expect(parseLogFrame('{"type":"ready","seq":9}')).toEqual({ type: 'ready', seq: 9 });
+		expect(parseLogFrame('{"type":"ready","seq":9}')).toEqual({ type: 'ready', seq: 9, reset: false });
+		expect(parseLogFrame('{"type":"ready","seq":3,"reset":true}')).toEqual({ type: 'ready', seq: 3, reset: true });
+		expect(parseLogFrame('{"type":"ready","seq":3,"reset":"yes"}')).toEqual({
+			type: 'ready',
+			seq: 3,
+			reset: false,
+		});
 		expect(parseLogFrame('{"type":"gap","dropped":37}')).toEqual({ type: 'gap', dropped: 37 });
 	});
 

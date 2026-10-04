@@ -31,7 +31,8 @@ export interface LogRecord {
 
 export type LogFrame =
 	| { type: 'log'; record: LogRecord }
-	| { type: 'ready'; seq: number }
+	/** The end of the replay. `reset` means the daemon restarted: what the client holds belongs to another process. */
+	| { type: 'ready'; seq: number; reset: boolean }
 	| { type: 'gap'; dropped: number }
 	| { type: 'raw'; text: string };
 
@@ -115,7 +116,9 @@ export function parseLogFrame(data: unknown): LogFrame {
 		case 'log':
 			return parseLog(value) ?? { type: 'raw', text };
 		case 'ready':
-			return typeof value.seq === 'number' ? { type: 'ready', seq: value.seq } : { type: 'raw', text };
+			return typeof value.seq === 'number'
+				? { type: 'ready', seq: value.seq, reset: value.reset === true }
+				: { type: 'raw', text };
 		case 'gap':
 			return typeof value.dropped === 'number' ? { type: 'gap', dropped: value.dropped } : { type: 'raw', text };
 		default:

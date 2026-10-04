@@ -31,8 +31,8 @@ interface Exec {
 }
 
 const COMMANDS: ConsoleCommand[] = [
-	{ path: ['install'], short: 'install an arrow', usage: 'install <namespace>', aliases: [] },
-	{ path: ['list'], short: 'list arrows', usage: 'list', aliases: [] },
+	{ path: ['install'], short: 'install an arrow', usage: 'install <namespace>', aliases: [], flags: [] },
+	{ path: ['list'], short: 'list arrows', usage: 'list', aliases: [], flags: [] },
 ];
 
 const SUPPORTED = parseVersions({ version: 'nightly-latest', features: ['console.v1'] }) as CoreVersions;
@@ -240,6 +240,7 @@ describe('the log stream', () => {
 		store().setOpen(true);
 		await rig.sync('local', true);
 		rig.sockets[0].deliver({ type: 'log', seq: 7, msg: 'hi', level: 'info' });
+		rig.sockets[0].deliver({ type: 'ready', seq: 7 });
 		rig.tick(FLUSH_MS);
 
 		await rig.sync('local', false);
@@ -254,6 +255,7 @@ describe('the log stream', () => {
 		await rig.sync('local', true);
 		rig.sockets[0].deliver({ type: 'log', seq: 1, msg: 'a', level: 'info' });
 		rig.sockets[0].deliver({ type: 'log', seq: 2, msg: 'b', level: 'warn' });
+		rig.sockets[0].deliver({ type: 'ready', seq: 2 });
 		expect(store().entries).toHaveLength(0);
 
 		rig.tick(FLUSH_MS);
@@ -261,27 +263,82 @@ describe('the log stream', () => {
 		expect(store().cursor).toBe(2);
 	});
 
+	it('holds a replay back until its ready, so a reset can replace what is shown', async () => {
+		store().setOpen(true);
+		await rig.sync('local', true);
+		rig.sockets[0].deliver({ type: 'log', seq: 1, msg: 'a', level: 'info' });
+		rig.tick(FLUSH_MS * 4);
+		expect(store().entries).toHaveLength(0);
+
+		rig.sockets[0].deliver({ type: 'ready', seq: 1 });
+		rig.tick(FLUSH_MS);
+		expect(store().entries).toHaveLength(1);
+	});
+
+	it('passes live frames straight through once the replay is over', async () => {
+		store().setOpen(true);
+		await rig.sync('local', true);
+		rig.sockets[0].deliver({ type: 'ready', seq: 0 });
+		rig.sockets[0].deliver({ type: 'log', seq: 1, msg: 'live', level: 'info' });
+		rig.tick(FLUSH_MS);
+		expect(store().entries).toHaveLength(1);
+	});
+
+	it('does not need the socket to have reported open before frames arrive', async () => {
+		store().setOpen(true);
+		await rig.sync('local', true);
+		// The bridge can deliver before the open call resolves; nothing here waits for `onopen`.
+		expect(rig.sockets[0].onopen).toBeTypeOf('function');
+		rig.sockets[0].deliver({ type: 'log', seq: 1, msg: 'a', level: 'info' });
+		rig.sockets[0].deliver({ type: 'ready', seq: 1 });
+		rig.tick(FLUSH_MS);
+		expect(store().entries).toHaveLength(1);
+	});
+
 	it('flushes what is pending when the console closes', async () => {
 		store().setOpen(true);
 		await rig.sync('local', true);
+		rig.sockets[0].deliver({ type: 'ready', seq: 0 });
 		rig.sockets[0].deliver({ type: 'log', seq: 1, msg: 'a', level: 'info' });
 		store().setOpen(false);
 		expect(store().entries).toHaveLength(1);
 	});
 
-	it('resumes from nothing when the daemon restarted', async () => {
+	it('replaces the shown log with the replay when the daemon says it restarted', async () => {
 		store().setOpen(true);
 		await rig.sync('local', true);
-		rig.sockets[0].deliver({ type: 'log', seq: 40, msg: 'a', level: 'info' });
+		rig.sockets[0].deliver({ type: 'log', seq: 40, msg: 'old', level: 'info' });
+		rig.sockets[0].deliver({ type: 'ready', seq: 40 });
+		rig.tick(FLUSH_MS);
+		expect(store().cursor).toBe(40);
+
+		// The connection drops; the daemon is back, numbering from 1 again, and says so.
+		rig.sockets[0].onclose?.();
+		rig.tick(1000);
+		expect(rig.sockets[1].path).toContain('since=40');
+		rig.sockets[1].deliver({ type: 'log', seq: 1, msg: 'new', level: 'info' });
+		rig.sockets[1].deliver({ type: 'ready', seq: 1, reset: true });
 		rig.tick(FLUSH_MS);
 
-		rig.sockets[0].deliver({ type: 'ready', seq: 3 });
-		rig.tick(FLUSH_MS);
-
-		expect(rig.sockets[0].closed).toBe(true);
-		expect(rig.sockets).toHaveLength(2);
-		expect(rig.sockets[1].path).not.toContain('since');
+		const logs = store().entries.filter((e) => e.kind === 'log');
+		expect(logs).toHaveLength(1);
+		expect(logs[0].kind === 'log' && logs[0].record.msg).toBe('new');
 		expect(store().entries.some((e) => e.kind === 'note' && e.note.type === 'restarted')).toBe(true);
+		expect(store().cursor).toBe(1);
+	});
+
+	it('forgets a replay that was cut off by a dropped connection', async () => {
+		store().setOpen(true);
+		await rig.sync('local', true);
+		rig.sockets[0].deliver({ type: 'log', seq: 1, msg: 'half', level: 'info' });
+		rig.sockets[0].onclose?.();
+		rig.tick(1000);
+		rig.sockets[1].deliver({ type: 'log', seq: 1, msg: 'whole', level: 'info' });
+		rig.sockets[1].deliver({ type: 'ready', seq: 1 });
+		rig.tick(FLUSH_MS);
+
+		const logs = store().entries.filter((e) => e.kind === 'log');
+		expect(logs.map((e) => e.kind === 'log' && e.record.msg)).toEqual(['whole']);
 	});
 });
 

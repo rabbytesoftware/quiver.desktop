@@ -28,8 +28,6 @@ export interface LogStreamDeps {
 export interface LogStream {
 	start(): void;
 	stop(): void;
-	/** Drops the socket and reconnects at once, from the current cursor. */
-	restart(): void;
 	running(): boolean;
 }
 
@@ -119,13 +117,6 @@ export function createLogStream(deps: LogStreamDeps): LogStream {
 			active = false;
 			release();
 			deps.onState('idle');
-		},
-		restart() {
-			if (!active) return;
-			release();
-			retrying = true;
-			delay = RECONNECT_BASE_MS;
-			connect();
 		},
 		running: () => active,
 	};

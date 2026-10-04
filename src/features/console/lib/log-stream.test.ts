@@ -87,7 +87,7 @@ describe('the log stream', () => {
 		h.sockets[0].deliver('{"type":"ready","seq":3}');
 		h.sockets[0].deliver('not json');
 		expect(h.frames).toEqual([
-			{ type: 'ready', seq: 3 },
+			{ type: 'ready', seq: 3, reset: false },
 			{ type: 'raw', text: 'not json' },
 		]);
 	});
@@ -170,24 +170,6 @@ describe('the log stream', () => {
 		socket.close = () => socket.drop();
 		h.stream.stop();
 		expect(h.pending).toEqual([]);
-	});
-
-	it('restart reconnects at once from the current cursor', () => {
-		let cursor: number | null = 90;
-		const h = harness(() => cursor);
-		h.stream.start();
-		h.sockets[0].open();
-		cursor = null;
-		h.stream.restart();
-		expect(h.sockets[0].closed).toBe(true);
-		expect(h.sockets).toHaveLength(2);
-		expect(h.sockets[1].path).not.toContain('since');
-	});
-
-	it('restart does nothing when stopped', () => {
-		const h = harness();
-		h.stream.restart();
-		expect(h.sockets).toHaveLength(0);
 	});
 
 	it('ignores a socket error: the close that follows is handled', () => {

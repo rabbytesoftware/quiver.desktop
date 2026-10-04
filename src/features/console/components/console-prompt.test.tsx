@@ -7,9 +7,9 @@ import type { ConsoleCommand } from '../lib/commands';
 import { useConsoleStore } from '../stores/console-store';
 
 const COMMANDS: ConsoleCommand[] = [
-	{ path: ['install'], short: '', usage: 'install', aliases: [] },
-	{ path: ['info'], short: '', usage: 'info', aliases: [] },
-	{ path: ['list'], short: '', usage: 'list', aliases: [] },
+	{ path: ['install'], short: '', usage: 'install', aliases: [], flags: [] },
+	{ path: ['info'], short: '', usage: 'info', aliases: [], flags: [] },
+	{ path: ['list'], short: '', usage: 'list', aliases: [], flags: [] },
 ];
 
 const input = () => screen.getByRole('textbox') as HTMLInputElement;
@@ -30,7 +30,8 @@ describe('the command line', () => {
 	it('is labelled and offers a hint', () => {
 		renderPrompt();
 		expect(screen.getByRole('textbox', { name: 'Command' })).toBe(input());
-		expect(input()).toHaveAttribute('placeholder', 'help');
+		// The hint is a command the daemon accepts: there is no bare `add`.
+		expect(input()).toHaveAttribute('placeholder', 'install github.com/char2cs/crowbar');
 	});
 
 	it('does not let the OS fix what is typed', () => {

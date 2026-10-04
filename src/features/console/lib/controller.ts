@@ -54,6 +54,13 @@ export function createConsoleController(deps: ControllerDeps): ConsoleController
 	/** Bumped on every connection change, so a slow answer for the previous connection is ignored. */
 	let epoch = 0;
 	let queue: LogFrame[] = [];
+	/**
+	 * The replay of the connection being made, held back until its `ready`. A
+	 * `ready` that says `reset` means the daemon restarted and the replay replaces
+	 * what is shown, which cannot be decided until the whole replay is in hand.
+	 * Null once the replay is over (live frames pass straight through).
+	 */
+	let replay: LogFrame[] | null = null;
 	let flushTimer: unknown = null;
 	const runs = new Set<ConsoleRun>();
 
@@ -63,17 +70,33 @@ export function createConsoleController(deps: ControllerDeps): ConsoleController
 		if (queue.length === 0) return;
 		const frames = queue;
 		queue = [];
-		if (store.getState().ingest(frames)) stream.restart();
+		store.getState().ingest(frames);
 	}
 
 	const stream: LogStream = createLogStream({
 		open: (path) => deps.backend().openSocket(path),
 		cursor: () => store.getState().cursor,
 		onFrames: (frames) => {
-			queue.push(...frames);
-			flushTimer ??= timers.set(flush, FLUSH_MS);
+			for (const frame of frames) {
+				if (replay === null) {
+					queue.push(frame);
+					continue;
+				}
+				replay.push(frame);
+				if (frame.type === 'ready') {
+					queue.push(...replay);
+					replay = null;
+				}
+			}
+			if (queue.length > 0) flushTimer ??= timers.set(flush, FLUSH_MS);
 		},
-		onState: (state: LogStreamState) => store.getState().setStream(state),
+		onState: (state: LogStreamState) => {
+			// Every new socket begins with a replay -- and its frames can beat `onopen`,
+			// so this starts at the attempt, not at the open.
+			if (state === 'connecting' || state === 'reconnecting') replay = [];
+			if (state === 'idle') replay = null;
+			store.getState().setStream(state);
+		},
 		timers,
 	});
 
@@ -216,6 +239,7 @@ export function createConsoleController(deps: ControllerDeps): ConsoleController
 				stream.stop();
 				cancelRuns();
 				queue = [];
+				replay = null;
 				store.getState().adopt(connectionId);
 			}
 			if (isReady && (changed || becameReady)) void refresh(epoch);
@@ -250,6 +274,7 @@ export function createConsoleController(deps: ControllerDeps): ConsoleController
 			if (flushTimer !== null) timers.clear(flushTimer);
 			flushTimer = null;
 			queue = [];
+			replay = null;
 		},
 	};
 }

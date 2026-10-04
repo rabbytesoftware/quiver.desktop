@@ -75,8 +75,12 @@ export interface ConsoleState {
 	setVersions: (versions: CoreVersions | null) => void;
 	setCommands: (commands: ConsoleCommand[]) => void;
 	setStream: (state: StreamState) => void;
-	/** Folds frames from the log stream into the buffer. Returns true when the daemon turned out to have restarted. */
-	ingest: (frames: readonly LogFrame[]) => boolean;
+	/**
+	 * Folds frames from the log stream into the buffer. Hand it a whole replay,
+	 * `ready` included, in one call: a `ready` that says `reset` (the daemon
+	 * restarted) discards the daemon lines already held before the replay is shown.
+	 */
+	ingest: (frames: readonly LogFrame[]) => void;
 	push: (entries: readonly NewEntry[]) => void;
 	clear: () => void;
 	toggleExpanded: (id: number) => void;
@@ -130,9 +134,10 @@ export const useConsoleStore = create<ConsoleState>((set, get) => ({
 	setStream: (stream) => set({ stream }),
 
 	ingest: (frames) => {
-		let restarted = false;
-		let cursor = get().cursor;
+		const reset = frames.some((f) => f.type === 'ready' && f.reset);
+		let cursor = reset ? null : get().cursor;
 		const added: NewEntry[] = [];
+		if (reset) added.push({ kind: 'note', tone: 'info', note: { type: 'restarted' } });
 
 		for (const frame of frames) {
 			switch (frame.type) {
@@ -144,13 +149,7 @@ export const useConsoleStore = create<ConsoleState>((set, get) => ({
 					added.push({ kind: 'log', record: frame.record });
 					break;
 				case 'ready':
-					// A daemon that restarted numbers from 1 again, so its newest record is
-					// BEHIND the cursor. Resume from nothing, or its first lines are lost.
-					if (cursor !== null && frame.seq < cursor) {
-						restarted = true;
-						cursor = null;
-						added.push({ kind: 'note', tone: 'info', note: { type: 'restarted' } });
-					}
+					// Nothing to show: it only ends the replay, and `reset` was read above.
 					break;
 				case 'gap':
 					added.push({ kind: 'note', tone: 'info', note: { type: 'gap', dropped: frame.dropped } });
@@ -161,12 +160,17 @@ export const useConsoleStore = create<ConsoleState>((set, get) => ({
 			}
 		}
 
-		set((s) => ({
-			cursor,
-			nextId: s.nextId + added.length,
-			entries: appendCapped(s.entries, numbered(added, s.nextId), BUFFER_CAP),
-		}));
-		return restarted;
+		set((s) => {
+			// A restarted daemon's lines are another process's: keep the user's own
+			// commands and what they printed, drop the old log.
+			const kept = reset ? s.entries.filter((e) => e.kind !== 'log') : s.entries;
+			return {
+				cursor,
+				expandedId: reset ? null : s.expandedId,
+				nextId: s.nextId + added.length,
+				entries: appendCapped(kept, numbered(added, s.nextId), BUFFER_CAP),
+			};
+		});
 	},
 
 	push: (entries) => {
