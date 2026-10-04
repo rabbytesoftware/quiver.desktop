@@ -6,7 +6,7 @@
 //! opened on this machine and the bearer token never reaches the page.
 
 pub mod csp;
-// pub mod handler;
+pub mod handler;
 pub mod hosts;
 pub mod inject;
 pub mod uri;
