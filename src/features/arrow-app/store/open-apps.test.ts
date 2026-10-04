@@ -1,0 +1,60 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { MAX_OPEN_APPS, admit, useOpenApps } from './open-apps';
+
+describe('admit', () => {
+	it('moves an opened app to the most recent end without duplicating', () => {
+		expect(admit(['a', 'b', 'c'], 'a', null)).toEqual(['b', 'c', 'a']);
+		expect(admit(['a'], 'b', null)).toEqual(['a', 'b']);
+	});
+
+	it('evicts the least recently used app, never the visible one', () => {
+		const full = ['a', 'b', 'c', 'd'];
+		expect(MAX_OPEN_APPS).toBe(4);
+		expect(admit(full, 'e', null)).toEqual(['b', 'c', 'd', 'e']);
+		expect(admit(full, 'e', 'a')).toEqual(['a', 'c', 'd', 'e']);
+	});
+
+	it('honours a custom cap', () => {
+		expect(admit(['a', 'b'], 'c', null, 2)).toEqual(['b', 'c']);
+	});
+
+	it('stops evicting when nothing is evictable', () => {
+		expect(admit(['a'], 'b', 'a', 0)).toEqual(['a', 'b']);
+	});
+});
+
+describe('useOpenApps', () => {
+	beforeEach(() => useOpenApps.setState({ order: [], visible: null }));
+
+	it('show makes an app visible and keeps it open; hide keeps it alive', () => {
+		useOpenApps.getState().show('a/b');
+		expect(useOpenApps.getState()).toMatchObject({ order: ['a/b'], visible: 'a/b' });
+
+		useOpenApps.getState().hide();
+		expect(useOpenApps.getState()).toMatchObject({ order: ['a/b'], visible: null });
+	});
+
+	it('switching keeps every app in the stack', () => {
+		const s = useOpenApps.getState();
+		s.show('a/b');
+		s.show('c/d');
+		expect(useOpenApps.getState().order).toEqual(['a/b', 'c/d']);
+		expect(useOpenApps.getState().visible).toBe('c/d');
+	});
+
+	it('prune removes apps whose surface is gone', () => {
+		const s = useOpenApps.getState();
+		s.show('a/b');
+		s.show('c/d');
+		s.prune(new Set(['c/d']));
+		expect(useOpenApps.getState().order).toEqual(['c/d']);
+	});
+
+	it('prune leaves the store untouched when nothing changed', () => {
+		useOpenApps.getState().show('a/b');
+		const before = useOpenApps.getState().order;
+		useOpenApps.getState().prune(new Set(['a/b']));
+		expect(useOpenApps.getState().order).toBe(before);
+	});
+});
