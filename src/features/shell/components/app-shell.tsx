@@ -2,6 +2,7 @@ import type { CSSProperties, JSX, ReactNode } from 'react';
 
 import { TooltipProvider } from '@/components/ui/tooltip';
 
+import { ArrowAppHost } from '@/features/arrow-app';
 import { useShellStore } from '@/features/shell/stores/shell-store';
 import { Sidebar } from '@/features/sidebar';
 import { cn } from '@/lib/cn';
@@ -48,7 +49,10 @@ export function AppShell({ children, footer }: AppShellProps): JSX.Element {
 					    17px back to the content, moving every tile sideways. The results
 					    grid already pins its column *count* against that (spec 9.3.1); this
 					    pins the width the count is measured against. */}
-					<div className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]">{children}</div>
+					<div className="relative min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]">
+						{children}
+						<ArrowAppHost />
+					</div>
 					{footer}
 				</main>
 			</div>

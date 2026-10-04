@@ -25,7 +25,7 @@ describe('admit', () => {
 });
 
 describe('useOpenApps', () => {
-	beforeEach(() => useOpenApps.setState({ order: [], visible: null }));
+	beforeEach(() => useOpenApps.setState({ order: [], visible: null, reloads: {} }));
 
 	it('show makes an app visible and keeps it open; hide keeps it alive', () => {
 		useOpenApps.getState().show('a/b');
@@ -56,5 +56,23 @@ describe('useOpenApps', () => {
 		const before = useOpenApps.getState().order;
 		useOpenApps.getState().prune(new Set(['a/b']));
 		expect(useOpenApps.getState().order).toBe(before);
+	});
+
+	it('reload bumps only that app\'s key', () => {
+		const s = useOpenApps.getState();
+		s.reload('a/b');
+		s.reload('a/b');
+		s.reload('c/d');
+		expect(useOpenApps.getState().reloads).toEqual({ 'a/b': 2, 'c/d': 1 });
+	});
+
+	it('prune drops the reload keys of pruned apps', () => {
+		const s = useOpenApps.getState();
+		s.show('a/b');
+		s.show('c/d');
+		s.reload('a/b');
+		s.reload('c/d');
+		s.prune(new Set(['c/d']));
+		expect(useOpenApps.getState().reloads).toEqual({ 'c/d': 1 });
 	});
 });
