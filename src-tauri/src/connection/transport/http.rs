@@ -869,9 +869,7 @@ mod tests {
 			.unwrap()
 	}
 
-	/// A chunk written by the peer reaches the caller before the peer finishes,
-	/// and the per-request deadline overrides the client-wide one (this response
-	/// outlives `REQUEST_TIMEOUT`'s test value of 750ms).
+	/// A chunk written by the peer reaches the caller before the peer finishes.
 	#[tokio::test]
 	async fn request_stream_delivers_chunks_before_the_response_ends() {
 		let _serialised = crate::FD_TESTS.lock().await;
@@ -893,8 +891,6 @@ mod tests {
 			.await
 			.unwrap();
 			ack_rx.await.unwrap();
-			// Longer than the client-wide test timeout.
-			tokio::time::sleep(Duration::from_millis(900)).await;
 			s.write_all(b"6\r\n world\r\n0\r\n\r\n").await.unwrap();
 			let _ = s.shutdown().await;
 		};
@@ -910,6 +906,53 @@ mod tests {
 			assert!(resp.chunks.recv().await.is_none());
 		};
 		tokio::join!(server, client);
+	}
+
+	/// The request carries its own deadline, not the client's: a stalled peer is
+	/// cut off at the deadline asked for (150ms), well inside the client-wide test
+	/// value (750ms) that would otherwise apply. The 600ms only bounds the wait, so
+	/// a deadline that was ignored fails the test instead of passing it slowly.
+	#[tokio::test]
+	async fn request_stream_ends_a_stalled_peer_at_the_requests_own_deadline() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let addr = listener.local_addr().unwrap();
+		let t = HttpTransport::new(format!("http://{addr}"), None);
+		let (done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
+
+		let server = async {
+			let (mut s, _) = listener.accept().await.unwrap();
+			let mut buf = [0u8; 2048];
+			let _ = s.read(&mut buf).await.unwrap();
+			s.write_all(
+				b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n",
+			)
+			.await
+			.unwrap();
+			// Say nothing more: hold the connection until the client is done with it.
+			let _ = done_rx.await;
+		};
+		let client = async {
+			let resp = t
+				.request_stream(
+					post("/v0/console/exec"),
+					Duration::from_millis(150),
+				)
+				.await
+				.unwrap();
+			let items = tokio::time::timeout(Duration::from_millis(600), collect(resp))
+				.await
+				.expect("the request's own deadline must end the stream, not the client's");
+			done_tx.send(()).unwrap();
+			items
+		};
+		let (_, items) = tokio::join!(server, client);
+		assert_eq!(items[0].as_ref().unwrap(), b"hello");
+		assert!(
+			matches!(items.last().unwrap(), Err(TransportError::Protocol(_))),
+			"{items:?}"
+		);
 	}
 
 	#[tokio::test]

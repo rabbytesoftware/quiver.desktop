@@ -271,6 +271,9 @@ impl ConsoleExecManager {
 	/// This is the whole of `console_exec` minus Tauri's `State`: the transport is
 	/// resolved by the caller per call, so a command typed after a connection
 	/// switch reaches the new daemon with nothing to re-register.
+	///
+	/// The handle is the run itself: the app lets it go, a test awaits it to know
+	/// the run has ended (or been cancelled) rather than waiting a while.
 	pub fn start<S: FrameSink>(
 		&self,
 		exec_id: String,
@@ -278,7 +281,7 @@ impl ConsoleExecManager {
 		line: String,
 		sink: S,
 		deadline: Duration,
-	) {
+	) -> tokio::task::JoinHandle<()> {
 		let runs = Arc::clone(&self.runs);
 		let id = exec_id.clone();
 		// The run waits to be registered before it starts, so it cannot finish -- and
@@ -292,6 +295,7 @@ impl ConsoleExecManager {
 		});
 		self.register(exec_id, task.abort_handle());
 		let _ = registered.send(());
+		task
 	}
 
 	fn register(&self, exec_id: String, handle: AbortHandle) {
@@ -698,16 +702,6 @@ mod tests {
 
 	// --- start: the whole of console_exec minus Tauri's State -----------------
 
-	async fn until<F: Fn() -> bool>(what: &str, f: F) {
-		for _ in 0..200 {
-			if f() {
-				return;
-			}
-			tokio::time::sleep(Duration::from_millis(10)).await;
-		}
-		panic!("timed out waiting for {what}");
-	}
-
 	#[tokio::test]
 	async fn start_runs_the_command_streams_its_frames_and_forgets_the_run() {
 		let m = ConsoleExecManager::new();
@@ -716,11 +710,14 @@ mod tests {
 			200,
 			vec![ok("{\"type\":\"exit\",\"code\":0,\"error\":\"\"}\n")],
 		));
-		m.start("a".into(), t, "list".into(), sink, Duration::from_secs(1));
+		let run = m.start("a".into(), t, "list".into(), sink, Duration::from_secs(1));
 
-		until("the exit frame", || seen.lock().unwrap().len() == 1).await;
-		until("the run to be forgotten", || m.in_flight() == 0).await;
-		assert!(seen.lock().unwrap()[0].contains("exit"));
+		// The run has ended when its task has: nothing is waited for by the clock.
+		run.await.unwrap();
+		assert_eq!(m.in_flight(), 0);
+		let frames = seen.lock().unwrap();
+		assert_eq!(frames.len(), 1);
+		assert!(frames[0].contains("exit"));
 	}
 
 	/// A transport whose stream never ends: a command that is still running.
@@ -759,7 +756,7 @@ mod tests {
 	async fn start_registers_a_running_command_so_it_can_be_cancelled() {
 		let m = ConsoleExecManager::new();
 		let (sink, seen) = sink();
-		m.start(
+		let run = m.start(
 			"a".into(),
 			Arc::new(Endless),
 			"run x".into(),
@@ -770,7 +767,8 @@ mod tests {
 
 		m.cancel("a");
 		assert_eq!(m.in_flight(), 0);
-		tokio::time::sleep(Duration::from_millis(50)).await;
+		// The task is gone once it is awaited: whatever it was going to say, it never says.
+		assert!(run.await.unwrap_err().is_cancelled());
 		assert!(
 			seen.lock().unwrap().is_empty(),
 			"a cancelled run says nothing more"
@@ -781,7 +779,7 @@ mod tests {
 	async fn start_replaces_a_run_that_reuses_its_id() {
 		let m = ConsoleExecManager::new();
 		let (first_sink, first_seen) = sink();
-		m.start(
+		let first = m.start(
 			"a".into(),
 			Arc::new(Endless),
 			"run x".into(),
@@ -789,16 +787,19 @@ mod tests {
 			Duration::from_secs(5),
 		);
 		let (second_sink, _) = sink();
-		m.start(
+		let second = m.start(
 			"a".into(),
 			Arc::new(Endless),
 			"run y".into(),
 			second_sink,
 			Duration::from_secs(5),
 		);
+		// The second took the id, so the first was ended.
+		assert!(first.await.unwrap_err().is_cancelled());
 		assert_eq!(m.in_flight(), 1);
 		m.cancel_all();
 		assert_eq!(m.in_flight(), 0);
+		assert!(second.await.unwrap_err().is_cancelled());
 		assert!(first_seen.lock().unwrap().is_empty());
 	}
 
@@ -819,15 +820,16 @@ mod tests {
 		}
 		let m = ConsoleExecManager::new();
 		let (sink, seen) = sink();
-		m.start(
+		let run = m.start(
 			"a".into(),
 			Arc::new(Dead),
 			"list".into(),
 			sink,
 			Duration::from_secs(1),
 		);
-		until("the error frame", || seen.lock().unwrap().len() == 1).await;
-		until("the run to be forgotten", || m.in_flight() == 0).await;
+		run.await.unwrap();
+		assert_eq!(m.in_flight(), 0);
+		assert_eq!(seen.lock().unwrap().len(), 1);
 		assert!(seen.lock().unwrap()[0].contains("no socket"));
 	}
 }

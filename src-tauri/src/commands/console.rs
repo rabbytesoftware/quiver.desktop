@@ -22,7 +22,8 @@ pub async fn console_exec(
 ) -> Result<(), String> {
 	check_line(&line)?;
 	let transport = connections.transport().await;
-	execs.start(exec_id, transport, line, on_frame, EXEC_DEADLINE);
+	// The run belongs to the manager now; its handle is only for tests.
+	drop(execs.start(exec_id, transport, line, on_frame, EXEC_DEADLINE));
 	Ok(())
 }
 
