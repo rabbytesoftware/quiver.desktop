@@ -110,6 +110,14 @@ export const en = {
 		'Forced to {language} by VITE_QUIVER_LOCALE for this run. Restart without it to get the picker back.',
 	'settings.general.language.system': 'System ({language})',
 
+	'settings.general.build.title': 'Builds',
+	'settings.general.build.indicator': 'Build indicator',
+	'settings.general.build.indicatorDescription':
+		'Shows which quiver.core and quiver.desktop builds are running, at the top of the sidebar. Off by default on stable releases.',
+	'settings.general.build.console': 'Daemon console',
+	'settings.general.build.consoleDescription':
+		'The connected daemon’s log, and a prompt for its commands. Esc closes it.',
+	'settings.general.build.openConsole': 'Open console',
 	'settings.general.library.title': 'Library',
 	'settings.general.library.label': "Show Quiver's own components",
 	'settings.general.library.description':

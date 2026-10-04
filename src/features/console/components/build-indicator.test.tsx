@@ -6,6 +6,7 @@ import { installBackend, resetBackend, type Backend, type BuildStamp } from '@/l
 
 import { BuildIndicator } from './build-indicator';
 import { parseVersions } from '../lib/versions';
+import { useBuildIndicatorStore } from '../stores/build-indicator-store';
 import { useConsoleStore } from '../stores/console-store';
 
 // 2026-10-04T14:02:09Z
@@ -31,6 +32,7 @@ beforeAll(() => {
 beforeEach(() => {
 	vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'nightly-rolling');
 	useConsoleStore.setState(useConsoleStore.getInitialState(), true);
+	useBuildIndicatorStore.setState({ shown: null });
 	stubBackend(APP_STAMP);
 });
 
@@ -202,5 +204,41 @@ describe('the build indicator', () => {
 		view.unmount();
 		await act(async () => reject(new Error('late')));
 		expect(screen.queryByText('dev')).toBeNull();
+	});
+});
+
+describe('whether the indicator is on the rail', () => {
+	const gone = () => screen.queryByRole('button', { name: 'Builds and daemon console' });
+
+	it('is on a nightly build by default', async () => {
+		await renderIndicator();
+		expect(button()).toBeInTheDocument();
+	});
+
+	it('is off a stable release by default, leaving only drag space where it was', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'stable');
+		const { container } = await renderIndicator();
+		expect(gone()).toBeNull();
+		expect(container.querySelector('[data-slot="build-indicator"]')).toBeNull();
+		expect(container.querySelector('[data-tauri-drag-region]')).not.toBeNull();
+	});
+
+	it.each([['beta'], ['hotfix'], ['']])('is on for a %j build by default', async (channel) => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', channel);
+		await renderIndicator();
+		expect(button()).toBeInTheDocument();
+	});
+
+	it('comes back on a stable release once it is turned on', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'stable');
+		useBuildIndicatorStore.setState({ shown: true });
+		await renderIndicator();
+		expect(button()).toBeInTheDocument();
+	});
+
+	it('goes away on a nightly once it is turned off', async () => {
+		useBuildIndicatorStore.setState({ shown: false });
+		await renderIndicator();
+		expect(gone()).toBeNull();
 	});
 });

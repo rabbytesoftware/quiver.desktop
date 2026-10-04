@@ -7,6 +7,7 @@ import {
 	describeDesktop,
 	formatBuild,
 	formatBuildTime,
+	indicatorShownByDefault,
 	normaliseChannel,
 	parseVersion,
 	type BuildDescriptor,
@@ -230,5 +231,15 @@ describe('describeBuildLong', () => {
 		expect(describeBuildLong(build({ channel: 'beta', version: 'beta-26.5-4', builtAt: null, commit: null }))).toBe(
 			'beta 26.5 #4'
 		);
+	});
+});
+
+describe('whether the indicator is shown by default', () => {
+	it('is quiet on a stable release only', () => {
+		expect(indicatorShownByDefault('stable')).toBe(false);
+	});
+
+	it.each(['beta', 'hotfix', 'nightly', 'dev'] as const)('is shown on %s', (channel) => {
+		expect(indicatorShownByDefault(channel)).toBe(true);
 	});
 });

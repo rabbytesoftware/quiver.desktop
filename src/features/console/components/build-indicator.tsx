@@ -2,6 +2,7 @@ import type { JSX } from 'react';
 
 import { useTranslation } from '@/lib/i18n';
 
+import { useBuildIndicatorSetting } from '../hooks/use-build-indicator';
 import { useDesktopBuild } from '../hooks/use-desktop-build';
 import { describeBuildLong, describeCore, formatBuild, type BuildDescriptor } from '../lib/build-info';
 import { useConsoleStore } from '../stores/console-store';
@@ -57,6 +58,14 @@ function Line({ label, build }: { label: string; build: BuildDescriptor | null }
  * shows its commit. No background until it is hovered or the console is open.
  */
 export function BuildIndicator(): JSX.Element {
+	const { shown } = useBuildIndicatorSetting();
+	// Off, it leaves its place as drag space and nothing else, so the rail row
+	// keeps its shape and the history buttons stay where they are.
+	if (!shown) return <div data-tauri-drag-region className="min-w-0 flex-1" />;
+	return <ShownIndicator />;
+}
+
+function ShownIndicator(): JSX.Element {
 	const { t } = useTranslation();
 	const open = useConsoleStore((s) => s.open);
 	const toggle = useConsoleStore((s) => s.toggle);

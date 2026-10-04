@@ -159,3 +159,13 @@ export function describeBuildLong(build: BuildDescriptor): string {
 	if (build.builtAt !== null) parts.push(new Date(build.builtAt * 1000).toISOString().replace('.000Z', 'Z'));
 	return parts.join(' · ');
 }
+
+/**
+ * Whether the build indicator is shown to someone who has not chosen. A stable
+ * release is for people using Quiver, so it stays quiet; every other channel
+ * (beta, hotfix, nightly and an unstamped dev build) is for people who want to
+ * know exactly which build they are on, so it is shown.
+ */
+export function indicatorShownByDefault(channel: BuildChannel): boolean {
+	return channel !== 'stable';
+}
