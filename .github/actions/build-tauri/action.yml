@@ -20,6 +20,18 @@ inputs:
       refless, exactly as before.
     required: false
     default: ''
+  build-label:
+    description: >-
+      The release tag THIS build is published as, in any channel
+      (`stable-26.5.1`, `beta-26.5-4`, `hotfix-26.5.1-1`), baked into the binary
+      by src-tauri/build.rs so the rail's build indicator can name it. Display
+      only: unlike `release-tag` it is never announced to quiver.core as a ref,
+      so beta and hotfix builds can pass theirs. Falls back to `release-tag`,
+      which is what a stable build wants, and is empty for nightly, PR and
+      local builds (a rolling build is identified by its commit and build time,
+      which build.rs stamps by itself).
+    required: false
+    default: ''
   release-channel:
     description: >-
       The quiver.desktop channel THIS build is published on (`stable`,
@@ -87,6 +99,23 @@ runs:
           exit 1
         fi
         echo "✅ stamping this build as ${RELEASE_TAG}"
+
+    - name: Validate the build label, when one was given
+      shell: bash
+      env:
+        BUILD_LABEL: ${{ inputs.build-label || inputs.release-tag }}
+      run: |
+        if [ -z "$BUILD_LABEL" ]; then
+          echo "ℹ️  no build label — the build indicator will show this build by its commit and time."
+          exit 0
+        fi
+        # Anything else is dropped by `commands::build_info::valid_label` at
+        # runtime, so a malformed label would silently show as an unstamped build.
+        if ! echo "$BUILD_LABEL" | grep -Eq '^(stable-[0-9]+\.[0-9]+(\.[0-9]+)?|(beta|hotfix)-([0-9]+(\.[0-9]+)+|[0-9]{4}-[0-9]{2}-[0-9]{2})(-[0-9]+)?)$'; then
+          echo "❌ build-label must be a stable, beta or hotfix tag, got '${BUILD_LABEL}'."
+          exit 1
+        fi
+        echo "✅ the build indicator will name this build ${BUILD_LABEL}"
 
     - name: Validate the release channel, when one was given
       shell: bash
@@ -222,6 +251,7 @@ runs:
       shell: bash
       env:
         QUIVER_DESKTOP_RELEASE_TAG: ${{ inputs.release-tag }}
+        QUIVER_DESKTOP_STAMP_LABEL: ${{ inputs.build-label || inputs.release-tag }}
         VITE_QUIVER_BUILD_CHANNEL: ${{ inputs.release-channel }}
       run: bash scripts/build-macos-dmg.sh
 
@@ -233,6 +263,7 @@ runs:
       shell: bash
       env:
         QUIVER_DESKTOP_RELEASE_TAG: ${{ inputs.release-tag }}
+        QUIVER_DESKTOP_STAMP_LABEL: ${{ inputs.build-label || inputs.release-tag }}
         VITE_QUIVER_BUILD_CHANNEL: ${{ inputs.release-channel }}
       run: |
         cargo tauri build --bundles appimage,deb \
@@ -243,6 +274,7 @@ runs:
       shell: bash
       env:
         QUIVER_DESKTOP_RELEASE_TAG: ${{ inputs.release-tag }}
+        QUIVER_DESKTOP_STAMP_LABEL: ${{ inputs.build-label || inputs.release-tag }}
         VITE_QUIVER_BUILD_CHANNEL: ${{ inputs.release-channel }}
       run: |
         cargo tauri build --bundles msi,nsis \

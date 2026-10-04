@@ -171,6 +171,7 @@ jobs:
       uses: ./.github/actions/build-tauri
       with:
         quiver-version: ${{ needs.prepare.outputs.core_version }}
+        build-label: ${{ needs.prepare.outputs.tag }}
         release-channel: ${{ startsWith(needs.prepare.outputs.tag, 'hotfix-') && 'hotfix' || 'beta' }}
         rust-version: ${{ env.RUST_VERSION }}
         bun-version: ${{ env.BUN_VERSION }}
