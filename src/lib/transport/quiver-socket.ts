@@ -6,7 +6,7 @@ export const WS_CLOSE_SENTINEL = '\u0000quiver-ws-close';
 const CLOSE_INFO_SEPARATOR = '\u0000';
 
 /** The bridge appends `\0code\0reason` to the sentinel when the daemon's close frame carried them. */
-function parseCloseInfo(text: string): SocketCloseInfo | undefined {
+export function parseCloseInfo(text: string): SocketCloseInfo | undefined {
 	const [, code, ...reason] = text.slice(WS_CLOSE_SENTINEL.length).split(CLOSE_INFO_SEPARATOR);
 	const parsed = Number(code);
 	if (!code || !Number.isInteger(parsed)) return undefined;
