@@ -14,7 +14,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 
 import { restoreUserAgent, runningOn, USER_AGENTS } from '@/__mocks__/user-agent';
 import type { ArrowEntry } from '@/domain/arrow';
-import { useConsoleStore } from '@/features/console/stores/console-store';
+import { useConsoleStore } from '@/features/console';
 import { SIDEBAR_DEFAULT, useShellStore, type SidebarSide } from '@/features/shell';
 import { useArrowStore } from '@/lib/core-store';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';

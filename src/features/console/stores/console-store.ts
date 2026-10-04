@@ -173,3 +173,8 @@ export const useConsoleStore = create<ConsoleState>((set, get) => ({
 	runStarted: () => set((s) => ({ running: s.running + 1 })),
 	runEnded: () => set((s) => ({ running: Math.max(0, s.running - 1) })),
 }));
+
+/** Opens the console: the one thing another feature (Settings) needs of it. */
+export function openConsole(): void {
+	useConsoleStore.getState().setOpen(true);
+}

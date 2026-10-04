@@ -11,7 +11,8 @@ vi.mock('@tanstack/react-router-devtools', () => ({ TanStackRouterDevtools: () =
 import { MockIndicator } from '@/components/mock-indicator';
 
 import { QUIVER_CORE_NAMESPACE } from '@/domain/release';
-import { useBuildIndicatorStore, useConsoleStore } from '@/features/console';
+import { useConsoleStore } from '@/features/console';
+import { useBuildIndicatorStore } from '@/features/console/stores/build-indicator-store';
 import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import { useThemeStore } from '@/features/shell';
 import { useShellStore } from '@/features/shell/stores/shell-store';

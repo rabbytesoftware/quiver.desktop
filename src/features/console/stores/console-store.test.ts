@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { LogFrame, LogRecord } from '@/features/console/lib/frames';
 import { parseVersions } from '@/features/console/lib/versions';
 
-import { BUFFER_CAP, HISTORY_CAP, useConsoleStore } from './console-store';
+import { BUFFER_CAP, HISTORY_CAP, openConsole, useConsoleStore } from './console-store';
 
 function record(seq: number, over: Partial<LogRecord> = {}): LogRecord {
 	return {
@@ -208,6 +208,15 @@ describe('setVersions', () => {
 		store().setVersions(parseVersions({ features: ['console.v1'] }));
 		store().setVersions(null);
 		expect(store().support).toBe('unknown');
+	});
+});
+
+describe('openConsole', () => {
+	it('opens the console, and opening it again changes nothing', () => {
+		openConsole();
+		expect(store().open).toBe(true);
+		openConsole();
+		expect(store().open).toBe(true);
 	});
 });
 

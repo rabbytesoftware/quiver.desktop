@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 
-import { useBuildIndicatorSetting, useConsoleStore } from '@/features/console';
+import { openConsole, useBuildIndicatorSetting } from '@/features/console';
 import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import { useThemeStore, type ThemePreference } from '@/features/shell';
 import type { SidebarSide } from '@/features/shell/lib/geometry';
@@ -32,7 +32,6 @@ export function GeneralSettings() {
 	const forced = localeForcedByEnv();
 
 	const indicator = useBuildIndicatorSetting();
-	const openConsole = useConsoleStore((s) => s.setOpen);
 
 	const showSelfComponents = useCatalogVisibilityStore((s) => s.showSelfComponents);
 	const setShowSelfComponents = useCatalogVisibilityStore((s) => s.setShowSelfComponents);
@@ -146,7 +145,7 @@ export function GeneralSettings() {
 					label={t('settings.general.build.console')}
 					description={t('settings.general.build.consoleDescription')}
 				>
-					<Button size="sm" onClick={() => openConsole(true)}>
+					<Button size="sm" onClick={() => openConsole()}>
 						{t('settings.general.build.openConsole')}
 					</Button>
 				</SettingRow>
