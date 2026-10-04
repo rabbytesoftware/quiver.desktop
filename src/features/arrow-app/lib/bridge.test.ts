@@ -167,4 +167,67 @@ describe('arrow shell bridge', () => {
 
 		expect(api.wsClose).not.toHaveBeenCalled();
 	});
+
+	it.each(['closeHost', 'dispose'] as const)(
+		'closes a socket whose open resolves after %s and drops its frames',
+		async (how) => {
+			const { api, bridge, sent, frames, from } = setup();
+			let release = () => {};
+			api.wsOpen.mockImplementationOnce(async (host, id, _p, onFrame) => {
+				frames[`${host}:${id}`] = onFrame;
+				await new Promise<void>((r) => (release = r));
+			});
+			const opening = bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }));
+			if (how === 'closeHost') bridge.closeHost('a');
+			else bridge.dispose();
+			release();
+			await opening;
+			frames['a:1']('late');
+
+			expect(api.wsClose).toHaveBeenCalledTimes(2);
+			expect(api.wsClose).toHaveBeenLastCalledWith('a', '1');
+			expect(sent.a).toEqual([]);
+		},
+	);
+
+	it('does not reject when a send fails and reports ws-error', async () => {
+		const { api, bridge, sent, from } = setup();
+		await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }));
+		api.wsSend.mockRejectedValueOnce(new Error('dead'));
+
+		await expect(
+			bridge.onMessage(from('a', { type: 'ws-send', id: '1', data: 'x' })),
+		).resolves.toBeUndefined();
+		expect(sent.a[sent.a.length - 1]).toEqual(expect.objectContaining({ type: 'ws-error', id: '1' }));
+	});
+
+	it('still finishes the socket when closing it fails', async () => {
+		const { api, bridge, sent, from } = setup();
+		for (let i = 0; i < MAX_SOCKETS_PER_ARROW; i++) {
+			await bridge.onMessage(from('a', { type: 'ws-open', id: String(i), path: '/ws' }));
+		}
+		api.wsClose.mockRejectedValueOnce(new Error('gone'));
+		await expect(
+			bridge.onMessage(from('a', { type: 'ws-close', id: '0' })),
+		).resolves.toBeUndefined();
+		expect(sent.a[sent.a.length - 1]).toEqual(expect.objectContaining({ type: 'ws-close', id: '0' }));
+
+		await bridge.onMessage(from('a', { type: 'ws-open', id: 'extra', path: '/ws' }));
+		expect(api.wsOpen).toHaveBeenCalledTimes(MAX_SOCKETS_PER_ARROW + 1);
+	});
+
+	it('swallows close failures during closeHost and late-open cleanup', async () => {
+		const { api, bridge, from } = setup();
+		let release = () => {};
+		api.wsOpen.mockImplementationOnce(async () => {
+			await new Promise<void>((r) => (release = r));
+		});
+		api.wsClose.mockRejectedValue(new Error('gone'));
+		const opening = bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }));
+		bridge.closeHost('a');
+		release();
+
+		await expect(opening).resolves.toBeUndefined();
+		expect(api.wsClose).toHaveBeenCalledTimes(2);
+	});
 });

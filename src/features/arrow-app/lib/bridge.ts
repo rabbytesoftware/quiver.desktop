@@ -71,6 +71,7 @@ export function createBridge(deps: BridgeDeps) {
 	};
 
 	const onFrame = (host: string, id: string) => (text: string) => {
+		if (!open.get(host)?.has(id)) return;
 		if (!text.startsWith(WS_CLOSE_SENTINEL)) {
 			reply(host, { type: 'ws-message', id, data: text });
 			return;
@@ -91,6 +92,7 @@ export function createBridge(deps: BridgeDeps) {
 		try {
 			await deps.api.wsOpen(host, m.id, m.path, onFrame(host, m.id));
 			if (ids.has(m.id)) reply(host, { type: 'ws-open', id: m.id });
+			else void deps.api.wsClose(host, m.id).catch(() => {});
 		} catch {
 			reply(host, { type: 'ws-error', id: m.id });
 			finish(host, m.id, ABNORMAL_CLOSE);
@@ -105,17 +107,26 @@ export function createBridge(deps: BridgeDeps) {
 		if (m.type === 'ws-open') {
 			await handleOpen(host, m);
 		} else if (m.type === 'ws-send' && typeof m.data === 'string' && open.get(host)?.has(m.id)) {
-			await deps.api.wsSend(host, m.id, m.data);
+			try {
+				await deps.api.wsSend(host, m.id, m.data);
+			} catch {
+				reply(host, { type: 'ws-error', id: m.id });
+			}
 		} else if (m.type === 'ws-close' && open.get(host)?.has(m.id)) {
-			await deps.api.wsClose(host, m.id);
-			finish(host, m.id, NORMAL_CLOSE);
+			try {
+				await deps.api.wsClose(host, m.id);
+			} catch {
+				// the socket is gone either way
+			} finally {
+				finish(host, m.id, NORMAL_CLOSE);
+			}
 		}
 	}
 
 	function closeHost(host: string) {
 		const ids = open.get(host);
 		if (!ids) return;
-		for (const id of ids) void deps.api.wsClose(host, id);
+		for (const id of ids) void deps.api.wsClose(host, id).catch(() => {});
 		ids.clear();
 	}
 
