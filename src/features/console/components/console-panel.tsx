@@ -23,6 +23,7 @@ export function ConsolePanel(): JSX.Element {
 	const entries = useConsoleStore((s) => s.entries);
 	const expandedId = useConsoleStore((s) => s.expandedId);
 	const toggleExpanded = useConsoleStore((s) => s.toggleExpanded);
+	const tail = useConsoleStore((s) => s.tail);
 
 	return (
 		<section
@@ -40,7 +41,13 @@ export function ConsolePanel(): JSX.Element {
 				<p className="m-auto px-6 text-center text-xs text-console-dim">{t('console.unsupported')}</p>
 			) : (
 				<>
-					<ConsoleLog entries={entries} expandedId={expandedId} onToggle={toggleExpanded} revealKey={open} />
+					<ConsoleLog
+						entries={entries}
+						expandedId={expandedId}
+						onToggle={toggleExpanded}
+						revealKey={open}
+						tailKey={tail}
+					/>
 					<ConsolePrompt onSubmit={(line) => getConsoleController().submit(line)} focused={open} />
 				</>
 			)}

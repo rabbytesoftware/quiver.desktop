@@ -316,7 +316,7 @@ export function createMockConsole(hub: SocketHub, clock: Clock): MockConsole {
 			}
 			const refused = tokens.find((t) => /^--(server|context|config)(=|$)/.test(t));
 			if (refused) {
-				emit(deny(403, `flag "${refused.split('=')[0]}" is not available in the console`), 0);
+				emit(deny(403, `the ${refused.split('=')[0]} flag is not available in the console`), 0);
 				return { cancel };
 			}
 
@@ -326,11 +326,11 @@ export function createMockConsole(hub: SocketHub, clock: Clock): MockConsole {
 				(x, y) => y.path.length - x.path.length
 			)[0];
 			if (!known) {
-				emit(deny(403, `command "${tokens[0]}" is not available in the console`), 0);
+				emit(deny(403, 'unknown command'), 0);
 				return { cancel };
 			}
 			if (known.path[0] === 'status' && tokens.some((t) => t === '--watch' || t === '-w')) {
-				emit(deny(403, 'flag "--watch" is not available in the console'), 0);
+				emit(deny(403, 'the --watch flag is not available in the console'), 0);
 				return { cancel };
 			}
 

@@ -212,6 +212,7 @@ export const en = {
 	'console.indicator.core': 'core',
 	'console.indicator.app': 'app',
 	'console.panel.label': 'Daemon console',
+	'console.log.label': 'Daemon log',
 	'console.prompt.label': 'Command',
 	'console.prompt.placeholder': 'install github.com/char2cs/crowbar',
 	'console.stream.reconnecting': 'Reconnecting…',

@@ -519,6 +519,27 @@ describe('running a command', () => {
 	});
 });
 
+describe('returning to the newest line', () => {
+	beforeEach(async () => {
+		await rig.sync('local', true);
+	});
+
+	it('every command brings the log back to its newest line, as a terminal does', () => {
+		const before = store().tail;
+		rig.controller.submit('install x');
+		expect(store().tail).toBe(before + 1);
+		rig.controller.submit('clear');
+		rig.controller.submit('help');
+		expect(store().tail).toBe(before + 3);
+	});
+
+	it('a blank line does not', () => {
+		const before = store().tail;
+		rig.controller.submit('   ');
+		expect(store().tail).toBe(before);
+	});
+});
+
 describe('client-side commands', () => {
 	beforeEach(async () => {
 		await rig.sync('local', true);

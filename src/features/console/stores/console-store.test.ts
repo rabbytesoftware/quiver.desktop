@@ -158,6 +158,15 @@ describe('toggleExpanded', () => {
 	});
 });
 
+describe('followTail', () => {
+	it('is a counter the log watches: every call is a new request', () => {
+		const before = store().tail;
+		store().followTail();
+		store().followTail();
+		expect(store().tail).toBe(before + 2);
+	});
+});
+
 describe('adopt', () => {
 	it('starts clean for a new connection but keeps the history and the open state', () => {
 		store().adopt('local');

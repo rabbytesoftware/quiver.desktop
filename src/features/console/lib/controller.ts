@@ -250,6 +250,9 @@ export function createConsoleController(deps: ControllerDeps): ConsoleController
 			const text = line.trim();
 			if (text === '') return;
 			const s = store.getState();
+			// Running a command shows its result: whatever the log was scrolled to, it
+			// returns to the newest line, as a terminal does.
+			s.followTail();
 			s.remember(text);
 			if (text === 'clear') {
 				s.clear();

@@ -51,6 +51,105 @@ async function errorNotes(): Promise<number> {
 	return browser.execute(() => document.querySelectorAll('[data-slot="console-note"][data-tone="error"]').length);
 }
 
+/** Where the log pane is scrolled and which rows it has rendered: what a failure needs to be understood. */
+async function logGeometry(): Promise<string> {
+	return browser.execute(() => {
+		const el = document.querySelector('[data-slot="console-log"]') as HTMLElement | null;
+		if (!el) return 'no log pane';
+		const idx = Array.from(el.querySelectorAll('[data-index]'), (n) => Number(n.getAttribute('data-index')));
+		const inner = el.firstElementChild as HTMLElement | null;
+		return JSON.stringify({
+			scrollTop: el.scrollTop,
+			scrollHeight: el.scrollHeight,
+			clientHeight: el.clientHeight,
+			innerHeight: inner?.style.height,
+			rendered: idx.length,
+			firstIndex: idx.length ? Math.min(...idx) : null,
+			lastIndex: idx.length ? Math.max(...idx) : null,
+		});
+	});
+}
+
+interface LogRow {
+	level: string;
+	component: string;
+	msg: string;
+	fields: Record<string, string>;
+}
+
+/**
+ * The log lines rendered right now, read by structure. The pane is virtualized, so
+ * these are the rows around the viewport -- the newest, while it follows the tail --
+ * and a field is a key and a value in two elements, with the `=` drawn by CSS: text
+ * matching on `textContent` cannot see it.
+ */
+async function logRows(): Promise<LogRow[]> {
+	return browser.execute(() =>
+		Array.from(document.querySelectorAll('[data-slot="log-row"]'), (row) => {
+			const cells = row.querySelectorAll(':scope > button > span');
+			const message = cells[3];
+			const fields: Record<string, string> = {};
+			message?.querySelectorAll(':scope > span.inline-block').forEach((field) => {
+				const [key, value] = Array.from(field.children, (c) => c.textContent ?? '');
+				fields[key] = value ?? '';
+			});
+			return {
+				level: row.getAttribute('data-level') ?? '',
+				component: cells[2]?.textContent ?? '',
+				msg: message?.firstElementChild?.textContent ?? '',
+				fields,
+			};
+		})
+	);
+}
+
+/** The daemon's own audit record of a command it ran (`component=console msg=exec`). */
+async function waitForAudit(line: string, code: number, timeout = 60_000): Promise<void> {
+	let rows: LogRow[] = [];
+	try {
+		await browser.waitUntil(
+			async () => {
+				rows = await logRows();
+				return rows.some(
+					(r) =>
+						r.component === 'console' &&
+						r.msg === 'exec' &&
+						r.fields.line === line &&
+						r.fields.code === String(code)
+				);
+			},
+			{ timeout, interval: 300 }
+		);
+	} catch {
+		const seen = rows.filter((r) => r.component === 'console').map((r) => JSON.stringify(r.fields));
+		throw new Error(
+			`the log never showed the daemon's audit record of "${line}" (code ${code}); log pane ${await logGeometry()}; console rows: ${seen.join(' | ') || 'none'}`
+		);
+	}
+}
+
+/** The notes the console itself prints (a refusal, a non-zero exit). */
+async function noteTexts(): Promise<string[]> {
+	return browser.execute(() =>
+		Array.from(document.querySelectorAll('[data-slot="console-note"]'), (n) => n.textContent ?? '')
+	);
+}
+
+async function waitForNotes(pattern: RegExp, atLeast: number, timeout = 30_000): Promise<void> {
+	let seen: string[] = [];
+	try {
+		await browser.waitUntil(
+			async () => {
+				seen = await noteTexts();
+				return seen.filter((t) => pattern.test(t)).length >= atLeast;
+			},
+			{ timeout, interval: 300 }
+		);
+	} catch {
+		throw new Error(`the console never showed ${atLeast} note(s) matching ${pattern}; notes: ${JSON.stringify(seen)}; log pane ${await logGeometry()}`);
+	}
+}
+
 async function consoleText(): Promise<string> {
 	return ((await $('[data-slot="console-log"]').getAttribute('textContent')) ?? '').trim();
 }
@@ -66,7 +165,7 @@ async function waitForConsoleText(pattern: RegExp, timeout = 60_000): Promise<vo
 			{ timeout, interval: 300 }
 		);
 	} catch {
-		throw new Error(`the console never showed ${pattern}; it shows:\n${seen.slice(-1500)}`);
+		throw new Error(`the console never showed ${pattern}; log pane ${await logGeometry()}; it shows:\n${seen.slice(-600)}`);
 	}
 }
 
@@ -137,16 +236,18 @@ describe('console: the build indicator and the daemon console', () => {
 
 	it('runs a read command to a clean exit', async () => {
 		await run('list');
-		await browser.pause(1500);
+		// The daemon records the run, with its exit code, in the log the console shows.
+		await waitForAudit('list', 0);
 		// A clean exit says nothing extra; a failure ends in an alert line.
 		expect(await errorNotes()).toBe(0);
 	});
 
 	it('refuses what the daemon does not offer, in the daemon\'s own words', async () => {
 		await run('daemon');
-		await waitForConsoleText(/Refused \(403\)/);
+		await waitForNotes(/^Refused \(403\): /, 1);
 		await run('add github.com/char2cs/crowbar');
-		await waitForConsoleText(/not available in the console/);
+		await waitForNotes(/^Refused \(403\): /, 2);
+		expect((await noteTexts()).filter((t) => t.startsWith('Refused (403): unknown command'))).toHaveLength(2);
 		await shot('console-refused');
 	});
 
@@ -157,7 +258,8 @@ describe('console: the build indicator and the daemon console', () => {
 	});
 
 	it('logs the commands it ran, as the daemon records them', async () => {
-		await waitForConsoleText(/exec\s+device=local\s+line=version/, 30_000);
+		await waitForAudit('version', 0);
+		await waitForAudit('arrow remove github.com/example/not-there', 2);
 	});
 
 	it('refuses, on the wire, what the console must never run', async () => {

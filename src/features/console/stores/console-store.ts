@@ -61,6 +61,8 @@ export interface ConsoleState {
 	/** The highest log `seq` shown; the stream resumes after it. */
 	cursor: number | null;
 	expandedId: number | null;
+	/** Bumped to bring the log back to its newest line (a command was run). */
+	tail: number;
 
 	draft: string;
 	history: string[];
@@ -84,6 +86,8 @@ export interface ConsoleState {
 	push: (entries: readonly NewEntry[]) => void;
 	clear: () => void;
 	toggleExpanded: (id: number) => void;
+	/** Asks the log to jump to, and keep following, its newest line. */
+	followTail: () => void;
 	setDraft: (draft: string) => void;
 	remember: (line: string) => void;
 	stepHistory: (direction: 'up' | 'down') => void;
@@ -100,6 +104,7 @@ const BLANK = {
 	entries: [] as ConsoleEntry[],
 	cursor: null,
 	expandedId: null,
+	tail: 0,
 	draft: '',
 	historyCursor: FRESH_CURSOR,
 	running: 0,
@@ -182,6 +187,8 @@ export const useConsoleStore = create<ConsoleState>((set, get) => ({
 	},
 
 	clear: () => set({ entries: [], expandedId: null }),
+
+	followTail: () => set((s) => ({ tail: s.tail + 1 })),
 
 	toggleExpanded: (id) => set((s) => ({ expandedId: s.expandedId === id ? null : id })),
 

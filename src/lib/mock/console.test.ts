@@ -94,9 +94,7 @@ describe('the mock daemon advertises the console', () => {
 describe('exec', () => {
 	it('refuses a command that is not in the table, with the status a daemon answers', () => {
 		const { frames } = run('daemon');
-		expect(frames).toEqual([
-			{ type: 'error', status: 403, message: 'command "daemon" is not available in the console' },
-		]);
+		expect(frames).toEqual([{ type: 'error', status: 403, message: 'unknown command' }]);
 	});
 
 	it.each(['list --server tcp://evil:1', 'list --context x', 'list --config=/etc/passwd'])('refuses %s', (line) => {
@@ -157,7 +155,7 @@ describe('exec', () => {
 
 	it('has no bare add: the arrow verbs live under arrow', () => {
 		expect(run('add github.com/char2cs/crowbar').frames).toEqual([
-			{ type: 'error', status: 403, message: 'command "add" is not available in the console' },
+			{ type: 'error', status: 403, message: 'unknown command' },
 		]);
 		expect(last(run('arrow add github.com/char2cs/crowbar').frames)).toMatchObject({ type: 'exit', code: 0 });
 		expect(JSON.stringify(run('arrow add github.com/char2cs/crowbar').frames)).toContain('added crowbar');
