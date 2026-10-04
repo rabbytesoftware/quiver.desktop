@@ -2,6 +2,7 @@ import type { CSSProperties, JSX, ReactNode } from 'react';
 
 import { TooltipProvider } from '@/components/ui/tooltip';
 
+import { ConsoleDock } from '@/features/console';
 import { useShellStore } from '@/features/shell/stores/shell-store';
 import { Sidebar } from '@/features/sidebar';
 import { cn } from '@/lib/cn';
@@ -51,6 +52,8 @@ export function AppShell({ children, footer }: AppShellProps): JSX.Element {
 					<div className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]">{children}</div>
 					{footer}
 				</main>
+
+				<ConsoleDock className={contentColumn} />
 			</div>
 		</TooltipProvider>
 	);

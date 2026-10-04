@@ -6,7 +6,8 @@ import { createLogStream, type LogStream, type LogStreamState } from './log-stre
 import type { CoreVersions } from './versions';
 import { useConsoleStore, type NewEntry } from '../stores/console-store';
 
-const ANSI = /\u001b\[[0-9;?]*[A-Za-z]/g;
+// Built from the character code: a control character in a regex literal is what `no-control-regex` exists to forbid, and here it is the point.
+const ANSI = new RegExp(String.raw`${String.fromCharCode(27)}\[[0-9;?]*[A-Za-z]`, 'g');
 
 /** Frames from the stream are folded into the store in batches, not one render each. */
 export const FLUSH_MS = 50;
@@ -173,31 +174,27 @@ export function createConsoleController(deps: ControllerDeps): ConsoleController
 				case 'exit':
 					flushPending();
 					if (frame.code !== 0) {
-						store
-							.getState()
-							.push([
-								{
-									kind: 'note',
-									tone: 'error',
-									note: { type: 'exit', code: frame.code, error: frame.error },
-								},
-							]);
+						store.getState().push([
+							{
+								kind: 'note',
+								tone: 'error',
+								note: { type: 'exit', code: frame.code, error: frame.error },
+							},
+						]);
 					}
 					end();
 					break;
 				case 'error':
 					flushPending();
-					store
-						.getState()
-						.push([
-							frame.status > 0
-								? {
-										kind: 'note',
-										tone: 'error',
-										note: { type: 'refused', status: frame.status, message: frame.message },
-									}
-								: { kind: 'note', tone: 'error', note: { type: 'text', text: frame.message } },
-						]);
+					store.getState().push([
+						frame.status > 0
+							? {
+									kind: 'note',
+									tone: 'error',
+									note: { type: 'refused', status: frame.status, message: frame.message },
+								}
+							: { kind: 'note', tone: 'error', note: { type: 'text', text: frame.message } },
+					]);
 					end();
 					break;
 				case 'raw':

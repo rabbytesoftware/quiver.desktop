@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMockConsole, MOCK_COMMANDS, MOCK_CORE_VERSIONS, tokenise } from './console';
-import { createClock } from './world/clock';
 import { createSocketHub } from './socket';
+import { createClock } from './world/clock';
 
 function last<T>(items: T[]): T | undefined {
 	return items[items.length - 1];

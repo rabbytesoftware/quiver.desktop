@@ -1,5 +1,6 @@
 import type { JSX } from 'react';
 
+import { BuildIndicator } from '@/features/console';
 import { ConnectionSwitcher } from '@/features/remote';
 import { WindowControls } from '@/features/shell/components/window-controls';
 import { railOwnsControls } from '@/features/shell/lib/geometry';
@@ -38,7 +39,7 @@ export function RailTopBar(): JSX.Element {
 	return (
 		<div data-tauri-drag-region className="flex h-(--row) items-center px-1.5">
 			{leading}
-			<div data-tauri-drag-region className="flex-1" />
+			<BuildIndicator />
 			{trailing}
 		</div>
 	);

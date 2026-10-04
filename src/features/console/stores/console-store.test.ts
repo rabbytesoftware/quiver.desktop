@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { BUFFER_CAP, HISTORY_CAP, useConsoleStore } from './console-store';
 import type { LogFrame, LogRecord } from '../lib/frames';
 import { parseVersions } from '../lib/versions';
-import { BUFFER_CAP, HISTORY_CAP, useConsoleStore } from './console-store';
 
 function record(seq: number, over: Partial<LogRecord> = {}): LogRecord {
 	return {

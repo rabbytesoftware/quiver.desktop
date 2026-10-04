@@ -208,6 +208,25 @@ export const en = {
 	'settings.engine.path.description.ready':
 		'Quiver’s command directory is on your PATH, so the commands of installed arrows work in a terminal.',
 
+	'console.indicator.label': 'Builds and daemon console',
+	'console.indicator.core': 'core',
+	'console.indicator.app': 'app',
+	'console.panel.label': 'Daemon console',
+	'console.prompt.label': 'Command',
+	'console.prompt.placeholder': 'help',
+	'console.stream.reconnecting': 'Reconnecting…',
+	'console.unsupported': 'This daemon has no console. Update quiver.core to use it.',
+	'console.note.restarted': 'Daemon restarted',
+	'console.note.gap': {
+		one: '{count} line skipped',
+		other: '{count} lines skipped',
+	},
+	'console.note.exit': 'Exited with code {code}',
+	'console.note.exitWithError': 'Exited with code {code}: {error}',
+	'console.note.refused': 'Refused ({status}): {message}',
+	'console.note.unsupported': 'This daemon has no console.',
+	'console.note.helpUnavailable': 'The command list is not available.',
+
 	'mock.badge': 'Mock',
 	'mock.status': '{scenario} · no daemon is being contacted',
 	'mock.turnOff': 'Turn off',

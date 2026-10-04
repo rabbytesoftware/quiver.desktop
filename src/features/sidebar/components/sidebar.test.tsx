@@ -14,6 +14,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 
 import { restoreUserAgent, runningOn, USER_AGENTS } from '@/__mocks__/user-agent';
 import type { ArrowEntry } from '@/domain/arrow';
+import { useConsoleStore } from '@/features/console/stores/console-store';
 import { SIDEBAR_DEFAULT, useShellStore, type SidebarSide } from '@/features/shell';
 import { useArrowStore } from '@/lib/core-store';
 import { LOCALE_STORAGE_KEY, useLocaleStore } from '@/lib/i18n';
@@ -229,6 +230,32 @@ describe('RailTopBar', () => {
 
 		expect(topBar().querySelector('[data-slot="window-controls"]')).toBeNull();
 		expect(topBar().lastElementChild).toContainElement(screen.getByRole('button', { name: 'Go back' }));
+	});
+
+	it('puts the build indicator between the macOS reserve and history, so it never sits under the traffic lights', async () => {
+		runningOn(USER_AGENTS.macos);
+		await renderRail('/', 'left');
+
+		const slots = [...topBar().children].map((el) => el.getAttribute('data-slot'));
+		expect(slots[0]).toBe('window-controls');
+		expect(slots[1]).toBe('build-indicator');
+		expect(topBar().lastElementChild).toContainElement(screen.getByRole('button', { name: 'Go back' }));
+	});
+
+	it('puts the build indicator on the interior side of the history buttons with the rail on the right', async () => {
+		await renderRail('/', 'right');
+
+		const slots = [...topBar().children].map((el) => el.getAttribute('data-slot'));
+		expect(slots.indexOf('build-indicator')).toBe(slots.length - 1);
+		expect(topBar().firstElementChild).toContainElement(screen.getByRole('button', { name: 'Go back' }));
+	});
+
+	it('opens the console from the build indicator', async () => {
+		useConsoleStore.setState({ open: false });
+		await renderRail('/', 'left');
+
+		await userEvent.click(screen.getByRole('button', { name: 'Builds and daemon console' }));
+		expect(useConsoleStore.getState().open).toBe(true);
 	});
 
 	it('is one row tall, from the token rather than from pixels', async () => {
