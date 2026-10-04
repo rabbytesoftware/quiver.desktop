@@ -252,8 +252,8 @@ pub fn run() {
 			ws_open,
 			ws_send,
 			ws_close,
-			console::console_exec,
-			console::console_exec_cancel,
+			commands::console::console_exec,
+			commands::console::console_exec_cancel,
 		])
 		// `build` + `run(callback)` rather than `run(context)`, for the sake of the
 		// callback: it is the only place the app can notice that it is exiting, and

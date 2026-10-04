@@ -81,17 +81,23 @@ pub trait Transport: Send + Sync {
 		req: Request<Vec<u8>>,
 		_deadline: Duration,
 	) -> Result<StreamResponse, TransportError> {
-		let resp = self.request(req).await?;
-		let (parts, body) = resp.into_parts();
-		let (tx, rx) = mpsc::channel(1);
-		if !body.is_empty() {
-			// The channel is empty and has room for one, so this cannot fail.
-			let _ = tx.try_send(Ok(body));
-		}
-		Ok(StreamResponse {
-			status: parts.status.as_u16(),
-			chunks: rx,
-		})
+		Ok(whole_as_stream(self.request(req).await?))
+	}
+}
+
+/// A whole response as a stream: its body as one chunk (none for an empty body),
+/// then the end. A free function, not part of the trait's default method, so it is
+/// compiled once however many transports lean on that default.
+fn whole_as_stream(resp: Response<Vec<u8>>) -> StreamResponse {
+	let (parts, body) = resp.into_parts();
+	let (tx, rx) = mpsc::channel(1);
+	if !body.is_empty() {
+		// The channel is empty and has room for one, so this cannot fail.
+		let _ = tx.try_send(Ok(body));
+	}
+	StreamResponse {
+		status: parts.status.as_u16(),
+		chunks: rx,
 	}
 }
 
@@ -175,5 +181,85 @@ mod tests {
 	fn protocol_errors_name_the_cause() {
 		let e = TransportError::Protocol("bad status line".into());
 		assert_eq!(e.to_string(), "protocol error: bad status line");
+	}
+}
+
+#[cfg(test)]
+mod default_stream_tests {
+	use super::*;
+
+	/// A transport that can only answer whole: it implements `request` and `open_ws`
+	/// and relies on the trait's default `request_stream`.
+	struct Whole(Result<(u16, Vec<u8>), &'static str>);
+
+	#[async_trait]
+	impl Transport for Whole {
+		async fn request(
+			&self,
+			_req: Request<Vec<u8>>,
+		) -> Result<Response<Vec<u8>>, TransportError> {
+			match &self.0 {
+				Ok((status, body)) => Ok(Response::builder()
+					.status(*status)
+					.body(body.clone())
+					.unwrap()),
+				Err(why) => Err(TransportError::Connect((*why).into())),
+			}
+		}
+
+		async fn open_ws(&self, _path: &str) -> Result<WsStream, TransportError> {
+			Err(TransportError::Connect("no ws".into()))
+		}
+	}
+
+	fn get() -> Request<Vec<u8>> {
+		Request::builder()
+			.uri("quiver://localhost/v0/x")
+			.body(Vec::new())
+			.unwrap()
+	}
+
+	#[tokio::test]
+	async fn the_default_delivers_the_whole_body_as_one_chunk_then_ends() {
+		let t = Whole(Ok((200, b"hello".to_vec())));
+		let mut resp = t
+			.request_stream(get(), Duration::from_secs(1))
+			.await
+			.unwrap();
+		assert_eq!(resp.status, 200);
+		assert_eq!(resp.chunks.recv().await.unwrap().unwrap(), b"hello");
+		assert!(resp.chunks.recv().await.is_none());
+	}
+
+	#[tokio::test]
+	async fn the_default_keeps_the_status_of_an_error_answer() {
+		let t = Whole(Ok((403, b"{}".to_vec())));
+		let resp = t
+			.request_stream(get(), Duration::from_secs(1))
+			.await
+			.unwrap();
+		assert_eq!(resp.status, 403);
+	}
+
+	#[tokio::test]
+	async fn the_default_delivers_nothing_for_an_empty_body() {
+		let t = Whole(Ok((204, Vec::new())));
+		let mut resp = t
+			.request_stream(get(), Duration::from_secs(1))
+			.await
+			.unwrap();
+		assert_eq!(resp.status, 204);
+		assert!(resp.chunks.recv().await.is_none());
+	}
+
+	#[tokio::test]
+	async fn the_default_passes_a_transport_failure_through() {
+		let t = Whole(Err("no socket"));
+		let err = t
+			.request_stream(get(), Duration::from_secs(1))
+			.await
+			.err()
+			.unwrap();
+		assert!(matches!(err, TransportError::Connect(_)), "got {err:?}");
 	}
 }

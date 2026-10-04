@@ -953,4 +953,108 @@ mod tests {
 		};
 		tokio::join!(server, client);
 	}
+
+	async fn collect(mut resp: StreamResponse) -> Vec<Result<Vec<u8>, TransportError>> {
+		let mut items = Vec::new();
+		while let Some(item) = resp.chunks.recv().await {
+			items.push(item);
+		}
+		items
+	}
+
+	#[tokio::test]
+	async fn request_stream_to_a_dead_port_is_a_connect_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let t = unreachable().await;
+		let err = t
+			.request_stream(post("/v0/console/exec"), Duration::from_secs(1))
+			.await
+			.err()
+			.unwrap();
+		assert!(matches!(err, TransportError::Connect(_)), "got {err:?}");
+	}
+
+	/// A peer that accepts and hangs up before answering is a protocol failure, not a refused connection.
+	#[tokio::test]
+	async fn request_stream_to_a_peer_that_hangs_up_is_a_protocol_error() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let addr = listener.local_addr().unwrap();
+		let t = HttpTransport::new(format!("http://{addr}"), None);
+
+		let server = async {
+			let (mut s, _) = listener.accept().await.unwrap();
+			drain_request(&mut s).await;
+			drop(s);
+		};
+		let client = t.request_stream(post("/v0/console/exec"), Duration::from_secs(2));
+		let (_, err) = tokio::join!(server, client);
+		assert!(matches!(err.err().unwrap(), TransportError::Protocol(_)));
+	}
+
+	/// The caller's own headers go through; the inbound Host (the local proxy's) does not.
+	#[tokio::test]
+	async fn request_stream_forwards_headers_but_not_the_inbound_host() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let addr = listener.local_addr().unwrap();
+		let t = HttpTransport::new(format!("http://{addr}"), None);
+
+		let server = async {
+			let (mut s, _) = listener.accept().await.unwrap();
+			let mut buf = [0u8; 4096];
+			let n = s.read(&mut buf).await.unwrap();
+			let head = String::from_utf8_lossy(&buf[..n]).to_lowercase();
+			s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+				.await
+				.unwrap();
+			head
+		};
+		let req = Request::builder()
+			.method("POST")
+			.uri("quiver://localhost/v0/console/exec")
+			.header("host", "the-local-proxy.invalid")
+			.header("x-trace", "abc")
+			.body(b"{}".to_vec())
+			.unwrap();
+		let (head, resp) =
+			tokio::join!(server, t.request_stream(req, Duration::from_secs(2)));
+		assert!(head.contains("x-trace: abc"), "{head}");
+		assert!(!head.contains("the-local-proxy.invalid"), "{head}");
+		assert_eq!(resp.unwrap().status, 200);
+	}
+
+	/// The daemon hanging up mid-body is reported after what arrived.
+	#[tokio::test]
+	async fn request_stream_reports_a_body_cut_short() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let addr = listener.local_addr().unwrap();
+		let t = HttpTransport::new(format!("http://{addr}"), None);
+
+		let server = async {
+			let (mut s, _) = listener.accept().await.unwrap();
+			drain_request(&mut s).await;
+			s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\nhello")
+				.await
+				.unwrap();
+			let _ = s.shutdown().await;
+		};
+		let client = async {
+			let resp = t
+				.request_stream(post("/v0/console/exec"), Duration::from_secs(2))
+				.await
+				.unwrap();
+			collect(resp).await
+		};
+		let (_, items) = tokio::join!(server, client);
+		assert!(
+			matches!(items.last().unwrap(), Err(TransportError::Protocol(_))),
+			"{items:?}"
+		);
+	}
 }

@@ -24,17 +24,14 @@
 //! anything the user ran.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tauri::http::Request;
-use tauri::ipc::Channel;
-use tauri::{AppHandle, Manager, State};
 use tokio::task::AbortHandle;
 
 use crate::connection::bridge::FrameSink;
 use crate::connection::transport::Transport;
-use crate::connection::ConnectionManager;
 
 /// The exec route.
 const EXEC_PATH: &str = "/v0/console/exec";
@@ -42,11 +39,11 @@ const EXEC_PATH: &str = "/v0/console/exec";
 /// Longest command line this side forwards. The daemon enforces 1024 bytes
 /// itself; this is only a guard so a pathological paste cannot become a
 /// megabyte IPC argument before the daemon gets to say no.
-const MAX_LINE_BYTES: usize = 4096;
+pub const MAX_LINE_BYTES: usize = 4096;
 
 /// The daemon bounds a command at 10 minutes; this is the same bound plus a
 /// little grace so the daemon's own timeout answer arrives before ours.
-const EXEC_DEADLINE: Duration = Duration::from_secs(630);
+pub const EXEC_DEADLINE: Duration = Duration::from_secs(630);
 
 /// Longest single NDJSON line accepted. A frame is a line of output wrapped in
 /// a little JSON, so this is generous; anything longer is dropped with a marker
@@ -168,16 +165,18 @@ fn is_exit_frame(line: &str) -> bool {
 		.unwrap_or(false)
 }
 
-fn exec_request(line: &str) -> Result<Request<Vec<u8>>, String> {
+fn exec_request(line: &str) -> Request<Vec<u8>> {
+	// Neither step can fail: a JSON object of one string always serialises, and the
+	// builder is given a fixed method, a well-formed URI and valid header names.
 	let body = serde_json::to_vec(&serde_json::json!({ "line": line }))
-		.map_err(|e| format!("encode command: {e}"))?;
+		.expect("a JSON string serialises");
 	Request::builder()
 		.method("POST")
 		.uri(format!("quiver://localhost{EXEC_PATH}"))
 		.header("content-type", "application/json")
 		.header("accept", "application/x-ndjson")
 		.body(body)
-		.map_err(|e| format!("build request: {e}"))
+		.expect("a fixed request is well-formed")
 }
 
 /// Run `line` on `transport`, pushing every frame to `sink`, until the
@@ -191,10 +190,7 @@ pub async fn run_exec<S: FrameSink>(
 	sink: &S,
 	deadline: Duration,
 ) {
-	let request = match exec_request(line) {
-		Ok(r) => r,
-		Err(e) => return sink.send(error_frame(0, &e)),
-	};
+	let request = exec_request(line);
 	let mut response = match transport.request_stream(request, deadline).await {
 		Ok(r) => r,
 		Err(e) => return sink.send(error_frame(0, &e.to_string())),
@@ -236,13 +232,22 @@ pub async fn run_exec<S: FrameSink>(
 		sink.send(last);
 	}
 	if !exited {
-		sink.send(error_frame(
-			0,
-			&failure.unwrap_or_else(|| {
-				"the connection ended before the command finished".into()
-			}),
-		));
+		let why = match failure {
+			Some(why) => why,
+			None => "the connection ended before the command finished".into(),
+		};
+		sink.send(error_frame(0, &why));
 	}
+}
+
+/// Longest command line this side forwards. The daemon enforces 1024 bytes
+/// itself; this is only a guard so a pathological paste cannot become a
+/// megabyte IPC argument before the daemon gets to say no.
+pub fn check_line(line: &str) -> Result<(), String> {
+	if line.len() > MAX_LINE_BYTES {
+		return Err(format!("command is longer than {MAX_LINE_BYTES} bytes"));
+	}
+	Ok(())
 }
 
 /// Tracks the runs in flight so each can be cancelled by id, and so a page
@@ -252,7 +257,7 @@ pub async fn run_exec<S: FrameSink>(
 /// which cancels the command on the daemon.
 #[derive(Default)]
 pub struct ConsoleExecManager {
-	runs: Mutex<HashMap<String, AbortHandle>>,
+	runs: Arc<Mutex<HashMap<String, AbortHandle>>>,
 }
 
 impl ConsoleExecManager {
@@ -260,15 +265,40 @@ impl ConsoleExecManager {
 		Self::default()
 	}
 
+	/// Run `line` on `transport` in the background, pushing its frames to `sink`,
+	/// under `exec_id` so it can be cancelled. Returns at once.
+	///
+	/// This is the whole of `console_exec` minus Tauri's `State`: the transport is
+	/// resolved by the caller per call, so a command typed after a connection
+	/// switch reaches the new daemon with nothing to re-register.
+	pub fn start<S: FrameSink>(
+		&self,
+		exec_id: String,
+		transport: Arc<dyn Transport>,
+		line: String,
+		sink: S,
+		deadline: Duration,
+	) {
+		let runs = Arc::clone(&self.runs);
+		let id = exec_id.clone();
+		// The run waits to be registered before it starts, so it cannot finish -- and
+		// forget itself -- before its entry exists, which would leave the entry in
+		// the map for good.
+		let (registered, wait) = tokio::sync::oneshot::channel::<()>();
+		let task = tokio::spawn(async move {
+			let _ = wait.await;
+			run_exec(transport.as_ref(), &line, &sink, deadline).await;
+			runs.lock().unwrap().remove(&id);
+		});
+		self.register(exec_id, task.abort_handle());
+		let _ = registered.send(());
+	}
+
 	fn register(&self, exec_id: String, handle: AbortHandle) {
 		// A re-used id strands the previous run, so it is aborted.
 		if let Some(previous) = self.runs.lock().unwrap().insert(exec_id, handle) {
 			previous.abort();
 		}
-	}
-
-	fn finish(&self, exec_id: &str) {
-		self.runs.lock().unwrap().remove(exec_id);
 	}
 
 	/// Abort one run. Unknown ids are fine: the run may already have ended.
@@ -289,49 +319,6 @@ impl ConsoleExecManager {
 	fn in_flight(&self) -> usize {
 		self.runs.lock().unwrap().len()
 	}
-}
-
-/// Run a console command on the active daemon and stream its frames to
-/// `on_frame`. Returns as soon as the run has started; the frames, ending in
-/// an `exit` or `error` frame, arrive on the channel.
-#[tauri::command]
-pub async fn console_exec(
-	exec_id: String,
-	line: String,
-	on_frame: Channel<String>,
-	app: AppHandle,
-	connections: State<'_, ConnectionManager>,
-	execs: State<'_, ConsoleExecManager>,
-) -> Result<(), String> {
-	if line.len() > MAX_LINE_BYTES {
-		return Err(format!("command is longer than {MAX_LINE_BYTES} bytes"));
-	}
-	// Resolved per call, so a command typed after a connection switch reaches
-	// the new daemon with nothing to re-register.
-	let transport = connections.transport().await;
-
-	let id = exec_id.clone();
-	let task = tokio::spawn(async move {
-		run_exec(transport.as_ref(), &line, &on_frame, EXEC_DEADLINE).await;
-		app.state::<ConsoleExecManager>().finish(&id);
-	});
-	execs.register(exec_id.clone(), task.abort_handle());
-	// A command that finished before it was registered would otherwise stay in
-	// the map for good.
-	if task.is_finished() {
-		execs.finish(&exec_id);
-	}
-	Ok(())
-}
-
-/// Cancel a run started by [`console_exec`].
-#[tauri::command]
-pub async fn console_exec_cancel(
-	exec_id: String,
-	execs: State<'_, ConsoleExecManager>,
-) -> Result<(), String> {
-	execs.cancel(&exec_id);
-	Ok(())
 }
 
 #[cfg(test)]
@@ -676,13 +663,171 @@ mod tests {
 		m.cancel_all();
 	}
 
+	// --- check_line and the oversize error body ----------------------------
+
+	#[test]
+	fn a_command_line_is_checked_against_the_ipc_guard() {
+		assert!(check_line("").is_ok());
+		assert!(check_line(&"x".repeat(MAX_LINE_BYTES)).is_ok());
+		let err = check_line(&"x".repeat(MAX_LINE_BYTES + 1)).unwrap_err();
+		assert!(err.contains(&MAX_LINE_BYTES.to_string()), "{err}");
+	}
+
 	#[tokio::test]
-	async fn finish_forgets_without_aborting() {
+	async fn an_error_body_larger_than_the_cap_is_cut_and_the_status_still_reported() {
+		let big = "x".repeat(MAX_ERROR_BODY_BYTES + 1);
+		let t = Scripted::new(502, vec![ok(&big), ok("never read")]);
+		let (sink, seen) = sink();
+		run_exec(&t, "list", &sink, Duration::from_secs(1)).await;
+		let frames = seen.lock().unwrap().clone();
+		assert_eq!(frames.len(), 1);
+		let f: serde_json::Value = serde_json::from_str(&frames[0]).unwrap();
+		assert_eq!(f["status"], 502);
+		assert!(f["message"].as_str().unwrap().contains("502"));
+	}
+
+	#[tokio::test]
+	async fn a_transport_error_with_no_text_still_says_something_useful() {
+		let t = Scripted::new(200, vec![Err(TransportError::Protocol(String::new()))]);
+		let (sink, seen) = sink();
+		run_exec(&t, "list", &sink, Duration::from_secs(1)).await;
+		let frames = seen.lock().unwrap().clone();
+		assert_eq!(frames.len(), 1);
+		assert!(frames[0].contains("\"type\":\"error\""));
+	}
+
+	// --- start: the whole of console_exec minus Tauri's State -----------------
+
+	async fn until<F: Fn() -> bool>(what: &str, f: F) {
+		for _ in 0..200 {
+			if f() {
+				return;
+			}
+			tokio::time::sleep(Duration::from_millis(10)).await;
+		}
+		panic!("timed out waiting for {what}");
+	}
+
+	#[tokio::test]
+	async fn start_runs_the_command_streams_its_frames_and_forgets_the_run() {
 		let m = ConsoleExecManager::new();
-		let t = tokio::spawn(async {});
-		m.register("a".into(), t.abort_handle());
-		m.finish("a");
+		let (sink, seen) = sink();
+		let t: Arc<dyn Transport> = Arc::new(Scripted::new(
+			200,
+			vec![ok("{\"type\":\"exit\",\"code\":0,\"error\":\"\"}\n")],
+		));
+		m.start("a".into(), t, "list".into(), sink, Duration::from_secs(1));
+
+		until("the exit frame", || seen.lock().unwrap().len() == 1).await;
+		until("the run to be forgotten", || m.in_flight() == 0).await;
+		assert!(seen.lock().unwrap()[0].contains("exit"));
+	}
+
+	/// A transport whose stream never ends: a command that is still running.
+	struct Endless;
+
+	#[async_trait]
+	impl Transport for Endless {
+		async fn request(
+			&self,
+			_r: Request<Vec<u8>>,
+		) -> Result<Response<Vec<u8>>, TransportError> {
+			unreachable!()
+		}
+		async fn open_ws(&self, _p: &str) -> Result<WsStream, TransportError> {
+			unreachable!()
+		}
+		async fn request_stream(
+			&self,
+			_r: Request<Vec<u8>>,
+			_d: Duration,
+		) -> Result<StreamResponse, TransportError> {
+			let (tx, rx) = mpsc::channel(1);
+			// Hold the sender so the stream stays open until the run is aborted.
+			tokio::spawn(async move {
+				let _tx = tx;
+				std::future::pending::<()>().await;
+			});
+			Ok(StreamResponse {
+				status: 200,
+				chunks: rx,
+			})
+		}
+	}
+
+	#[tokio::test]
+	async fn start_registers_a_running_command_so_it_can_be_cancelled() {
+		let m = ConsoleExecManager::new();
+		let (sink, seen) = sink();
+		m.start(
+			"a".into(),
+			Arc::new(Endless),
+			"run x".into(),
+			sink,
+			Duration::from_secs(5),
+		);
+		assert_eq!(m.in_flight(), 1);
+
+		m.cancel("a");
 		assert_eq!(m.in_flight(), 0);
-		t.await.unwrap();
+		tokio::time::sleep(Duration::from_millis(50)).await;
+		assert!(
+			seen.lock().unwrap().is_empty(),
+			"a cancelled run says nothing more"
+		);
+	}
+
+	#[tokio::test]
+	async fn start_replaces_a_run_that_reuses_its_id() {
+		let m = ConsoleExecManager::new();
+		let (first_sink, first_seen) = sink();
+		m.start(
+			"a".into(),
+			Arc::new(Endless),
+			"run x".into(),
+			first_sink,
+			Duration::from_secs(5),
+		);
+		let (second_sink, _) = sink();
+		m.start(
+			"a".into(),
+			Arc::new(Endless),
+			"run y".into(),
+			second_sink,
+			Duration::from_secs(5),
+		);
+		assert_eq!(m.in_flight(), 1);
+		m.cancel_all();
+		assert_eq!(m.in_flight(), 0);
+		assert!(first_seen.lock().unwrap().is_empty());
+	}
+
+	#[tokio::test]
+	async fn start_reports_an_unreachable_daemon_and_leaves_nothing_behind() {
+		struct Dead;
+		#[async_trait]
+		impl Transport for Dead {
+			async fn request(
+				&self,
+				_r: Request<Vec<u8>>,
+			) -> Result<Response<Vec<u8>>, TransportError> {
+				Err(TransportError::Connect("no socket".into()))
+			}
+			async fn open_ws(&self, _p: &str) -> Result<WsStream, TransportError> {
+				Err(TransportError::Connect("no socket".into()))
+			}
+		}
+		let m = ConsoleExecManager::new();
+		let (sink, seen) = sink();
+		m.start(
+			"a".into(),
+			Arc::new(Dead),
+			"list".into(),
+			sink,
+			Duration::from_secs(1),
+		);
+		until("the error frame", || seen.lock().unwrap().len() == 1).await;
+		until("the run to be forgotten", || m.in_flight() == 0).await;
+		assert!(seen.lock().unwrap()[0].contains("no socket"));
 	}
 }
