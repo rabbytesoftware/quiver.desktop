@@ -42,6 +42,8 @@ app   nightly 10-04 14:02
 | unstamped | `dev` | `dev <commit>` when known |
 | not yet known | `—` | |
 
+Setting: Settings, General, Builds has a Build indicator switch. With no choice made it is off on a stable release and on for beta, hotfix, nightly and unstamped builds (`indicatorShownByDefault`, decided by this desktop's own `VITE_QUIVER_BUILD_CHANNEL`). Choosing the default stores nothing, so a build that changes channel follows its new default. Off, the indicator leaves only drag space in the rail row. Because the indicator is otherwise the way into the console, the same section has an Open console button; Escape closes it.
+
 Narrow rail: below 160px the time of day is dropped (`nightly 10-04`). Releases are already short. The decision on rail width is in the PR description: the default stays 246px and the indicator degrades, rather than every user's rail growing.
 
 Where the values come from:
