@@ -2,9 +2,10 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useConsoleStore } from '../stores/console-store';
-import { stubLayout } from '../test-layout';
+import { stubLayout } from '@/__mocks__/stub-layout';
+
 import { ConsolePanel } from './console-panel';
+import { useConsoleStore } from '../stores/console-store';
 
 const submit = vi.fn();
 vi.mock('../lib/instance', () => ({ getConsoleController: () => ({ submit }) }));

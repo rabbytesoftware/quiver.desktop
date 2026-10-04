@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ConsoleEntry } from '../stores/console-store';
-import { stubLayout } from '../test-layout';
+import { stubLayout } from '@/__mocks__/stub-layout';
+
 import { ConsoleLog } from './console-log';
+import type { ConsoleEntry } from '../stores/console-store';
 
 function entries(n: number, from = 1): ConsoleEntry[] {
 	return Array.from({ length: n }, (_, i) => ({

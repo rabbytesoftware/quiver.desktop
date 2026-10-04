@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { CONSOLE_FEATURE, parseVersions, supportsConsole } from './versions';
+import { apiFetch } from '@/lib/transport/api';
+
+import { CONSOLE_FEATURE, fetchCoreVersions, parseVersions, supportsConsole } from './versions';
+
+vi.mock('@/lib/transport/api', () => ({ apiFetch: vi.fn() }));
 
 describe('parseVersions', () => {
 	it('reads the wire shape', () => {
@@ -45,5 +49,13 @@ describe('supportsConsole', () => {
 		expect(supportsConsole(parseVersions({ features: [CONSOLE_FEATURE] }))).toBe(true);
 		expect(supportsConsole(parseVersions({ features: ['console.v2'] }))).toBe(false);
 		expect(supportsConsole(null)).toBe(false);
+	});
+});
+
+describe('fetchCoreVersions', () => {
+	it('reads GET /versions', async () => {
+		vi.mocked(apiFetch).mockResolvedValueOnce({ version: '1', features: ['console.v1'] });
+		await expect(fetchCoreVersions()).resolves.toMatchObject({ version: '1', features: ['console.v1'] });
+		expect(apiFetch).toHaveBeenCalledWith('/versions');
 	});
 });

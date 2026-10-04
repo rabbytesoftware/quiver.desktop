@@ -115,6 +115,17 @@ describe('exec', () => {
 		expect(last(run('uninstall github.com/char2cs/crowbar --yes').frames)).toMatchObject({ code: 0 });
 	});
 
+	it('answers version and search', () => {
+		expect(JSON.stringify(run('version').frames)).toContain('nightly-latest');
+		expect(JSON.stringify(run('search crowbar').frames)).toContain('3 results for \\"crowbar\\"');
+		expect(last(run('info github.com/char2cs/crowbar').frames)).toMatchObject({ type: 'exit', code: 0 });
+	});
+
+	it('wants a namespace to uninstall, and says which when it has one', () => {
+		expect(JSON.stringify(run('uninstall').frames)).toContain('this arrow');
+		expect(JSON.stringify(run('uninstall --yes').frames)).toContain('uninstalled');
+	});
+
 	it('runs an alias', () => {
 		expect(last(run('ls').frames)).toMatchObject({ type: 'exit', code: 0 });
 	});
