@@ -179,11 +179,7 @@ pub fn origin_allowed(req: &Request<Vec<u8>>) -> bool {
 	}
 }
 
-/// Whether `path` reaches the daemon's arrow interfaces (`/v0/ui...`). Checked
-/// after percent-decoding, with case folded and repeated slashes collapsed,
-/// because the daemon routes on the decoded path and an arrow chooses the
-/// spelling of a URL it navigates to.
-fn is_arrow_interface_path(path: &str) -> bool {
+fn percent_decode(path: &str) -> String {
 	let mut decoded = Vec::with_capacity(path.len());
 	let bytes = path.as_bytes();
 	let mut i = 0;
@@ -203,13 +199,32 @@ fn is_arrow_interface_path(path: &str) -> bool {
 			}
 		}
 	}
-	let mut normalised = String::with_capacity(decoded.len());
-	for c in String::from_utf8_lossy(&decoded).to_lowercase().chars() {
-		if !(c == '/' && normalised.ends_with('/')) {
-			normalised.push(c);
+	String::from_utf8_lossy(&decoded).into_owned()
+}
+
+/// Whether `quiver://` must refuse `path` before it reaches a transport.
+///
+/// The daemon's arrow interfaces (`/v0/ui...`) are refused in every spelling
+/// that could reach them: the daemon routes on the decoded path, and the HTTP
+/// transport's url parser turns `\` into `/` and resolves `.` and `..`
+/// (encoded too) where `http::Uri` leaves them alone. Backslashes and dot
+/// segments are refused outright, since the shell never sends them and that
+/// leaves no normalisation difference to exploit; what remains is compared
+/// with empty segments dropped and case folded.
+fn is_refused_path(path: &str) -> bool {
+	let decoded = percent_decode(path);
+	if decoded.contains('\\') {
+		return true;
+	}
+	let mut segments = Vec::new();
+	for segment in decoded.split('/') {
+		match segment {
+			"." | ".." => return true,
+			"" => {}
+			s => segments.push(s.to_lowercase()),
 		}
 	}
-	normalised == "/v0/ui" || normalised.starts_with("/v0/ui/")
+	segments.starts_with(&["v0".to_string(), "ui".to_string()])
 }
 
 /// The whole proxy decision, free of Tauri's responder so it can be driven
@@ -231,8 +246,8 @@ where
 		return error_response(403, "origin not allowed");
 	}
 
-	if is_arrow_interface_path(req.uri().path()) {
-		return error_response(403, "arrow interfaces are not served on this scheme");
+	if is_refused_path(req.uri().path()) {
+		return error_response(403, "path not served on this scheme");
 	}
 
 	// Answered before the transport is even resolved: a preflight asks what
@@ -709,44 +724,98 @@ mod tests {
 	/// The shell never loads arrow interfaces through `quiver://` (they have
 	/// their own `arrow-app://` origin), so any `/v0/ui/` request here is an
 	/// arrow trying to reach its own pages under the shell's scheme. Refused
-	/// before a transport is resolved, encoded and doubled-slash spellings
-	/// included, and in the Windows form wry hands the handler.
+	/// before a transport is resolved, in every spelling the HTTP transport
+	/// would normalise to `/v0/ui/...`: reqwest's url parser turns `\` into `/`
+	/// and resolves `.` and `..` (also percent-encoded) for `http://`, while
+	/// `http::Uri` hands them through unchanged. Also in the Windows form wry
+	/// hands the handler.
 	#[tokio::test]
 	async fn quiver_scheme_refuses_arrow_interface_paths_before_resolving() {
-		for uri in [
-			"quiver://localhost/v0/ui/ns/evil.html",
-			"quiver://localhost/v0/ui",
-			"quiver://localhost/v0/ui/",
-			"quiver://localhost/v0/UI/ns/x",
-			"quiver://localhost//v0//ui/ns/x",
-			"quiver://localhost/v0/%75i/ns/x",
-			"quiver://localhost/%76%30/ui/ns/x",
-			"http://quiver.localhost/v0/ui/ns/evil.html",
-		] {
-			for method in ["GET", "POST", "OPTIONS"] {
-				let r = Request::builder()
-					.method(method)
-					.uri(uri)
-					.body(Vec::new())
-					.unwrap();
-				let resp = proxy_once(resolved(NeverDialled), r).await;
-				assert_eq!(resp.status(), 403, "{method} {uri}");
-				assert_eq!(
-					resp.headers()
-						.get(PROXY_ERROR_HEADER)
-						.map(|v| v.as_bytes()),
-					Some(&b"error"[..]),
-					"{method} {uri}"
-				);
+		let paths = [
+			"/v0/ui/ns/evil.html",
+			"/v0/ui",
+			"/v0/ui/",
+			"/V0/UI/ns",
+			"/v0//ui/ns",
+			"//v0//ui/ns/x",
+			"/v0/%75i/ns",
+			"/%76%30/ui/ns/x",
+			"/v0\\ui/ns/e.html",
+			"/v0/x/../ui/ns/e.html",
+			"/v0/x/%2e%2e/ui/ns/e.html",
+			"/v0/x/%2E%2E/ui/ns/e.html",
+			"/v0/./ui/ns",
+			"/v0/%2e/ui/ns",
+			"/v0%5cui/ns",
+			"/v0/x%2f..%2fui/ns",
+		];
+		for host in ["quiver://localhost", "http://quiver.localhost"] {
+			for path in paths {
+				let uri = format!("{host}{path}");
+				for method in ["GET", "POST", "OPTIONS"] {
+					let r = Request::builder()
+						.method(method)
+						.uri(uri.as_str())
+						.body(Vec::new())
+						.unwrap();
+					let resp = proxy_once(resolved(NeverDialled), r).await;
+					assert_eq!(resp.status(), 403, "{method} {uri}");
+					assert_eq!(
+						resp.headers()
+							.get(PROXY_ERROR_HEADER)
+							.map(|v| v.as_bytes()),
+						Some(&b"error"[..]),
+						"{method} {uri}"
+					);
+					assert_eq!(
+						frame_guard(&resp),
+						(Some("frame-ancestors 'none'"), Some("DENY")),
+						"{method} {uri}"
+					);
+				}
 			}
 		}
 	}
 
-	/// Paths that only look similar are the shell's own and must still pass.
-	#[test]
-	fn paths_outside_the_arrow_interface_are_not_refused() {
-		for path in ["/v0/health", "/v0/uix", "/v0/arrow/ui/x", "/v0/units"] {
-			assert!(!is_arrow_interface_path(path), "{path}");
+	/// The shell never sends a backslash or a dot segment, and refusing them
+	/// outright leaves no normalisation difference between this check and the
+	/// transport to exploit, whatever the rest of the path says.
+	#[tokio::test]
+	async fn quiver_scheme_refuses_backslashes_and_dot_segments_anywhere() {
+		for path in [
+			"/v0/arrow/..",
+			"/v0/./arrow",
+			"/v0/arrow/%2e%2e/health",
+			"/v0\\arrow",
+			"/v0/arrow%5Cx",
+			"/..",
+		] {
+			let resp = proxy_once(resolved(NeverDialled), get(path)).await;
+			assert_eq!(resp.status(), 403, "{path}");
+		}
+	}
+
+	/// The shell's own paths, including encoded namespaces, dots inside a
+	/// segment and query strings, must still reach the daemon.
+	#[tokio::test]
+	async fn the_shells_own_paths_still_pass() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let t = Arc::new(serving("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}").await);
+		for path in [
+			"/v0/arrow",
+			"/v0/health",
+			"/v0/uix",
+			"/v0/units",
+			"/v0/arrow/ui/x",
+			"/v0/runtime/github.com%2Fuser%2Frepo",
+			"/v0/arrow.runtime",
+			"/v0/arrow?namespace=a%2Fb&x=..",
+			"/v0/arrow/a..b/.hidden",
+		] {
+			let resp =
+				proxy_once(ready(t.clone() as Arc<dyn Transport>), get(path)).await;
+			assert_eq!(resp.status(), 200, "{path}");
 		}
 	}
 
