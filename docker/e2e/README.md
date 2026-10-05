@@ -66,12 +66,9 @@ services:
 docker compose -f docker/e2e/docker-compose.yml -f override.yml run --rm e2e scenarios/run-wdio.sh arrow-apps bootstrap
 ```
 
-The chat's ARROW.md fetches and extracts to `./...` with `uninstall: []`, which quiver.core's
-`lifecycle_pairs` rule refuses (`missing_pair`: a relative `to:` does not count as
-workdir-anchored). The spec asserts that on the unmodified file (A0). Everything after it runs
-on a copy whose only change spells those `to:` paths as `${INSTALL_PATH}`; the diff lands in
-`results/wdio/arrow-apps/chat-manifest-override.diff`. Once the chat's manifest is fixed the
-rewrite is a no-op.
+The chat's ARROW.md is served exactly as committed in its checkout; the spec's first check
+(A0) asserts it validates against the core under test and that the stand-in serves it byte for
+byte.
 
 ## What is real, and what stands in for something
 

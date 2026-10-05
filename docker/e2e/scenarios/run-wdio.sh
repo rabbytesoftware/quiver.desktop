@@ -144,18 +144,7 @@ seed_baseline() {
 # linux archives it fetches from the `nightly` release; the echo app and its
 # server; and the three rendered static apps (fixtures/upstream-up.sh).
 seed_arrow_apps() {
-	# quiver.chat's ARROW.md fetches and extracts to `./...`, which the
-	# lifecycle_pairs rule does not count as workdir-anchored, so its
-	# `uninstall: []` fails `missing_pair` and the manifest is refused. The spec
-	# asserts that on the unmodified file (A0); everything after it runs on a
-	# copy whose only change is spelling those two `to:` paths as
-	# ${INSTALL_PATH}, which is where `./` resolves anyway. The diff is kept.
-	local chat_manifest="$RUN_DIR/chat-ARROW.md"
-	sed -e 's#to: \./quiver-chat\.archive#to: ${INSTALL_PATH}/quiver-chat.archive#' \
-		-e 's#to: \./$#to: ${INSTALL_PATH}#' "$CHAT_CHECKOUT/ARROW.md" >"$chat_manifest"
-	mkdir -p "$WDIO_RESULTS/arrow-apps"
-	diff -u "$CHAT_CHECKOUT/ARROW.md" "$chat_manifest" >"$WDIO_RESULTS/arrow-apps/chat-manifest-override.diff" || true
-	publish_manifest rabbytesoftware/quiver.chat develop "$chat_manifest"
+	publish_manifest rabbytesoftware/quiver.chat develop "$CHAT_CHECKOUT/ARROW.md"
 	publish_release rabbytesoftware/quiver.chat nightly \
 		"$CHAT_DIST/quiver-chat-linux-arm64.tar.gz" "$CHAT_DIST/quiver-chat-linux-amd64.tar.gz"
 	publish_manifest rabbytesoftware/e2e-echo-app develop "$E2E_DIR/fixtures/arrows/e2e-echo-app/ARROW.md"
