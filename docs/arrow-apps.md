@@ -1,0 +1,44 @@
+# Arrow apps
+
+## What an arrow app is
+
+An arrow can ship a web interface. The daemon serves it under `/v0/ui/<namespace>/`. Quiver Desktop shows that interface inside the app, in an iframe, so you can use an arrow (a chat, a dashboard) without leaving the shell. The arrow's page is ordinary web content: HTML, scripts, styles, `fetch` calls to its own origin and, through a shim, WebSockets to its own server.
+
+## Request path
+
+The iframe loads `arrow-app://<host>/`. On Windows, wry rewrites that origin to `http://arrow-app.<host>/`, and the app accepts both forms.
+
+1. The shell asks Rust to register the arrow's namespace (`arrow_app_host`). The host is the first 32 lowercase hex characters of the SHA-256 of the namespace, so it is DNS-safe and stable between launches.
+2. The page requests `arrow-app://<host>/some/path?q=1`. The `arrow-app` URI scheme handler looks the host up. Hosts nobody registered answer 404.
+3. The handler rewrites the request to `/v0/ui/<percent-encoded namespace>/some/path?q=1` and sends it through the active connection (local, SSH or whatever transport is selected). The namespace is encoded as a single path segment.
+4. The response comes back through the same transport and is hardened before it reaches the page.
+
+No port is opened on this machine, and the bearer token is added on the Rust side, so it never reaches the page. Requests with `..` or encoded dot or backslash segments in the path are refused with 400. The headers `Origin`, `Referer`, `Cookie`, `Authorization`, `Host` and `Accept-Encoding` are dropped on the way to the daemon, and the encoding is forced to `identity`.
+
+Successful HTML responses get `<script src="/__arrow/shim.js"></script>` inserted right after `<head>` (else after `<html>`, else after the doctype, else at the start). The shim itself is served by the handler from a copy built into the binary. Any other path under `/__arrow/` is a 404.
+
+## Security model
+
+An arrow's page is untrusted. It shares a webview process with the app's own pages, so the boundaries are explicit.
+
+- **No Tauri IPC in the page.** The arrow page can not call Tauri commands. Everything it needs goes through the shell, which relays for it. There is no `window.arrow` object either.
+- **Handler-set CSP and header hardening.** Every `arrow-app` response, including errors, carries the handler's Content-Security-Policy: `default-src 'self'`, inline scripts and styles allowed (Next static exports need them), `connect-src 'self'`, `frame-src 'none'`, `form-action 'self'` and `base-uri 'self'`. The arrow's own CSP, `Content-Security-Policy-Report-Only`, `X-Frame-Options`, CORS headers and `Set-Cookie` are removed. `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` are added. `connect-src 'self'` is what stops the page from calling `quiver://localhost`.
+- **`quiver://` origin allowlist.** The `quiver://` proxy answers CORS for the app's own pages and adds the bearer token. It now refuses any request whose `Origin` is not one of the app's own (`tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`, `http://localhost:1420`), with a 403. Arrow origins are not on the list. Requests with no `Origin` are allowed, since the CSP is what blocks those from the page.
+- **Scoped WebSocket commands.** Arrow sockets use `arrow_ws_open`, `arrow_ws_send` and `arrow_ws_close`, not the generic `ws_open`. The target path is built in Rust as `/v0/ui/<that arrow's namespace>/...` from the registered host, never from the page. Paths that do not start with a single `/`, or contain `..`, backslashes, encoded dots or backslashes, control characters, spaces or `#`, are rejected. Connection keys are prefixed with the host, so two arrows using the same id never collide.
+- **Per-arrow origins.** Each arrow has its own host, so each has its own origin and its own storage (`localStorage`, IndexedDB). One arrow can not read another's data.
+- **Shim hello and per-document ids.** The shim sends a `hello` when a document loads, which makes the shell close any sockets the previous document in that frame left behind. Socket ids carry a random per-document nonce so a new document's ids can not collide with a stale one.
+- **Message authority.** The shell trusts a message only if `event.source` is the iframe registered for a host, and the message only touches that host's sockets. Ids are length limited, and each arrow may hold at most 8 sockets.
+- **Only WebSocket text frames cross the bridge.** The shell understands three message types from a page (`ws-open`, `ws-send`, `ws-close`) and nothing else. Messages are tagged and checked before use.
+
+## Known limits
+
+- **No cookies.** Cookies do not work on custom schemes, and `Set-Cookie` is stripped anyway. Arrows must not rely on them.
+- **Text WebSocket frames only.** Binary frames are not supported. The shim logs an error and drops a non-string `send`.
+- **No response streaming.** A response is buffered whole before the page sees it, so server-sent events and long streaming bodies do not work. A request that takes more than 300 seconds ends in a 504.
+- **Windows is untested at runtime.** The `http://arrow-app.<host>` form is handled and unit tested, but it has not been run on a Windows machine.
+- **At most 4 apps are kept alive.** The shell keeps recently used arrow apps mounted and hidden so state survives switching. Opening a fifth drops the least recently used one that is not visible.
+- **At most 8 sockets per arrow.** Further `new WebSocket` calls close at once with code 1006.
+
+## Trying one locally
+
+The end to end walkthrough, with the chat arrow served by a local daemon and opened in the app, lives in the quiver.chat plan, in its integration task: `docs/superpowers/plans/2026-10-04-arrow-apps-chat.md`. That path is only a pointer, and it is not part of this repository's tracked docs.
