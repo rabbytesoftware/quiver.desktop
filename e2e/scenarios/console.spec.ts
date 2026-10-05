@@ -1,7 +1,11 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import { browser, $, expect } from '@wdio/globals';
 
 import { waitForAppReady } from '../lib/app-ready';
 import { coreClient, waitForCore } from '../lib/core-api';
+import { quiverHome } from '../lib/paths';
 import { shot } from '../lib/ui';
 
 // SCENARIO -- the build indicator and the daemon console, driven through the
@@ -106,7 +110,7 @@ async function logRows(): Promise<LogRow[]> {
  * resolved command (`quiver arrow remove`, not the line typed) and a code. The row
  * draws no component.
  */
-async function waitForAudit(command: string, code: number, atLeast = 1, timeout = 60_000): Promise<void> {
+async function waitForAudit(command: string, code: number, timeout = 60_000): Promise<void> {
 	let rows: LogRow[] = [];
 	const audited = (r: LogRow): boolean =>
 		r.msg === 'exec' &&
@@ -116,16 +120,37 @@ async function waitForAudit(command: string, code: number, atLeast = 1, timeout 
 		await browser.waitUntil(
 			async () => {
 				rows = await logRows();
-				return rows.filter(audited).length >= atLeast;
+				return rows.some(audited);
 			},
 			{ timeout, interval: 300 }
 		);
 	} catch {
 		const seen = rows.filter((r) => r.msg === 'exec').map((r) => JSON.stringify(r.fields));
 		throw new Error(
-			`the log never showed ${atLeast} audit record(s) of "${command}" (code ${code}); log pane ${await logGeometry()}; exec rows: ${seen.join(' | ') || 'none'}`
+			`the log never showed the audit record of "${command}" (code ${code}); log pane ${await logGeometry()}; exec rows: ${seen.join(' | ') || 'none'}`
 		);
 	}
+}
+
+/**
+ * How many times the daemon's own log file says it ran `command` to `code`. The
+ * pane only renders the rows near its viewport, so counting rows there depends on
+ * how much else was logged; the file does not.
+ */
+function daemonAudits(home: string, command: string, code: number): number {
+	const log = fs.readFileSync(path.join(quiverHome(home), 'logs', 'Quiver.log'), 'utf8');
+	return log.split('\n').filter((line) => {
+		try {
+			const record = JSON.parse(line);
+			return (
+				record.msg === 'exec' &&
+				String(record.command).replace(/^quiver /, '') === command &&
+				record.code === code
+			);
+		} catch {
+			return false;
+		}
+	}).length;
 }
 
 /** The notes the console itself prints (a refusal, a non-zero exit). */
@@ -261,9 +286,13 @@ describe('console: the build indicator and the daemon console', () => {
 
 	it('accepts --server and runs the command on this daemon all the same', async () => {
 		// If the flag were honoured the command would dial 127.0.0.1:1 and fail (code 3);
-		// it runs here and exits 0, and the daemon audits it twice by now.
+		// it runs here and exits 0, and the daemon audits one more run.
+		const before = daemonAudits(home, 'version', 0);
 		await run('version --server tcp://127.0.0.1:1');
-		await waitForAudit('version', 0, 2);
+		await browser.waitUntil(() => daemonAudits(home, 'version', 0) === before + 1, {
+			timeout: 60_000,
+			timeoutMsg: 'the daemon never audited the --server run of "version" at code 0',
+		});
 	});
 
 	it('never waits on a confirmation: a destructive command without --yes refuses at once', async () => {
