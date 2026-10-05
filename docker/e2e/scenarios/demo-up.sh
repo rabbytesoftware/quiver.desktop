@@ -2,8 +2,8 @@
 # Leaves the box as a hands-on demo of arrow apps: the Quiver app running on
 # the box's display with its own daemon, quiver.chat installed from its real
 # ARROW.md through the GitHub stand-in and running, and three fixture arrows
-# (E2E Static App 1 and 2, E2E Echo App) running beside it, with the app on
-# quiver.chat's details page. Run it detached inside a box that is up:
+# (E2E Static App 1 and 2, E2E Echo App) running beside it, with the app
+# showing quiver.chat's interface. Run it detached inside a box that is up:
 #
 #   docker compose -f docker/e2e/docker-compose.yml up -d
 #   docker compose -f docker/e2e/docker-compose.yml exec -d e2e bash scenarios/demo-up.sh
@@ -101,12 +101,21 @@ for identity in "${IDENTITIES[@]}"; do
 	ok "$identity is running with a ready interface"
 done
 
-# The sidebar lists arrows by name; quiver.chat (rabbytesoftware.quiver-chat)
-# sorts last, after the three fixtures and the two self-arrows, so its row is
-# the sixth. Rows start 138 px below the client area's top and are 40 px apart.
-say "Opening quiver.chat's details page"
+# The sidebar lists the visible arrows sorted by name, and the app's own
+# components are hidden by default, so only the four arrows above are rows.
+# quiver.chat's row is its rank among their names. Opening a running arrow
+# shows its app straight away. Rows start 138 px below the client area's top
+# and are 40 px apart.
+say "Opening quiver.chat"
+declare -a NAMES=()
+for identity in "${IDENTITIES[@]}"; do
+	NAMES+=("$(arrow_field "$identity" '.data.name')")
+done
+CHAT_NAME="$(arrow_field "${IDENTITIES[3]}" '.data.name')"
+CHAT_ROW="$(printf '%s\n' "${NAMES[@]}" | sort -f | grep -n -x -F -- "$CHAT_NAME" | head -1 | cut -d: -f1)"
+[ -n "$CHAT_ROW" ] || fail "quiver.chat's name $CHAT_NAME is not among the sidebar rows"
 sleep 3
-click_in_app 120 $(( 138 + 5 * 40 ))
+click_in_app 120 $(( 138 + (CHAT_ROW - 1) * 40 ))
 sleep 2
 screenshot ready
 say "DEMO READY: http://localhost:6080/vnc.html (the box's port)"

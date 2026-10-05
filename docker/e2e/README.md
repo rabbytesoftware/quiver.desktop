@@ -75,7 +75,7 @@ byte.
 `scenarios/demo-up.sh` leaves the box running as a demo. It starts the Quiver app on the
 box's display with its own daemon. Through the real CLI and the stand-in it installs and
 starts quiver.chat from its unmodified ARROW.md, plus E2E Static App 1 and 2 and the E2E
-Echo App. It then leaves the app on quiver.chat's details page with Open enabled. Run it
+Echo App. It then leaves the app showing quiver.chat's running interface. Run it
 detached in a box that is up, so it outlives the shell that started it:
 
 ```
@@ -86,8 +86,8 @@ docker compose -f docker/e2e/docker-compose.yml -f override.yml exec -d -e SKIP_
 About 30 s later it writes `DEMO READY` to `results/demo/demo-up.log`, beside a screenshot
 (`results/demo/ready.png`). Open `/vnc.html` on the box's noVNC port. `down` (without `-v`)
 stops it and keeps the build volumes; the same two commands bring it back. To open
-quiver.chat's details page it clicks the sixth sidebar row, the place quiver.chat sorts to with
-exactly these arrows installed.
+quiver.chat it clicks its sidebar row, found by ranking its name among the names of the
+installed arrows, which is how the sidebar sorts them.
 
 ## What is real, and what stands in for something
 

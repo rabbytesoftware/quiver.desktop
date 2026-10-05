@@ -101,8 +101,9 @@ async function routePath(): Promise<string> {
 	return decodeURIComponent(await browser.execute(() => window.location.pathname));
 }
 
-/** The app header (arrow-app-header.tsx): the row holding the Reload button. */
-const header = () => $('//button[normalize-space(.)="Reload"]/../..');
+/** The app header (arrow-app-header.tsx): the row holding the icon-only Reload button. */
+const reloadButton = () => $('//button[@aria-label="Reload"]');
+const header = () => $('//button[@aria-label="Reload"]/../..');
 
 async function headerText(): Promise<string> {
 	return ((await (await header()).getAttribute('textContent')) ?? '').replace(/\s+/g, ' ').trim();
@@ -144,9 +145,6 @@ async function installAndExecute(home: string, identity: string): Promise<void> 
 	const exec = await client.post(`/v0/runtime/${encodeURIComponent(identity)}/execute`, {});
 	if (exec.status !== 202) throw new Error(`execute of ${identity} answered ${exec.status}`);
 }
-
-/** The Open button of the arrow-details hero (open-app-button.tsx). */
-const openButton = () => button('Open');
 
 /**
  * Types into a field of the current frame. WebKitWebDriver answers "Element is
@@ -248,7 +246,7 @@ async function frameState(
 }
 
 async function clickReload(): Promise<void> {
-	await button('Reload').click();
+	await reloadButton().click();
 }
 
 describe('arrow apps: quiver.chat in the shell, end to end', () => {
@@ -417,20 +415,13 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		bob.leave();
 	});
 
-	it('B6: the details page Open button opens /app/<ns> with the header and a sandboxed arrow-app:// iframe', async () => {
+	it('B6: a running arrow with a surface shows the app on its own page, with the header and a sandboxed arrow-app:// iframe', async () => {
 		await openArrowPage(chat);
-		await openButton().waitForExist({ timeout: 60_000, timeoutMsg: 'the chat details page has no Open button' });
-		await browser.waitUntil(async () => (await openButton().isEnabled()) === true, {
-			timeout: 30_000,
-			timeoutMsg: 'Open never enabled although the surface is ready',
-		});
-		await screens('B6-details-open');
-		await openButton().click();
-
-		await browser.waitUntil(async () => (await routePath()) === `/app/${chat}`, {
+		await browser.waitUntil(async () => (await routePath()) === `/arrow/${chat}`, {
 			timeout: 15_000,
-			timeoutMsg: 'Open did not navigate to /app/<namespace>',
+			timeoutMsg: 'the arrow page did not stay on /arrow/<namespace>',
 		});
+		expect(await button('Open').isExisting()).toBe(false);
 		await header().waitForExist({ timeout: 15_000 });
 		await browser.waitUntil(async () => (await headerText()).includes('Running'), { timeout: 30_000 });
 		const text = await headerText();
@@ -438,7 +429,8 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		evidence('B6.header', { text, name: store.name, route: await routePath() });
 		expect(text).toContain(store.name);
 		expect(text).toMatch(/\d+\.\d+|develop/);
-		for (const word of ['Running', 'Reload', 'Stop', 'Details']) expect(text).toContain(word);
+		for (const word of ['Running', 'Stop', 'Details']) expect(text).toContain(word);
+		expect(await reloadButton().isExisting()).toBe(true);
 
 		const el = await frame(chat);
 		await el.waitForExist({ timeout: 30_000 });
@@ -505,13 +497,20 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		}, arrowHost(chat));
 		const before = await frameText(chat);
 
-		// B10 (Details): the header link goes to the arrow's own page.
-		await $('//a[normalize-space(.)="Details"]').click();
-		await browser.waitUntil(async () => (await routePath()) === `/arrow/${chat}`, {
-			timeout: 15_000,
-			timeoutMsg: 'Details did not navigate to /arrow/<namespace>',
+		// B10 (Details): the header button opens the details in a dialog over the running app.
+		await button('Details').click();
+		const dialog = await $('//*[@role="dialog"]');
+		await dialog.waitForExist({ timeout: 15_000, timeoutMsg: 'Details did not open a dialog' });
+		await browser.waitUntil(async () => ((await dialog.getText()) ?? '').includes('Overview'), {
+			timeout: 30_000,
+			timeoutMsg: 'the details dialog never rendered the arrow page',
 		});
-		evidence('B10.details', { route: await routePath() });
+		const underneath = await frame(chat);
+		evidence('B10.details', { route: await routePath(), frameClass: await underneath.getAttribute('class') });
+		expect(await routePath()).toBe(`/arrow/${chat}`);
+		expect(await underneath.isExisting()).toBe(true);
+		await browser.keys('Escape');
+		await dialog.waitForExist({ reverse: true, timeout: 15_000, timeoutMsg: 'Escape did not close the details dialog' });
 		await openRoute('/library');
 		await browser.waitUntil(async () => (await routePath()) === '/library', { timeout: 15_000 });
 
@@ -525,9 +524,10 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		await new Promise((r) => setTimeout(r, 1500));
 
 		await openArrowPage(chat);
-		await openButton().waitForExist({ timeout: 30_000 });
-		await openButton().click();
-		await browser.waitUntil(async () => (await routePath()) === `/app/${chat}`, { timeout: 15_000 });
+		await browser.waitUntil(async () => !(await classOf(chat)).includes('hidden'), {
+			timeout: 15_000,
+			timeoutMsg: 'coming back to the running arrow did not show its kept-alive frame',
+		});
 
 		const sameElement = await browser.execute(
 			(title: string) => (document.querySelector(`iframe[title="${title}"]`) as unknown as { __e2eKeep?: string }).__e2eKeep,
@@ -626,7 +626,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		expect(globals.cookieAfterWrite).not.toContain('e2e=1');
 	});
 
-	it('A3/B6: a late-binding app shows Starting..., keeps Open disabled until ready, and never sees Authorization or Cookie', async () => {
+	it('A3/B6: a late-binding app shows Starting... in the app view until ready, and never sees Authorization or Cookie', async () => {
 		echo = await register(home, ECHO_NS);
 		const client = coreClient(home);
 		expect([200, 202]).toContain((await client.post(`/v0/runtime/${encodeURIComponent(echo)}/install`, {})).status);
@@ -636,20 +636,19 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		await browser.waitUntil(async () => (await routePath()) === `/arrow/${echo}`, { timeout: 15_000 });
 		expect((await client.post(`/v0/runtime/${encodeURIComponent(echo)}/execute`, {})).status).toBe(202);
 
-		await openButton().waitForExist({ timeout: 30_000, timeoutMsg: 'the echo app never showed Open' });
-		const disabledWhileStarting = !(await openButton().isEnabled());
+		await header().waitForExist({ timeout: 30_000, timeoutMsg: 'the echo arrow page never became the app view' });
 		const notReady = surfaceOf((await getArrow(home, echo)).body);
-		await screens('B6-echo-open-disabled');
-		evidence('B6.echo.disabled', { disabledWhileStarting, surface: notReady });
+		evidence('B6.echo.disabled', { surface: notReady });
 		expect(notReady).toEqual({ mode: 'listen', path: '/', ready: false });
-		expect(disabledWhileStarting).toBe(true);
+		expect(await button('Open').isExisting()).toBe(false);
 
-		await openRoute(`/app/${echo}`);
 		await header().waitForExist({ timeout: 15_000 });
 		const starting = await headerText();
+		const spinnerWhileStarting = await $('//*[@role="status" and @aria-busy="true"]').isExisting();
 		const frameWhileStarting = await frame(echo).isExisting();
-		evidence('B6.echo.starting', { header: starting, frameWhileStarting });
+		evidence('B6.echo.starting', { header: starting, spinnerWhileStarting, frameWhileStarting });
 		expect(starting).toContain('Starting...');
+		expect(spinnerWhileStarting).toBe(true);
 		expect(frameWhileStarting).toBe(false);
 		await screens('B6-echo-starting');
 
@@ -690,10 +689,10 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		const [s1, s2, s3] = statics;
 
 		// Open order echo, chat, s1, s2 makes echo the least recently used.
-		await openRoute(`/app/${chat}`);
+		await openRoute(`/arrow/${chat}`);
 		await browser.waitUntil(async () => !(await classOf(chat)).includes('hidden'), { timeout: 15_000 });
 		for (const identity of [s1, s2]) {
-			await openRoute(`/app/${identity}`);
+			await openRoute(`/arrow/${identity}`);
 			await frame(identity).waitForExist({ timeout: 30_000 });
 			await waitForFrameText(identity, `E2E Static App ${statics.indexOf(identity) + 1}`);
 		}
@@ -748,7 +747,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		let said = false;
 		const steps: unknown[] = [];
 		for (const [i, target] of sequence.entries()) {
-			await openRoute(`/app/${target}`);
+			await openRoute(`/arrow/${target}`);
 			await browser.waitUntil(async () => !(await classOf(target)).includes('hidden'), { timeout: 15_000 });
 			if (target === s1 && !said && i > 1) {
 				outside!.say(`while s1 is visible ${nonce}`);
@@ -771,7 +770,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 
 	it('B11b: opening a fifth app evicts the least recently used hidden one (cap 4)', async () => {
 		const [s1, s2, s3] = statics;
-		await openRoute(`/app/${s3}`);
+		await openRoute(`/arrow/${s3}`);
 		await frame(s3).waitForExist({ timeout: 30_000 });
 		await waitForFrameText(s3, 'E2E Static App 3');
 		await browser.waitUntil(async () => !(await frame(echo).isExisting()), {
@@ -787,7 +786,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 
 	it('B9c: a chat frame navigated to another arrow origin loses the bridge; B10: Reload remounts a working chat', async () => {
 		const [s1] = statics;
-		await openRoute(`/app/${chat}`);
+		await openRoute(`/arrow/${chat}`);
 		await browser.waitUntil(async () => !(await classOf(chat)).includes('hidden'), { timeout: 15_000 });
 		// A fresh chat document with a fresh user, so this check does not depend on
 		// the ones before it having kept the first one alive.
@@ -904,15 +903,14 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 	});
 
 	it('B10/A5: Stop in the header ends the chat: frame gone, socket gone, process gone, /v0/ui answers 503', async () => {
-		await openRoute(`/app/${chat}`);
+		await openRoute(`/arrow/${chat}`);
 		await header().waitForExist({ timeout: 15_000 });
 		await button('Stop').click();
 
 		await frame(chat).waitForExist({ reverse: true, timeout: 60_000, timeoutMsg: 'the chat iframe stayed after Stop' });
-		await $('//p[normalize-space(.)="This arrow is not running, so it has no interface to show."]').waitForExist({
-			timeout: 30_000,
-			timeoutMsg: 'the app route never showed its not-running state',
-		});
+		await header().waitForExist({ reverse: true, timeout: 30_000, timeoutMsg: 'the app header stayed after Stop' });
+		await $('//h1').waitForExist({ timeout: 30_000, timeoutMsg: 'the arrow page never returned to its details after Stop' });
+		expect(await routePath()).toBe(`/arrow/${chat}`);
 		await screens('B10-after-stop');
 
 		const gone = await until('the chat process outlived Stop', () => pidsByExe('quiver-chat-linux'), (p) => p.length === 0, 30_000);
