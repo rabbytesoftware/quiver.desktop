@@ -8,6 +8,8 @@ import { openRoute, waitForAppReady } from '../lib/app-ready';
 import {
 	ARROW_CSP,
 	ChatClient,
+	alive,
+	childrenOf,
 	arrowHost,
 	evidence,
 	localEndpoint,
@@ -45,6 +47,8 @@ const CHAT_NS = process.env.QUIVER_E2E_CHAT_NS ?? '';
 const ECHO_NS = process.env.QUIVER_E2E_ECHO_NS ?? '';
 const STATIC_NS = (process.env.QUIVER_E2E_STATIC_NS ?? '').split(/\s+/).filter(Boolean);
 const TCP_PORT = Number(process.env.QUIVER_E2E_TCP_PORT ?? 40299);
+/** Execute/stop cycles per arrow in A6, the stress test for the runtime's version-conflict retries. */
+const CYCLES = Number(process.env.QUIVER_E2E_STRESS_CYCLES ?? 15);
 
 type Surface = { mode: string; path: string; ready: boolean };
 type ActiveRun = NonNullable<ArrowDetailDTO['active_run']> & { surface?: Surface };
@@ -272,6 +276,24 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 			w.__e2eOrigins = [];
 			window.addEventListener('message', (e) => w.__e2eOrigins.push(e.origin));
 		});
+		// Every quiver:// request the shell makes from here on, and any the
+		// scheme refuses: since 3ba9f12 a request without an allowlisted Origin
+		// is a 403 `origin not allowed`, so a shell request WebKitGTK sent
+		// without one would show up here.
+		await browser.execute(() => {
+			const w = window as unknown as { __e2eQuiver: { calls: number; refused: string[] } };
+			w.__e2eQuiver = { calls: 0, refused: [] };
+			const original = window.fetch.bind(window);
+			window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+				const res = await original(input, init);
+				const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+				if (url.startsWith('quiver:')) {
+					w.__e2eQuiver.calls++;
+					if (res.status === 403) w.__e2eQuiver.refused.push(`${url} ${await res.clone().text()}`);
+				}
+				return res;
+			};
+		});
 	});
 
 	after(() => {
@@ -286,11 +308,16 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		}
 	});
 
-	it('A0: quiver.chat\'s own ARROW.md, unmodified, passes this core\'s manifest validation', async () => {
+	it('A0: quiver.chat\'s own ARROW.md, unmodified, validates and is what the stand-in serves', async () => {
 		const manifest = fs.readFileSync(process.env.QUIVER_E2E_CHAT_MANIFEST ?? '', 'utf8');
 		const res = await rawRequest(local, 'POST', `/v0/arrow/${encodeURIComponent(CHAT_NS)}/manifest/validate`, {}, manifest);
-		evidence('A0.validate', { status: res.status, body: JSON.parse(res.body) });
+		const served = path.join(process.env.QUIVER_E2E_UPSTREAM_STATE ?? '', 'raw', 'rabbytesoftware', 'quiver.chat', 'develop', 'ARROW.md');
+		const identical = fs.existsSync(served) && fs.readFileSync(served, 'utf8') === manifest;
+		evidence('A0.validate', { status: res.status, body: JSON.parse(res.body), servedByStandInIsTheCheckoutFile: identical });
 		expect(res.status).toBe(200);
+		expect(JSON.parse(res.body).data.valid).toBe(true);
+		// What A1 adds and installs is this exact file.
+		expect(identical).toBe(true);
 	});
 
 	it('A1: installs and executes quiver.chat with the real CLI; the surface becomes {listen, /, ready}', async () => {
@@ -622,6 +649,9 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 				.then(done, (e) => done({ error: String(e) }));
 		});
 		evidence('A3.headers', { viaDaemon: seenDaemon, viaApp });
+		// Whether WebKitGTK sends Fetch Metadata on a custom-scheme subresource
+		// request (the arrow-app handler forwards sec-fetch-* untouched).
+		evidence('webkitgtk.sec-fetch', Object.keys(viaApp.headers ?? {}).filter((k) => k.startsWith('sec-fetch')));
 		expect(seenDaemon.headers['x-e2e-kept']).toBe('yes');
 		expect(seenDaemon.headers.authorization).toBeUndefined();
 		expect(seenDaemon.headers.cookie).toBeUndefined();
@@ -629,7 +659,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		for (const h of ['authorization', 'cookie', 'origin', 'referer']) expect(viaApp.headers[h]).toBeUndefined();
 	});
 
-	it('B11: static apps get their own origins and storage, stay mounted hidden, and switch without reloading', async () => {
+	it('B11: static apps get their own origins and storage, stay mounted hidden, and switch in any order without reloading', async () => {
 		for (const bare of STATIC_NS) statics.push(await register(home, bare));
 		for (const identity of statics) await installAndExecute(home, identity);
 		for (const identity of statics) {
@@ -673,22 +703,49 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		expect(await frame(s1).isDisplayed()).toBe(false);
 		await screens('B11-static-app-2');
 
-		const beforeSwitch = { s1: await frameState(s1), chat: await frameState(chat) };
-		const domOrderBefore = await $$('iframe').map((f) => f.getAttribute('title'));
-		await openRoute(`/app/${s1}`);
-		await browser.waitUntil(async () => !(await classOf(s1)).includes('hidden'), { timeout: 15_000 });
-		const afterSwitch = { s1: await frameState(s1), chat: await frameState(chat) };
-		const domOrderAfter = await $$('iframe').map((f) => f.getAttribute('title'));
-		evidence('B11.switch', {
-			domOrderBefore,
-			domOrderAfter,
-			s1: { markerBefore: beforeSwitch.s1.marker, markerAfter: afterSwitch.s1.marker, timeOriginBefore: beforeSwitch.s1.timeOrigin, timeOriginAfter: afterSwitch.s1.timeOrigin },
-			chat: { markerAfter: afterSwitch.chat.marker, timeOriginBefore: beforeSwitch.chat.timeOrigin, timeOriginAfter: afterSwitch.chat.timeOrigin },
-			outsideSawLeaves: outside?.messages.filter((m) => m.content.endsWith('left the chat')),
-		});
-		expect(afterSwitch.s1.timeOrigin).toBe(beforeSwitch.s1.timeOrigin);
-		expect(afterSwitch.s1.marker).toBe(`s1-${nonce}`);
-		expect(afterSwitch.chat.marker).toBe(`keep-${nonce}`);
+		// Every kept-alive frame carries a marker; switching in any order must
+		// not reload one (same marker, same performance.timeOrigin), and the chat
+		// must keep its socket throughout.
+		await inFrame(s2, (m: string) => {
+			(window as unknown as { __e2eMarker: string }).__e2eMarker = m;
+		}, `s2-${nonce}`);
+		await inFrame(echo, (m: string) => {
+			(window as unknown as { __e2eMarker: string }).__e2eMarker = m;
+		}, `echo-${nonce}`);
+		const markers: Record<string, string> = { [chat]: `keep-${nonce}`, [s1]: `s1-${nonce}`, [s2]: `s2-${nonce}`, [echo]: `echo-${nonce}` };
+		const baseline: Record<string, number> = {};
+		for (const id of Object.keys(markers)) {
+			const st = await frameState(id);
+			expect(st.marker).toBe(markers[id]);
+			baseline[id] = st.timeOrigin;
+		}
+		const uiLeft = () => outside!.messages.filter((m) => m.content === `ui-alice-${nonce} left the chat`).length;
+		expect(uiLeft()).toBe(0);
+
+		// echo first, so it is still the least recently used one for B11b.
+		const sequence = [echo, s1, chat, s2, s1, s2, chat, s1, chat];
+		let said = false;
+		const steps: unknown[] = [];
+		for (const [i, target] of sequence.entries()) {
+			await openRoute(`/app/${target}`);
+			await browser.waitUntil(async () => !(await classOf(target)).includes('hidden'), { timeout: 15_000 });
+			if (target === s1 && !said && i > 1) {
+				outside!.say(`while s1 is visible ${nonce}`);
+				said = true;
+			}
+			const seen: Record<string, unknown> = {};
+			for (const id of Object.keys(markers)) {
+				const st = await frameState(id);
+				seen[id] = { marker: st.marker, sameDocument: st.timeOrigin === baseline[id] };
+				expect(st.marker).toBe(markers[id]);
+				expect(st.timeOrigin).toBe(baseline[id]);
+			}
+			steps.push({ shown: target, domOrder: await $$('iframe').map((f) => f.getAttribute('title')), seen });
+		}
+		await waitForFrameText(chat, `while s1 is visible ${nonce}`);
+		evidence('B11.switches', { sequence: sequence.map(arrowHost), steps, uiLeftEvents: uiLeft() });
+		expect(uiLeft()).toBe(0);
+		await screens('B11-after-switches');
 	});
 
 	it('B11b: opening a fifth app evicts the least recently used hidden one (cap 4)', async () => {
@@ -768,39 +825,51 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		await screens('B10-after-reload');
 	});
 
-	it('B9b: a frame navigating itself to quiver:// does not render daemon content as a quiver:// document', async () => {
-		const targets = [`quiver://localhost${uiPath(chat)}`, 'quiver://localhost/v0/health', 'quiver://localhost/v0/arrow'];
-		const results: Record<string, unknown>[] = [];
+	it('B9b: a frame navigating itself to quiver:// gets only the refusal, and that document can reach nothing', async () => {
+		const targets = [
+			`quiver://localhost${uiPath(chat)}`,
+			'quiver://localhost/v0/health',
+			'quiver://localhost/v0/arrow',
+			'quiver://localhost/v0/runtime',
+		];
+		const probesFor = ['/v0/arrow', '/v0/health', '/v0/runtime', uiPath(chat)];
+		const results: { target: string; state: Record<string, unknown>; text: string; probes: Record<string, unknown> }[] = [];
 		for (const target of targets) {
 			await inFrame(chat, (url: string) => {
 				window.location.href = url;
 			}, target);
 			await new Promise((r) => setTimeout(r, 3000));
-			let state: Record<string, unknown>;
-			try {
-				state = await frameState(chat);
-			} catch (e) {
-				state = { error: String(e) };
-			}
-			const shellView = await browser.execute((title: string) => {
-				const f = document.querySelector(`iframe[title="${title}"]`) as HTMLIFrameElement | null;
-				try {
-					return { href: f?.contentWindow?.location.href ?? null };
-				} catch (e) {
-					return { blocked: String(e) };
-				}
-			}, arrowHost(chat));
-			results.push({ target, state, shellView });
+			const state = await frameState(chat);
+			const text = await frameText(chat);
+			// From INSIDE the navigated document: same-origin, Origin-less requests.
+			const probes = await inFrameAsync<Record<string, unknown>>(chat, (paths: string[], done: (v: unknown) => void) => {
+				void Promise.all(
+					paths.map((p) =>
+						fetch(p).then(
+							async (r) => ({ path: p, status: r.status, body: (await r.text()).slice(0, 200) }),
+							(e) => ({ path: p, rejected: String(e) })
+						)
+					)
+				).then((all) => done(Object.fromEntries(all.map((a) => [a.path, a]))));
+			}, probesFor);
+			results.push({ target, state, text, probes });
 			await screens(`B9b-quiver-navigation-${results.length}`);
 			await clickReload();
 			await waitForFrameText(chat, 'Join Chat', 30_000);
 		}
 		evidence('B9b.quiver-navigation', results);
 		for (const r of results) {
-			const state = r.state as { origin?: string; html?: string };
-			expect(state.origin).not.toBe('quiver://localhost');
-			expect(state.html ?? '').not.toContain('/_next/');
-			expect(state.html ?? '').not.toContain('"success"');
+			expect(r.text.trim()).toBe('origin not allowed');
+			for (const leak of ['"success"', 'namespace', 'rabbytesoftware', '/_next/']) {
+				expect(String(r.state.html)).not.toContain(leak);
+			}
+			for (const probe of Object.values(r.probes) as { status?: number; body?: string; rejected?: string }[]) {
+				if (probe.rejected === undefined) {
+					expect(probe.status).toBe(403);
+					expect(probe.body).toContain('origin not allowed');
+				}
+				expect(probe.body ?? '').not.toContain('"success"');
+			}
 		}
 	});
 
@@ -849,6 +918,64 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		expect(ui.status).toBe(503);
 		expect(runtime.body?.active_run?.surface).toBeUndefined();
 		expect(['ready', 'stopped']).toContain(runtime.body?.state);
+	});
+
+	it('shell: every quiver:// request the app made carried an allowlisted Origin (none refused)', async () => {
+		const seen = await browser.execute(() => (window as unknown as { __e2eQuiver: { calls: number; refused: string[] } }).__e2eQuiver);
+		const own = (await browser.executeAsync((done: (v: unknown) => void) => {
+			fetch('quiver://localhost/v0/health').then(
+				async (r) => done({ status: r.status, body: (await r.text()).slice(0, 80) }),
+				(e) => done({ status: 0, body: String(e) })
+			);
+		})) as { status: number; body: string };
+		evidence('shell.origin', { quiverCalls: seen.calls, refused: seen.refused, shellHealth: own });
+		expect(seen.calls).toBeGreaterThan(0);
+		expect(seen.refused).toEqual([]);
+		expect(own.status).toBe(200);
+	});
+
+	it('A6: execute/stop cycles of the chat and a static app always reach ready and always really stop', async () => {
+		const s1 = statics[0];
+		const client = coreClient(home);
+		const stopAndSettle = async (identity: string) => {
+			await client.post(`/v0/runtime/${encodeURIComponent(identity)}/stop`, {});
+			return until(
+				`${identity} never settled after stop`,
+				async () => (await client.get<{ state: string; active_run?: ActiveRun | null }>(`/v0/runtime/${encodeURIComponent(identity)}`)).body,
+				(rt) => !!rt && rt.state !== 'running' && rt.state !== 'stopping' && !rt.active_run,
+				30_000,
+				200
+			);
+		};
+		await stopAndSettle(s1);
+
+		const cycles: Record<string, unknown>[] = [];
+		const started = Date.now();
+		for (let i = 0; i < CYCLES; i++) {
+			for (const identity of [chat, s1]) {
+				const t0 = Date.now();
+				const exec = await client.post(`/v0/runtime/${encodeURIComponent(identity)}/execute`, {});
+				let ready = false;
+				let detail: ArrowDetailDTO | null = null;
+				try {
+					detail = await waitForSurface(home, identity, 'a ready surface');
+					ready = true;
+				} catch {
+					detail = (await getArrow(home, identity)).body;
+				}
+				const pid = (detail?.active_run as ActiveRun | undefined)?.pid ?? 0;
+				const tree = pid ? [pid, ...childrenOf(pid)] : [];
+				const chatPids = identity === chat ? pidsByExe('quiver-chat-linux') : [];
+				await stopAndSettle(identity);
+				await until('a stopped arrow left processes', () => [...tree, ...chatPids].filter(alive), (p) => p.length === 0, 15_000).catch(() => null);
+				const survivors = [...tree, ...chatPids, ...(identity === chat ? pidsByExe('quiver-chat-linux') : [])].filter(alive);
+				cycles.push({ i, arrow: identity === chat ? 'chat' : 'static-1', exec: exec.status, ready, pid, tree, survivors, ms: Date.now() - t0 });
+			}
+		}
+		const bad = cycles.filter((c) => c.exec !== 202 || !c.ready || !c.pid || (c.survivors as number[]).length > 0);
+		evidence('A6.cycles', { count: cycles.length, seconds: Math.round((Date.now() - started) / 1000), bad, cycles });
+		expect(cycles.length).toBe(2 * CYCLES);
+		expect(bad).toEqual([]);
 	});
 
 	it('A4: over tcp:// the /v0/ui route needs the paired bearer token, WebSocket upgrades included', async () => {
@@ -945,7 +1072,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		for (const file of logs) {
 			if (!file || !fs.existsSync(file)) continue;
 			for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
-				if (line.includes('version conflict')) lost.push(`${path.basename(path.dirname(file))}/${path.basename(file)}: ${line}`);
+				if (line.includes('version conflict') || line.includes('no process for namespace')) lost.push(`${path.basename(path.dirname(file))}/${path.basename(file)}: ${line}`);
 			}
 		}
 		evidence('core.version-conflicts', lost);

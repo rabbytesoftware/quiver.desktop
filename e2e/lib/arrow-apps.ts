@@ -221,6 +221,31 @@ export function pidsByExe(prefix: string): number[] {
 	return pids;
 }
 
+/** The direct children of `pid`, read from /proc/<pid>/stat. */
+export function childrenOf(pid: number): number[] {
+	const kids: number[] = [];
+	for (const entry of fs.readdirSync('/proc')) {
+		if (!/^\d+$/.test(entry)) continue;
+		try {
+			const stat = fs.readFileSync(`/proc/${entry}/stat`, 'utf8');
+			const ppid = Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1]);
+			if (ppid === pid) kids.push(Number(entry));
+		} catch {
+			/* gone */
+		}
+	}
+	return kids;
+}
+
+export function alive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 /** Pids whose command line matches `pattern`. */
 export function pidsByCommand(pattern: RegExp): number[] {
 	const pids: number[] = [];
