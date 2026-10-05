@@ -70,6 +70,14 @@ mod tests {
 	}
 
 	#[test]
+	fn host_of_keeps_the_localhost_suffix_in_both_forms() {
+		let mac: Uri = "arrow-app://ABCDEF.localhost/x".parse().unwrap();
+		let win: Uri = "http://arrow-app.abcdef.localhost/x".parse().unwrap();
+		assert_eq!(host_of(&mac).as_deref(), Some("abcdef.localhost"));
+		assert_eq!(host_of(&win).as_deref(), Some("abcdef.localhost"));
+	}
+
+	#[test]
 	fn namespace_is_percent_encoded_for_one_path_segment() {
 		assert_eq!(
 			encode_namespace("github.com/user/chat@v1"),

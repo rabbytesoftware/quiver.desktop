@@ -8,11 +8,11 @@ import { arrowAppOrigin, isWindows, useSurfaceNamespaces } from './surface';
 
 describe('arrowAppOrigin', () => {
 	it('uses the custom scheme everywhere but Windows', () => {
-		expect(arrowAppOrigin('abc', false)).toBe('arrow-app://abc');
+		expect(arrowAppOrigin('abc.localhost', false)).toBe('arrow-app://abc.localhost');
 	});
 
 	it('uses the http form wry rewrites to on Windows', () => {
-		expect(arrowAppOrigin('abc', true)).toBe('http://arrow-app.abc');
+		expect(arrowAppOrigin('abc.localhost', true)).toBe('http://arrow-app.abc.localhost');
 	});
 });
 

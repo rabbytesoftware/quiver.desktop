@@ -1,7 +1,8 @@
 //! Arrow Apps: showing an arrow's web interface inside the shell.
 //!
-//! The page lives at `arrow-app://<host>/` (on Windows wry rewrites that to
-//! `http://arrow-app.<host>/`). Every request is forwarded to the daemon's
+//! The page lives at `arrow-app://<host>/`, where the host is
+//! `<hex>.localhost` (on Windows wry rewrites that to
+//! `http://arrow-app.<hex>.localhost/`, a secure context). Every request is forwarded to the daemon's
 //! `/v0/ui/<namespace>/...` route over the active connection, so no port is
 //! opened on this machine and the bearer token never reaches the page.
 

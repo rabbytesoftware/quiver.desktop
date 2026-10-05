@@ -1,6 +1,6 @@
 //! Which arrow owns which `arrow-app` host.
 //!
-//! A host is a stable hash of the namespace, registered by the shell before it
+//! A host is a stable hash of the namespace under `.localhost`, registered by the shell before it
 //! creates an iframe. Only registered hosts resolve, so a page can not invent
 //! hosts to reach arrows it was not given.
 
@@ -15,6 +15,13 @@ pub fn host_label(namespace: &str) -> String {
 	digest[..16].iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// The host an arrow's iframe uses: its label under `.localhost`. wry rewrites
+/// `arrow-app://<host>/` to `http://arrow-app.<host>/` on Windows, and only a
+/// `*.localhost` host keeps that a secure context there.
+pub fn arrow_host(namespace: &str) -> String {
+	format!("{}.localhost", host_label(namespace))
+}
+
 #[derive(Default)]
 pub struct ArrowHosts {
 	by_host: RwLock<HashMap<String, String>>,
@@ -25,9 +32,9 @@ impl ArrowHosts {
 		Self::default()
 	}
 
-	/// Registers `namespace` and returns its host.
+	/// Registers `namespace` and returns its host (see `arrow_host`).
 	pub fn register(&self, namespace: &str) -> String {
-		let host = host_label(namespace);
+		let host = arrow_host(namespace);
 		self.by_host
 			.write()
 			.unwrap_or_else(|e| e.into_inner())
@@ -70,6 +77,20 @@ mod tests {
 			Some("github.com/user/chat")
 		);
 		assert_eq!(hosts.namespace_for("deadbeef"), None);
+	}
+
+	/// The registered host ends in `.localhost` so that wry's Windows rewrite
+	/// (`http://arrow-app.<host>`) lands on a potentially trustworthy origin.
+	/// A bare `http://arrow-app.<hex>` is not a secure context, and
+	/// `crypto.randomUUID`, `crypto.subtle` and the clipboard would be missing.
+	#[test]
+	fn registered_host_is_the_label_under_localhost_and_the_bare_label_is_unknown() {
+		let hosts = ArrowHosts::new();
+		let host = hosts.register("github.com/user/chat");
+		let label = host_label("github.com/user/chat");
+		assert_eq!(host, format!("{label}.localhost"));
+		assert_eq!(arrow_host("github.com/user/chat"), host);
+		assert_eq!(hosts.namespace_for(&label), None);
 	}
 
 	#[test]

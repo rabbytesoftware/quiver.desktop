@@ -16,8 +16,8 @@ describe('ArrowAppFrame', () => {
 	});
 
 	it('uses the Windows origin form when asked', () => {
-		render(<ArrowAppFrame host="abc" path="/" windows visible onRef={noop} reloadKey={0} />);
-		expect(screen.getByTitle('abc').getAttribute('src')).toBe('http://arrow-app.abc/');
+		render(<ArrowAppFrame host="abc.localhost" path="/" windows visible onRef={noop} reloadKey={0} />);
+		expect(screen.getByTitle('abc.localhost').getAttribute('src')).toBe('http://arrow-app.abc.localhost/');
 	});
 
 	it('hides without unmounting so the page keeps its state', () => {

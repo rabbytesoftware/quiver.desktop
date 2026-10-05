@@ -6,9 +6,9 @@ An arrow can ship a web interface. The daemon serves it under `/v0/ui/<namespace
 
 ## Request path
 
-The iframe loads `arrow-app://<host>/`. On Windows, wry rewrites that origin to `http://arrow-app.<host>/`, and the app accepts both forms.
+The iframe loads `arrow-app://<host>/`, where the host is `<hex>.localhost`. On Windows, wry rewrites that origin to `http://arrow-app.<hex>.localhost/`, and the app accepts both forms. The `.localhost` suffix is what keeps the Windows origin a secure context: a plain `http://arrow-app.<hex>` origin is not one, and pages there lose `crypto.randomUUID`, `crypto.subtle` and the clipboard API.
 
-1. The shell asks Rust to register the arrow's namespace (`arrow_app_host`). The host is the first 32 lowercase hex characters of the SHA-256 of the namespace, so it is DNS-safe and stable between launches.
+1. The shell asks Rust to register the arrow's namespace (`arrow_app_host`). The host is the first 32 lowercase hex characters of the SHA-256 of the namespace followed by `.localhost`, so it is DNS-safe and stable between launches. The bare hex label on its own does not resolve.
 2. The page requests `arrow-app://<host>/some/path?q=1`. The `arrow-app` URI scheme handler looks the host up. Hosts nobody registered answer 404.
 3. The handler rewrites the request to `/v0/ui/<percent-encoded namespace>/some/path?q=1` and sends it through the active connection (local, SSH or whatever transport is selected). The namespace is encoded as a single path segment.
 4. The response comes back through the same transport and is hardened before it reaches the page.
@@ -35,7 +35,7 @@ An arrow's page is untrusted. It shares a webview process with the app's own pag
 - **No cookies.** Cookies do not work on custom schemes, and `Set-Cookie` is stripped anyway. Arrows must not rely on them.
 - **Text WebSocket frames only.** Binary frames are not supported. The shim logs an error and drops a non-string `send`.
 - **No response streaming.** A response is buffered whole before the page sees it, so server-sent events and long streaming bodies do not work. A request that takes more than 300 seconds ends in a 504.
-- **Windows is untested at runtime.** The `http://arrow-app.<host>` form is handled and unit tested, but it has not been run on a Windows machine.
+- **Windows is untested at runtime.** The `http://arrow-app.<hex>.localhost` form is handled and unit tested, but it has not been run on a Windows machine.
 - **At most 4 apps are kept alive.** The shell keeps recently used arrow apps mounted and hidden so state survives switching. Opening a fifth drops the least recently used one that is not visible.
 - **At most 8 sockets per arrow.** Further `new WebSocket` calls close at once with code 1006.
 

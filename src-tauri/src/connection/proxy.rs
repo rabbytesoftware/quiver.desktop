@@ -591,6 +591,8 @@ mod tests {
 		for origin in [
 			"arrow-app://abc",
 			"http://arrow-app.abc",
+			"http://arrow-app.abc.localhost",
+			"arrow-app://abc.localhost",
 			"https://evil.example",
 			"null",
 		] {

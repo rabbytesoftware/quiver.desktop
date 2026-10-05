@@ -310,6 +310,31 @@ mod tests {
 		assert_eq!(stub.calls(), 1);
 	}
 
+	/// The exact form wry produces on Windows for a registered host resolves,
+	/// and the bare label (the old, non-secure-context form) no longer does.
+	#[tokio::test]
+	async fn windows_localhost_form_resolves_and_the_bare_label_does_not() {
+		let (hosts, _) = setup();
+		let label = super::super::hosts::host_label("github.com/user/chat");
+		let stub = Stub::new(ok("x", "text/plain"));
+		let resp = run(
+			stub.clone(),
+			&hosts,
+			request(&format!("http://arrow-app.{label}.localhost/x")),
+		)
+		.await;
+		assert_eq!(resp.status(), StatusCode::OK);
+		assert_eq!(stub.calls(), 1);
+
+		for bare in [
+			format!("http://arrow-app.{label}/x"),
+			format!("arrow-app://{label}/x"),
+		] {
+			let resp = run(Arc::new(Dead), &hosts, request(&bare)).await;
+			assert_eq!(resp.status(), StatusCode::NOT_FOUND, "{bare}");
+		}
+	}
+
 	/// The page must not be able to ride the user's credentials or leak its
 	/// origin to the daemon, and bodies must arrive uncompressed so the shim
 	/// can be injected.
