@@ -20,8 +20,13 @@ export function admit(
 }
 
 interface OpenAppsState {
-	/** Open apps, least recently used first. */
+	/** Open apps, least recently used first. Decides eviction only. */
 	order: string[];
+	/**
+	 * Open apps in the order they were opened, which is the order the frames
+	 * render in. It never follows `order`: moving an iframe in the DOM reloads it.
+	 */
+	frames: string[];
 	visible: string | null;
 	/** Bumped to remount an app's frame. */
 	reloads: Record<string, number>;
@@ -33,16 +38,23 @@ interface OpenAppsState {
 
 export const useOpenApps = create<OpenAppsState>((set) => ({
 	order: [],
+	frames: [],
 	visible: null,
 	reloads: {},
-	show: (ns) => set((s) => ({ visible: ns, order: admit(s.order, ns, ns) })),
+	show: (ns) =>
+		set((s) => {
+			const order = admit(s.order, ns, ns);
+			const frames = [...s.frames.filter((n) => order.includes(n)), ...(s.frames.includes(ns) ? [] : [ns])];
+			return { visible: ns, order, frames };
+		}),
 	hide: () => set({ visible: null }),
 	reload: (ns) => set((s) => ({ reloads: { ...s.reloads, [ns]: (s.reloads[ns] ?? 0) + 1 } })),
 	prune: (live) =>
 		set((s) => {
 			const order = s.order.filter((n) => live.has(n));
 			if (order.length === s.order.length) return s;
+			const frames = s.frames.filter((n) => live.has(n));
 			const reloads = Object.fromEntries(Object.entries(s.reloads).filter(([n]) => live.has(n)));
-			return { order, reloads };
+			return { order, frames, reloads };
 		}),
 }));

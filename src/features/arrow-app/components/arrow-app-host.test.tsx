@@ -20,6 +20,7 @@ vi.mock('../lib/api', () => ({
 
 const A = 'a/one@1';
 const B = 'b/two@1';
+const C = 'c/three@1';
 
 function entry(namespace: string, ready = true): ArrowEntry {
 	return {
@@ -53,7 +54,7 @@ function documentLoads(ns: string): void {
 describe('ArrowAppHost', () => {
 	beforeEach(() => {
 		useArrowStore.getState().reset();
-		useOpenApps.setState({ order: [], visible: null, reloads: {} });
+		useOpenApps.setState({ order: [], frames: [], visible: null, reloads: {} });
 		vi.clearAllMocks();
 	});
 
@@ -78,6 +79,36 @@ describe('ArrowAppHost', () => {
 		expect(frameOf(B).className).toContain('hidden');
 		expect(frameOf(A).getAttribute('src')).toBe('arrow-app://h-aone1/x');
 		expect(tauriApi.host).toHaveBeenCalledTimes(2);
+	});
+
+	it('switching between open apps never moves or replaces a frame', async () => {
+		seed(A, B, C);
+		const { container } = render(<ArrowAppHost />);
+		act(() => {
+			useOpenApps.getState().show(A);
+			useOpenApps.getState().show(B);
+			useOpenApps.getState().show(C);
+		});
+		await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(3));
+		const before = [...container.querySelectorAll('iframe')];
+		const moved = (node: Node) => before.some((frame) => node === frame || node.contains(frame));
+		const insertBefore = vi.spyOn(Node.prototype, 'insertBefore');
+		const appendChild = vi.spyOn(Node.prototype, 'appendChild');
+
+		try {
+			for (const ns of [A, B, A, C, B, C, A]) {
+				act(() => useOpenApps.getState().show(ns));
+				const now = [...container.querySelectorAll('iframe')];
+				expect(now).toHaveLength(3);
+				now.forEach((frame, i) => expect(frame).toBe(before[i]));
+				expect(frameOf(ns).className).not.toContain('hidden');
+			}
+			const moves = [...insertBefore.mock.calls, ...appendChild.mock.calls].filter(([node]) => moved(node));
+			expect(moves).toHaveLength(0);
+		} finally {
+			insertBefore.mockRestore();
+			appendChild.mockRestore();
+		}
 	});
 
 	it('hiding keeps frames mounted', async () => {

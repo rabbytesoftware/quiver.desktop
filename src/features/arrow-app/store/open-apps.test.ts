@@ -25,7 +25,7 @@ describe('admit', () => {
 });
 
 describe('useOpenApps', () => {
-	beforeEach(() => useOpenApps.setState({ order: [], visible: null, reloads: {} }));
+	beforeEach(() => useOpenApps.setState({ order: [], frames: [], visible: null, reloads: {} }));
 
 	it('show makes an app visible and keeps it open; hide keeps it alive', () => {
 		useOpenApps.getState().show('a/b');
@@ -49,6 +49,35 @@ describe('useOpenApps', () => {
 		s.show('c/d');
 		s.prune(new Set(['c/d']));
 		expect(useOpenApps.getState().order).toEqual(['c/d']);
+		expect(useOpenApps.getState().frames).toEqual(['c/d']);
+	});
+
+	it('showing an app again reorders the LRU but never the frames', () => {
+		const s = useOpenApps.getState();
+		s.show('a');
+		s.show('b');
+		s.show('c');
+		s.show('a');
+		s.show('b');
+		expect(useOpenApps.getState().order).toEqual(['c', 'a', 'b']);
+		expect(useOpenApps.getState().frames).toEqual(['a', 'b', 'c']);
+	});
+
+	it('eviction drops the least recently used frame and keeps the others in place', () => {
+		const s = useOpenApps.getState();
+		for (const ns of ['a', 'b', 'c', 'd']) s.show(ns);
+		s.show('a');
+		s.show('e');
+		expect(useOpenApps.getState().order).toEqual(['c', 'd', 'a', 'e']);
+		expect(useOpenApps.getState().frames).toEqual(['a', 'c', 'd', 'e']);
+	});
+
+	it('an evicted app reopens as a fresh frame at the end', () => {
+		const s = useOpenApps.getState();
+		for (const ns of ['a', 'b', 'c', 'd', 'e']) s.show(ns);
+		expect(useOpenApps.getState().frames).toEqual(['b', 'c', 'd', 'e']);
+		s.show('a');
+		expect(useOpenApps.getState().frames).toEqual(['c', 'd', 'e', 'a']);
 	});
 
 	it('prune leaves the store untouched when nothing changed', () => {

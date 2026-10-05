@@ -97,6 +97,7 @@ function FrameSlot({ namespace, host, visible, reloadKey, onRef, onLoad }: Frame
  */
 export function ArrowAppHost(): JSX.Element {
 	const order = useOpenApps((s) => s.order);
+	const frames = useOpenApps((s) => s.frames);
 	const visible = useOpenApps((s) => s.visible);
 	const reloads = useOpenApps((s) => s.reloads);
 	const live = useSurfaceNamespaces();
@@ -117,7 +118,7 @@ export function ArrowAppHost(): JSX.Element {
 
 	return (
 		<div className="pointer-events-none absolute inset-x-0 bottom-0 top-(--arrow-app-header)">
-			{order.map((ns) => (
+			{frames.map((ns) => (
 				<FrameSlot
 					key={ns}
 					namespace={ns}
