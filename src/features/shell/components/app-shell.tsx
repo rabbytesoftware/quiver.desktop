@@ -3,6 +3,7 @@ import type { CSSProperties, JSX, ReactNode } from 'react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 import { ArrowAppHost } from '@/features/arrow-app';
+import { ConsoleDock } from '@/features/console';
 import { useShellStore } from '@/features/shell/stores/shell-store';
 import { Sidebar } from '@/features/sidebar';
 import { cn } from '@/lib/cn';
@@ -55,6 +56,8 @@ export function AppShell({ children, footer }: AppShellProps): JSX.Element {
 					</div>
 					{footer}
 				</main>
+
+				<ConsoleDock className={contentColumn} />
 			</div>
 		</TooltipProvider>
 	);

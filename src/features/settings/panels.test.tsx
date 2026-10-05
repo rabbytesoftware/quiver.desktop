@@ -11,6 +11,8 @@ vi.mock('@tanstack/react-router-devtools', () => ({ TanStackRouterDevtools: () =
 import { MockIndicator } from '@/components/mock-indicator';
 
 import { QUIVER_CORE_NAMESPACE } from '@/domain/release';
+import { useConsoleStore } from '@/features/console';
+import { useBuildIndicatorStore } from '@/features/console/stores/build-indicator-store';
 import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
 import { useThemeStore } from '@/features/shell';
 import { useShellStore } from '@/features/shell/stores/shell-store';
@@ -47,6 +49,8 @@ beforeEach(() => {
 	useThemeStore.setState({ preference: 'system' });
 	useShellStore.setState({ sidebarSide: 'left' });
 	useCatalogVisibilityStore.setState({ showSelfComponents: true });
+	useBuildIndicatorStore.setState({ shown: null });
+	useConsoleStore.setState({ open: false });
 });
 
 afterEach(() => {
@@ -417,6 +421,62 @@ describe('the General panel', () => {
 		await user.click(reset);
 
 		expect(useCatalogVisibilityStore.getState().showSelfComponents).toBe(true);
+	});
+});
+
+describe('the General panel’s build rows', () => {
+	const indicator = () => screen.getByRole('switch', { name: 'Build indicator' });
+	const reset = () => screen.getByRole('button', { name: 'Reset Build indicator' });
+
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	it('shows the indicator on by default on a nightly build', () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'nightly-rolling');
+		render(<GeneralSettings />);
+		expect(indicator()).toBeChecked();
+		expect(reset()).toBeDisabled();
+	});
+
+	it('has it off by default on a stable release', () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'stable');
+		render(<GeneralSettings />);
+		expect(indicator()).not.toBeChecked();
+		expect(reset()).toBeDisabled();
+	});
+
+	it('turns it on for a stable release, remembers that, and resets to the default', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'stable');
+		const user = userEvent.setup();
+		render(<GeneralSettings />);
+
+		await user.click(indicator());
+		expect(indicator()).toBeChecked();
+		expect(useBuildIndicatorStore.getState().shown).toBe(true);
+
+		await user.click(reset());
+		expect(indicator()).not.toBeChecked();
+		expect(useBuildIndicatorStore.getState().shown).toBeNull();
+	});
+
+	it('turns it off for a nightly build', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'nightly-rolling');
+		const user = userEvent.setup();
+		render(<GeneralSettings />);
+
+		await user.click(indicator());
+		expect(indicator()).not.toBeChecked();
+		expect(reset()).toBeEnabled();
+	});
+
+	it('still opens the console when the indicator is off', async () => {
+		vi.stubEnv('VITE_QUIVER_BUILD_CHANNEL', 'stable');
+		const user = userEvent.setup();
+		render(<GeneralSettings />);
+
+		await user.click(screen.getByRole('button', { name: 'Open console' }));
+		expect(useConsoleStore.getState().open).toBe(true);
 	});
 });
 

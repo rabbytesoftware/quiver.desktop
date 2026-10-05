@@ -4,6 +4,7 @@ import { currentPlatform } from '@/lib/platform';
 import type { Backend, ConnectionsSnapshot } from '@/lib/transport/backend';
 import { installBackend } from '@/lib/transport/backend';
 
+import { createMockConsole } from './console';
 import { ALL_ROUTES } from './server/handlers';
 import { createRouter } from './server/router';
 import { createSocketHub } from './socket';
@@ -23,6 +24,7 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 	const hub = createSocketHub();
 	const world = buildWorld(scenario, hub);
 	const router = createRouter(ALL_ROUTES);
+	const mockConsole = createMockConsole(hub, world.clock);
 	const descriptor = getScenario(scenario);
 
 	const connection: ConnectionConfig = {
@@ -55,7 +57,22 @@ export function createMockBackend(scenario: ScenarioName): MockRuntime {
 		},
 
 		openSocket(path) {
+			if (path.split('?')[0] === '/v0/console/logs') return mockConsole.openLogs(path);
 			return hub.open(path);
+		},
+
+		// The stand-in for the build stamps `build.rs` bakes in: an untagged
+		// local build, so the indicator shows what a developer actually sees.
+		getBuildStamp() {
+			return Promise.resolve({
+				commit: '7b4dc02e8a1f3c5d9b6e2a4f8c0d1e3b5a7c9d2f',
+				built_at: Math.floor(Date.now() / 1000),
+				label: null,
+			});
+		},
+
+		execConsole(line, onFrame) {
+			return mockConsole.exec(line, onFrame);
 		},
 
 		// `null`, and not a plausible-looking `stable-*` string: the build tag

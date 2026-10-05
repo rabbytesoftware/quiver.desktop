@@ -116,6 +116,14 @@ export const en = {
 		'Forced to {language} by VITE_QUIVER_LOCALE for this run. Restart without it to get the picker back.',
 	'settings.general.language.system': 'System ({language})',
 
+	'settings.general.build.title': 'Builds',
+	'settings.general.build.indicator': 'Build indicator',
+	'settings.general.build.indicatorDescription':
+		'Shows which quiver.core and quiver.desktop builds are running, at the top of the sidebar. Off by default on stable releases.',
+	'settings.general.build.console': 'Daemon console',
+	'settings.general.build.consoleDescription':
+		'The connected daemon’s log, and a prompt for its commands. Esc closes it.',
+	'settings.general.build.openConsole': 'Open console',
 	'settings.general.library.title': 'Library',
 	'settings.general.library.label': "Show Quiver's own components",
 	'settings.general.library.description':
@@ -157,6 +165,7 @@ export const en = {
 	'settings.developer.faults.health': 'Health probe',
 	'settings.developer.faults.config': 'Daemon config',
 	'settings.developer.faults.path': 'Command line PATH',
+	'settings.developer.faults.console': 'Console',
 
 	'settings.engine.loading': 'Loading engine settings',
 	'settings.engine.restart': 'These settings take effect the next time quiver.core restarts.',
@@ -212,6 +221,22 @@ export const en = {
 		'Quiver’s command directory is set up on your PATH. Open a new terminal, or restart your shell, for it to take effect.',
 	'settings.engine.path.description.ready':
 		'Quiver’s command directory is on your PATH, so the commands of installed arrows work in a terminal.',
+
+	'console.indicator.label': 'Builds and daemon console',
+	'console.indicator.core': 'core',
+	'console.indicator.app': 'app',
+	'console.panel.label': 'Daemon console',
+	'console.log.label': 'Daemon log',
+	'console.prompt.label': 'Command',
+	'console.prompt.placeholder': 'info github.com/rabbytesoftware/quiver.core',
+	'console.stream.reconnecting': 'Reconnecting…',
+	'console.unsupported': 'This daemon has no console. Update quiver.core to use it.',
+	'console.note.restarted': 'Daemon restarted',
+	'console.note.exit': 'Exited with code {code}',
+	'console.note.exitWithError': 'Exited with code {code}: {error}',
+	'console.note.refused': 'Refused ({status}): {message}',
+	'console.note.unsupported': 'This daemon has no console.',
+	'console.note.helpUnavailable': 'The command list is not available.',
 
 	'mock.badge': 'Mock',
 	'mock.status': '{scenario} · no daemon is being contacted',
