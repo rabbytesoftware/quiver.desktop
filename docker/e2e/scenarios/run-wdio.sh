@@ -178,10 +178,17 @@ export QUIVER_E2E_TCP_PORT=40299
 
 declare -a PASSED=() FAILED=()
 
+# Arrow processes a killed daemon leaves behind: the arrow-apps fixtures, the
+# supervised fixture's sleep, and a demo-up.sh demo running in the same box.
+kill_arrow_processes() {
+	pkill -f 'quiver-chat-linux-|server\.py |^sleep 3000$' 2>/dev/null || true
+}
+
 run_spec() {
 	local name="$1"
 	say "SPEC $name"
 	kill_everything
+	kill_arrow_processes
 	rm -rf "$SPEC_HOMES/$name" "$WDIO_RESULTS/$name"
 	mkdir -p "$WDIO_RESULTS/$name"
 	seed_baseline
@@ -198,8 +205,7 @@ run_spec() {
 	cp "$RESULTS/upstream.log" "$WDIO_RESULTS/$name/upstream.log" 2>/dev/null || true
 	scrot -o "$WDIO_RESULTS/$name/final-screen.png" 2>/dev/null || true
 	kill_everything
-	# Arrow processes a killed daemon leaves behind (arrow-apps).
-	pkill -f 'quiver-chat-linux-|server\.py ' 2>/dev/null || true
+	kill_arrow_processes
 
 	if [ "$code" = "0" ]; then
 		PASSED+=("$name"); record "spec $name: PASS"

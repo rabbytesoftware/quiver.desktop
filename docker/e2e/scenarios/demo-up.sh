@@ -101,17 +101,24 @@ for identity in "${IDENTITIES[@]}"; do
 	ok "$identity is running with a ready interface"
 done
 
-# The sidebar lists the visible arrows sorted by name, and the app's own
-# components are hidden by default, so only the four arrows above are rows.
-# quiver.chat's row is its rank among their names. Opening a running arrow
-# shows its app straight away. Rows start 138 px below the client area's top
-# and are 40 px apart.
+# The sidebar lists the library (every user-installed arrow, the two
+# self-arrows included) sorted by name, so quiver.chat's row is its rank among
+# the library's names, read from the daemon once the app has announced itself.
+# Opening a running arrow shows its app straight away. Rows start 138 px below
+# the client area's top and are 40 px apart.
 say "Opening quiver.chat"
-declare -a NAMES=()
-for identity in "${IDENTITIES[@]}"; do
-	NAMES+=("$(arrow_field "$identity" '.data.name')")
+library_names() {
+	api_body GET '/v0/arrow?user_installed=true' | jq -r '.data[].name'
+}
+deadline=$(( SECONDS + 60 ))
+until library_names | grep -qx 'Quiver Desktop'; do
+	[ "$SECONDS" -lt "$deadline" ] || fail "quiver.desktop never announced itself"
+	sleep 0.5
 done
 CHAT_NAME="$(arrow_field "${IDENTITIES[3]}" '.data.name')"
+NAMES=()
+mapfile -t NAMES < <(library_names)
+info "sidebar rows: ${NAMES[*]}"
 CHAT_ROW="$(printf '%s\n' "${NAMES[@]}" | sort -f | grep -n -x -F -- "$CHAT_NAME" | head -1 | cut -d: -f1)"
 [ -n "$CHAT_ROW" ] || fail "quiver.chat's name $CHAT_NAME is not among the sidebar rows"
 sleep 3

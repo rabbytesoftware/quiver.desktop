@@ -86,8 +86,17 @@ docker compose -f docker/e2e/docker-compose.yml -f override.yml exec -d -e SKIP_
 About 30 s later it writes `DEMO READY` to `results/demo/demo-up.log`, beside a screenshot
 (`results/demo/ready.png`). Open `/vnc.html` on the box's noVNC port. `down` (without `-v`)
 stops it and keeps the build volumes; the same two commands bring it back. To open
-quiver.chat it clicks its sidebar row, found by ranking its name among the names of the
-installed arrows, which is how the sidebar sorts them.
+quiver.chat it clicks its sidebar row, found by ranking its name among the names in the
+library (the two self-arrows included), which is how the sidebar sorts them.
+
+Tests and a demo should not share one container: `run-wdio.sh` starts every spec by killing
+the app, the daemon and any arrow processes, so it ends a demo running in the same box (and a
+person using the demo can click into a running spec). Run the specs in a one-off container of
+the same project, which publishes no port and leaves the demo alone:
+
+```
+docker compose -f docker/e2e/docker-compose.yml -f override.yml run -d --name e2e-tests -e SKIP_BUILD=1 e2e bash scenarios/run-wdio.sh
+```
 
 ## What is real, and what stands in for something
 

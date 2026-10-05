@@ -505,6 +505,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 			timeout: 30_000,
 			timeoutMsg: 'the details dialog never rendered the arrow page',
 		});
+		await screens('B10-details-dialog');
 		const underneath = await frame(chat);
 		evidence('B10.details', { route: await routePath(), frameClass: await underneath.getAttribute('class') });
 		expect(await routePath()).toBe(`/arrow/${chat}`);
