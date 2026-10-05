@@ -21,10 +21,10 @@ vi.mock('../lib/api', () => ({
 const A = 'a/one@1';
 const B = 'b/two@1';
 
-function entry(namespace: string): ArrowEntry {
+function entry(namespace: string, ready = true): ArrowEntry {
 	return {
 		namespace,
-		active_run: { method: 'execute', variables: {}, steps: [], surface: { mode: 'listen', path: '/x', ready: true } },
+		active_run: { method: 'execute', variables: {}, steps: [], surface: { mode: 'listen', path: '/x', ready } },
 	} as unknown as ArrowEntry;
 }
 
@@ -158,6 +158,40 @@ describe('ArrowAppHost', () => {
 		await act(() => new Promise((r) => setTimeout(r, 400)));
 
 		expect(tauriApi.wsClose).not.toHaveBeenCalled();
+	});
+
+	describe('surface readiness', () => {
+		function seedReady(ready: boolean): void {
+			useArrowStore.setState({ arrows: new Map([[A, entry(A, ready)]]) });
+		}
+
+		it('does not load the frame until the surface is ready', async () => {
+			seedReady(false);
+			render(<ArrowAppHost />);
+			act(() => useOpenApps.getState().show(A));
+			await waitFor(() => expect(tauriApi.host).toHaveBeenCalled());
+			await act(async () => {});
+			expect(screen.queryAllByTitle(/^h-/)).toHaveLength(0);
+
+			act(() => seedReady(true));
+
+			await waitFor(() => expect(screen.getAllByTitle(/^h-/)).toHaveLength(1));
+		});
+
+		it('loads a fresh frame each time the surface becomes ready again', async () => {
+			seedReady(true);
+			render(<ArrowAppHost />);
+			act(() => useOpenApps.getState().show(A));
+			await waitFor(() => expect(screen.getAllByTitle(/^h-/)).toHaveLength(1));
+			const first = frameOf(A);
+
+			act(() => seedReady(false));
+			expect(screen.queryAllByTitle(/^h-/)).toHaveLength(0);
+			act(() => seedReady(true));
+
+			await waitFor(() => expect(screen.getAllByTitle(/^h-/)).toHaveLength(1));
+			expect(frameOf(A)).not.toBe(first);
+		});
 	});
 
 	it('asks for the host again after a failed lookup', async () => {

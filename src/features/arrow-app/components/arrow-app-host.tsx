@@ -73,7 +73,10 @@ function FrameSlot({ namespace, host, visible, reloadKey, onRef, onLoad }: Frame
 	const loaded = useCallback(() => {
 		if (host) onLoad(host);
 	}, [host, onLoad]);
-	if (!host || !surface) return null;
+	// Mounted only once the arrow answers: a frame loaded earlier would sit on
+	// the daemon's 502 page. Unmounting while not ready also gives a restarted
+	// arrow a fresh load when it is ready again.
+	if (!host || !surface?.ready) return null;
 
 	return (
 		<ArrowAppFrame
