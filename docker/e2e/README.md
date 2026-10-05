@@ -70,6 +70,25 @@ The chat's ARROW.md is served exactly as committed in its checkout; the spec's f
 (A0) asserts it validates against the core under test and that the stand-in serves it byte for
 byte.
 
+### A demo box to try arrow apps by hand
+
+`scenarios/demo-up.sh` leaves the box running as a demo. It starts the Quiver app on the
+box's display with its own daemon. Through the real CLI and the stand-in it installs and
+starts quiver.chat from its unmodified ARROW.md, plus E2E Static App 1 and 2 and the E2E
+Echo App. It then leaves the app on quiver.chat's details page with Open enabled. Run it
+detached in a box that is up, so it outlives the shell that started it:
+
+```
+docker compose -f docker/e2e/docker-compose.yml -f override.yml up -d
+docker compose -f docker/e2e/docker-compose.yml -f override.yml exec -d -e SKIP_BUILD=1 e2e bash scenarios/demo-up.sh
+```
+
+About 30 s later it writes `DEMO READY` to `results/demo/demo-up.log`, beside a screenshot
+(`results/demo/ready.png`). Open `/vnc.html` on the box's noVNC port. `down` (without `-v`)
+stops it and keeps the build volumes; the same two commands bring it back. To open
+quiver.chat's details page it clicks the sixth sidebar row, the place quiver.chat sorts to with
+exactly these arrows installed.
+
 ## What is real, and what stands in for something
 
 Real: both applications, built from the two mounted checkouts by their own
