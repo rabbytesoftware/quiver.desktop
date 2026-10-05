@@ -108,12 +108,18 @@ async function headerText(): Promise<string> {
 	return ((await (await header()).getAttribute('textContent')) ?? '').replace(/\s+/g, ' ').trim();
 }
 
-async function waitForSurface(home: string, identity: string, what: string, ready = true): Promise<ArrowDetailDTO> {
+async function waitForSurface(
+	home: string,
+	identity: string,
+	what: string,
+	ready = true,
+	timeoutMs = 120_000
+): Promise<ArrowDetailDTO> {
 	return until(
 		`${identity} never had ${what}`,
 		async () => (await getArrow(home, identity)).body,
 		(d) => surfaceOf(d)?.ready === ready,
-		120_000,
+		timeoutMs,
 		200
 	) as Promise<ArrowDetailDTO>;
 }
@@ -361,8 +367,14 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		const added = after.filter((l) => !before.has(key(l)));
 		const chatOwned = after.filter((l) => l.pids.some((p) => chatPids.includes(p)));
 		evidence('A2.listeners.after', { listeners: after, added, chatOwned, ss: ssListening() });
+		// The claim itself: executing the chat opened no TCP listener at all,
+		// whoever /proc says owns it.
+		expect(added).toEqual([]);
 		expect(chatOwned).toEqual([]);
-		expect(added.filter((l) => l.commands.some((c) => /quiver-chat/.test(c)))).toEqual([]);
+		// Control: the /proc owner lookup really attributes listeners here
+		// (tauri-driver on 4444 exists in every run), so chatOwned is not
+		// empty merely because nothing could be resolved.
+		expect(listenersBefore.some((l) => l.port === 4444 && l.pids.length > 0)).toBe(true);
 
 		const dir = runDir(home);
 		const mode = fs.statSync(dir).mode & 0o777;
@@ -374,6 +386,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		expect(fs.statSync(path.join(dir, sockets[0])).isSocket()).toBe(true);
 		// The address is derived from the namespace (surface.md, "Socket address").
 		const expected = crypto.createHash('sha256').update(chat).digest('hex').slice(0, 12);
+		expect(sockets[0]).toBe(`${expected}.sock`);
 		evidence('A2.socket.derivation', { expected: `${expected}.sock`, bareExpected: crypto.createHash('sha256').update(CHAT_NS).digest('hex').slice(0, 12) });
 	});
 
@@ -594,7 +607,13 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		expect(ownApi).toBeDefined();
 		expect(ownApi!.body).not.toContain('"success"');
 		expect(ownApi!.status).toBe(404);
-		const page = (probes.page as { resolved?: { csp: string; nosniff: string; referrer: string; shim: boolean } }).resolved!;
+		const page = (
+			probes.page as {
+				resolved?: { status: number; csp: string; nosniff: string; referrer: string; setCookie: string | null; shim: boolean };
+			}
+		).resolved!;
+		expect(page.status).toBe(200);
+		expect(page.setCookie).toBeNull();
 		expect(page.csp).toBe(ARROW_CSP);
 		expect(page.nosniff).toBe('nosniff');
 		expect(page.referrer).toBe('no-referrer');
@@ -602,6 +621,8 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		expect(probes.foreign).toHaveProperty('rejected');
 		expect(probes.shim).toEqual({ resolved: 200 });
 		expect(probes.otherArrowPath).toEqual({ resolved: 404 });
+		expect(probes.dotdot).toEqual({ resolved: 404 });
+		expect(globals.ipc).toBe('undefined');
 		expect(globals.cookieAfterWrite).not.toContain('e2e=1');
 	});
 
@@ -864,11 +885,10 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 				expect(String(r.state.html)).not.toContain(leak);
 			}
 			for (const probe of Object.values(r.probes) as { status?: number; body?: string; rejected?: string }[]) {
-				if (probe.rejected === undefined) {
-					expect(probe.status).toBe(403);
-					expect(probe.body).toContain('origin not allowed');
-				}
-				expect(probe.body ?? '').not.toContain('"success"');
+				expect(probe.rejected).toBeUndefined();
+				expect(probe.status).toBe(403);
+				expect(probe.body).toContain('origin not allowed');
+				expect(probe.body).not.toContain('"success"');
 			}
 		}
 	});
@@ -935,10 +955,12 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 	});
 
 	it('A6: execute/stop cycles of the chat and a static app always reach ready and always really stop', async () => {
-		const s1 = statics[0];
+		const [s1, s2, s3] = statics;
 		const client = coreClient(home);
+		const sleepers = () => pidsByCommand(/^sleep 3000$/);
 		const stopAndSettle = async (identity: string) => {
-			await client.post(`/v0/runtime/${encodeURIComponent(identity)}/stop`, {});
+			const stop = await client.post(`/v0/runtime/${encodeURIComponent(identity)}/stop`, {});
+			if (stop.status !== 202) throw new Error(`stop of ${identity} answered ${stop.status}`);
 			return until(
 				`${identity} never settled after stop`,
 				async () => (await client.get<{ state: string; active_run?: ActiveRun | null }>(`/v0/runtime/${encodeURIComponent(identity)}`)).body,
@@ -947,35 +969,54 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 				200
 			);
 		};
-		await stopAndSettle(s1);
+		// Every static app runs `sleep 3000`: with all three stopped, any
+		// `sleep 3000` left after a cycle can only be static app 1's.
+		for (const identity of [s1, s2, s3]) await stopAndSettle(identity);
+		await until('a static app kept its sleep after stop', sleepers, (p) => p.length === 0, 15_000);
 
 		const cycles: Record<string, unknown>[] = [];
 		const started = Date.now();
+		const fail = (cycle: Record<string, unknown>, why: string): never => {
+			evidence('A6.cycles', { failedAt: cycle, why, cycles });
+			throw new Error(`cycle ${cycle.i} (${cycle.arrow}) ${why}: ${JSON.stringify(cycle)}`);
+		};
 		for (let i = 0; i < CYCLES; i++) {
 			for (const identity of [chat, s1]) {
+				const isChat = identity === chat;
 				const t0 = Date.now();
+				const cycle: Record<string, unknown> = { i, arrow: isChat ? 'chat' : 'static-1' };
 				const exec = await client.post(`/v0/runtime/${encodeURIComponent(identity)}/execute`, {});
-				let ready = false;
-				let detail: ArrowDetailDTO | null = null;
+				cycle.exec = exec.status;
+				if (exec.status !== 202) fail(cycle, 'execute was not accepted');
+				let detail: ArrowDetailDTO;
 				try {
-					detail = await waitForSurface(home, identity, 'a ready surface');
-					ready = true;
-				} catch {
-					detail = (await getArrow(home, identity)).body;
+					detail = await waitForSurface(home, identity, 'a ready surface', true, 15_000);
+				} catch (e) {
+					cycle.surface = surfaceOf((await getArrow(home, identity)).body);
+					return fail(cycle, `never became ready (${String(e)})`);
 				}
-				const pid = (detail?.active_run as ActiveRun | undefined)?.pid ?? 0;
+				const pid = (detail.active_run as ActiveRun | undefined)?.pid ?? 0;
 				const tree = pid ? [pid, ...childrenOf(pid)] : [];
-				const chatPids = identity === chat ? pidsByExe('quiver-chat-linux') : [];
+				const program = isChat ? pidsByExe('quiver-chat-linux') : sleepers();
+				Object.assign(cycle, { pid, pidAlive: pid > 0 && alive(pid), tree, program });
+				if (!pid || !alive(pid)) fail(cycle, 'has no live recorded pid');
+				if (tree.length < 2) fail(cycle, 'recorded pid has no child (not the step that runs the program)');
+				if (program.length === 0) fail(cycle, 'its program is not running');
+
 				await stopAndSettle(identity);
-				await until('a stopped arrow left processes', () => [...tree, ...chatPids].filter(alive), (p) => p.length === 0, 15_000).catch(() => null);
-				const survivors = [...tree, ...chatPids, ...(identity === chat ? pidsByExe('quiver-chat-linux') : [])].filter(alive);
-				cycles.push({ i, arrow: identity === chat ? 'chat' : 'static-1', exec: exec.status, ready, pid, tree, survivors, ms: Date.now() - t0 });
+				const survivors = await until(
+					'processes outlived stop',
+					() => [...new Set([...tree, ...program, ...(isChat ? pidsByExe('quiver-chat-linux') : sleepers())])].filter(alive),
+					(p) => p.length === 0,
+					15_000
+				).catch(() => [...new Set([...tree, ...program, ...(isChat ? pidsByExe('quiver-chat-linux') : sleepers())])].filter(alive));
+				Object.assign(cycle, { survivors, ms: Date.now() - t0 });
+				cycles.push(cycle);
+				if (survivors.length > 0) fail(cycle, 'left processes running after stop');
 			}
 		}
-		const bad = cycles.filter((c) => c.exec !== 202 || !c.ready || !c.pid || (c.survivors as number[]).length > 0);
-		evidence('A6.cycles', { count: cycles.length, seconds: Math.round((Date.now() - started) / 1000), bad, cycles });
+		evidence('A6.cycles', { count: cycles.length, seconds: Math.round((Date.now() - started) / 1000), cycles });
 		expect(cycles.length).toBe(2 * CYCLES);
-		expect(bad).toEqual([]);
 	});
 
 	it('A4: over tcp:// the /v0/ui route needs the paired bearer token, WebSocket upgrades included', async () => {
