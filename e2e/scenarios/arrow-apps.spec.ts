@@ -45,12 +45,13 @@ import { wsConnect } from '../lib/ws-client';
 
 const CHAT_NS = process.env.QUIVER_E2E_CHAT_NS ?? '';
 const ECHO_NS = process.env.QUIVER_E2E_ECHO_NS ?? '';
+const SHORT_NS = process.env.QUIVER_E2E_SHORT_NS ?? '';
 const STATIC_NS = (process.env.QUIVER_E2E_STATIC_NS ?? '').split(/\s+/).filter(Boolean);
 const TCP_PORT = Number(process.env.QUIVER_E2E_TCP_PORT ?? 40299);
 /** Execute/stop cycles per arrow in A6, the stress test for the runtime's version-conflict retries. */
 const CYCLES = Number(process.env.QUIVER_E2E_STRESS_CYCLES ?? 15);
 
-type Surface = { mode: string; path: string; ready: boolean };
+type Surface = { title?: string; mode: string; path: string; ready: boolean };
 type ActiveRun = NonNullable<ArrowDetailDTO['active_run']> & { surface?: Surface };
 
 const nonce = crypto.randomBytes(3).toString('hex');
@@ -351,8 +352,8 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		evidence('A1.detail', detail);
 		evidence('A1.runtime', runtime);
 		expect(runtime.body?.state).toBe('running');
-		expect(runtime.body?.active_run?.surface).toEqual({ mode: 'listen', path: '/', ready: true });
-		expect(surfaceOf(detail)).toEqual({ mode: 'listen', path: '/', ready: true });
+		expect(runtime.body?.active_run?.surface).toEqual({ title: 'Quiver Chat', mode: 'listen', path: '/', ready: true });
+		expect(surfaceOf(detail)).toEqual({ title: 'Quiver Chat', mode: 'listen', path: '/', ready: true });
 
 		chatPids = await until('no quiver-chat process appeared', () => pidsByExe('quiver-chat-linux'), (p) => p.length > 0);
 		evidence('A1.chat.pids', chatPids);
@@ -640,7 +641,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		await header().waitForExist({ timeout: 30_000, timeoutMsg: 'the echo arrow page never became the app view' });
 		const notReady = surfaceOf((await getArrow(home, echo)).body);
 		evidence('B6.echo.disabled', { surface: notReady });
-		expect(notReady).toEqual({ mode: 'listen', path: '/', ready: false });
+		expect(notReady).toEqual({ title: 'E2E Echo App', mode: 'listen', path: '/', ready: false });
 		expect(await button('Open').isExisting()).toBe(false);
 
 		await header().waitForExist({ timeout: 15_000 });
@@ -1016,6 +1017,46 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		}
 		evidence('A6.cycles', { count: cycles.length, seconds: Math.round((Date.now() - started) / 1000), cycles });
 		expect(cycles.length).toBe(2 * CYCLES);
+	});
+
+	it('A7: when the run serving a ui exits on its own, the surface closes, the page returns to details, and the arrow starts again', async () => {
+		if (!SHORT_NS) throw new Error('QUIVER_E2E_SHORT_NS is unset');
+		const short = await register(home, SHORT_NS);
+		await installAndExecute(home, short);
+		const first = await waitForSurface(home, short, 'a ready static surface', true, 15_000);
+		expect(surfaceOf(first)).toEqual({ title: 'E2E Short App', mode: 'static', path: '/', ready: true });
+
+		await openArrowPage(short);
+		await header().waitForExist({ timeout: 15_000, timeoutMsg: 'the short app page never became the app view' });
+		await waitForFrameText(short, 'E2E Short App');
+		await screens('A7-short-app-running');
+
+		// The run is `sleep 12`: nothing stops it, it ends by itself.
+		const ended = await until(
+			'the short app surface outlived its run',
+			async () => (await coreClient(home).get<{ state: string; active_run?: ActiveRun | null; last_return?: unknown }>(`/v0/runtime/${encodeURIComponent(short)}`)).body,
+			(rt) => !!rt && !rt.active_run?.surface,
+			40_000,
+			250
+		);
+		await frame(short).waitForExist({ reverse: true, timeout: 15_000, timeoutMsg: 'the short app frame stayed after its run ended' });
+		await header().waitForExist({ reverse: true, timeout: 15_000, timeoutMsg: 'the app header stayed after the run ended' });
+		await $('//h1').waitForExist({ timeout: 15_000, timeoutMsg: 'the page never returned to the details view' });
+		const route = await routePath();
+		const ui = await rawRequest(local, 'GET', uiPath(short));
+		evidence('A7.ended', { runtime: ended, route, ui: { status: ui.status, body: ui.body.slice(0, 120) } });
+		expect(ended?.active_run ?? null).toBeNull();
+		expect(route).toBe(`/arrow/${short}`);
+		expect(ui.status).toBe(503);
+		await screens('A7-short-app-ended');
+
+		expect((await coreClient(home).post(`/v0/runtime/${encodeURIComponent(short)}/execute`, {})).status).toBe(202);
+		const again = await waitForSurface(home, short, 'a ready surface after restart', true, 15_000);
+		await header().waitForExist({ timeout: 15_000, timeoutMsg: 'the restarted short app never showed the app view' });
+		await waitForFrameText(short, 'E2E Short App');
+		evidence('A7.restarted', { surface: surfaceOf(again) });
+		expect(surfaceOf(again)?.ready).toBe(true);
+		await screens('A7-short-app-restarted');
 	});
 
 	it('A4: over tcp:// the /v0/ui route needs the paired bearer token, WebSocket upgrades included', async () => {

@@ -142,13 +142,14 @@ seed_baseline() {
 
 # What arrow-apps adds: quiver.chat's own ARROW.md, unmodified, with the two
 # linux archives it fetches from the `nightly` release; the echo app and its
-# server; and the three rendered static apps (fixtures/upstream-up.sh).
+# server; the short app; and the three rendered static apps (fixtures/upstream-up.sh).
 seed_arrow_apps() {
 	publish_manifest rabbytesoftware/quiver.chat develop "$CHAT_CHECKOUT/ARROW.md"
 	publish_release rabbytesoftware/quiver.chat nightly \
 		"$CHAT_DIST/quiver-chat-linux-arm64.tar.gz" "$CHAT_DIST/quiver-chat-linux-amd64.tar.gz"
 	publish_manifest rabbytesoftware/e2e-echo-app develop "$E2E_DIR/fixtures/arrows/e2e-echo-app/ARROW.md"
 	publish_release rabbytesoftware/e2e-echo-app v1 "$E2E_DIR/fixtures/arrows/e2e-echo-app/server.py"
+	publish_manifest rabbytesoftware/e2e-short-app develop "$E2E_DIR/fixtures/arrows/e2e-short-app/ARROW.md"
 	local n
 	for n in 1 2 3; do
 		publish_manifest "rabbytesoftware/e2e-static-app-$n" develop "$UPSTREAM_STATE/fixtures/e2e-static-app-$n/ARROW.md"
@@ -173,6 +174,7 @@ export QUIVER_E2E_CORE_ASSET="$CORE_ASSET"
 export QUIVER_E2E_CHAT_NS="github.com/rabbytesoftware/quiver.chat"
 export QUIVER_E2E_CHAT_MANIFEST="$CHAT_CHECKOUT/ARROW.md"
 export QUIVER_E2E_ECHO_NS="github.com/rabbytesoftware/e2e-echo-app"
+export QUIVER_E2E_SHORT_NS="github.com/rabbytesoftware/e2e-short-app"
 export QUIVER_E2E_STATIC_NS="github.com/rabbytesoftware/e2e-static-app-1 github.com/rabbytesoftware/e2e-static-app-2 github.com/rabbytesoftware/e2e-static-app-3"
 export QUIVER_E2E_TCP_PORT=40299
 
