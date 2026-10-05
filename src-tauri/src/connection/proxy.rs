@@ -51,8 +51,8 @@ pub const PROXY_ERROR_HEADER: &str = "x-quiver-proxy";
 /// cookies to this scheme and the bearer token is added by the transport, in
 /// Rust, after the request has left the page. A wildcard would matter if a
 /// foreign origin could read what this handler returns, so `proxy_once` refuses
-/// any request whose `Origin` is not one of the app's own (`origin_allowed`)
-/// before a connection is even resolved. That matters because arrow pages
+/// any request whose `Origin` is missing or not one of the app's own
+/// (`request_allowed`) before a connection is even resolved. That matters because arrow pages
 /// (`arrow-app://...`) run in iframes of this same webview, where this scheme
 /// is reachable; they are additionally confined by their CSP
 /// (`connect-src 'self'`).
@@ -109,11 +109,13 @@ const PROXY_TIMEOUT: Duration = Duration::from_secs(300);
 #[cfg(test)]
 const PROXY_TIMEOUT: Duration = Duration::from_millis(500);
 
-/// No `quiver://` document may render inside a frame. An arrow page can
+/// No `quiver://` document should render inside a frame. An arrow page can
 /// navigate its own iframe here (CSP governs fetches, not a frame navigating
-/// itself), and a document rendered as `quiver://localhost` would make
-/// Origin-less same-origin requests that this proxy forwards with the bearer.
-/// The shell only ever `fetch`es this scheme, where both headers are inert.
+/// itself). WebKitGTK does NOT enforce either header on custom scheme
+/// responses (seen in the Linux E2E run), so these are a secondary guard:
+/// the primary one is that such a navigation carries no Origin and
+/// `request_allowed` refuses it. The shell only ever `fetch`es this scheme,
+/// where both headers are inert.
 const FRAME_ANCESTORS: HeaderValue = HeaderValue::from_static("frame-ancestors 'none'");
 const FRAME_OPTIONS: HeaderValue = HeaderValue::from_static("DENY");
 
@@ -161,10 +163,15 @@ fn preflight_response() -> Response<Vec<u8>> {
 
 /// Origins the app's own pages send. Arrow pages (`arrow-app://...`) share
 /// this webview process, so anything else must not reach the daemon through
-/// this scheme. Requests without an Origin (same-origin GETs, navigations)
-/// are allowed: the arrow CSP (`connect-src 'self'`) stops an arrow's
-/// fetches, and a frame navigating itself here gets nothing it can render
-/// (`/v0/ui` is refused and every response forbids framing).
+/// this scheme.
+///
+/// A request WITHOUT an Origin is refused too. The shell's page lives on a
+/// different origin from this scheme, so every `fetch` it makes here is a
+/// CORS request and the browser always attaches its Origin. What arrives
+/// without one is a frame navigating itself here, an `<img>`/`<script>`/
+/// `<link>` pointed here, or a same-origin GET from a `quiver://` document
+/// rendered in a frame: none of them is the shell, and the last one is real
+/// on WebKitGTK, which ignores the framing headers on custom schemes.
 const OWN_ORIGINS: [&str; 4] = [
 	"tauri://localhost",
 	"http://tauri.localhost",
@@ -172,11 +179,34 @@ const OWN_ORIGINS: [&str; 4] = [
 	"http://localhost:1420",
 ];
 
-pub fn origin_allowed(req: &Request<Vec<u8>>) -> bool {
-	match req.headers().get(header::ORIGIN) {
-		None => true,
-		Some(origin) => origin.to_str().is_ok_and(|o| OWN_ORIGINS.contains(&o)),
-	}
+fn origin_allowed(req: &Request<Vec<u8>>) -> bool {
+	req.headers()
+		.get(header::ORIGIN)
+		.and_then(|o| o.to_str().ok())
+		.is_some_and(|o| OWN_ORIGINS.contains(&o))
+}
+
+/// `Sec-Fetch-Dest` values that mean the response would become a document.
+const DOCUMENT_DESTS: [&str; 5] = ["document", "iframe", "frame", "embed", "object"];
+
+fn fetch_metadata(req: &Request<Vec<u8>>, name: &str) -> Option<String> {
+	req.headers()
+		.get(name)
+		.and_then(|v| v.to_str().ok())
+		.map(str::to_ascii_lowercase)
+}
+
+/// Fetch Metadata, when the engine sends it, as defence in depth: a
+/// navigation or an embedding is never the shell, whatever Origin it claims.
+/// Not every engine sends these headers, so the Origin rule stands alone.
+fn is_navigation(req: &Request<Vec<u8>>) -> bool {
+	fetch_metadata(req, "sec-fetch-mode").is_some_and(|m| m == "navigate")
+		|| fetch_metadata(req, "sec-fetch-dest")
+			.is_some_and(|d| DOCUMENT_DESTS.contains(&d.as_str()))
+}
+
+fn request_allowed(req: &Request<Vec<u8>>) -> bool {
+	origin_allowed(req) && !is_navigation(req)
 }
 
 fn percent_decode(path: &str) -> String {
@@ -242,7 +272,7 @@ pub async fn proxy_once<F>(transport: F, req: Request<Vec<u8>>) -> Response<Vec<
 where
 	F: Future<Output = Arc<dyn Transport>>,
 {
-	if !origin_allowed(&req) {
+	if !request_allowed(&req) {
 		return error_response(403, "origin not allowed");
 	}
 
@@ -282,12 +312,55 @@ mod tests {
 		req("GET", path)
 	}
 
+	/// A request the shell itself would send: cross-origin from its page, so
+	/// the browser always attaches the page's Origin.
 	fn req(method: &str, path: &str) -> Request<Vec<u8>> {
+		shell_req(method, &format!("quiver://localhost{path}"))
+	}
+
+	fn shell_req(method: &str, uri: &str) -> Request<Vec<u8>> {
+		let mut r = bare(method, uri);
+		r.headers_mut().insert(
+			header::ORIGIN,
+			HeaderValue::from_static("tauri://localhost"),
+		);
+		r
+	}
+
+	/// A request with no Origin at all: a navigation or a subresource load.
+	fn bare(method: &str, uri: &str) -> Request<Vec<u8>> {
 		Request::builder()
 			.method(method)
-			.uri(format!("quiver://localhost{path}"))
+			.uri(uri)
 			.body(Vec::new())
 			.unwrap()
+	}
+
+	const HOSTS: [&str; 2] = ["quiver://localhost", "http://quiver.localhost"];
+	const METHODS: [&str; 4] = ["GET", "POST", "DELETE", "OPTIONS"];
+
+	/// Every refusal looks the same, whatever refused it: a marked 403 that
+	/// still carries the CORS and framing headers.
+	fn assert_refused(resp: &Response<Vec<u8>>, what: &str) {
+		assert_eq!(resp.status(), 403, "{what}");
+		assert_eq!(
+			resp.headers().get(PROXY_ERROR_HEADER).map(|v| v.as_bytes()),
+			Some(&b"error"[..]),
+			"{what}"
+		);
+		assert_eq!(
+			resp.headers()
+				.get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+				.map(|v| v.as_bytes()),
+			Some(&b"*"[..]),
+			"{what}"
+		);
+		assert_eq!(expose_header(resp), Some(PROXY_ERROR_HEADER), "{what}");
+		assert_eq!(
+			frame_guard(resp),
+			(Some("frame-ancestors 'none'"), Some("DENY")),
+			"{what}"
+		);
 	}
 
 	/// The shape `handle_request` passes in: an already-resolved transport,
@@ -603,20 +676,120 @@ mod tests {
 	/// must be refused before any connection is resolved.
 	#[tokio::test]
 	async fn quiver_scheme_refuses_foreign_origins_before_resolving() {
-		for origin in [
-			"arrow-app://abc",
-			"http://arrow-app.abc",
-			"http://arrow-app.abc.localhost",
-			"arrow-app://abc.localhost",
-			"https://evil.example",
-			"null",
-		] {
-			let mut r = req("GET", "/v0/arrow");
-			r.headers_mut()
-				.insert(header::ORIGIN, origin.parse().unwrap());
+		for host in HOSTS {
+			for method in METHODS {
+				for origin in [
+					"arrow-app://abc",
+					"http://arrow-app.abc",
+					"http://arrow-app.abc.localhost",
+					"arrow-app://abc.localhost",
+					"https://evil.example",
+					"quiver://localhost",
+					"http://quiver.localhost",
+					"null",
+					"",
+				] {
+					let mut r = bare(method, &format!("{host}/v0/arrow"));
+					r.headers_mut()
+						.insert(header::ORIGIN, origin.parse().unwrap());
 
-			let resp = proxy_once(resolved(NeverDialled), r).await;
-			assert_eq!(resp.status(), 403, "{origin}");
+					let resp = proxy_once(resolved(NeverDialled), r).await;
+					assert_refused(
+						&resp,
+						&format!("{method} {host} from {origin:?}"),
+					);
+				}
+			}
+		}
+	}
+
+	/// A frame that navigates itself here, and any `<img>`, `<script>` or
+	/// `<link>` it points here, sends no Origin; so does a same-origin GET
+	/// from a `quiver://` document that WebKitGTK rendered inside a frame
+	/// despite the framing headers. The shell's own fetches are cross-origin
+	/// and always carry one, so a missing Origin is never the shell.
+	#[tokio::test]
+	async fn quiver_scheme_refuses_a_request_without_an_origin_before_resolving() {
+		for host in HOSTS {
+			for method in METHODS {
+				for path in ["/v0/arrow", "/v0/health", "/v0/arrow/x", "/"] {
+					let uri = format!("{host}{path}");
+					let resp = proxy_once(
+						resolved(NeverDialled),
+						bare(method, &uri),
+					)
+					.await;
+					assert_refused(
+						&resp,
+						&format!("{method} {uri} without an Origin"),
+					);
+				}
+			}
+		}
+	}
+
+	#[tokio::test]
+	async fn a_missing_origin_is_refused_exactly_like_a_foreign_one() {
+		let mut foreign = req("GET", "/v0/arrow");
+		foreign.headers_mut()
+			.insert(header::ORIGIN, "arrow-app://abc".parse().unwrap());
+		let foreign = proxy_once(resolved(NeverDialled), foreign).await;
+		let missing = proxy_once(
+			resolved(NeverDialled),
+			bare("GET", "quiver://localhost/v0/arrow"),
+		)
+		.await;
+
+		assert_eq!(missing.status(), foreign.status());
+		assert_eq!(missing.headers(), foreign.headers());
+		assert_eq!(missing.body(), foreign.body());
+	}
+
+	/// Defence in depth where the engine sends Fetch Metadata: a navigation
+	/// or an embedding is refused even when it claims the shell's Origin.
+	#[tokio::test]
+	async fn quiver_scheme_refuses_navigations_by_fetch_metadata() {
+		let cases = [
+			("sec-fetch-dest", "document"),
+			("sec-fetch-dest", "iframe"),
+			("sec-fetch-dest", "frame"),
+			("sec-fetch-dest", "embed"),
+			("sec-fetch-dest", "object"),
+			("sec-fetch-dest", "IFrame"),
+			("sec-fetch-mode", "navigate"),
+			("sec-fetch-mode", "Navigate"),
+		];
+		for host in HOSTS {
+			for method in METHODS {
+				for (name, value) in cases {
+					let mut r = shell_req(method, &format!("{host}/v0/arrow"));
+					r.headers_mut().insert(name, value.parse().unwrap());
+					let resp = proxy_once(resolved(NeverDialled), r).await;
+					assert_refused(
+						&resp,
+						&format!("{method} {host} {name}: {value}"),
+					);
+				}
+			}
+		}
+	}
+
+	/// What the shell's own `fetch` sends when the engine adds Fetch Metadata.
+	#[tokio::test]
+	async fn the_shells_fetch_metadata_still_passes() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let t = Arc::new(serving("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}").await);
+		for host in HOSTS {
+			let mut r = shell_req("GET", &format!("{host}/v0/arrow"));
+			r.headers_mut()
+				.insert("sec-fetch-dest", HeaderValue::from_static("empty"));
+			r.headers_mut()
+				.insert("sec-fetch-mode", HeaderValue::from_static("cors"));
+			r.headers_mut()
+				.insert("sec-fetch-site", HeaderValue::from_static("cross-site"));
+			let resp = proxy_once(ready(t.clone() as Arc<dyn Transport>), r).await;
+			assert_eq!(resp.status(), 200, "{host}");
 		}
 	}
 
@@ -641,9 +814,10 @@ mod tests {
 
 	/// An arrow page can navigate its own iframe to a `quiver://` URL: CSP
 	/// governs fetches, not a frame navigating itself. Rendered there, the page
-	/// would run as `quiver://localhost` and its same-origin GETs (no Origin)
-	/// would reach the daemon with the bearer. No `quiver://` document may ever
-	/// render inside a frame, so every response kind carries both guards.
+	/// would run as `quiver://localhost`. That navigation and the document's
+	/// same-origin GETs carry no Origin and are refused; on engines that honour
+	/// them, both framing headers stop it rendering at all, so every response
+	/// kind still carries them. WebKitGTK ignores them on custom schemes.
 	#[tokio::test]
 	async fn every_response_refuses_to_render_inside_a_frame() {
 		let _serialised = crate::FD_TESTS.lock().await;
@@ -753,12 +927,11 @@ mod tests {
 			for path in paths {
 				let uri = format!("{host}{path}");
 				for method in ["GET", "POST", "OPTIONS"] {
-					let r = Request::builder()
-						.method(method)
-						.uri(uri.as_str())
-						.body(Vec::new())
-						.unwrap();
-					let resp = proxy_once(resolved(NeverDialled), r).await;
+					let resp = proxy_once(
+						resolved(NeverDialled),
+						shell_req(method, &uri),
+					)
+					.await;
 					assert_eq!(resp.status(), 403, "{method} {uri}");
 					assert_eq!(
 						resp.headers()
@@ -820,7 +993,7 @@ mod tests {
 	}
 
 	#[test]
-	fn the_apps_own_origins_and_a_missing_origin_are_allowed() {
+	fn only_the_apps_own_origins_are_allowed() {
 		for origin in [
 			"tauri://localhost",
 			"http://tauri.localhost",
@@ -832,6 +1005,6 @@ mod tests {
 				.insert(header::ORIGIN, origin.parse().unwrap());
 			assert!(origin_allowed(&r), "{origin}");
 		}
-		assert!(origin_allowed(&req("GET", "/v0/arrow")));
+		assert!(!origin_allowed(&bare("GET", "quiver://localhost/v0/arrow")));
 	}
 }
