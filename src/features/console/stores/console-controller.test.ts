@@ -23,7 +23,7 @@ describe("the app's console controller", () => {
 		mockFetch.mockImplementation(async (path: string) =>
 			path === '/versions'
 				? { version: 'nightly-latest', features: ['console.v1'] }
-				: { commands: [{ path: ['install'], short: 'install an arrow', usage: 'install <ns>', aliases: [] }] }
+				: { commands: [{ path: ['install'], short: 'install an arrow', usage: 'install <ns>' }] }
 		);
 
 		getConsoleController().sync('local', true);

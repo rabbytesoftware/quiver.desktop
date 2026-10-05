@@ -73,7 +73,6 @@ describe('the console panel', () => {
 					component: 'daemon',
 					msg: 'daemon listening',
 					fields: [],
-					fieldsTruncated: false,
 				},
 			},
 		]);
@@ -112,7 +111,6 @@ describe('the console panel', () => {
 			component: 'daemon',
 			msg: 'daemon listening',
 			fields: [],
-			fieldsTruncated: false,
 		};
 
 		function openWithALine(): void {

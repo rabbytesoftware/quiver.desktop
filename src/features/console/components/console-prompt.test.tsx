@@ -8,9 +8,9 @@ import { useConsoleStore } from '@/features/console/stores/console-store';
 import { ConsolePrompt } from './console-prompt';
 
 const COMMANDS: ConsoleCommand[] = [
-	{ path: ['install'], short: '', usage: 'install', aliases: [], flags: [] },
-	{ path: ['info'], short: '', usage: 'info', aliases: [], flags: [] },
-	{ path: ['list'], short: '', usage: 'list', aliases: [], flags: [] },
+	{ path: ['install'], short: '', usage: 'install' },
+	{ path: ['info'], short: '', usage: 'info' },
+	{ path: ['list'], short: '', usage: 'list' },
 ];
 
 const input = () => screen.getByRole('textbox') as HTMLInputElement;

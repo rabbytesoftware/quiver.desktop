@@ -26,7 +26,6 @@ function record(over: Partial<LogRecord> = {}): LogRecord {
 			{ key: 'err', value: 'boom', kind: 'error' },
 			{ key: 'note', value: 'plain', kind: 'text' },
 		],
-		fieldsTruncated: false,
 		...over,
 	};
 }
@@ -74,16 +73,6 @@ describe('a daemon log line', () => {
 		const message = screen.getByText('channel lookup slow');
 		if (messageClass) expect(message.className).toContain(messageClass);
 		else expect(message.className).toBe('');
-	});
-
-	it('marks a record the daemon trimmed', () => {
-		renderEntry({ id: 1, kind: 'log', record: record({ fieldsTruncated: true }) });
-		expect(screen.getByText('…')).toBeInTheDocument();
-	});
-
-	it('does not mark an intact one', () => {
-		renderEntry({ id: 1, kind: 'log', record: record() });
-		expect(screen.queryByText('…')).toBeNull();
 	});
 
 	it('is a button that says whether it is expanded and toggles by its id', async () => {

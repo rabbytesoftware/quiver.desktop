@@ -10,9 +10,10 @@ import type { Clock } from './world/types';
  * `GET /v0/console/logs` stream and `POST /v0/console/exec`.
  *
  * Faithful means it keeps the contract's edges, not just its happy path: the
- * exec endpoint refuses a command that is not in its table with the same status
- * a daemon answers, ends every accepted run with one `exit` frame, and the log
- * stream replays from a cursor and then says `ready`.
+ * exec endpoint refuses a line with quoting or shell characters (400) and a
+ * command that is not in its table (403) with the words a daemon uses, allows four
+ * commands at a time (429), ends every accepted run with one `exit` frame, and the
+ * log stream replays from a cursor and then says `ready`.
  */
 
 export const MOCK_CORE_VERSIONS = {
@@ -25,65 +26,43 @@ export const MOCK_CORE_VERSIONS = {
 	api: { supported: ['v0'], latest: 'v0' },
 };
 
-export interface MockConsoleFlag {
-	name: string;
-	shorthand: string;
-	usage: string;
-	takes_value: boolean;
-}
-
 export interface MockConsoleCommand {
 	path: string[];
 	short: string;
 	usage: string;
-	aliases: string[];
-	flags: MockConsoleFlag[];
 }
 
-const OUTPUT: MockConsoleFlag = {
-	name: 'output',
-	shorthand: 'o',
-	usage: 'output format: table|json|yaml',
-	takes_value: true,
-};
-const YES: MockConsoleFlag = { name: 'yes', shorthand: 'y', usage: 'confirm without prompting', takes_value: false };
-const DETACH: MockConsoleFlag = {
-	name: 'detach',
-	shorthand: '',
-	usage: 'fire the method without waiting',
-	takes_value: false,
-};
-
-function command(path: string[], short: string, usage: string, flags: MockConsoleFlag[] = []): MockConsoleCommand {
-	return { path, short, usage, aliases: [], flags };
+function command(path: string[], short: string, usage: string): MockConsoleCommand {
+	return { path, short, usage };
 }
 
 /**
  * The daemon's real console surface (quiver.core `docs/spec/console.md`): there
  * is no bare `add`, the arrow verbs live under `arrow`, and destructive verbs
- * refuse without `--yes`.
+ * refuse without `--yes`. The table lists a path, a summary and a usage line: no
+ * flags and no aliases.
  */
 export const MOCK_COMMANDS: MockConsoleCommand[] = [
-	command(['install'], 'install an arrow', 'install <namespace>[@ref]', [OUTPUT, DETACH]),
-	command(['run'], 'run an arrow', 'run <namespace>', [OUTPUT, DETACH]),
-	command(['stop'], 'stop an arrow', 'stop <namespace>', [OUTPUT, DETACH]),
-	command(['update'], 'update an arrow', 'update <namespace>', [OUTPUT, DETACH]),
-	command(['uninstall'], 'uninstall an arrow', 'uninstall <namespace>', [YES, OUTPUT, DETACH]),
-	command(['ps'], 'list running arrows', 'ps', [OUTPUT]),
-	command(['status'], 'show the daemon status', 'status', [OUTPUT]),
-	{ ...command(['list'], 'list installed arrows', 'list', [OUTPUT]), aliases: ['ls'] },
-	command(['search'], 'search the catalog', 'search <query>', [OUTPUT]),
-	command(['info'], 'show an arrow', 'info <namespace>', [OUTPUT]),
-	command(['methods'], "list an arrow's methods", 'methods <namespace>', [OUTPUT]),
+	command(['install'], 'install an arrow', 'install <namespace>[@ref]'),
+	command(['run'], 'run an arrow', 'run <namespace>'),
+	command(['stop'], 'stop an arrow', 'stop <namespace>'),
+	command(['update'], 'update an arrow', 'update <namespace>'),
+	command(['uninstall'], 'uninstall an arrow', 'uninstall <namespace>'),
+	command(['ps'], 'list running arrows', 'ps'),
+	command(['status'], 'show the daemon status', 'status'),
+	command(['list'], 'list installed arrows', 'list'),
+	command(['search'], 'search the catalog', 'search <query>'),
+	command(['info'], 'show an arrow', 'info <namespace>'),
+	command(['methods'], "list an arrow's methods", 'methods <namespace>'),
 	command(['health'], 'check the daemon', 'health'),
 	command(['version'], 'show the daemon version', 'version'),
-	command(['arrow', 'add'], 'register an arrow in the catalog', 'arrow add <namespace>', [OUTPUT]),
-	command(['arrow', 'remove'], 'remove an arrow from the catalog', 'arrow remove <namespace>', [YES, OUTPUT]),
-	command(['arrow', 'refresh'], 'refresh an arrow', 'arrow refresh <namespace>', [OUTPUT]),
-	command(['arrow', 'list'], 'list catalogued arrows', 'arrow list', [OUTPUT]),
-	command(['arrow', 'show'], 'show a catalogued arrow', 'arrow show <namespace>', [OUTPUT]),
-	command(['collection', 'list'], 'list collections', 'collection list', [OUTPUT]),
-	command(['collection', 'show'], 'show a collection', 'collection show <name>', [OUTPUT]),
+	command(['arrow', 'add'], 'register an arrow in the catalog', 'arrow add <namespace>'),
+	command(['arrow', 'remove'], 'remove an arrow from the catalog', 'arrow remove <namespace>'),
+	command(['arrow', 'refresh'], 'refresh an arrow', 'arrow refresh <namespace>'),
+	command(['arrow', 'list'], 'list catalogued arrows', 'arrow list'),
+	command(['arrow', 'show'], 'show a catalogued arrow', 'arrow show <namespace>'),
+	command(['collection', 'list'], 'list collections', 'collection list'),
+	command(['collection', 'show'], 'show a collection', 'collection show <name>'),
 ];
 
 interface LogSeed {
@@ -150,36 +129,31 @@ const LIVE: LogSeed[] = [
 	},
 ];
 
-const REPLAY_DEFAULT = 500;
-const REPLAY_MAX = 2000;
+/** What a client without a cursor is sent. */
+const REPLAY = 500;
 const LIVE_INTERVAL_MS = 4000;
 
 const LEVEL_RANK = { debug: 0, info: 1, warn: 2, error: 3 } as const;
 
-/** Splits on whitespace, honouring double and single quotes. Not a shell: nothing else is special. */
-export function tokenise(line: string): string[] | null {
-	const tokens: string[] = [];
-	let current = '';
-	let quote: string | null = null;
-	let started = false;
-	for (const ch of line) {
-		if (quote) {
-			if (ch === quote) quote = null;
-			else current += ch;
-		} else if (ch === '"' || ch === "'") {
-			quote = ch;
-			started = true;
-		} else if (/\s/.test(ch)) {
-			if (started || current) tokens.push(current);
-			current = '';
-			started = false;
-		} else {
-			current += ch;
-		}
-	}
-	if (quote) return null;
-	if (started || current) tokens.push(current);
-	return tokens;
+/** What the daemon says about a line it will not run. */
+export const BAD_LINE =
+	'line must be 1 to 1024 bytes of space-separated words, without control or shell characters; quoting is not supported';
+
+const SHELL_SYNTAX = '"\'`\\$;&|<>(){}*?~#';
+
+/**
+ * The daemon's rule for a console line: split on whitespace, with no quoting or
+ * escaping, so a line holding a control character or anything a shell treats
+ * specially is refused (null) rather than interpreted.
+ */
+export function parseLine(line: string): string[] | null {
+	const words = line.split(/\s+/).filter((w) => w !== '');
+	const bad =
+		line.length > 1024 ||
+		words.length === 0 ||
+		/\p{Cc}/u.test(line) ||
+		[...line].some((c) => SHELL_SYNTAX.includes(c));
+	return bad ? null : words;
 }
 
 function frame(value: unknown): string {
@@ -204,14 +178,18 @@ export interface MockConsole {
 	exec(line: string, onFrame: (frame: string) => void): ConsoleRun;
 }
 
-/** Whether `tokens` begin with this command's path (or an alias spelling of it). */
+/** Whether `tokens` begin with this command's path. */
 function matches(c: MockConsoleCommand, tokens: string[]): boolean {
-	const paths = [c.path, ...c.aliases.map((a) => [...c.path.slice(0, -1), a])];
-	return paths.some((p) => p.length <= tokens.length && p.every((word, i) => tokens[i] === word));
+	return c.path.length <= tokens.length && c.path.every((word, i) => tokens[i] === word);
 }
+
+/** The most commands the daemon runs at once. */
+const MAX_RUNNING = 4;
 
 export function createMockConsole(hub: SocketHub, clock: Clock): MockConsole {
 	let seq = 0;
+	/** Commands running now: the daemon allows four at once. */
+	let running = 0;
 	const ring: { seq: number; time: string; seed: LogSeed }[] = [];
 
 	function record(seed: LogSeed): { seq: number; time: string; seed: LogSeed } {
@@ -231,7 +209,6 @@ export function createMockConsole(hub: SocketHub, clock: Clock): MockConsole {
 			component: entry.seed.component,
 			msg: entry.seed.msg,
 			fields: entry.seed.fields,
-			fields_truncated: false,
 		});
 	}
 
@@ -259,7 +236,6 @@ export function createMockConsole(hub: SocketHub, clock: Clock): MockConsole {
 			const query = new URLSearchParams(path.split('?')[1] ?? '');
 			const min = LEVEL_RANK[(query.get('level') as keyof typeof LEVEL_RANK | null) ?? 'info'] ?? 1;
 			const since = query.has('since') ? Number(query.get('since')) : null;
-			const replay = Math.min(Number(query.get('replay') ?? REPLAY_DEFAULT) || REPLAY_DEFAULT, REPLAY_MAX);
 
 			const socket = hub.open(path);
 			const send = (text: string, level: LogSeed['level']): void => {
@@ -269,14 +245,13 @@ export function createMockConsole(hub: SocketHub, clock: Clock): MockConsole {
 			// Queued after the socket's own open microtask, so the consumer has
 			// seen `onopen` -- and set its handlers -- before the first frame.
 			queueMicrotask(() => {
-				// A cursor ahead of the newest record means the daemon restarted: the
-				// cursor is discarded, the last records are replayed, and `ready` says so.
+				// Without a cursor: the last 500. With one: everything still in the ring after
+				// it. A cursor ahead of the newest record means the daemon restarted: it is
+				// discarded, the last 500 are sent, and `ready` says so.
 				const reset = since !== null && since > seq;
 				const eligible = ring.filter((e) => LEVEL_RANK[e.seed.level] >= min);
 				const replayed =
-					since === null || reset
-						? eligible.slice(-replay)
-						: eligible.filter((e) => e.seq > since).slice(-replay);
+					since === null || reset ? eligible.slice(-REPLAY) : eligible.filter((e) => e.seq > since);
 				for (const entry of replayed) socket.deliver(logFrame(entry));
 				socket.deliver(frame(reset ? { type: 'ready', seq, reset: true } : { type: 'ready', seq }));
 				listeners.add(send);
@@ -292,8 +267,14 @@ export function createMockConsole(hub: SocketHub, clock: Clock): MockConsole {
 
 		exec(line, onFrame) {
 			let cancelled = false;
+			let holdsSlot = false;
+			const release = (): void => {
+				if (holdsSlot) running--;
+				holdsSlot = false;
+			};
 			const cancel = (): void => {
 				cancelled = true;
+				release();
 			};
 			const emit = (text: string, delay: number): void => {
 				clock.after(delay, () => {
@@ -301,38 +282,35 @@ export function createMockConsole(hub: SocketHub, clock: Clock): MockConsole {
 				});
 			};
 
-			if (line.length > 1024) {
-				emit(deny(400, 'command line is too long'), 0);
-				return { cancel };
-			}
-			const tokens = tokenise(line);
+			const tokens = parseLine(line);
 			if (tokens === null) {
-				emit(deny(400, 'unterminated quote'), 0);
-				return { cancel };
-			}
-			if (tokens.length === 0) {
-				emit(deny(400, 'empty command'), 0);
-				return { cancel };
-			}
-			const refused = tokens.find((t) => /^--(server|context|config)(=|$)/.test(t));
-			if (refused) {
-				emit(deny(403, `the ${refused.split('=')[0]} flag is not available in the console`), 0);
+				emit(deny(400, BAD_LINE), 0);
 				return { cancel };
 			}
 
-			// The longest listed path the line begins with; anything else, including a bare
-			// namespace (the CLI's root dispatch) and `add`, is not reachable.
+			// The longest listed path the line begins with. Anything else -- a bare
+			// namespace (the CLI's root dispatch), `add`, `daemon` -- is not available, and
+			// the daemon names what was typed. Flags are not looked at: `--server` and its
+			// kin are accepted and change nothing, as in the daemon.
 			const known = MOCK_COMMANDS.filter((c) => matches(c, tokens)).sort(
 				(x, y) => y.path.length - x.path.length
 			)[0];
 			if (!known) {
-				emit(deny(403, 'unknown command'), 0);
+				publish({
+					level: 'warn',
+					component: 'console',
+					msg: 'exec denied',
+					fields: { device: 'local', command: 'quiver' },
+				});
+				emit(deny(403, `command "${tokens[0]}" is not available in the console`), 0);
 				return { cancel };
 			}
-			if (known.path[0] === 'status' && tokens.some((t) => t === '--watch' || t === '-w')) {
-				emit(deny(403, 'the --watch flag is not available in the console'), 0);
+			if (running >= MAX_RUNNING) {
+				emit(deny(429, 'too many console commands are running'), 0);
 				return { cancel };
 			}
+			running++;
+			holdsSlot = true;
 
 			const args = tokens.slice(known.path.length).filter((t) => !t.startsWith('-'));
 			const confirmed = tokens.some((t) => t === '--yes' || t === '-y');
@@ -341,11 +319,12 @@ export function createMockConsole(hub: SocketHub, clock: Clock): MockConsole {
 			const finish = (code: number, error: string, delay: number): void => {
 				emit(exit(code, error), delay);
 				clock.after(delay, () => {
+					release();
 					publish({
 						level: 'info',
 						component: 'console',
 						msg: 'exec',
-						fields: { device: 'local', line, code, took: `${Date.now() - start}ms` },
+						fields: { device: 'local', command: `quiver ${verb}`, code, took: `${Date.now() - start}ms` },
 					});
 				});
 			};

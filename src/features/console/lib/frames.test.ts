@@ -14,7 +14,6 @@ const LOG = {
 	component: 'release',
 	msg: 'channel lookup slow',
 	fields: { ns: 'github.com/char2cs/crowbar', took: '1.8s', retry: 1, ok: false, err: 'boom' },
-	fields_truncated: false,
 };
 
 describe('fieldKind', () => {
@@ -75,7 +74,6 @@ describe('parseLogFrame', () => {
 			level: 'warn',
 			component: 'release',
 			msg: 'channel lookup slow',
-			fieldsTruncated: false,
 		});
 		expect(frame.record.fields).toEqual([
 			{ key: 'ns', value: 'github.com/char2cs/crowbar', kind: 'path' },
@@ -94,13 +92,8 @@ describe('parseLogFrame', () => {
 		const frame = parseLogFrame({ type: 'log', seq: 1, msg: 'hi' });
 		expect(frame).toEqual({
 			type: 'log',
-			record: { seq: 1, iso: '', level: 'info', component: '', msg: 'hi', fields: [], fieldsTruncated: false },
+			record: { seq: 1, iso: '', level: 'info', component: '', msg: 'hi', fields: [] },
 		});
-	});
-
-	it('flags truncated fields', () => {
-		const frame = parseLogFrame({ ...LOG, fields_truncated: true });
-		expect(frame.type === 'log' && frame.record.fieldsTruncated).toBe(true);
 	});
 
 	it('stringifies nested values rather than throwing', () => {
@@ -108,7 +101,7 @@ describe('parseLogFrame', () => {
 		expect(frame.type === 'log' && frame.record.fields.map((f) => f.value)).toEqual(['{"b":1}', 'null']);
 	});
 
-	it('decodes ready and gap', () => {
+	it('decodes ready', () => {
 		expect(parseLogFrame('{"type":"ready","seq":9}')).toEqual({ type: 'ready', seq: 9, reset: false });
 		expect(parseLogFrame('{"type":"ready","seq":3,"reset":true}')).toEqual({ type: 'ready', seq: 3, reset: true });
 		expect(parseLogFrame('{"type":"ready","seq":3,"reset":"yes"}')).toEqual({
@@ -116,7 +109,6 @@ describe('parseLogFrame', () => {
 			seq: 3,
 			reset: false,
 		});
-		expect(parseLogFrame('{"type":"gap","dropped":37}')).toEqual({ type: 'gap', dropped: 37 });
 	});
 
 	it('turns anything it does not understand into a raw frame, never an error', () => {
@@ -129,7 +121,6 @@ describe('parseLogFrame', () => {
 			'{"type":"log"}',
 			'{"type":"log","seq":"1","msg":"m"}',
 			'{"type":"ready"}',
-			'{"type":"gap","dropped":"x"}',
 			'{"type":"something-new"}',
 			'{}',
 			[1, 2],

@@ -123,9 +123,6 @@ export const useConsoleStore = create<ConsoleState>((set, get) => ({
 				case 'ready':
 					// Nothing to show: it only ends the replay, and `reset` was read above.
 					break;
-				case 'gap':
-					added.push({ kind: 'note', tone: 'info', note: { type: 'gap', dropped: frame.dropped } });
-					break;
 				case 'raw':
 					added.push({ kind: 'raw', text: frame.text });
 					break;

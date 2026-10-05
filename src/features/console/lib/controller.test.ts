@@ -31,8 +31,8 @@ interface Exec {
 }
 
 const COMMANDS: ConsoleCommand[] = [
-	{ path: ['install'], short: 'install an arrow', usage: 'install <namespace>', aliases: [], flags: [] },
-	{ path: ['list'], short: 'list arrows', usage: 'list', aliases: [], flags: [] },
+	{ path: ['install'], short: 'install an arrow', usage: 'install <namespace>' },
+	{ path: ['list'], short: 'list arrows', usage: 'list' },
 ];
 
 const SUPPORTED = parseVersions({ version: 'nightly-latest', features: ['console.v1'] }) as CoreVersions;
@@ -328,6 +328,32 @@ describe('the log stream', () => {
 		expect(store().cursor).toBe(1);
 	});
 
+	it('reconnects from the last line shown when the daemon closes it with no frame, and shows each line once', async () => {
+		store().setOpen(true);
+		await rig.sync('local', true);
+		rig.sockets[0].deliver({ type: 'log', seq: 1, msg: 'a', level: 'info' });
+		rig.sockets[0].deliver({ type: 'log', seq: 2, msg: 'b', level: 'info' });
+		rig.sockets[0].deliver({ type: 'ready', seq: 2 });
+		rig.tick(FLUSH_MS);
+
+		// The daemon drops a client that fell behind and says nothing: just a close.
+		rig.sockets[0].onclose?.();
+		expect(store().stream).toBe('reconnecting');
+		rig.tick(1000);
+		expect(rig.sockets).toHaveLength(2);
+		expect(rig.sockets[1].path).toContain('since=2');
+
+		// Everything it has after that, which can overlap what was already shown.
+		rig.sockets[1].deliver({ type: 'log', seq: 2, msg: 'b', level: 'info' });
+		rig.sockets[1].deliver({ type: 'log', seq: 3, msg: 'c', level: 'info' });
+		rig.sockets[1].deliver({ type: 'ready', seq: 3 });
+		rig.tick(FLUSH_MS);
+
+		const logs = store().entries.filter((e) => e.kind === 'log');
+		expect(logs.map((e) => e.kind === 'log' && e.record.msg)).toEqual(['a', 'b', 'c']);
+		expect(store().cursor).toBe(3);
+	});
+
 	it('forgets a replay that was cut off by a dropped connection', async () => {
 		store().setOpen(true);
 		await rig.sync('local', true);
@@ -464,6 +490,36 @@ describe('running a command', () => {
 			note: { type: 'refused', status: 403, message: 'command "daemon" is not available in the console' },
 		});
 		expect(store().running).toBe(0);
+	});
+
+	it('shows a line the daemon rejects as an error note in its own words, and runs nothing', () => {
+		rig.controller.submit('install "a b"');
+		rig.execs[0].emit({
+			type: 'error',
+			status: 400,
+			message:
+				'line must be 1 to 1024 bytes of space-separated words, without control or shell characters; quoting is not supported',
+		});
+		const last = store().entries[store().entries.length - 1];
+		expect(last).toMatchObject({
+			kind: 'note',
+			tone: 'error',
+			note: { type: 'refused', status: 400, message: expect.stringContaining('quoting is not supported') },
+		});
+		expect(store().running).toBe(0);
+	});
+
+	it('shows a busy daemon the same way', () => {
+		rig.controller.submit('list');
+		rig.execs[0].emit({ type: 'error', status: 429, message: 'too many console commands are running' });
+		expect(store().entries[store().entries.length - 1]).toMatchObject({
+			note: { type: 'refused', status: 429, message: 'too many console commands are running' },
+		});
+	});
+
+	it('sends the line exactly as typed: no client-side quoting or splitting', () => {
+		rig.controller.submit('install   a "b c"  ');
+		expect(rig.execs[0].line).toBe('install   a "b c"');
 	});
 
 	it('reports a failure to reach the daemon as plain text', () => {

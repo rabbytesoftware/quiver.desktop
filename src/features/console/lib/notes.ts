@@ -7,8 +7,6 @@ export function noteText(note: Note, t: Translator['t']): string {
 	switch (note.type) {
 		case 'restarted':
 			return t('console.note.restarted');
-		case 'gap':
-			return t('console.note.gap', { count: note.dropped });
 		case 'exit':
 			return note.error
 				? t('console.note.exitWithError', { code: note.code, error: note.error })

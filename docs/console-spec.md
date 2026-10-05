@@ -60,30 +60,29 @@ The traffic-light gutter exists only on macOS with the rail on the left (`railOw
 
 ### 4.1 `GET /v0/console/logs` (WebSocket, through the generic bridge)
 
-Opened with `level=debug&replay=500` and, on reconnect, `since=<highest seq shown>`. Frames, one JSON object each:
+Opened with `level=debug` and, on reconnect, `since=<highest seq shown>`. Without `since` the daemon replays its last 500 records; with it, everything still in its ring (5000) after that seq. Frames, one JSON object each:
 
 ```json
-{"type":"log","seq":412,"time":"2026-10-04T14:02:14.390123Z","level":"warn","component":"release","msg":"channel lookup slow","fields":{"ns":"github.com/char2cs/crowbar","took":"1.8s","retry":1},"fields_truncated":false}
+{"type":"log","seq":412,"time":"2026-10-04T14:02:14.390123Z","level":"warn","component":"release","msg":"channel lookup slow","fields":{"ns":"github.com/char2cs/crowbar","took":"1.8s","retry":1}}
 {"type":"ready","seq":412}
 {"type":"ready","seq":3,"reset":true}
-{"type":"gap","dropped":37}
 ```
 
 - Order: replay frames, **one** `ready`, then live frames.
 - **The replay is held until its `ready`**, then folded in together. A `ready` with `reset: true` means the daemon restarted (or `since` was newer than its newest record): the daemon lines already shown belong to another process and are discarded before the replay is shown, with a "Daemon restarted" note. The user's own commands and their output stay.
 - Frames can arrive before `onopen` (the bridge forwards as soon as the socket is up), so a replay begins when an attempt begins, not when it opens.
 - A record at or below the cursor is dropped, so a replay racing the live feed shows each line once.
-- A dropped connection reconnects with backoff (1s doubling to 30s) from the cursor; a reconnect shows "Reconnecting…" in the prompt row.
+- A dropped connection reconnects with backoff (1s doubling to 30s) from the cursor; a reconnect shows "Reconnecting…" in the prompt row. This is also how a client that fell 256 records behind recovers: the daemon closes it with no frame at all (there are no `gap` frames), and the reconnect's `since` replays what it missed.
 - Switching connection stops the stream, discards the buffer and re-asks the new daemon.
 - A frame that does not decode is shown as raw text; nothing throws.
 
 ### 4.2 `GET /v0/console/commands`
 
-`data.commands[]`: `path`, `short`, `usage`, `aliases`, and `flags[{name, shorthand, usage, takes_value}]`. Used for `help` and Tab completion: command words, and the flags of the command a line is addressed to (`--ye` → `--yes `; a flag that takes a value completes to `--output=`).
+`data.commands[]`: `path`, `short` and `usage`, nothing more (no flags, no aliases). Used for `help` and Tab completion of command words (`ins` → `install `, `arrow li` → `arrow list `). Flags and arguments belong to the daemon: the console completes none of them.
 
 ### 4.3 `POST /v0/console/exec`
 
-Request `{"line":"install github.com/char2cs/crowbar"}`, no leading `quiver`. The reply is NDJSON that the `quiver://` proxy cannot carry (it returns a response whole), so Rust is the client: `console_exec` posts through `Transport::request_stream` and pushes each line, verbatim, down a Tauri channel.
+Request `{"line":"install github.com/char2cs/crowbar"}`, no leading `quiver`. The line is sent exactly as typed: the console does no quoting or splitting of its own. The reply is NDJSON that the `quiver://` proxy cannot carry (it returns a response whole), so Rust is the client: `console_exec` posts through `Transport::request_stream` and pushes each line, verbatim, down a Tauri channel.
 
 ```json
 {"type":"out","stream":"stdout","data":"resolving …\n"}
@@ -91,7 +90,11 @@ Request `{"line":"install github.com/char2cs/crowbar"}`, no leading `quiver`. Th
 ```
 
 - Every accepted run ends in one `exit` frame. Codes are the CLI's: 0, 1, 2 (usage), 3 (daemon unreachable), 130 (interrupted). A non-zero code is shown as an error-styled final line with the code and the daemon's message.
-- A refusal before execution is a plain error envelope; Rust turns it into one `{"type":"error","status":403,"message":"…"}` frame, shown as "Refused (403): …" in the daemon's own words. A failure to reach the daemon is `status: 0`.
+- A rejection before execution is a plain error envelope; Rust turns it into one `{"type":"error","status":N,"message":"…"}` frame, shown as an error-styled note, "Refused (N): …", in the daemon's own words. A failure to reach the daemon is `status: 0`. The statuses are:
+    - **400**: a line that is empty, over 1024 bytes, or holds a control character or any of `"` `'` `` ` `` `\` `$` `;` `&` `|` `<` `>` `(` `)` `{` `}` `*` `?` `~` `#` (`line must be 1 to 1024 bytes of space-separated words, without control or shell characters; quoting is not supported`). The daemon splits on whitespace and supports no quoting, so an argument containing a space cannot be given.
+    - **403**: `command "X" is not available in the console`, for a command the daemon cannot resolve or has not marked for the console.
+    - **429**: `too many console commands are running` (four at once).
+- `--server`, `--context` and `--config` are accepted and have no effect: the command runs on the daemon being talked to.
 - A connection that ends before an `exit` frame becomes one `error` frame, so the console never waits on a command that is gone.
 - **Confirmations never prompt.** A destructive command without `--yes`/`-y` refuses at once ("requires --yes/-y when not running interactively") on stderr. The UI just shows that output; it never waits on a prompt.
 - Output is shown a line at a time; a line split across frames is joined; ANSI escapes are stripped; a line over 1 MiB is replaced by a marker.
@@ -111,5 +114,5 @@ Request `{"line":"install github.com/char2cs/crowbar"}`, no leading `quiver`. Th
 - Pure and fully tested: indicator text for every channel, hover and narrow rail (`lib/build-info.test.ts`); frame decoding (`frames.test.ts`); capped buffer; history; command parsing and completion (`commands.test.ts`); `/versions` (`versions.test.ts`).
 - Behaviour: the stream's reconnect and backoff, the store (cursor, reset, cap), the controller (capability, replay-until-ready, reset, switching connection, running a command), the components, and the rail row.
 - Rust: build stamp validation, `request_stream` over unix and TCP (including cancel while the daemon is silent), the NDJSON splitter and `run_exec`.
-- The mock backend speaks the daemon's real surface (the same grammar, refusals and `--yes` behaviour), so `make dev-mock` exercises the whole feature.
+- The mock backend speaks the daemon's real surface (the same grammar, the 400/403/429 rejections in the daemon's words, the audit record and `--yes` behaviour), so `make dev-mock` exercises the whole feature.
 - `e2e/scenarios/console.spec.ts` drives the built app against a real daemon.

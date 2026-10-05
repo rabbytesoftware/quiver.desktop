@@ -13,7 +13,6 @@ function record(seq: number, over: Partial<LogRecord> = {}): LogRecord {
 		component: 'daemon',
 		msg: `m${seq}`,
 		fields: [],
-		fieldsTruncated: false,
 		...over,
 	};
 }
@@ -102,13 +101,9 @@ describe('ingest', () => {
 		expect(store().entries.filter((e) => e.kind === 'log')).toHaveLength(3);
 	});
 
-	it('shows what the daemon dropped, and what it could not decode', () => {
-		store().ingest([
-			{ type: 'gap', dropped: 37 },
-			{ type: 'raw', text: 'weird' },
-		]);
-		expect(store().entries.map((e) => e.kind)).toEqual(['note', 'raw']);
-		expect(store().entries[0]).toMatchObject({ note: { type: 'gap', dropped: 37 } });
+	it('shows what it could not decode', () => {
+		store().ingest([{ type: 'raw', text: 'weird' }]);
+		expect(store().entries.map((e) => e.kind)).toEqual(['raw']);
 	});
 
 	it('accepts the first record when the cursor is empty, whatever its seq', () => {

@@ -74,7 +74,6 @@ describe('the console log', () => {
 				component: 'c',
 				msg: 'hello',
 				fields: [],
-				fieldsTruncated: false,
 			},
 		};
 		render(<ConsoleLog entries={[log1]} expandedId={41} onToggle={onToggle} revealKey={false} tailKey={0} />);

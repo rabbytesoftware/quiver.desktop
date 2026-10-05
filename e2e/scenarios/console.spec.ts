@@ -101,21 +101,29 @@ async function logRows(): Promise<LogRow[]> {
 	);
 }
 
-/** The daemon's own audit record of a command it ran (`msg=exec` with a device, a line and a code; the row draws no component). */
-async function waitForAudit(line: string, code: number, timeout = 60_000): Promise<void> {
+/**
+ * The daemon's own audit record of commands it ran: `msg=exec` with a device, the
+ * resolved command (`quiver arrow remove`, not the line typed) and a code. The row
+ * draws no component.
+ */
+async function waitForAudit(command: string, code: number, atLeast = 1, timeout = 60_000): Promise<void> {
 	let rows: LogRow[] = [];
+	const audited = (r: LogRow): boolean =>
+		r.msg === 'exec' &&
+		(r.fields.command ?? '').replace(/^quiver /, '') === command &&
+		r.fields.code === String(code);
 	try {
 		await browser.waitUntil(
 			async () => {
 				rows = await logRows();
-				return rows.some((r) => r.msg === 'exec' && r.fields.line === line && r.fields.code === String(code));
+				return rows.filter(audited).length >= atLeast;
 			},
 			{ timeout, interval: 300 }
 		);
 	} catch {
 		const seen = rows.filter((r) => r.msg === 'exec').map((r) => JSON.stringify(r.fields));
 		throw new Error(
-			`the log never showed the daemon's audit record of "${line}" (code ${code}); log pane ${await logGeometry()}; exec rows: ${seen.join(' | ') || 'none'}`
+			`the log never showed ${atLeast} audit record(s) of "${command}" (code ${code}); log pane ${await logGeometry()}; exec rows: ${seen.join(' | ') || 'none'}`
 		);
 	}
 }
@@ -238,13 +246,24 @@ describe('console: the build indicator and the daemon console', () => {
 		expect(await errorNotes()).toBe(0);
 	});
 
-	it("refuses what the daemon does not offer, in the daemon's own words", async () => {
+	it("refuses what the daemon does not offer, naming it in the daemon's own words", async () => {
 		await run('daemon');
-		await waitForNotes(/^Refused \(403\): /, 1);
+		await waitForNotes(/^Refused \(403\): command "daemon" is not available in the console$/, 1);
 		await run('add github.com/char2cs/crowbar');
-		await waitForNotes(/^Refused \(403\): /, 2);
-		expect((await noteTexts()).filter((t) => t.startsWith('Refused (403): unknown command'))).toHaveLength(2);
+		await waitForNotes(/^Refused \(403\): command "add" is not available in the console$/, 1);
 		await shot('console-refused');
+	});
+
+	it("refuses a line with quoting in the daemon's own words: the console does no quoting of its own", async () => {
+		await run('install "github.com/char2cs/crowbar"');
+		await waitForNotes(/^Refused \(400\): line must be 1 to 1024 bytes .*quoting is not supported$/, 1);
+	});
+
+	it('accepts --server and runs the command on this daemon all the same', async () => {
+		// If the flag were honoured the command would dial 127.0.0.1:1 and fail (code 3);
+		// it runs here and exits 0, and the daemon audits it twice by now.
+		await run('version --server tcp://127.0.0.1:1');
+		await waitForAudit('version', 0, 2);
 	});
 
 	it('never waits on a confirmation: a destructive command without --yes refuses at once', async () => {
@@ -255,16 +274,29 @@ describe('console: the build indicator and the daemon console', () => {
 
 	it('logs the commands it ran, as the daemon records them', async () => {
 		await waitForAudit('version', 0);
-		await waitForAudit('arrow remove github.com/example/not-there', 2);
+		await waitForAudit('arrow remove', 2);
 	});
 
 	it('refuses, on the wire, what the console must never run', async () => {
-		for (const line of ['daemon', 'self-update /tmp/x', 'context list', 'list --server tcp://127.0.0.1:1']) {
+		for (const line of ['daemon', 'self-update /tmp/x', 'context list']) {
 			const { status } = await coreClient(home).post<unknown>('/v0/console/exec', { line });
 			expect({ line, status }).toEqual({ line, status: 403 });
 		}
-		const empty = await coreClient(home).post<unknown>('/v0/console/exec', { line: '   ' });
-		expect(empty.status).toBe(400);
+	});
+
+	it('rejects, on the wire, a line with quoting, shell characters, or nothing in it', async () => {
+		for (const line of [
+			'install "a b"',
+			"install 'a'",
+			'list; id',
+			'list | cat',
+			'install $(id)',
+			'   ',
+			'x'.repeat(1025),
+		]) {
+			const { status } = await coreClient(home).post<unknown>('/v0/console/exec', { line });
+			expect({ line: line.slice(0, 40), status }).toEqual({ line: line.slice(0, 40), status: 400 });
+		}
 	});
 
 	it('lists the commands it will run, with no bare add', async () => {

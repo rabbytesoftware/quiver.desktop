@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createMockConsole, MOCK_COMMANDS, MOCK_CORE_VERSIONS, tokenise } from './console';
+import { BAD_LINE, createMockConsole, MOCK_COMMANDS, MOCK_CORE_VERSIONS, parseLine } from './console';
 import { createSocketHub } from './socket';
 import { createClock } from './world/clock';
 
@@ -31,33 +31,28 @@ function run(line: string) {
 	return { frames, handle };
 }
 
-describe('tokenise', () => {
+describe('parseLine', () => {
 	it.each([
 		['list', ['list']],
 		['  install   a  b ', ['install', 'a', 'b']],
-		['install "a b" \'c d\'', ['install', 'a b', 'c d']],
-		['x ""', ['x', '']],
-		['', []],
-		['   ', []],
-	])('%j', (line, want) => expect(tokenise(line)).toEqual(want));
+		['install github.com/char2cs/crowbar@v1.2.3', ['install', 'github.com/char2cs/crowbar@v1.2.3']],
+		['list --server tcp://127.0.0.1:1', ['list', '--server', 'tcp://127.0.0.1:1']],
+		['x'.repeat(1024), ['x'.repeat(1024)]],
+	])('splits %j on whitespace', (line, want) => expect(parseLine(line)).toEqual(want));
 
-	it('refuses an unterminated quote', () => expect(tokenise('install "oops')).toBeNull());
-
-	it('treats shell metacharacters as plain text: it is not a shell', () => {
-		expect(tokenise('list; rm -rf / | cat > x $(id) `id` *')).toEqual([
-			'list;',
-			'rm',
-			'-rf',
-			'/',
-			'|',
-			'cat',
-			'>',
-			'x',
-			'$(id)',
-			'`id`',
-			'*',
-		]);
-	});
+	it.each([
+		['empty', ''],
+		['only spaces', '   '],
+		['over 1024 bytes', 'x'.repeat(1025)],
+		['a tab', 'list\tall'],
+		['a newline', 'list\nall'],
+		['a NUL', 'list\u0000'],
+		['a double quote', 'install "a b"'],
+		['a single quote', "install 'a'"],
+		['a backtick', 'install `id`'],
+		['a backslash', 'install a\\b'],
+		...[...'$;&|<>(){}*?~#'].map((c): [string, string] => [`a ${c}`, `install a${c}b`]),
+	])('refuses a line that is %s: there is no quoting', (_why, line) => expect(parseLine(line)).toBeNull());
 });
 
 describe('the mock daemon advertises the console', () => {
@@ -66,13 +61,10 @@ describe('the mock daemon advertises the console', () => {
 		expect(MOCK_COMMANDS.length).toBeGreaterThan(0);
 	});
 
-	it('lists flags, including the confirmation flag on destructive commands', () => {
-		const flagsOf = (name: string[]) =>
-			MOCK_COMMANDS.find((c) => c.path.join(' ') === name.join(' '))?.flags.map((f) => f.name);
-		expect(flagsOf(['uninstall'])).toContain('yes');
-		expect(flagsOf(['arrow', 'remove'])).toContain('yes');
-		expect(flagsOf(['list'])).toContain('output');
-		expect(MOCK_COMMANDS.find((c) => c.path[0] === 'status')?.flags.map((f) => f.name)).not.toContain('watch');
+	it('lists a path, a summary and a usage line for each command, and nothing else', () => {
+		for (const command of MOCK_COMMANDS) {
+			expect(Object.keys(command).sort()).toEqual(['path', 'short', 'usage']);
+		}
 	});
 
 	it('does not list a bare add', () => {
@@ -84,7 +76,7 @@ describe('the mock daemon advertises the console', () => {
 	});
 
 	it('does not offer commands the contract says are never reachable', () => {
-		const names = MOCK_COMMANDS.flatMap((c) => [c.path[0], ...c.aliases]);
+		const names = MOCK_COMMANDS.map((c) => c.path[0]);
 		for (const forbidden of ['daemon', 'self-update', 'context', 'auth', 'completion']) {
 			expect(names).not.toContain(forbidden);
 		}
@@ -92,21 +84,68 @@ describe('the mock daemon advertises the console', () => {
 });
 
 describe('exec', () => {
-	it('refuses a command that is not in the table, with the status a daemon answers', () => {
-		const { frames } = run('daemon');
-		expect(frames).toEqual([{ type: 'error', status: 403, message: 'unknown command' }]);
+	it('refuses a command that is not in the table, naming it, with the status a daemon answers', () => {
+		expect(run('daemon').frames).toEqual([
+			{ type: 'error', status: 403, message: 'command "daemon" is not available in the console' },
+		]);
+		expect(run('context list').frames).toEqual([
+			{ type: 'error', status: 403, message: 'command "context" is not available in the console' },
+		]);
 	});
 
-	it.each(['list --server tcp://evil:1', 'list --context x', 'list --config=/etc/passwd'])('refuses %s', (line) => {
-		const { frames } = run(line);
-		expect(frames).toHaveLength(1);
-		expect(frames[0]).toMatchObject({ type: 'error', status: 403 });
+	it("refuses a line with quoting or shell characters with the daemon's own message", () => {
+		for (const line of ['install "a b"', 'list; id', 'install $(id)', 'list | cat', 'install a\\b']) {
+			expect(run(line).frames, line).toEqual([{ type: 'error', status: 400, message: BAD_LINE }]);
+		}
+		expect(BAD_LINE).toContain('quoting is not supported');
 	});
 
-	it('refuses an empty line, an unterminated quote, and an oversized line', () => {
-		expect(run('   ').frames[0]).toMatchObject({ type: 'error', status: 400 });
-		expect(run('install "x').frames[0]).toMatchObject({ type: 'error', status: 400 });
-		expect(run('x'.repeat(1025)).frames[0]).toMatchObject({ type: 'error', status: 400 });
+	it('refuses an empty line and an oversized one', () => {
+		expect(run('   ').frames[0]).toMatchObject({ type: 'error', status: 400, message: BAD_LINE });
+		expect(run('x'.repeat(1025)).frames[0]).toMatchObject({ type: 'error', status: 400, message: BAD_LINE });
+	});
+
+	it.each(['list --server tcp://evil:1', 'list --context x', 'list --config=/etc/passwd'])(
+		'accepts %s and runs the command as if the flag were not there',
+		(line) => {
+			const plain = run('list').frames;
+			expect(run(line).frames).toEqual(plain);
+			expect(last(plain)).toMatchObject({ type: 'exit', code: 0 });
+		}
+	);
+
+	it('runs at most four commands at once, then refuses with 429 until one finishes', () => {
+		const { mock, clock } = setup();
+		const answers: unknown[][] = [];
+		for (let i = 0; i < 5; i++) {
+			const frames: unknown[] = [];
+			answers.push(frames);
+			mock.exec('install github.com/char2cs/crowbar', (f) => frames.push(JSON.parse(f)));
+		}
+		vi.advanceTimersByTime(5);
+		expect(answers[4]).toEqual([{ type: 'error', status: 429, message: 'too many console commands are running' }]);
+		expect(answers[0]).not.toContainEqual(expect.objectContaining({ status: 429 }));
+
+		vi.advanceTimersByTime(5000);
+		expect(last(answers[0])).toMatchObject({ type: 'exit', code: 0 });
+
+		// A slot is free again.
+		const frames: unknown[] = [];
+		mock.exec('list', (f) => frames.push(JSON.parse(f)));
+		vi.advanceTimersByTime(5000);
+		expect(last(frames)).toMatchObject({ type: 'exit', code: 0 });
+		clock.cancelAll();
+	});
+
+	it('gives a cancelled command back its slot', () => {
+		const { mock, clock } = setup();
+		const handles = Array.from({ length: 4 }, () => mock.exec('install github.com/char2cs/crowbar', () => {}));
+		handles[0].cancel();
+		const frames: unknown[] = [];
+		mock.exec('list', (f) => frames.push(JSON.parse(f)));
+		vi.advanceTimersByTime(5000);
+		expect(frames).not.toContainEqual(expect.objectContaining({ status: 429 }));
+		clock.cancelAll();
 	});
 
 	it('ends an accepted run with exactly one exit frame, after its output', () => {
@@ -155,7 +194,7 @@ describe('exec', () => {
 
 	it('has no bare add: the arrow verbs live under arrow', () => {
 		expect(run('add github.com/char2cs/crowbar').frames).toEqual([
-			{ type: 'error', status: 403, message: 'unknown command' },
+			{ type: 'error', status: 403, message: 'command "add" is not available in the console' },
 		]);
 		expect(last(run('arrow add github.com/char2cs/crowbar').frames)).toMatchObject({ type: 'exit', code: 0 });
 		expect(JSON.stringify(run('arrow add github.com/char2cs/crowbar').frames)).toContain('added crowbar');
@@ -166,18 +205,13 @@ describe('exec', () => {
 		expect(run('github.com/char2cs/crowbar').frames[0]).toMatchObject({ type: 'error', status: 403 });
 	});
 
-	it('refuses status --watch, which would never end', () => {
-		for (const line of ['status --watch', 'status -w']) expect(run(line).frames[0]).toMatchObject({ status: 403 });
-		expect(last(run('status').frames)).toMatchObject({ type: 'exit', code: 0 });
+	it('does not block status --watch: like the daemon, it just runs', () => {
+		expect(last(run('status --watch').frames)).toMatchObject({ type: 'exit', code: 0 });
 	});
 
 	it('matches the daemon: the longest listed path wins', () => {
 		expect(JSON.stringify(run('arrow list').frames)).toContain('crowbar');
 		expect(last(run('collection list').frames)).toMatchObject({ code: 0 });
-	});
-
-	it('runs an alias', () => {
-		expect(last(run('ls').frames)).toMatchObject({ type: 'exit', code: 0 });
 	});
 
 	it('stops delivering once cancelled', () => {
@@ -251,12 +285,51 @@ describe('the log stream', () => {
 		clock.cancelAll();
 	});
 
-	it('caps the replay', async () => {
-		const { frames, socket, clock } = open('/v0/console/logs?level=debug&replay=3');
+	it("speaks only the daemon's frames: a log has no truncation flag and nothing says gap", async () => {
+		const { frames, socket, clock } = open('/v0/console/logs?level=debug');
 		await Promise.resolve();
 		await Promise.resolve();
-		expect(frames.filter((f) => f.type === 'log')).toHaveLength(3);
+		vi.advanceTimersByTime(8200);
+		const log = frames.find((f) => f.type === 'log') as Record<string, unknown>;
+		expect(Object.keys(log).sort()).toEqual(['component', 'fields', 'level', 'msg', 'seq', 'time', 'type']);
+		expect(frames.map((f) => f.type)).not.toContain('gap');
 		socket.close();
+		clock.cancelAll();
+	});
+
+	it('ignores a replay parameter: the daemon has none, and a cursor replays everything after it', async () => {
+		const { frames, socket, clock } = open('/v0/console/logs?level=debug&since=0&replay=1');
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(frames.filter((f) => f.type === 'log').length).toBeGreaterThan(1);
+		socket.close();
+		clock.cancelAll();
+	});
+
+	it('records each command as the daemon audits it: the resolved command, not the line typed', async () => {
+		const { mock, clock } = setup();
+		const logs = mock.openLogs('/v0/console/logs?level=debug');
+		const seen: Record<string, unknown>[] = [];
+		logs.onmessage = (e) => seen.push(JSON.parse(e.data));
+		await Promise.resolve();
+		await Promise.resolve();
+
+		mock.exec('version', () => {});
+		mock.exec('daemon', () => {});
+		vi.advanceTimersByTime(5000);
+
+		const audit = seen.find((f) => f.type === 'log' && f.msg === 'exec');
+		expect(audit).toMatchObject({
+			component: 'console',
+			level: 'info',
+			fields: { device: 'local', command: 'quiver version', code: 0 },
+		});
+		expect((audit as { fields: Record<string, unknown> }).fields).not.toHaveProperty('line');
+		expect(seen.find((f) => f.type === 'log' && f.msg === 'exec denied')).toMatchObject({
+			level: 'warn',
+			fields: { device: 'local' },
+		});
+		logs.close();
 		clock.cancelAll();
 	});
 

@@ -25,15 +25,12 @@ export interface LogRecord {
 	component: string;
 	msg: string;
 	fields: LogField[];
-	/** The daemon dropped attributes from this record. */
-	fieldsTruncated: boolean;
 }
 
 export type LogFrame =
 	| { type: 'log'; record: LogRecord }
 	/** The end of the replay. `reset` means the daemon restarted: what the client holds belongs to another process. */
 	| { type: 'ready'; seq: number; reset: boolean }
-	| { type: 'gap'; dropped: number }
 	| { type: 'raw'; text: string };
 
 const DURATION = /^(\d+(\.\d+)?(ns|us|µs|ms|s|m|h))+$/;
@@ -94,7 +91,6 @@ function parseLog(frame: Record<string, unknown>): LogFrame | null {
 				value: display(value),
 				kind: fieldKind(key, value),
 			})),
-			fieldsTruncated: frame.fields_truncated === true,
 		},
 	};
 }
@@ -119,8 +115,6 @@ export function parseLogFrame(data: unknown): LogFrame {
 			return typeof value.seq === 'number'
 				? { type: 'ready', seq: value.seq, reset: value.reset === true }
 				: { type: 'raw', text };
-		case 'gap':
-			return typeof value.dropped === 'number' ? { type: 'gap', dropped: value.dropped } : { type: 'raw', text };
 		default:
 			return { type: 'raw', text };
 	}

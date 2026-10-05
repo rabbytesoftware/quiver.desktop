@@ -64,7 +64,6 @@ export const LogRow = memo(function LogRow({ id, record, expanded, onToggle }: L
 							<span className={FIELD_CLASS[field.kind]}>{field.value}</span>
 						</span>
 					))}
-					{record.fieldsTruncated && <span className="ml-2.5 text-console-dim">…</span>}
 				</span>
 			</button>
 			{expanded && <JsonView record={record} />}

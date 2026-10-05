@@ -4,9 +4,6 @@ import { parseLogFrame, type LogFrame } from './frames';
 
 export const LOGS_PATH = '/v0/console/logs';
 
-/** What the daemon is asked to replay on a (re)connect. */
-export const REPLAY = 500;
-
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 
@@ -32,7 +29,7 @@ export interface LogStream {
 }
 
 export function streamPath(cursor: number | null): string {
-	const query = new URLSearchParams({ level: 'debug', replay: String(REPLAY) });
+	const query = new URLSearchParams({ level: 'debug' });
 	if (cursor !== null) query.set('since', String(cursor));
 	return `${LOGS_PATH}?${query.toString()}`;
 }

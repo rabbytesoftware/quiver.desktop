@@ -3,7 +3,6 @@ import type { LogRecord } from './frames';
 /** Something the console says itself, as data: the view turns it into words. */
 export type Note =
 	| { type: 'restarted' }
-	| { type: 'gap'; dropped: number }
 	| { type: 'exit'; code: number; error: string }
 	| { type: 'refused'; status: number; message: string }
 	| { type: 'unsupported' }

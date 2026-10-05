@@ -226,10 +226,6 @@ export const en = {
 	'console.stream.reconnecting': 'Reconnecting…',
 	'console.unsupported': 'This daemon has no console. Update quiver.core to use it.',
 	'console.note.restarted': 'Daemon restarted',
-	'console.note.gap': {
-		one: '{count} line skipped',
-		other: '{count} lines skipped',
-	},
 	'console.note.exit': 'Exited with code {code}',
 	'console.note.exitWithError': 'Exited with code {code}: {error}',
 	'console.note.refused': 'Refused ({status}): {message}',

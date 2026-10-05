@@ -66,12 +66,12 @@ function harness(cursor: () => number | null = () => null) {
 }
 
 describe('streamPath', () => {
-	it('asks for debug and a bounded replay', () => {
-		expect(streamPath(null)).toBe('/v0/console/logs?level=debug&replay=500');
+	it('asks for debug, and the daemon decides how much to replay', () => {
+		expect(streamPath(null)).toBe('/v0/console/logs?level=debug');
 	});
 
 	it('resumes after the cursor', () => {
-		expect(streamPath(412)).toBe('/v0/console/logs?level=debug&replay=500&since=412');
+		expect(streamPath(412)).toBe('/v0/console/logs?level=debug&since=412');
 		expect(streamPath(0)).toContain('since=0');
 	});
 });
@@ -157,7 +157,7 @@ describe('the log stream', () => {
 		const old = h.sockets[0];
 		h.stream.stop();
 		old.onopen?.();
-		old.onmessage?.({ data: '{"type":"gap","dropped":1}' });
+		old.onmessage?.({ data: '{"type":"ready","seq":1}' });
 		old.onclose?.();
 		expect(h.frames).toEqual([]);
 		expect(h.pending.filter((p) => p.live)).toEqual([]);
