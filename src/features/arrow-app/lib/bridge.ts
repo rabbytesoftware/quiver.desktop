@@ -30,15 +30,17 @@ interface ShimMessage {
 	data?: unknown;
 }
 
+function isTagged(data: unknown): data is Record<string, unknown> {
+	return !!data && typeof data === 'object' && (data as Record<string, unknown>)[SHIM_TAG] === 1;
+}
+
 function isShimMessage(data: unknown): data is ShimMessage {
-	if (!data || typeof data !== 'object') return false;
-	const m = data as Record<string, unknown>;
+	if (!isTagged(data)) return false;
 	return (
-		m[SHIM_TAG] === 1 &&
-		typeof m.type === 'string' &&
-		typeof m.id === 'string' &&
-		m.id.length > 0 &&
-		m.id.length <= MAX_ID_LENGTH
+		typeof data.type === 'string' &&
+		typeof data.id === 'string' &&
+		data.id.length > 0 &&
+		data.id.length <= MAX_ID_LENGTH
 	);
 }
 
@@ -101,7 +103,12 @@ export function createBridge(deps: BridgeDeps) {
 
 	async function onMessage(event: MessageEvent) {
 		const host = hostOf(event.source);
-		if (!host || !isShimMessage(event.data)) return;
+		if (!host) return;
+		if (isTagged(event.data) && event.data.type === 'hello') {
+			closeHost(host);
+			return;
+		}
+		if (!isShimMessage(event.data)) return;
 		const m = event.data;
 
 		if (m.type === 'ws-open') {

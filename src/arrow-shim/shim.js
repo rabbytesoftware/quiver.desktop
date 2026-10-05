@@ -16,6 +16,10 @@
 	var parentWindow = window.parent;
 	var sockets = {};
 	var nextId = 1;
+	// Ids restart in every document of this frame but the shell tracks them
+	// per frame, so a per-document nonce keeps a new document's ids from
+	// colliding with a stale socket of the previous one.
+	var nonce = Math.random().toString(36).slice(2, 8) || '0';
 
 	// The shell origin differs per platform and the payload is only this
 	// arrow's own frames, so the target origin is not restricted.
@@ -23,6 +27,9 @@
 		message[TAG] = 1;
 		parentWindow.postMessage(message, '*');
 	}
+
+	// Lets the shell drop whatever the previous document of this frame left.
+	post({ type: 'hello' });
 
 	class ArrowWebSocket extends EventTarget {
 		constructor(url) {
@@ -50,7 +57,7 @@
 			this.onmessage = null;
 			this.onerror = null;
 			this.onclose = null;
-			this._id = String(nextId++);
+			this._id = nonce + '-' + nextId++;
 			sockets[this._id] = this;
 			post({ type: 'ws-open', id: this._id, path: parsed.pathname + parsed.search });
 		}

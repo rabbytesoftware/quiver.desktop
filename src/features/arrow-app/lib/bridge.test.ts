@@ -230,4 +230,69 @@ describe('arrow shell bridge', () => {
 		await expect(opening).resolves.toBeUndefined();
 		expect(api.wsClose).toHaveBeenCalledTimes(2);
 	});
+
+	describe('hello (the frame loaded a new document)', () => {
+		it('closes every socket the host held and frees its cap slots', async () => {
+			const { api, bridge, from } = setup();
+			for (let i = 0; i < MAX_SOCKETS_PER_ARROW; i++) {
+				await bridge.onMessage(from('a', { type: 'ws-open', id: String(i), path: '/ws' }));
+			}
+			await bridge.onMessage(from('a', { type: 'hello' }));
+
+			expect(api.wsClose).toHaveBeenCalledTimes(MAX_SOCKETS_PER_ARROW);
+			for (let i = 0; i < MAX_SOCKETS_PER_ARROW; i++) expect(api.wsClose).toHaveBeenCalledWith('a', String(i));
+			await bridge.onMessage(from('a', { type: 'ws-open', id: 'fresh', path: '/ws' }));
+			expect(api.wsOpen).toHaveBeenCalledTimes(MAX_SOCKETS_PER_ARROW + 1);
+		});
+
+		it('is ignored from a window that is not a known frame', async () => {
+			const { api, bridge, from } = setup();
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }));
+			await bridge.onMessage({ source: {}, data: { [SHIM_TAG]: 1, type: 'hello' } } as unknown as MessageEvent);
+
+			expect(api.wsClose).not.toHaveBeenCalled();
+		});
+
+		it('leaves other hosts alone', async () => {
+			const { api, bridge, from } = setup();
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }));
+			await bridge.onMessage(from('b', { type: 'ws-open', id: '2', path: '/ws' }));
+			await bridge.onMessage(from('a', { type: 'hello' }));
+
+			expect(api.wsClose).toHaveBeenCalledTimes(1);
+			expect(api.wsClose).toHaveBeenCalledWith('a', '1');
+			await bridge.onMessage(from('b', { type: 'ws-send', id: '2', data: 'x' }));
+			expect(api.wsSend).toHaveBeenCalledWith('b', '2', 'x');
+		});
+
+		it('is still just a hello with extra junk fields', async () => {
+			const { api, bridge, from } = setup();
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }));
+			await bridge.onMessage(from('a', { type: 'hello', id: 'x'.repeat(99), path: '/ws', data: 5 }));
+
+			expect(api.wsClose).toHaveBeenCalledTimes(1);
+			expect(api.wsOpen).toHaveBeenCalledTimes(1);
+		});
+
+		it('lets the new document reuse the id of a stale socket', async () => {
+			const { api, bridge, sent, from } = setup();
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/old' }));
+			await bridge.onMessage(from('a', { type: 'hello' }));
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/new' }));
+
+			expect(api.wsOpen).toHaveBeenCalledTimes(2);
+			expect(api.wsOpen).toHaveBeenLastCalledWith('a', '1', '/new', expect.any(Function));
+			expect(sent.a.filter((m) => m.type === 'ws-open')).toHaveLength(2);
+		});
+
+		it('does not relay frames from a stale socket into the new document', async () => {
+			const { bridge, sent, frames, from } = setup();
+			await bridge.onMessage(from('a', { type: 'ws-open', id: 'old-1', path: '/ws' }));
+			await bridge.onMessage(from('a', { type: 'hello' }));
+			frames['a:old-1']('late');
+			frames['a:old-1'](`${WS_CLOSE_SENTINEL}\u00001001\u0000bye`);
+
+			expect(sent.a).toEqual([expect.objectContaining({ type: 'ws-open', id: 'old-1' })]);
+		});
+	});
 });
