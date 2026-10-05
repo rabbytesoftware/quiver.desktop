@@ -24,6 +24,7 @@ import { ActionButton } from './action-button';
 import { ChannelVersionSelects } from './channel-version-selects';
 import { InferenceNotes } from './inference-notes';
 import { MessageModal } from './message-modal';
+import { OpenAppButton } from './open-app-button';
 import { SelectorSummary } from './selector-summary';
 import { SwitchSelectorDialog } from './switch-selector-dialog';
 
@@ -217,6 +218,7 @@ export function Hero({
 								variables={detail.variables}
 							/>
 						))}
+						<OpenAppButton namespace={detail.namespace} surface={detail.active_run?.surface} />
 						{upToDate && (
 							<span className="text-xs text-muted-foreground" role="status">
 								{t('arrow.update.current')}
