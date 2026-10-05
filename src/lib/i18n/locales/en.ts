@@ -91,8 +91,6 @@ export const en = {
 	'arrowApp.details': 'Details',
 	'arrowApp.starting': 'Starting...',
 	'arrowApp.running': 'Running',
-	'arrowApp.notRunning': 'This arrow is not running, so it has no interface to show.',
-	'arrowApp.open': 'Open',
 
 	'settings.title': 'Settings',
 	'settings.tab.general': 'General',

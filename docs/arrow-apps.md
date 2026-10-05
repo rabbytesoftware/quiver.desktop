@@ -4,6 +4,14 @@
 
 An arrow can ship a web interface. The daemon serves it under `/v0/ui/<namespace>/`. Quiver Desktop shows that interface inside the app, in an iframe, so you can use an arrow (a chat, a dashboard) without leaving the shell. The arrow's page is ordinary web content: HTML, scripts, styles, `fetch` calls to its own origin and, through a shim, WebSockets to its own server.
 
+## In the shell
+
+The arrow page (`/arrow/<namespace>`) decides what to show from the run's surface. While the arrow's active run has a `ui` surface, even before it answers, the page is the app view: a header (the arrow's icon, name, version, Running or Starting..., a Reload button, Details and Stop) over the app. Until the surface is ready the content area shows a spinner and the Starting... label. Otherwise the page is the arrow details page. There is no Open button and no separate app route: stopping the arrow removes the surface and the page returns to its details by itself.
+
+The frames live in one host mounted above the router, so leaving the page (sidebar, library, anywhere) and coming back shows the same iframe, document and sockets as the user left them. The app view only marks its arrow as the visible one.
+
+Details in the header opens the full arrow details page inside a large dialog. The dialog sits over the app and never unmounts it. Actions inside it (stop, switch selector) work as on the page, and when the arrow stops the view returns to the details page and the dialog goes with it.
+
 ## Request path
 
 The iframe loads `arrow-app://<host>/`, where the host is `<hex>.localhost`. On Windows, wry rewrites that origin to `http://arrow-app.<hex>.localhost/`, and the app accepts both forms. The `.localhost` suffix is what keeps the Windows origin a secure context: a plain `http://arrow-app.<hex>` origin is not one, and pages there lose `crypto.randomUUID`, `crypto.subtle` and the clipboard API.

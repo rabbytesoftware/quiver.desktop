@@ -40,42 +40,51 @@ describe('ArrowAppHeader', () => {
 
 	it('shows name, version and the starting state until the surface is ready', async () => {
 		seedArrow(listening(false));
-		await renderWithRouter(<ArrowAppHeader namespace={NS} onReload={() => {}} />);
+		await renderWithRouter(<ArrowAppHeader namespace={NS} onDetails={() => {}} onReload={() => {}} />);
 
 		expect(screen.getByText('Chat')).toBeInTheDocument();
 		expect(screen.getByText('1.0.0')).toBeInTheDocument();
 		expect(screen.getByText('Starting...')).toBeInTheDocument();
 	});
 
-	it('shows running once ready, with the icon when the arrow has one', async () => {
-		seedArrow(listening(true), { icon: 'icon.png' });
-		const { container } = { container: document.body };
-		await renderWithRouter(<ArrowAppHeader namespace={NS} onReload={() => {}} />);
+	it('shows running once ready', async () => {
+		seedArrow(listening(true));
+		await renderWithRouter(<ArrowAppHeader namespace={NS} onDetails={() => {}} onReload={() => {}} />);
 
 		expect(screen.getByText('Running')).toBeInTheDocument();
-		expect(container.querySelector('img')).toHaveAttribute('src', 'icon.png');
+	});
+
+	it('renders the arrow icon through the shared ArrowIcon, with its monogram fallback', async () => {
+		seedArrow(listening(true));
+		await renderWithRouter(<ArrowAppHeader namespace={NS} onDetails={() => {}} onReload={() => {}} />);
+
+		expect(screen.getByRole('img', { name: 'Chat icon' })).toHaveTextContent('Ch');
+		expect(document.querySelector('[data-slot="arrow-icon"]')).toBeInTheDocument();
 	});
 
 	it('falls back to the namespace while the arrow is unknown', async () => {
-		await renderWithRouter(<ArrowAppHeader namespace={NS} onReload={() => {}} />);
+		await renderWithRouter(<ArrowAppHeader namespace={NS} onDetails={() => {}} onReload={() => {}} />);
 		expect(screen.getByText(NS)).toBeInTheDocument();
 	});
 
 	it('Stop calls the stop mutation for this arrow', async () => {
 		seedArrow(listening(true));
-		await renderWithRouter(<ArrowAppHeader namespace={NS} onReload={() => {}} />);
+		await renderWithRouter(<ArrowAppHeader namespace={NS} onDetails={() => {}} onReload={() => {}} />);
 		await userEvent.click(screen.getByRole('button', { name: 'Stop' }));
 
 		expect(stop).toHaveBeenCalledWith({ namespace: NS });
 	});
 
-	it('Reload calls onReload and Details links to the arrow page', async () => {
+	it('Reload and Details are buttons that call their handlers', async () => {
 		const onReload = vi.fn();
+		const onDetails = vi.fn();
 		seedArrow(listening(true));
-		await renderWithRouter(<ArrowAppHeader namespace={NS} onReload={onReload} />);
+		await renderWithRouter(<ArrowAppHeader namespace={NS} onDetails={onDetails} onReload={onReload} />);
 		await userEvent.click(screen.getByRole('button', { name: 'Reload' }));
+		await userEvent.click(screen.getByRole('button', { name: 'Details' }));
 
 		expect(onReload).toHaveBeenCalled();
-		expect(screen.getByRole('link', { name: 'Details' })).toHaveAttribute('href', '/arrow/github.com/user/chat');
+		expect(onDetails).toHaveBeenCalled();
+		expect(screen.queryByRole('link')).not.toBeInTheDocument();
 	});
 });

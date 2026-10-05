@@ -9,13 +9,11 @@ import { runStep, signalStep } from '@/__mocks__/arrow-steps';
 import type { ArrowDetail, ArrowLifecycle, ArrowTarget } from '@/domain/arrow';
 import type { ResolvedReleaseAsset } from '@/domain/release';
 import { QUIVER_DESKTOP_NAMESPACE } from '@/domain/release';
-import { renderWithRouter } from '@/features/arrow-app/components/render-with-router';
 import { useSelectorSwitchStore } from '@/features/arrow-details/stores/selector-switch-store';
 import { useArrowStore } from '@/lib/core-store';
 import { apiFetch, ApiError } from '@/lib/transport/api';
 import type { Backend } from '@/lib/transport/backend';
 import { installBackend, resetBackend } from '@/lib/transport/backend';
-
 
 import { Hero } from './hero';
 
@@ -1541,44 +1539,5 @@ describe('Hero, updating Quiver itself', () => {
 			expect(screen.getByText('Things to check')).toBeInTheDocument();
 			expect(screen.getByText(/rolling tag/)).toBeInTheDocument();
 		});
-	});
-});
-
-describe('Hero, opening the arrow app', () => {
-	function running(ready: boolean): ArrowDetail {
-		return detail({
-			active_run: {
-				method: 'execute',
-				variables: {},
-				steps: [],
-				surface: { mode: 'listen', path: '/', ready },
-			},
-		});
-	}
-
-	function renderRunning(ready: boolean) {
-		return renderWithRouter(
-			<QueryClientProvider client={new QueryClient()}>
-				<Hero detail={running(ready)} onValueChange={vi.fn()} platform={PLATFORM} values={{}} />
-			</QueryClientProvider>
-		);
-	}
-
-	it('has no Open button when the run exposes no surface', () => {
-		renderHero();
-
-		expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument();
-	});
-
-	it('shows Open disabled until the surface is ready', async () => {
-		await renderRunning(false);
-
-		expect(await screen.findByRole('button', { name: 'Open' })).toBeDisabled();
-	});
-
-	it('enables Open once the surface is ready', async () => {
-		await renderRunning(true);
-
-		expect(await screen.findByRole('button', { name: 'Open' })).toBeEnabled();
 	});
 });
