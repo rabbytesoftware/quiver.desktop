@@ -105,6 +105,7 @@
 
 		switch (m.type) {
 			case 'ws-open':
+				if (ws.readyState !== CONNECTING) break;
 				ws.readyState = OPEN;
 				ws._fire('open', new Event('open'));
 				break;

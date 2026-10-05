@@ -73,6 +73,19 @@ describe('arrow websocket shim', () => {
 		expect(err).toHaveBeenCalled();
 	});
 
+	it('a late open confirm does not reopen a socket closed while connecting', () => {
+		const { WS, opens, deliver } = load();
+		const ws = new WS('ws://h/ws');
+		const events: string[] = [];
+		ws.onopen = () => events.push('open');
+		ws.close();
+
+		deliver({ type: 'ws-open', id: opens()[0].id });
+
+		expect(ws.readyState).toBe(2);
+		expect(events).toEqual([]);
+	});
+
 	it('close() asks the shell and finishes when it confirms', () => {
 		const { WS, opens, posted, deliver } = load();
 		const ws = new WS('ws://h/ws');
