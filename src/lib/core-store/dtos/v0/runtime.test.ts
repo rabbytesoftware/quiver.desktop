@@ -40,9 +40,12 @@ describe('toRuntimeUpdate', () => {
 
 	it('leaves surface undefined when absent or null', () => {
 		const run = { method: 'execute', steps: [], variables: {} };
-		expect(toRuntimeUpdate({ namespace: 'n', state: 'running', active_run: run }).active_run?.surface).toBeUndefined();
 		expect(
-			toRuntimeUpdate({ namespace: 'n', state: 'running', active_run: { ...run, surface: null } }).active_run?.surface
+			toRuntimeUpdate({ namespace: 'n', state: 'running', active_run: run }).active_run?.surface
+		).toBeUndefined();
+		expect(
+			toRuntimeUpdate({ namespace: 'n', state: 'running', active_run: { ...run, surface: null } }).active_run
+				?.surface
 		).toBeUndefined();
 	});
 });

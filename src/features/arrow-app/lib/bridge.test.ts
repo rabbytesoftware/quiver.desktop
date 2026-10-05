@@ -12,7 +12,7 @@ const originOf = (host: string) => `arrow-app://${host}`;
 function setup(expectedOrigin: (host: string) => string = originOf) {
 	const sent: Record<string, Posted[]> = { a: [], b: [] };
 	const windows = Object.fromEntries(
-		['a', 'b'].map((h) => [h, { postMessage: (m: Posted) => sent[h].push(m) } as unknown as Window]),
+		['a', 'b'].map((h) => [h, { postMessage: (m: Posted) => sent[h].push(m) } as unknown as Window])
 	);
 	const frames: Record<string, (text: string) => void> = {};
 	const api = {
@@ -48,7 +48,10 @@ describe('arrow shell bridge', () => {
 
 	it('ignores messages from windows it does not know or without the tag', async () => {
 		const { api, bridge } = setup();
-		await bridge.onMessage({ source: {}, data: { [SHIM_TAG]: 1, type: 'ws-open', id: '1', path: '/ws' } } as unknown as MessageEvent);
+		await bridge.onMessage({
+			source: {},
+			data: { [SHIM_TAG]: 1, type: 'ws-open', id: '1', path: '/ws' },
+		} as unknown as MessageEvent);
 		await bridge.onMessage({ source: null, data: null } as unknown as MessageEvent);
 		await bridge.onMessage({ source: {}, data: { type: 'ws-open' } } as unknown as MessageEvent);
 		expect(api.wsOpen).not.toHaveBeenCalled();
@@ -194,7 +197,7 @@ describe('arrow shell bridge', () => {
 			expect(api.wsClose).toHaveBeenCalledTimes(2);
 			expect(api.wsClose).toHaveBeenLastCalledWith('a', '1');
 			expect(sent.a).toEqual([]);
-		},
+		}
 	);
 
 	it('does not reject when a send fails and reports ws-error', async () => {
@@ -202,9 +205,7 @@ describe('arrow shell bridge', () => {
 		await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }));
 		api.wsSend.mockRejectedValueOnce(new Error('dead'));
 
-		await expect(
-			bridge.onMessage(from('a', { type: 'ws-send', id: '1', data: 'x' })),
-		).resolves.toBeUndefined();
+		await expect(bridge.onMessage(from('a', { type: 'ws-send', id: '1', data: 'x' }))).resolves.toBeUndefined();
 		expect(sent.a[sent.a.length - 1]).toEqual(expect.objectContaining({ type: 'ws-error', id: '1' }));
 	});
 
@@ -214,9 +215,7 @@ describe('arrow shell bridge', () => {
 			await bridge.onMessage(from('a', { type: 'ws-open', id: String(i), path: '/ws' }));
 		}
 		api.wsClose.mockRejectedValueOnce(new Error('gone'));
-		await expect(
-			bridge.onMessage(from('a', { type: 'ws-close', id: '0' })),
-		).resolves.toBeUndefined();
+		await expect(bridge.onMessage(from('a', { type: 'ws-close', id: '0' }))).resolves.toBeUndefined();
 		expect(sent.a[sent.a.length - 1]).toEqual(expect.objectContaining({ type: 'ws-close', id: '0' }));
 
 		await bridge.onMessage(from('a', { type: 'ws-open', id: 'extra', path: '/ws' }));
@@ -368,7 +367,9 @@ describe('arrow shell bridge', () => {
 
 			expect(api.wsClose).not.toHaveBeenCalled();
 			frames['a:2']('still here');
-			expect(sent.a[sent.a.length - 1]).toEqual(expect.objectContaining({ type: 'ws-message', data: 'still here' }));
+			expect(sent.a[sent.a.length - 1]).toEqual(
+				expect.objectContaining({ type: 'ws-message', data: 'still here' })
+			);
 		});
 
 		it('a hello that arrives after the load but within the grace keeps the frame trusted', async () => {

@@ -14,8 +14,6 @@ export function isWindows(): boolean {
 /** Namespaces whose arrow currently has an open surface. */
 export function useSurfaceNamespaces(): string[] {
 	return useArrowStore(
-		useShallow((s) =>
-			[...s.arrows.values()].filter((a) => a.active_run?.surface).map((a) => a.namespace)
-		)
+		useShallow((s) => [...s.arrows.values()].flatMap((a) => (a.active_run?.surface ? [a.namespace] : [])))
 	);
 }

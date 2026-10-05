@@ -151,8 +151,16 @@ describe('ArrowAppHost', () => {
 
 		vi.mocked(tauriApi.wsOpen).mockClear();
 		shimMessage(window, { type: 'ws-open', id: '2', path: '/ws' }, 'arrow-app://h-aone1');
-		shimMessage(frameOf(A).contentWindow as Window, { type: 'ws-open', id: '3', path: '/ws' }, 'https://evil.example');
-		shimMessage(frameOf(A).contentWindow as Window, { type: 'ws-open', id: '4', path: '/ws' }, 'arrow-app://h-btwo1');
+		shimMessage(
+			frameOf(A).contentWindow as Window,
+			{ type: 'ws-open', id: '3', path: '/ws' },
+			'https://evil.example'
+		);
+		shimMessage(
+			frameOf(A).contentWindow as Window,
+			{ type: 'ws-open', id: '4', path: '/ws' },
+			'arrow-app://h-btwo1'
+		);
 		await act(async () => {});
 		expect(tauriApi.wsOpen).not.toHaveBeenCalled();
 	});

@@ -20,7 +20,15 @@ interface ArrowAppFrameProps {
  * `arrow-app` host, never the shell's. Hidden frames stay mounted so the page
  * keeps its state and connections.
  */
-export function ArrowAppFrame({ host, path, windows, visible, reloadKey, onRef, onLoad }: ArrowAppFrameProps): JSX.Element {
+export function ArrowAppFrame({
+	host,
+	path,
+	windows,
+	visible,
+	reloadKey,
+	onRef,
+	onLoad,
+}: ArrowAppFrameProps): JSX.Element {
 	return (
 		<iframe
 			key={reloadKey}
@@ -30,7 +38,10 @@ export function ArrowAppFrame({ host, path, windows, visible, reloadKey, onRef, 
 			src={`${arrowAppOrigin(host, windows)}${path}`}
 			sandbox="allow-scripts allow-same-origin"
 			referrerPolicy="no-referrer"
-			className={cn('pointer-events-auto absolute inset-0 size-full border-0 bg-background', !visible && 'hidden')}
+			className={cn(
+				'pointer-events-auto absolute inset-0 size-full border-0 bg-background',
+				!visible && 'hidden'
+			)}
 		/>
 	);
 }

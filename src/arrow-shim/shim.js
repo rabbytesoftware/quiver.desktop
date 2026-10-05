@@ -19,7 +19,7 @@
 	// Ids restart in every document of this frame but the shell tracks them
 	// per frame, so a per-document nonce keeps a new document's ids from
 	// colliding with a stale socket of the previous one.
-	var nonce = Math.random().toString(36).slice(2, 8) || '0';
+	var nonce = crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
 
 	// The shell origin differs per platform and the payload is only this
 	// arrow's own frames, so the target origin is not restricted.

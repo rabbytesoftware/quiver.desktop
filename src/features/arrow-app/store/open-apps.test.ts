@@ -87,7 +87,7 @@ describe('useOpenApps', () => {
 		expect(useOpenApps.getState().order).toBe(before);
 	});
 
-	it('reload bumps only that app\'s key', () => {
+	it("reload bumps only that app's key", () => {
 		const s = useOpenApps.getState();
 		s.reload('a/b');
 		s.reload('a/b');

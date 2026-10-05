@@ -153,22 +153,28 @@ describe('arrow websocket shim', () => {
 		expect(a.split('-')[0]).toBe(b.split('-')[0]);
 	});
 
-	it('derives the nonce from Math.random so each document differs', () => {
-		const random = vi.spyOn(Math, 'random');
+	it('derives the nonce from crypto randomness so each document differs', () => {
+		const random = vi.spyOn(crypto, 'getRandomValues');
 		const nonceOf = (value: number) => {
-			random.mockReturnValue(value);
+			random.mockImplementation(((a: Uint32Array) => {
+				a[0] = value;
+				return a;
+			}) as typeof crypto.getRandomValues);
 			const { WS, opens } = load();
 			new WS('ws://h/a');
 			return opens()[0].id.split('-')[0];
 		};
-		const first = nonceOf(0.123456789);
-		const second = nonceOf(0.987654321);
+		const first = nonceOf(123456789);
+		const second = nonceOf(987654321);
 		random.mockRestore();
 		expect(first).not.toBe(second);
 	});
 
-	it('still produces a non-empty nonce when Math.random returns 0', () => {
-		const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+	it('still produces a non-empty nonce when the random value is 0', () => {
+		const random = vi.spyOn(crypto, 'getRandomValues').mockImplementation(((a: Uint32Array) => {
+			a[0] = 0;
+			return a;
+		}) as typeof crypto.getRandomValues);
 		const { WS, opens } = load();
 		new WS('ws://h/a');
 		random.mockRestore();

@@ -44,7 +44,8 @@ export const useOpenApps = create<OpenAppsState>((set) => ({
 	show: (ns) =>
 		set((s) => {
 			const order = admit(s.order, ns, ns);
-			const frames = [...s.frames.filter((n) => order.includes(n)), ...(s.frames.includes(ns) ? [] : [ns])];
+			const kept = new Set(order);
+			const frames = [...s.frames.filter((n) => kept.has(n)), ...(s.frames.includes(ns) ? [] : [ns])];
 			return { visible: ns, order, frames };
 		}),
 	hide: () => set({ visible: null }),
