@@ -109,14 +109,24 @@ const PROXY_TIMEOUT: Duration = Duration::from_secs(300);
 #[cfg(test)]
 const PROXY_TIMEOUT: Duration = Duration::from_millis(500);
 
+/// No `quiver://` document may render inside a frame. An arrow page can
+/// navigate its own iframe here (CSP governs fetches, not a frame navigating
+/// itself), and a document rendered as `quiver://localhost` would make
+/// Origin-less same-origin requests that this proxy forwards with the bearer.
+/// The shell only ever `fetch`es this scheme, where both headers are inert.
+const FRAME_ANCESTORS: HeaderValue = HeaderValue::from_static("frame-ancestors 'none'");
+const FRAME_OPTIONS: HeaderValue = HeaderValue::from_static("DENY");
+
 /// Stamp the headers every response from this scheme must carry, whoever built
 /// it. `insert` rather than `append`: a daemon that sets its own
 /// `Access-Control-Allow-Origin` must not end up with two, which browsers
-/// reject outright.
+/// reject outright, and its own framing headers must not survive next to ours.
 fn with_cors(mut resp: Response<Vec<u8>>) -> Response<Vec<u8>> {
 	let headers = resp.headers_mut();
 	headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, ALLOW_ORIGIN);
 	headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, EXPOSE_HEADERS);
+	headers.insert(header::CONTENT_SECURITY_POLICY, FRAME_ANCESTORS);
+	headers.insert(header::X_FRAME_OPTIONS, FRAME_OPTIONS);
 	resp
 }
 
@@ -152,7 +162,9 @@ fn preflight_response() -> Response<Vec<u8>> {
 /// Origins the app's own pages send. Arrow pages (`arrow-app://...`) share
 /// this webview process, so anything else must not reach the daemon through
 /// this scheme. Requests without an Origin (same-origin GETs, navigations)
-/// are allowed; the arrow CSP (`connect-src 'self'`) is what stops those.
+/// are allowed: the arrow CSP (`connect-src 'self'`) stops an arrow's
+/// fetches, and a frame navigating itself here gets nothing it can render
+/// (`/v0/ui` is refused and every response forbids framing).
 const OWN_ORIGINS: [&str; 4] = [
 	"tauri://localhost",
 	"http://tauri.localhost",
@@ -165,6 +177,39 @@ pub fn origin_allowed(req: &Request<Vec<u8>>) -> bool {
 		None => true,
 		Some(origin) => origin.to_str().is_ok_and(|o| OWN_ORIGINS.contains(&o)),
 	}
+}
+
+/// Whether `path` reaches the daemon's arrow interfaces (`/v0/ui...`). Checked
+/// after percent-decoding, with case folded and repeated slashes collapsed,
+/// because the daemon routes on the decoded path and an arrow chooses the
+/// spelling of a URL it navigates to.
+fn is_arrow_interface_path(path: &str) -> bool {
+	let mut decoded = Vec::with_capacity(path.len());
+	let bytes = path.as_bytes();
+	let mut i = 0;
+	while i < bytes.len() {
+		let hex = bytes
+			.get(i + 1..i + 3)
+			.and_then(|h| std::str::from_utf8(h).ok())
+			.and_then(|h| u8::from_str_radix(h, 16).ok());
+		match (bytes[i], hex) {
+			(b'%', Some(b)) => {
+				decoded.push(b);
+				i += 3;
+			}
+			(b, _) => {
+				decoded.push(b);
+				i += 1;
+			}
+		}
+	}
+	let mut normalised = String::with_capacity(decoded.len());
+	for c in String::from_utf8_lossy(&decoded).to_lowercase().chars() {
+		if !(c == '/' && normalised.ends_with('/')) {
+			normalised.push(c);
+		}
+	}
+	normalised == "/v0/ui" || normalised.starts_with("/v0/ui/")
 }
 
 /// The whole proxy decision, free of Tauri's responder so it can be driven
@@ -184,6 +229,10 @@ where
 {
 	if !origin_allowed(&req) {
 		return error_response(403, "origin not allowed");
+	}
+
+	if is_arrow_interface_path(req.uri().path()) {
+		return error_response(403, "arrow interfaces are not served on this scheme");
 	}
 
 	// Answered before the transport is even resolved: a preflight asks what
@@ -561,6 +610,142 @@ mod tests {
 			.insert(header::ORIGIN, "arrow-app://abc".parse().unwrap());
 		let resp = proxy_once(resolved(NeverDialled), r).await;
 		assert_eq!(resp.status(), 403);
+	}
+
+	fn frame_guard(resp: &Response<Vec<u8>>) -> (Option<&str>, Option<&str>) {
+		let get = |name: header::HeaderName| {
+			resp.headers().get(name).and_then(|v| v.to_str().ok())
+		};
+		(
+			get(header::CONTENT_SECURITY_POLICY),
+			get(header::X_FRAME_OPTIONS),
+		)
+	}
+
+	/// An arrow page can navigate its own iframe to a `quiver://` URL: CSP
+	/// governs fetches, not a frame navigating itself. Rendered there, the page
+	/// would run as `quiver://localhost` and its same-origin GETs (no Origin)
+	/// would reach the daemon with the bearer. No `quiver://` document may ever
+	/// render inside a frame, so every response kind carries both guards.
+	#[tokio::test]
+	async fn every_response_refuses_to_render_inside_a_frame() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let ok = serving("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}").await;
+		let daemon_404 =
+			serving("HTTP/1.1 404 Not Found\r\nContent-Length: 2\r\n\r\n{}").await;
+		let mut foreign = req("GET", "/v0/arrow");
+		foreign.headers_mut()
+			.insert(header::ORIGIN, "arrow-app://abc".parse().unwrap());
+
+		let cases: Vec<(&str, Response<Vec<u8>>)> = vec![
+			(
+				"a relayed 200",
+				proxy_once(resolved(ok), get("/v0/health")).await,
+			),
+			(
+				"a relayed daemon 404",
+				proxy_once(resolved(daemon_404), get("/v0/arrow/nope")).await,
+			),
+			(
+				"a marked 502",
+				proxy_once(resolved(dead().await), get("/v0/health")).await,
+			),
+			(
+				"a marked 504",
+				proxy_once(resolved(NeverResponds), get("/v0/health")).await,
+			),
+			(
+				"a preflight",
+				proxy_once(resolved(NeverDialled), req("OPTIONS", "/v0/arrow"))
+					.await,
+			),
+			(
+				"an origin refusal",
+				proxy_once(resolved(NeverDialled), foreign).await,
+			),
+			(
+				"a /v0/ui refusal",
+				proxy_once(resolved(NeverDialled), get("/v0/ui/ns/index.html"))
+					.await,
+			),
+		];
+
+		for (what, resp) in cases {
+			assert_eq!(
+				frame_guard(&resp),
+				(Some("frame-ancestors 'none'"), Some("DENY")),
+				"{what} must refuse to render inside a frame"
+			);
+		}
+	}
+
+	/// A daemon response that sets its own framing headers must not keep them:
+	/// a looser `frame-ancestors` from upstream would undo the guard.
+	#[tokio::test]
+	async fn a_daemons_own_framing_headers_are_replaced() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let t = serving(
+			"HTTP/1.1 200 OK\r\nContent-Security-Policy: frame-ancestors *\r\nX-Frame-Options: ALLOWALL\r\nContent-Length: 2\r\n\r\n{}",
+		)
+		.await;
+		let resp = proxy_once(resolved(t), get("/v0/health")).await;
+		assert_eq!(
+			resp.headers()
+				.get_all(header::CONTENT_SECURITY_POLICY)
+				.iter()
+				.count(),
+			1
+		);
+		assert_eq!(
+			frame_guard(&resp),
+			(Some("frame-ancestors 'none'"), Some("DENY"))
+		);
+	}
+
+	/// The shell never loads arrow interfaces through `quiver://` (they have
+	/// their own `arrow-app://` origin), so any `/v0/ui/` request here is an
+	/// arrow trying to reach its own pages under the shell's scheme. Refused
+	/// before a transport is resolved, encoded and doubled-slash spellings
+	/// included, and in the Windows form wry hands the handler.
+	#[tokio::test]
+	async fn quiver_scheme_refuses_arrow_interface_paths_before_resolving() {
+		for uri in [
+			"quiver://localhost/v0/ui/ns/evil.html",
+			"quiver://localhost/v0/ui",
+			"quiver://localhost/v0/ui/",
+			"quiver://localhost/v0/UI/ns/x",
+			"quiver://localhost//v0//ui/ns/x",
+			"quiver://localhost/v0/%75i/ns/x",
+			"quiver://localhost/%76%30/ui/ns/x",
+			"http://quiver.localhost/v0/ui/ns/evil.html",
+		] {
+			for method in ["GET", "POST", "OPTIONS"] {
+				let r = Request::builder()
+					.method(method)
+					.uri(uri)
+					.body(Vec::new())
+					.unwrap();
+				let resp = proxy_once(resolved(NeverDialled), r).await;
+				assert_eq!(resp.status(), 403, "{method} {uri}");
+				assert_eq!(
+					resp.headers()
+						.get(PROXY_ERROR_HEADER)
+						.map(|v| v.as_bytes()),
+					Some(&b"error"[..]),
+					"{method} {uri}"
+				);
+			}
+		}
+	}
+
+	/// Paths that only look similar are the shell's own and must still pass.
+	#[test]
+	fn paths_outside_the_arrow_interface_are_not_refused() {
+		for path in ["/v0/health", "/v0/uix", "/v0/arrow/ui/x", "/v0/units"] {
+			assert!(!is_arrow_interface_path(path), "{path}");
+		}
 	}
 
 	#[test]
