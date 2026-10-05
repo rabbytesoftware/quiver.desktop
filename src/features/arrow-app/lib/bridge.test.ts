@@ -1,12 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { WS_CLOSE_SENTINEL } from '@/lib/transport/quiver-socket';
 
-import { MAX_SOCKETS_PER_ARROW, SHIM_TAG, createBridge, type WsApi } from './bridge';
+import { MAX_PATH_LENGTH, MAX_SOCKETS_PER_ARROW, SHIM_TAG, createBridge, type WsApi } from './bridge';
 
 type Posted = { type: string; id: string; code?: number; data?: string };
 
-function setup() {
+const GRACE = 150;
+const originOf = (host: string) => `arrow-app://${host}`;
+
+function setup(expectedOrigin: (host: string) => string = originOf) {
 	const sent: Record<string, Posted[]> = { a: [], b: [] };
 	const windows = Object.fromEntries(
 		['a', 'b'].map((h) => [h, { postMessage: (m: Posted) => sent[h].push(m) } as unknown as Window]),
@@ -23,9 +26,13 @@ function setup() {
 		api,
 		frameWindow: (h) => windows[h],
 		hosts: () => Object.keys(windows),
+		originOf: expectedOrigin,
+		helloGraceMs: GRACE,
 	});
-	const from = (host: string, data: unknown) =>
-		({ source: windows[host], data: { [SHIM_TAG]: 1, ...(data as object) } }) as unknown as MessageEvent;
+	const from = (host: string, data: unknown, origin = originOf(host)) =>
+		({ source: windows[host], origin, data: { [SHIM_TAG]: 1, ...(data as object) } }) as unknown as MessageEvent;
+	// Every arrow document starts with the shim's hello.
+	for (const h of Object.keys(windows)) void bridge.onMessage(from(h, { type: 'hello' }));
 	return { api, bridge, sent, frames, from, windows };
 }
 
@@ -293,6 +300,119 @@ describe('arrow shell bridge', () => {
 			frames['a:old-1'](`${WS_CLOSE_SENTINEL}\u00001001\u0000bye`);
 
 			expect(sent.a).toEqual([expect.objectContaining({ type: 'ws-open', id: 'old-1' })]);
+		});
+	});
+
+	it('refuses a ws-open whose path is longer than the cap and tells the page', async () => {
+		const { api, bridge, sent, from } = setup();
+		await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/' + 'x'.repeat(MAX_PATH_LENGTH) }));
+
+		expect(api.wsOpen).not.toHaveBeenCalled();
+		expect(sent.a).toEqual([expect.objectContaining({ type: 'ws-close', id: '1', code: 1006 })]);
+
+		await bridge.onMessage(from('a', { type: 'ws-open', id: '2', path: '/' + 'x'.repeat(MAX_PATH_LENGTH - 1) }));
+		expect(api.wsOpen).toHaveBeenCalledTimes(1);
+	});
+
+	describe('origin and trust', () => {
+		afterEach(() => vi.useRealTimers());
+
+		it('ignores a message from the right frame with a foreign origin', async () => {
+			const { api, bridge, from } = setup();
+			for (const origin of ['https://evil.example', 'arrow-app://b', 'null', '']) {
+				await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }, origin));
+			}
+			expect(api.wsOpen).not.toHaveBeenCalled();
+		});
+
+		it('accepts a message from the right frame with the right origin', async () => {
+			const { api, bridge, from } = setup();
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }, 'arrow-app://a'));
+			expect(api.wsOpen).toHaveBeenCalledWith('a', '1', '/ws', expect.any(Function));
+		});
+
+		it('fails closed when the expected origin is in the other platform form', async () => {
+			const { api, bridge, from } = setup((h) => `http://arrow-app.${h}`);
+			await bridge.onMessage(from('a', { type: 'hello' }));
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }));
+			expect(api.wsOpen).not.toHaveBeenCalled();
+		});
+
+		it('a load with no hello closes the sockets and stops relaying to the frame', async () => {
+			vi.useFakeTimers();
+			const { api, bridge, sent, frames, from } = setup();
+			bridge.frameLoaded('a');
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }));
+			sent.a.length = 0;
+
+			bridge.frameLoaded('a');
+			vi.advanceTimersByTime(GRACE - 1);
+			expect(api.wsClose).not.toHaveBeenCalled();
+			vi.advanceTimersByTime(1);
+
+			expect(api.wsClose).toHaveBeenCalledWith('a', '1');
+			frames['a:1']('secret');
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '2', path: '/ws' }));
+			expect(api.wsOpen).toHaveBeenCalledTimes(1);
+			expect(sent.a).toEqual([]);
+		});
+
+		it('a load whose document said hello keeps its sockets', async () => {
+			vi.useFakeTimers();
+			const { api, bridge, sent, frames, from } = setup();
+			bridge.frameLoaded('a');
+			await bridge.onMessage(from('a', { type: 'hello' }));
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '2', path: '/ws' }));
+			bridge.frameLoaded('a');
+			vi.advanceTimersByTime(GRACE * 2);
+
+			expect(api.wsClose).not.toHaveBeenCalled();
+			frames['a:2']('still here');
+			expect(sent.a[sent.a.length - 1]).toEqual(expect.objectContaining({ type: 'ws-message', data: 'still here' }));
+		});
+
+		it('a hello that arrives after the load but within the grace keeps the frame trusted', async () => {
+			vi.useFakeTimers();
+			const { api, bridge, from } = setup();
+			bridge.frameLoaded('a');
+			bridge.frameLoaded('a');
+			await bridge.onMessage(from('a', { type: 'hello' }));
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '3', path: '/ws' }));
+			vi.advanceTimersByTime(GRACE * 2);
+
+			expect(api.wsClose).not.toHaveBeenCalled();
+		});
+
+		it('a later correct hello restores trust; a forged one does not', async () => {
+			vi.useFakeTimers();
+			const { api, bridge, sent, from } = setup();
+			bridge.frameLoaded('a');
+			bridge.frameLoaded('a');
+			vi.advanceTimersByTime(GRACE);
+
+			await bridge.onMessage(from('a', { type: 'hello' }, 'https://evil.example'));
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }));
+			expect(api.wsOpen).not.toHaveBeenCalled();
+
+			await bridge.onMessage(from('a', { type: 'hello' }));
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }));
+			expect(api.wsOpen).toHaveBeenCalledTimes(1);
+			expect(sent.a).toEqual([expect.objectContaining({ type: 'ws-open', id: '1' })]);
+		});
+
+		it('dispose cancels pending load judgments', async () => {
+			vi.useFakeTimers();
+			const { api, bridge, from } = setup();
+			bridge.frameLoaded('a');
+			await bridge.onMessage(from('a', { type: 'ws-open', id: '1', path: '/ws' }));
+			bridge.frameLoaded('b');
+			bridge.frameLoaded('b');
+			bridge.frameLoaded('a');
+			bridge.dispose();
+			api.wsClose.mockClear();
+			vi.advanceTimersByTime(GRACE * 2);
+
+			expect(api.wsClose).not.toHaveBeenCalled();
 		});
 	});
 });

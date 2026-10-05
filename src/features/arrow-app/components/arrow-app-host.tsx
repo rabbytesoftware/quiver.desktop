@@ -5,7 +5,7 @@ import { useArrowStore } from '@/lib/core-store';
 import { ArrowAppFrame } from './arrow-app-frame';
 import { tauriApi } from '../lib/api';
 import { createBridge } from '../lib/bridge';
-import { isWindows, useSurfaceNamespaces } from '../lib/surface';
+import { arrowAppOrigin, isWindows, useSurfaceNamespaces } from '../lib/surface';
 import { createFrameRegistry, type FrameRegistry } from '../lib/use-frames';
 import { useOpenApps } from '../store/open-apps';
 
@@ -30,7 +30,13 @@ function useHosts(order: readonly string[]): Record<string, string> {
 
 function useBridge(registry: FrameRegistry) {
 	const bridge = useMemo(
-		() => createBridge({ api: tauriApi, frameWindow: registry.windowOf, hosts: registry.hosts }),
+		() =>
+			createBridge({
+				api: tauriApi,
+				frameWindow: registry.windowOf,
+				hosts: registry.hosts,
+				originOf: (host) => arrowAppOrigin(host, isWindows()),
+			}),
 		[registry]
 	);
 
@@ -51,9 +57,10 @@ interface FrameSlotProps {
 	visible: boolean;
 	reloadKey: number;
 	onRef: (host: string, el: HTMLIFrameElement | null) => void;
+	onLoad: (host: string) => void;
 }
 
-function FrameSlot({ namespace, host, visible, reloadKey, onRef }: FrameSlotProps): JSX.Element | null {
+function FrameSlot({ namespace, host, visible, reloadKey, onRef, onLoad }: FrameSlotProps): JSX.Element | null {
 	const surface = useArrowStore((s) => s.arrows.get(namespace)?.active_run?.surface);
 	// Stable on purpose: React calls a changed ref callback with null first, and
 	// that null is what closes the arrow's sockets.
@@ -63,6 +70,9 @@ function FrameSlot({ namespace, host, visible, reloadKey, onRef }: FrameSlotProp
 		},
 		[host, onRef]
 	);
+	const loaded = useCallback(() => {
+		if (host) onLoad(host);
+	}, [host, onLoad]);
 	if (!host || !surface) return null;
 
 	return (
@@ -73,6 +83,7 @@ function FrameSlot({ namespace, host, visible, reloadKey, onRef }: FrameSlotProp
 			visible={visible}
 			reloadKey={reloadKey}
 			onRef={ref}
+			onLoad={loaded}
 		/>
 	);
 }
@@ -111,6 +122,7 @@ export function ArrowAppHost(): JSX.Element {
 					visible={ns === visible}
 					reloadKey={reloads[ns] ?? 0}
 					onRef={onRef}
+					onLoad={bridge.frameLoaded}
 				/>
 			))}
 		</div>

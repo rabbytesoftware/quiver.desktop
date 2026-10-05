@@ -6,6 +6,16 @@ export const SHIM_TAG = '__arrowShim';
 /** Sockets one arrow may hold at once. */
 export const MAX_SOCKETS_PER_ARROW = 8;
 
+/** Longest WebSocket path a page may ask for. */
+export const MAX_PATH_LENGTH = 2048;
+
+/**
+ * How long after an iframe `load` the new document's hello may still arrive.
+ * The hello message and the load event come from different task sources, so
+ * either can be first.
+ */
+const HELLO_GRACE_MS = 200;
+
 const MAX_ID_LENGTH = 32;
 const ABNORMAL_CLOSE = 1006;
 const NORMAL_CLOSE = 1000;
@@ -21,6 +31,9 @@ export interface BridgeDeps {
 	/** The iframe window currently registered for an arrow host. */
 	frameWindow(host: string): Window | undefined;
 	hosts(): string[];
+	/** The only origin a host's own documents post from. */
+	originOf(host: string): string;
+	helloGraceMs?: number;
 }
 
 interface ShimMessage {
@@ -45,14 +58,23 @@ function isShimMessage(data: unknown): data is ShimMessage {
 }
 
 /**
- * Relays WebSocket frames between arrow pages and the daemon. The only
- * authority is `event.source`: a message is honoured only when it came from
- * the iframe registered for a host, and only touches that host's sockets.
+ * Relays WebSocket frames between arrow pages and the daemon. A message is
+ * honoured only when it came from the iframe registered for a host
+ * (`event.source`) AND from that host's own origin (`event.origin`), and only
+ * touches that host's sockets. A frame can navigate itself to a foreign
+ * document while keeping its window, so replies go out only while the host is
+ * trusted: an origin-checked hello grants trust, and a frame load whose
+ * document never says hello revokes it and closes the host's sockets.
  */
 export function createBridge(deps: BridgeDeps) {
 	const open = new Map<string, Set<string>>();
+	const trusted = new Set<string>();
+	const helloSinceLoad = new Set<string>();
+	const judgments = new Map<string, ReturnType<typeof setTimeout>>();
+	const grace = deps.helloGraceMs ?? HELLO_GRACE_MS;
 
 	const reply = (host: string, message: Record<string, unknown>) => {
+		if (!trusted.has(host)) return;
 		deps.frameWindow(host)?.postMessage({ [SHIM_TAG]: 1, ...message }, '*');
 	};
 
@@ -84,6 +106,10 @@ export function createBridge(deps: BridgeDeps) {
 
 	async function handleOpen(host: string, m: ShimMessage) {
 		if (typeof m.path !== 'string') return;
+		if (m.path.length > MAX_PATH_LENGTH) {
+			reply(host, { type: 'ws-close', id: m.id, code: ABNORMAL_CLOSE, reason: 'path too long' });
+			return;
+		}
 		const ids = track(host);
 		if (ids.has(m.id)) return;
 		if (ids.size >= MAX_SOCKETS_PER_ARROW) {
@@ -103,12 +129,14 @@ export function createBridge(deps: BridgeDeps) {
 
 	async function onMessage(event: MessageEvent) {
 		const host = hostOf(event.source);
-		if (!host) return;
+		if (!host || event.origin !== deps.originOf(host)) return;
 		if (isTagged(event.data) && event.data.type === 'hello') {
 			closeHost(host);
+			trusted.add(host);
+			helloSinceLoad.add(host);
 			return;
 		}
-		if (!isShimMessage(event.data)) return;
+		if (!trusted.has(host) || !isShimMessage(event.data)) return;
 		const m = event.data;
 
 		if (m.type === 'ws-open') {
@@ -137,9 +165,31 @@ export function createBridge(deps: BridgeDeps) {
 		ids.clear();
 	}
 
+	function revoke(host: string) {
+		judgments.delete(host);
+		if (helloSinceLoad.delete(host)) return;
+		trusted.delete(host);
+		closeHost(host);
+	}
+
+	/** Call on every iframe `load`: the document in it may no longer be the arrow's. */
+	function frameLoaded(host: string) {
+		clearTimeout(judgments.get(host));
+		if (helloSinceLoad.delete(host)) {
+			judgments.delete(host);
+			return;
+		}
+		judgments.set(
+			host,
+			setTimeout(() => revoke(host), grace)
+		);
+	}
+
 	function dispose() {
+		for (const timer of judgments.values()) clearTimeout(timer);
+		judgments.clear();
 		for (const host of [...open.keys()]) closeHost(host);
 	}
 
-	return { onMessage, closeHost, dispose };
+	return { onMessage, closeHost, frameLoaded, dispose };
 }

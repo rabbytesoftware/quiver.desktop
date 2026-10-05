@@ -27,8 +27,9 @@ An arrow's page is untrusted. It shares a webview process with the app's own pag
 - **Scoped WebSocket commands.** Arrow sockets use `arrow_ws_open`, `arrow_ws_send` and `arrow_ws_close`, not the generic `ws_open`. The target path is built in Rust as `/v0/ui/<that arrow's namespace>/...` from the registered host, never from the page. Paths that do not start with a single `/`, or contain `..`, backslashes, encoded dots or backslashes, control characters, spaces or `#`, are rejected. Connection keys are prefixed with the host, so two arrows using the same id never collide.
 - **Per-arrow origins.** Each arrow has its own host, so each has its own origin and its own storage (`localStorage`, IndexedDB). One arrow can not read another's data.
 - **Shim hello and per-document ids.** The shim sends a `hello` when a document loads, which makes the shell close any sockets the previous document in that frame left behind. Socket ids carry a random per-document nonce so a new document's ids can not collide with a stale one.
-- **Message authority.** The shell trusts a message only if `event.source` is the iframe registered for a host, and the message only touches that host's sockets. Ids are length limited, and each arrow may hold at most 8 sockets.
-- **Only WebSocket text frames cross the bridge.** The shell understands three message types from a page (`ws-open`, `ws-send`, `ws-close`) and nothing else. Messages are tagged and checked before use.
+- **Message authority.** The shell trusts a message only if `event.source` is the iframe registered for a host and `event.origin` is exactly that host's own origin (`arrow-app://<host>`, or `http://arrow-app.<host>` on Windows), and the message only touches that host's sockets. Ids are length limited, WebSocket paths longer than 2048 characters are refused with a close 1006, and each arrow may hold at most 8 sockets.
+- **Outbound trust.** A frame can navigate itself to a foreign document while keeping the same window, so the shell sends frames to a host only while it trusts that host. An origin-checked `hello` grants trust. When the iframe fires `load` and no origin-checked `hello` arrived for that document within a short grace period (200 ms), the shell closes the host's sockets and stops sending to it until the next `hello`. Replies still use `'*'` as the target origin, because custom-scheme origins are not verified as `postMessage` targets.
+- **Only WebSocket text frames cross the bridge.** The shell understands three message types from a page (`ws-open`, `ws-send`, `ws-close`) and nothing else. Every message must carry the shim tag and pass the source and origin checks above; anything else is dropped.
 
 ## Known limits
 
@@ -38,6 +39,7 @@ An arrow's page is untrusted. It shares a webview process with the app's own pag
 - **Windows is untested at runtime.** The `http://arrow-app.<hex>.localhost` form is handled and unit tested, but it has not been run on a Windows machine.
 - **At most 4 apps are kept alive.** The shell keeps recently used arrow apps mounted and hidden so state survives switching. Opening a fifth drops the least recently used one that is not visible.
 - **At most 8 sockets per arrow.** Further `new WebSocket` calls close at once with code 1006.
+- **Arrow pages can navigate their own frame away.** The sandbox blocks top navigation and popups, but nothing stops a page from navigating its own iframe to an external site, and links are not handed to the system browser. A document that is not the arrow's gets no Tauri IPC, its messages fail the origin check, and the shell stops relaying to it (see Outbound trust). It can not render `quiver://` content, which forbids framing. For up to the 200 ms grace period after such a load, frames already in flight may still be posted into the frame.
 
 ## Trying one locally
 

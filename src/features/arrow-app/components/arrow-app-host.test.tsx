@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ArrowEntry } from '@/domain/arrow';
@@ -32,10 +32,22 @@ function seed(...namespaces: string[]): void {
 	useArrowStore.setState({ arrows: new Map(namespaces.map((n) => [n, entry(n)])) });
 }
 
-const frameOf = (ns: string) => screen.getByTitle(`h-${ns.replace(/\W/g, '')}`) as HTMLIFrameElement;
+const hostOf = (ns: string) => `h-${ns.replace(/\W/g, '')}`;
+const frameOf = (ns: string) => screen.getByTitle(hostOf(ns)) as HTMLIFrameElement;
 
-function shimMessage(source: MessageEventSource, data: Record<string, unknown>): void {
-	window.dispatchEvent(new MessageEvent('message', { source, data: { [SHIM_TAG]: 1, ...data } }));
+function shimMessage(source: MessageEventSource, data: Record<string, unknown>, origin = ''): void {
+	window.dispatchEvent(new MessageEvent('message', { source, origin, data: { [SHIM_TAG]: 1, ...data } }));
+}
+
+/** A message from the arrow document currently in `ns`'s frame. */
+function fromFrame(ns: string, data: Record<string, unknown>): void {
+	shimMessage(frameOf(ns).contentWindow as Window, data, `arrow-app://${hostOf(ns)}`);
+}
+
+/** The frame's document loads: the shim says hello, then the frame fires load. */
+function documentLoads(ns: string): void {
+	fromFrame(ns, { type: 'hello' });
+	fireEvent.load(frameOf(ns));
 }
 
 describe('ArrowAppHost', () => {
@@ -54,6 +66,8 @@ describe('ArrowAppHost', () => {
 			useOpenApps.getState().show(A);
 		});
 		await waitFor(() => expect(screen.getAllByTitle(/^h-/)).toHaveLength(2));
+		documentLoads(A);
+		documentLoads(B);
 		return view;
 	}
 
@@ -77,8 +91,7 @@ describe('ArrowAppHost', () => {
 
 	it('drops a frame and closes its sockets when the arrow loses its surface', async () => {
 		await openBoth();
-		const win = frameOf(B).contentWindow as Window;
-		shimMessage(win, { type: 'ws-open', id: '1', path: '/ws' });
+		fromFrame(B, { type: 'ws-open', id: '1', path: '/ws' });
 		await waitFor(() => expect(tauriApi.wsOpen).toHaveBeenCalled());
 
 		act(() => seed(A));
@@ -91,7 +104,7 @@ describe('ArrowAppHost', () => {
 	it('Reload remounts the frame and closes its sockets', async () => {
 		await openBoth();
 		const before = frameOf(A);
-		shimMessage(before.contentWindow as Window, { type: 'ws-open', id: '7', path: '/ws' });
+		fromFrame(A, { type: 'ws-open', id: '7', path: '/ws' });
 		await waitFor(() => expect(tauriApi.wsOpen).toHaveBeenCalled());
 
 		act(() => useOpenApps.getState().reload(A));
@@ -102,18 +115,20 @@ describe('ArrowAppHost', () => {
 
 	it('relays shim messages from a registered frame only', async () => {
 		await openBoth();
-		shimMessage(frameOf(A).contentWindow as Window, { type: 'ws-open', id: '1', path: '/ws' });
+		fromFrame(A, { type: 'ws-open', id: '1', path: '/ws' });
 		await waitFor(() => expect(tauriApi.wsOpen).toHaveBeenCalledWith('h-aone1', '1', '/ws', expect.any(Function)));
 
 		vi.mocked(tauriApi.wsOpen).mockClear();
-		shimMessage(window, { type: 'ws-open', id: '2', path: '/ws' });
+		shimMessage(window, { type: 'ws-open', id: '2', path: '/ws' }, 'arrow-app://h-aone1');
+		shimMessage(frameOf(A).contentWindow as Window, { type: 'ws-open', id: '3', path: '/ws' }, 'https://evil.example');
+		shimMessage(frameOf(A).contentWindow as Window, { type: 'ws-open', id: '4', path: '/ws' }, 'arrow-app://h-btwo1');
 		await act(async () => {});
 		expect(tauriApi.wsOpen).not.toHaveBeenCalled();
 	});
 
 	it('stops listening and closes sockets on unmount', async () => {
 		const { unmount } = await openBoth();
-		shimMessage(frameOf(A).contentWindow as Window, { type: 'ws-open', id: '1', path: '/ws' });
+		fromFrame(A, { type: 'ws-open', id: '1', path: '/ws' });
 		await waitFor(() => expect(tauriApi.wsOpen).toHaveBeenCalled());
 		const win = frameOf(A).contentWindow as Window;
 
@@ -121,8 +136,28 @@ describe('ArrowAppHost', () => {
 
 		expect(tauriApi.wsClose).toHaveBeenCalledWith('h-aone1', '1');
 		vi.mocked(tauriApi.wsOpen).mockClear();
-		shimMessage(win, { type: 'ws-open', id: '2', path: '/ws' });
+		shimMessage(win, { type: 'ws-open', id: '2', path: '/ws' }, 'arrow-app://h-aone1');
 		expect(tauriApi.wsOpen).not.toHaveBeenCalled();
+	});
+
+	it('closes the sockets of a frame that loads a document which never says hello', async () => {
+		await openBoth();
+		fromFrame(A, { type: 'ws-open', id: '1', path: '/ws' });
+		await waitFor(() => expect(tauriApi.wsOpen).toHaveBeenCalled());
+
+		fireEvent.load(frameOf(A));
+
+		await waitFor(() => expect(tauriApi.wsClose).toHaveBeenCalledWith('h-aone1', '1'));
+	});
+
+	it('keeps the sockets of a frame whose new document says hello', async () => {
+		await openBoth();
+		documentLoads(A);
+		fromFrame(A, { type: 'ws-open', id: '1', path: '/ws' });
+		await waitFor(() => expect(tauriApi.wsOpen).toHaveBeenCalled());
+		await act(() => new Promise((r) => setTimeout(r, 400)));
+
+		expect(tauriApi.wsClose).not.toHaveBeenCalled();
 	});
 
 	it('asks for the host again after a failed lookup', async () => {
