@@ -7,6 +7,7 @@
 #   docker compose -f docker/e2e/docker-compose.yml run --rm e2e scenarios/run-wdio.sh
 #   docker compose -f docker/e2e/docker-compose.yml run --rm e2e scenarios/run-wdio.sh update-core
 #   SKIP_BUILD=1 ... scenarios/run-wdio.sh update-core
+#   ... scenarios/run-wdio.sh arrow-apps bootstrap
 #
 # Arguments are spec names (the file name without .spec.ts); none runs them all.
 # Every spec starts from a wiped home and a freshly seeded upstream, so they
@@ -24,6 +25,9 @@ WDIO_RESULTS="$RESULTS/wdio"
 SPEC_HOMES=/tmp/quiver-e2e
 
 ALL_SPECS=(bootstrap generic-outdated-badge self-update-while-running update-core)
+# arrow-apps drives quiver.chat, so it needs that checkout mounted (see
+# docker/e2e/README.md, "Arrow apps").
+[ -f "$CHAT_CHECKOUT/ARROW.md" ] && ALL_SPECS+=(arrow-apps)
 if [ "$#" -gt 0 ]; then SPECS=("$@"); else SPECS=("${ALL_SPECS[@]}"); fi
 
 case "$(uname -m)" in
@@ -49,6 +53,9 @@ record ""
 # --- build -----------------------------------------------------------------
 
 needed=("$BUILD_BIN/quiver-$CORE_V1" "$BUILD_BIN/quiver-$CORE_V2" "$BUILD_BIN/quiver-$CORE_V3" "$BUILD_BIN/quiver-$CORE_V4" "$BUILD_BIN/quiverdesktop-$DESK_V1")
+case " ${SPECS[*]} " in
+	*" arrow-apps "*) needed+=("$CHAT_DIST/quiver-chat-linux-arm64.tar.gz" "$CHAT_DIST/quiver-chat-linux-amd64.tar.gz") ;;
+esac
 missing=0
 for artifact in "${needed[@]}"; do [ -f "$artifact" ] || missing=1; done
 
@@ -133,6 +140,32 @@ seed_baseline() {
 	git_tag rabbytesoftware/e2e-required stable-1.0
 }
 
+# What arrow-apps adds: quiver.chat's own ARROW.md, unmodified, with the two
+# linux archives it fetches from the `nightly` release; the echo app and its
+# server; and the three rendered static apps (fixtures/upstream-up.sh).
+seed_arrow_apps() {
+	# quiver.chat's ARROW.md fetches and extracts to `./...`, which the
+	# lifecycle_pairs rule does not count as workdir-anchored, so its
+	# `uninstall: []` fails `missing_pair` and the manifest is refused. The spec
+	# asserts that on the unmodified file (A0); everything after it runs on a
+	# copy whose only change is spelling those two `to:` paths as
+	# ${INSTALL_PATH}, which is where `./` resolves anyway. The diff is kept.
+	local chat_manifest="$RUN_DIR/chat-ARROW.md"
+	sed -e 's#to: \./quiver-chat\.archive#to: ${INSTALL_PATH}/quiver-chat.archive#' \
+		-e 's#to: \./$#to: ${INSTALL_PATH}#' "$CHAT_CHECKOUT/ARROW.md" >"$chat_manifest"
+	mkdir -p "$WDIO_RESULTS/arrow-apps"
+	diff -u "$CHAT_CHECKOUT/ARROW.md" "$chat_manifest" >"$WDIO_RESULTS/arrow-apps/chat-manifest-override.diff" || true
+	publish_manifest rabbytesoftware/quiver.chat develop "$chat_manifest"
+	publish_release rabbytesoftware/quiver.chat nightly \
+		"$CHAT_DIST/quiver-chat-linux-arm64.tar.gz" "$CHAT_DIST/quiver-chat-linux-amd64.tar.gz"
+	publish_manifest rabbytesoftware/e2e-echo-app develop "$E2E_DIR/fixtures/arrows/e2e-echo-app/ARROW.md"
+	publish_release rabbytesoftware/e2e-echo-app v1 "$E2E_DIR/fixtures/arrows/e2e-echo-app/server.py"
+	local n
+	for n in 1 2 3; do
+		publish_manifest "rabbytesoftware/e2e-static-app-$n" develop "$UPSTREAM_STATE/fixtures/e2e-static-app-$n/ARROW.md"
+	done
+}
+
 # --- run -------------------------------------------------------------------
 
 export QUIVER_E2E_APP_BINARY="$APP_DIR/quiverdesktop"
@@ -148,6 +181,11 @@ export QUIVER_E2E_CORE_MANIFEST="$CORE_SRC/ARROW.md"
 export QUIVER_E2E_CORE_TAGS="$CORE_V1 $CORE_V2 $CORE_V3 $CORE_V4 $CORE_V5"
 export QUIVER_E2E_CORE_ASSETS="$ASSETS"
 export QUIVER_E2E_CORE_ASSET="$CORE_ASSET"
+export QUIVER_E2E_CHAT_NS="github.com/rabbytesoftware/quiver.chat"
+export QUIVER_E2E_CHAT_MANIFEST="$CHAT_CHECKOUT/ARROW.md"
+export QUIVER_E2E_ECHO_NS="github.com/rabbytesoftware/e2e-echo-app"
+export QUIVER_E2E_STATIC_NS="github.com/rabbytesoftware/e2e-static-app-1 github.com/rabbytesoftware/e2e-static-app-2 github.com/rabbytesoftware/e2e-static-app-3"
+export QUIVER_E2E_TCP_PORT=40299
 
 declare -a PASSED=() FAILED=()
 
@@ -159,6 +197,7 @@ run_spec() {
 	mkdir -p "$WDIO_RESULTS/$name"
 	seed_baseline
 	[ "$name" = "generic-outdated-badge" ] && publish_core_release "$CORE_V2"
+	[ "$name" = "arrow-apps" ] && seed_arrow_apps
 	: >"$RESULTS/upstream.log"
 
 	( cd "$DESK_SRC/e2e" && ./node_modules/.bin/wdio run ./wdio.conf.ts --spec "./scenarios/$name.spec.ts" ) \
@@ -166,9 +205,12 @@ run_spec() {
 	local code="${PIPESTATUS[0]}"
 
 	cp -r "$SPEC_HOMES/$name/.quiver/logs" "$WDIO_RESULTS/$name/daemon-logs" 2>/dev/null || true
+	cp -r "$SPEC_HOMES/$name-tcp/.quiver/logs" "$WDIO_RESULTS/$name/tcp-daemon-logs" 2>/dev/null || true
 	cp "$RESULTS/upstream.log" "$WDIO_RESULTS/$name/upstream.log" 2>/dev/null || true
 	scrot -o "$WDIO_RESULTS/$name/final-screen.png" 2>/dev/null || true
 	kill_everything
+	# Arrow processes a killed daemon leaves behind (arrow-apps).
+	pkill -f 'quiver-chat-linux-|server\.py ' 2>/dev/null || true
 
 	if [ "$code" = "0" ]; then
 		PASSED+=("$name"); record "spec $name: PASS"

@@ -43,6 +43,36 @@ Everything a run produces lands in `docker/e2e/results/` on the host:
 `SUMMARY.txt`, a log per scenario, the upstream fixture's request log, and the
 screenshots.
 
+## Arrow apps
+
+`arrow-apps` (e2e/scenarios/arrow-apps.spec.ts) also needs a quiver.chat checkout, mounted
+read-only at `/workspace/quiver.chat`; `run-wdio.sh` adds the spec to the default list only
+when it is there. `build.sh` turns it into the two linux release archives its ARROW.md fetches
+from the `nightly` release (`quiver-chat-linux-arm64.tar.gz`, `quiver-chat-linux-amd64.tar.gz`),
+building the frontend first if the checkout has not. The stand-in serves the chat's own
+ARROW.md and git repository, the archives, and three fixture arrows from `fixtures/arrows/`:
+`e2e-static-app` (a `static` interface, rendered as three copies so several apps can be open
+at once) and `e2e-echo-app` (a `listen` interface that binds five seconds late and echoes
+request headers). With a compose override that adds the mount:
+
+```
+services:
+  e2e:
+    volumes:
+      - /path/to/quiver.chat:/workspace/quiver.chat:ro
+```
+
+```
+docker compose -f docker/e2e/docker-compose.yml -f override.yml run --rm e2e scenarios/run-wdio.sh arrow-apps bootstrap
+```
+
+The chat's ARROW.md fetches and extracts to `./...` with `uninstall: []`, which quiver.core's
+`lifecycle_pairs` rule refuses (`missing_pair`: a relative `to:` does not count as
+workdir-anchored). The spec asserts that on the unmodified file (A0). Everything after it runs
+on a copy whose only change spells those `to:` paths as `${INSTALL_PATH}`; the diff lands in
+`results/wdio/arrow-apps/chat-manifest-override.diff`. Once the chat's manifest is fixed the
+rewrite is a no-op.
+
 ## What is real, and what stands in for something
 
 Real: both applications, built from the two mounted checkouts by their own
