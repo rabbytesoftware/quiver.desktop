@@ -1,5 +1,6 @@
 //! Tauri commands the shell uses on behalf of arrow pages. Arrow pages never
-//! call these: they have no Tauri IPC (verified), the shell relays for them.
+//! call these: Tauri refuses a command invoked from their frame (verified on
+//! WKWebView and WebView2), and the shell relays for them.
 
 use tauri::ipc::Channel;
 use tauri::State;
