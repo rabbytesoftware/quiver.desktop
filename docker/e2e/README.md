@@ -98,6 +98,15 @@ the same project, which publishes no port and leaves the demo alone:
 docker compose -f docker/e2e/docker-compose.yml -f override.yml run -d --name e2e-tests -e SKIP_BUILD=1 e2e bash scenarios/run-wdio.sh
 ```
 
+### What happens to running arrows when the app quits
+
+`scenarios/app-quit-lifecycle.sh` runs quiver.chat, E2E Static App 1 and the plain E2E
+Supervised arrow, then closes the window, sends SIGTERM or SIGKILL to the app, or SIGKILLs the
+daemon (also with every arrow process killed after it). It records the processes, the runtime,
+`/v0/ui` and the run directory before, 10 s after, and after a relaunch, then stops and starts
+each arrow again. It asserts nothing; `results/app-quit/<case>.txt` is the record.
+`QUIT_SETTLE=N` waits N seconds before acting and `QUIT_REPEAT=N` repeats each case.
+
 ## What is real, and what stands in for something
 
 Real: both applications, built from the two mounted checkouts by their own
