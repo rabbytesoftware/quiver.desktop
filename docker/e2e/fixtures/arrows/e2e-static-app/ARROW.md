@@ -26,13 +26,13 @@ targets:
           title: "Remove the page"
           timeout: "30s"
       execute:
-        - type: ui
-          static: www
-          title: "E2E Static App __N__"
         - type: run
           command: "sleep 3000"
           title: "Keep the interface open"
           timeout: "3100s"
+          ui:
+            title: "E2E Static App __N__"
+            static: www
       stop:
         - type: signal
           signal: graceful

@@ -23,14 +23,14 @@ targets:
           title: "Download the server"
           timeout: "1m"
       execute:
-        - type: ui
-          listen: [unix]
-          path: /
-          title: "E2E Echo App"
         - type: run
           command: 'python3 ./server.py "${ARROW_UI_LISTEN}" 5'
           title: "Serve"
           timeout: "3100s"
+          ui:
+            title: "E2E Echo App"
+            path: /
+            listen: [unix]
       stop:
         - type: signal
           signal: graceful
