@@ -1,6 +1,6 @@
-# `e2e/` — tauri-driver scenarios for self-update and self-arrows
+# `e2e/` — tauri-driver scenarios for self-update, self-arrows and the console
 
-Four scenarios driven through the **real, built** Quiver Desktop app and a
+Five scenarios driven through the **real, built** Quiver Desktop app and a
 **real** `quiver.core` daemon: no mocks, no stubbed resolver, no in-process
 test seam.
 
@@ -9,6 +9,7 @@ test seam.
 | `scenarios/bootstrap.spec.ts` | A clean `QUIVER_HOME` comes up with a self-installed Core at `<QUIVER_HOME>/self/quiver`, both self-arrows are registered `user_installed: true`, and quiver.desktop is filed under one channel identity (`<ns>@<channel>`), never a pin of its version. |
 | `scenarios/self-update-while-running.spec.ts` | A process Core supervises keeps its PID across Core's own self-update swap. |
 | `scenarios/generic-outdated-badge.spec.ts` | An outdated self-arrow gets the *generic* outdated badge, via the *generic* `/v0/runtime` broadcast. |
+| `scenarios/console.spec.ts` | The build indicator and the daemon console. The rail shows both builds once the daemon has answered `/versions`; the console opens from the indicator and shows the daemon's own log, typed; a command runs on the daemon and its output arrives; what the daemon does not offer (`daemon`, a bare `add`) is refused in the daemon's own words (403), a line with quoting or shell characters is rejected (400), and `--server` is accepted and has no effect; a destructive command without `--yes` refuses at once instead of waiting on a prompt; the daemon logs each command it ran. Needs a quiver.core with the console (`features` has `console.v1`), so point `QUIVER_CORE_DEV_PATH` at one. |
 | `scenarios/update-core.spec.ts` | Updating quiver.core from the arrow page and from Settings, Engine: core downloads the release, verifies it against the release's `checksums.txt` and swaps the daemon in place, the app stays up and reconnects on the same socket, and a supervised arrow survives detached with the same pid. A wrong checksum changes nothing and says why, a build that never becomes healthy is rolled back to the old version with the row Outdated, and quitting the app stops the daemon running by then. **Runs only in the E2E box**, see below. |
 
 `self-update-while-running.spec.ts` also needs the box: it publishes a release, updates, and checks the

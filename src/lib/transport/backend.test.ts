@@ -33,6 +33,8 @@ function stubBackend(over: Partial<Backend> = {}): Backend {
 		fetch: vi.fn().mockResolvedValue(new Response('{}')),
 		openSocket: vi.fn(stubSocket),
 		getBuildTag: vi.fn().mockResolvedValue(null),
+		getBuildStamp: vi.fn().mockResolvedValue({ commit: null, built_at: null, label: null }),
+		execConsole: vi.fn().mockReturnValue({ cancel: vi.fn() }),
 		getPlatform: vi.fn().mockResolvedValue('linux/amd64'),
 		resolveReleaseAsset: vi.fn().mockRejectedValue({ kind: 'offline', detail: 'stub' }),
 		getConnections: vi.fn().mockResolvedValue({ connections: [], active_id: 'stub' }),
@@ -113,6 +115,16 @@ describe('realBackend.getBuildTag', () => {
 		mockInvoke.mockRejectedValue(new Error('command get_build_tag not found'));
 
 		await expect(realBackend.getBuildTag()).rejects.toThrow(/get_build_tag/);
+	});
+});
+
+describe('realBackend.getBuildStamp', () => {
+	it('asks the native side for what the build baked in', async () => {
+		const stamp = { commit: 'a'.repeat(40), built_at: 1_791_122_529, label: 'beta-26.5-2' };
+		mockInvoke.mockResolvedValueOnce(stamp);
+
+		await expect(realBackend.getBuildStamp()).resolves.toEqual(stamp);
+		expect(mockInvoke).toHaveBeenCalledWith('get_build_stamp');
 	});
 });
 

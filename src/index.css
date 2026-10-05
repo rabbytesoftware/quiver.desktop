@@ -69,6 +69,23 @@
 
 	--sidebar-count-added: color-mix(in srgb, var(--color-green-300) 60%, black);
 	--sidebar-count-deleted: color-mix(in srgb, var(--color-red-300) 60%, black);
+
+	--console: oklch(0.975 0 0);
+	--console-foreground: oklch(0.18 0 0);
+	--console-dim: oklch(0.5 0 0);
+	--console-row-hover: oklch(0 0 0 / 4%);
+	--console-row-open: oklch(0 0 0 / 6%);
+	--log-info: oklch(0.35 0 0);
+	--log-debug: oklch(0.55 0 0);
+	--log-warn: oklch(0.5 0.12 70);
+	--log-error: oklch(0.5 0.19 25);
+	--log-warn-text: oklch(0.42 0.1 70);
+	--log-error-text: oklch(0.42 0.15 25);
+	--log-number: oklch(0.48 0.15 255);
+	--log-bool: oklch(0.45 0.12 160);
+	--log-path: oklch(0.4 0.03 90);
+	--log-field-error: oklch(0.48 0.17 25);
+	--log-underline: oklch(0 0 0 / 25%);
 }
 
 .dark {
@@ -121,6 +138,23 @@
 
 	--sidebar-count-added: var(--color-green-300);
 	--sidebar-count-deleted: var(--color-red-300);
+
+	--console: oklch(0.16 0 0);
+	--console-foreground: oklch(0.9 0 0);
+	--console-dim: oklch(0.66 0 0);
+	--console-row-hover: oklch(1 0 0 / 4%);
+	--console-row-open: oklch(1 0 0 / 6%);
+	--log-info: oklch(0.784 0 0);
+	--log-debug: oklch(0.62 0 0);
+	--log-warn: oklch(0.828 0.16 84);
+	--log-error: oklch(0.74 0.17 22);
+	--log-warn-text: oklch(0.9 0.07 90);
+	--log-error-text: oklch(0.86 0.09 22);
+	--log-number: oklch(0.76 0.12 245);
+	--log-bool: oklch(0.78 0.13 160);
+	--log-path: oklch(0.78 0.04 90);
+	--log-field-error: oklch(0.8 0.12 22);
+	--log-underline: oklch(1 0 0 / 25%);
 }
 
 @theme inline {
@@ -178,6 +212,22 @@
 	--color-sidebar-element-hover: var(--sidebar-element-hover);
 	--color-sidebar-count-added: var(--sidebar-count-added);
 	--color-sidebar-count-deleted: var(--sidebar-count-deleted);
+	--color-console: var(--console);
+	--color-console-foreground: var(--console-foreground);
+	--color-console-dim: var(--console-dim);
+	--color-console-row-hover: var(--console-row-hover);
+	--color-console-row-open: var(--console-row-open);
+	--color-log-info: var(--log-info);
+	--color-log-debug: var(--log-debug);
+	--color-log-warn: var(--log-warn);
+	--color-log-error: var(--log-error);
+	--color-log-warn-text: var(--log-warn-text);
+	--color-log-error-text: var(--log-error-text);
+	--color-log-number: var(--log-number);
+	--color-log-bool: var(--log-bool);
+	--color-log-path: var(--log-path);
+	--color-log-field-error: var(--log-field-error);
+	--color-log-underline: var(--log-underline);
 
 	--animate-skeleton: skeleton 2s -1s infinite linear;
 	--animate-flicker-spin: flicker-spin 0.72s steps(8) infinite;
