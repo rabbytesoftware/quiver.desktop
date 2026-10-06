@@ -30,4 +30,22 @@ describe('toRuntimeUpdate', () => {
 		const result = toRuntimeUpdate({ namespace: 'ns@v1', state: 'ready', last_return: lastReturn });
 		expect(result.last_return).toEqual(lastReturn);
 	});
+
+	it('maps active_run.surface when present', () => {
+		const surface = { mode: 'listen' as const, path: '/', ready: true };
+		const run = { method: 'execute', steps: [], variables: {}, surface };
+		const result = toRuntimeUpdate({ namespace: 'ns@v1', state: 'running', active_run: run });
+		expect(result.active_run?.surface).toEqual(surface);
+	});
+
+	it('leaves surface undefined when absent or null', () => {
+		const run = { method: 'execute', steps: [], variables: {} };
+		expect(
+			toRuntimeUpdate({ namespace: 'n', state: 'running', active_run: run }).active_run?.surface
+		).toBeUndefined();
+		expect(
+			toRuntimeUpdate({ namespace: 'n', state: 'running', active_run: { ...run, surface: null } }).active_run
+				?.surface
+		).toBeUndefined();
+	});
 });

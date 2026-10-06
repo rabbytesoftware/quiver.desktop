@@ -53,9 +53,23 @@ seed_repo rabbytesoftware/quiver.desktop "$DESK_SRC/ARROW.md" develop
 
 # Small arrows the WebDriver scenarios (scenarios/run-wdio.sh) add to the
 # library: one to supervise, one with a required variable.
-for fixture in e2e-supervised e2e-required; do
+for fixture in e2e-supervised e2e-required e2e-echo-app e2e-short-app; do
 	seed_repo "rabbytesoftware/$fixture" "$HERE/arrows/$fixture/ARROW.md" develop
 done
+
+# The arrow-apps spec opens several apps at once: the static app's manifest is
+# rendered once per copy into $STATE/fixtures, where run-wdio.sh publishes it.
+for n in 1 2 3; do
+	mkdir -p "$STATE/fixtures/e2e-static-app-$n"
+	sed "s/__N__/$n/g" "$HERE/arrows/e2e-static-app/ARROW.md" >"$STATE/fixtures/e2e-static-app-$n/ARROW.md"
+	seed_repo "rabbytesoftware/e2e-static-app-$n" "$STATE/fixtures/e2e-static-app-$n/ARROW.md" develop
+done
+
+# quiver.chat, the first arrow app, when its checkout is mounted.
+CHAT_CHECKOUT="${CHAT_CHECKOUT:-/workspace/quiver.chat}"
+if [ -f "$CHAT_CHECKOUT/ARROW.md" ]; then
+	seed_repo rabbytesoftware/quiver.chat "$CHAT_CHECKOUT/ARROW.md" develop
+fi
 
 # --- name resolution -------------------------------------------------------
 

@@ -43,6 +43,70 @@ Everything a run produces lands in `docker/e2e/results/` on the host:
 `SUMMARY.txt`, a log per scenario, the upstream fixture's request log, and the
 screenshots.
 
+## Arrow apps
+
+`arrow-apps` (e2e/scenarios/arrow-apps.spec.ts) also needs a quiver.chat checkout, mounted
+read-only at `/workspace/quiver.chat`; `run-wdio.sh` adds the spec to the default list only
+when it is there. `build.sh` turns it into the two linux release archives its ARROW.md fetches
+from the `nightly` release (`quiver-chat-linux-arm64.tar.gz`, `quiver-chat-linux-amd64.tar.gz`),
+building the frontend first if the checkout has not. The stand-in serves the chat's own
+ARROW.md and git repository, the archives, and three fixture arrows from `fixtures/arrows/`:
+`e2e-static-app` (a `static` interface, rendered as three copies so several apps can be open
+at once) and `e2e-echo-app` (a `listen` interface that binds five seconds late and echoes
+request headers). With a compose override that adds the mount:
+
+```
+services:
+  e2e:
+    volumes:
+      - /path/to/quiver.chat:/workspace/quiver.chat:ro
+```
+
+```
+docker compose -f docker/e2e/docker-compose.yml -f override.yml run --rm e2e scenarios/run-wdio.sh arrow-apps bootstrap
+```
+
+The chat's ARROW.md is served exactly as committed in its checkout; the spec's first check
+(A0) asserts it validates against the core under test and that the stand-in serves it byte for
+byte.
+
+### A demo box to try arrow apps by hand
+
+`scenarios/demo-up.sh` leaves the box running as a demo. It starts the Quiver app on the
+box's display with its own daemon. Through the real CLI and the stand-in it installs and
+starts quiver.chat from its unmodified ARROW.md, plus E2E Static App 1 and 2 and the E2E
+Echo App. It then leaves the app showing quiver.chat's running interface. Run it
+detached in a box that is up, so it outlives the shell that started it:
+
+```
+docker compose -f docker/e2e/docker-compose.yml -f override.yml up -d
+docker compose -f docker/e2e/docker-compose.yml -f override.yml exec -d -e SKIP_BUILD=1 e2e bash scenarios/demo-up.sh
+```
+
+About 30 s later it writes `DEMO READY` to `results/demo/demo-up.log`, beside a screenshot
+(`results/demo/ready.png`). Open `/vnc.html` on the box's noVNC port. `down` (without `-v`)
+stops it and keeps the build volumes; the same two commands bring it back. To open
+quiver.chat it clicks its sidebar row, found by ranking its name among the names in the
+library (the two self-arrows included), which is how the sidebar sorts them.
+
+Tests and a demo should not share one container: `run-wdio.sh` starts every spec by killing
+the app, the daemon and any arrow processes, so it ends a demo running in the same box (and a
+person using the demo can click into a running spec). Run the specs in a one-off container of
+the same project, which publishes no port and leaves the demo alone:
+
+```
+docker compose -f docker/e2e/docker-compose.yml -f override.yml run -d --name e2e-tests -e SKIP_BUILD=1 e2e bash scenarios/run-wdio.sh
+```
+
+### What happens to running arrows when the app quits
+
+`scenarios/app-quit-lifecycle.sh` runs quiver.chat, E2E Static App 1 and the plain E2E
+Supervised arrow, then closes the window, sends SIGTERM or SIGKILL to the app, or SIGKILLs the
+daemon (also with every arrow process killed after it). It records the processes, the runtime,
+`/v0/ui` and the run directory before, 10 s after, and after a relaunch, then stops and starts
+each arrow again. It asserts nothing; `results/app-quit/<case>.txt` is the record.
+`QUIT_SETTLE=N` waits N seconds before acting and `QUIT_REPEAT=N` repeats each case.
+
 ## What is real, and what stands in for something
 
 Real: both applications, built from the two mounted checkouts by their own

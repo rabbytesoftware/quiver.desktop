@@ -154,6 +154,37 @@ build_desktop() {
 	build_desktop_at "$DESK_V2" "$BUILD_BIN/quiverdesktop-$DESK_V2"
 }
 
+# --- quiver.chat -----------------------------------------------------------
+
+# The first arrow app, built from the checkout mounted at /workspace/quiver.chat
+# (read-only) into the two release archives its ARROW.md fetches from the
+# `nightly` release: quiver-chat-linux-<arm64|amd64>.tar.gz, each holding one
+# binary named like the archive. These are the linux half of the chat
+# Makefile's `release-archives`, which also cross-builds macOS and Windows and
+# needs `zip`. The Go server embeds frontend/out, so a checkout that has not
+# built its frontend gets it built here.
+build_chat() {
+	[ -d "$CHAT_CHECKOUT" ] || { echo "[chat] no checkout at $CHAT_CHECKOUT, skipped"; return 0; }
+	step "building quiver.chat release archives"
+	mkdir -p "$CHAT_SRC"
+	find "$CHAT_SRC" -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf {} +
+	tar -C "$CHAT_CHECKOUT" -cf - \
+		--exclude=./.git --exclude=./dist --exclude=./frontend/node_modules \
+		--exclude=./frontend/.next --exclude=./quiver-chat \
+		. | tar -C "$CHAT_SRC" -xf -
+	if [ ! -f "$CHAT_SRC/frontend/out/index.html" ]; then
+		( cd "$CHAT_SRC/frontend" && npm ci && npm run build )
+	fi
+	mkdir -p "$CHAT_DIST"
+	local arch
+	for arch in arm64 amd64; do
+		( cd "$CHAT_SRC" && CGO_ENABLED=0 GOOS=linux GOARCH="$arch" \
+			go build -ldflags="-s -w" -o "$CHAT_DIST/quiver-chat-linux-$arch" . )
+		tar -C "$CHAT_DIST" -czf "$CHAT_DIST/quiver-chat-linux-$arch.tar.gz" "quiver-chat-linux-$arch"
+	done
+	ls -la "$CHAT_DIST"
+}
+
 # --- artifacts -------------------------------------------------------------
 
 package_artifacts() {
@@ -173,12 +204,18 @@ package_artifacts() {
 	ls -la "$BUILD_BIN"
 }
 
+# `build.sh chat` builds only the quiver.chat archives.
 # WDIO_ONLY=1 builds what scenarios/run-wdio.sh drives: the three core builds
 # and one desktop build, without the second desktop build and the AppImages the
 # shell scenarios publish.
 main() {
+	if [ "${1:-}" = chat ]; then
+		build_chat
+		return
+	fi
 	sync_sources
 	build_core
+	build_chat
 	build_frontend
 	if [ "${WDIO_ONLY:-0}" = "1" ]; then
 		step "building quiver.desktop (one build, for the WebDriver scenarios)"

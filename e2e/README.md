@@ -12,6 +12,8 @@ test seam.
 | `scenarios/console.spec.ts` | The build indicator and the daemon console. The rail shows both builds once the daemon has answered `/versions`; the console opens from the indicator and shows the daemon's own log, typed; a command runs on the daemon and its output arrives; what the daemon does not offer (`daemon`, a bare `add`) is refused in the daemon's own words (403), a line with quoting or shell characters is rejected (400), and `--server` is accepted and has no effect; a destructive command without `--yes` refuses at once instead of waiting on a prompt; the daemon logs each command it ran. Needs a quiver.core with the console (`features` has `console.v1`), so point `QUIVER_CORE_DEV_PATH` at one. |
 | `scenarios/update-core.spec.ts` | Updating quiver.core from the arrow page and from Settings, Engine: core downloads the release, verifies it against the release's `checksums.txt` and swaps the daemon in place, the app stays up and reconnects on the same socket, and a supervised arrow survives detached with the same pid. A wrong checksum changes nothing and says why, a build that never becomes healthy is rolled back to the old version with the row Outdated, and quitting the app stops the daemon running by then. **Runs only in the E2E box**, see below. |
 
+| `scenarios/arrow-apps.spec.ts` | Arrow apps end to end: quiver.chat's real ARROW.md installed and executed through the CLI, its interface served on a daemon-provisioned unix socket with no TCP listener, proxied at `/v0/ui` (bearer-gated on `tcp://`), and opened from the details page in a sandboxed `arrow-app://` iframe whose chat talks both ways with a client outside the app. Also keep-alive, Reload, Stop, header stripping, origin isolation, the 4-app cap, and what an arrow frame can and can not reach. **Runs only in the E2E box**, with quiver.chat mounted. |
+
 `self-update-while-running.spec.ts` also needs the box: it publishes a release, updates, and checks the
 supervised process across the swap.
 
@@ -49,6 +51,18 @@ Logs, per-spec daemon logs, the stand-in's request log and screenshots land in
 Natively (`bun run test`, outside the box) this spec and
 `self-update-while-running.spec.ts` are left out of the run: they need the
 stand-in's `QUIVER_E2E_UPSTREAM_STATE`.
+
+## Arrow apps
+
+`arrow-apps.spec.ts` needs quiver.chat mounted at `/workspace/quiver.chat` (see
+`docker/e2e/README.md`, "Arrow apps"). Each `it` names the check it proves (A0 to B11) and
+leaves its observations in `docker/e2e/results/wdio/arrow-apps/evidence.jsonl`, next to a
+WebDriver screenshot and a whole-display `scrot` of every key step. The chat is driven from
+inside its iframe with WebDriver's frame commands; where WebKitWebDriver refuses to type into
+an input inside the frame ("Element is not focusable") the spec sets the value the way React's
+own tests do and records which path ran (`B7.typing`). A second client speaks to the chat over
+the daemon's `/v0/ui/<ns>/ws` with the small RFC 6455 client in `lib/ws-client.ts`, which can
+dial a unix socket and can report a refused upgrade's status.
 
 ## Platform support — read this first
 

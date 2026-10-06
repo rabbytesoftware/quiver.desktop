@@ -1,3 +1,4 @@
+pub mod arrow_app;
 pub mod commands;
 pub mod connection;
 pub mod console;
@@ -122,6 +123,26 @@ fn handle_request<R: Runtime>(
 	});
 }
 
+/// The `arrow-app` scheme. Like `quiver://` the connection is resolved per
+/// request, and the response must be sent from the main thread (a
+/// WKURLSchemeTask answered from another thread aborts).
+fn handle_arrow_request<R: Runtime>(
+	ctx: UriSchemeContext<'_, R>,
+	request: Request<Vec<u8>>,
+	responder: UriSchemeResponder,
+) {
+	let app = ctx.app_handle().clone();
+	tauri::async_runtime::spawn(async move {
+		let resolve = {
+			let app = app.clone();
+			async move { app.state::<ConnectionManager>().transport().await }
+		};
+		let hosts = app.state::<arrow_app::hosts::ArrowHosts>();
+		let resp = arrow_app::handler::handle_request(resolve, &hosts, request).await;
+		let _ = app.run_on_main_thread(move || responder.respond(resp));
+	});
+}
+
 /// Open a WebSocket to whatever connection is active for `path` (a full
 /// `/v0/...` route) and stream its frames to `on_message`.
 ///
@@ -180,6 +201,7 @@ pub fn run() {
 		.plugin(tauri_plugin_shell::init())
 		.plugin(tauri_plugin_opener::init())
 		.register_asynchronous_uri_scheme_protocol("quiver", handle_request)
+		.register_asynchronous_uri_scheme_protocol(arrow_app::SCHEME, handle_arrow_request)
 		.plugin(quiver_bootstrap_plugin());
 
 	// Dev-only: exposes the webview to the Tauri MCP server (WebSocket :9223)
@@ -201,6 +223,7 @@ pub fn run() {
 
 	builder.manage(ConnectionManager::new())
 		.manage(WsBridgeManager::new())
+		.manage(arrow_app::hosts::ArrowHosts::new())
 		.manage(ConsoleExecManager::new())
 		// A page load orphans every bridged connection the outgoing page owned:
 		// its JS is gone and will never close ids it no longer remembers, and
@@ -249,6 +272,10 @@ pub fn run() {
 			commands::connection::remove_connection,
 			commands::connection::switch_connection,
 			commands::connection::rename_connection,
+			commands::arrow_app::arrow_app_host,
+			commands::arrow_app::arrow_ws_open,
+			commands::arrow_app::arrow_ws_send,
+			commands::arrow_app::arrow_ws_close,
 			ws_open,
 			ws_send,
 			ws_close,
@@ -379,5 +406,19 @@ mod tests {
 				"the hostname guard must admit {host}; got {script}"
 			);
 		}
+	}
+
+	/// The bootstrap script hands the daemon API base to any page whose host
+	/// is one of ours. Arrow hosts must never be on that list: an arrow page
+	/// is untrusted and must not learn where the daemon is.
+	#[test]
+	fn bootstrap_script_never_runs_for_arrow_hosts() {
+		let script = quiver_bootstrap_script();
+		assert!(!script.contains("arrow"), "got {script}");
+	}
+
+	#[test]
+	fn arrow_scheme_name_is_stable() {
+		assert_eq!(arrow_app::SCHEME, "arrow-app");
 	}
 }

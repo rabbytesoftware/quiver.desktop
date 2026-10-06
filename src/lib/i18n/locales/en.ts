@@ -86,6 +86,12 @@ export const en = {
 	'sidebar.arrows.error.action': 'Check Engine settings',
 	'arrow.icon.fallback': '{name} icon',
 
+	'arrowApp.reload': 'Reload',
+	'arrowApp.stop': 'Stop',
+	'arrowApp.details': 'Details',
+	'arrowApp.starting': 'Starting...',
+	'arrowApp.running': 'Running',
+
 	'settings.title': 'Settings',
 	'settings.tab.general': 'General',
 	'settings.tab.engine': 'Engine',

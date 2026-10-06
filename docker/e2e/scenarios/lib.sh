@@ -46,6 +46,11 @@ DESKTOP_ASSET="Quiver_0.1.0_${DESKTOP_ARCH}.AppImage"
 
 BUILD_BIN=/workspace/build/bin
 CARGO_TARGET=/workspace/build/cargo-target
+# quiver.chat, the first arrow app: mounted read-only by the arrow-apps run,
+# built into release archives by build.sh.
+CHAT_CHECKOUT=/workspace/quiver.chat
+CHAT_SRC=/workspace/build/src/quiver.chat
+CHAT_DIST=/workspace/build/chat-dist
 RUN_DIR=/workspace/run
 UPSTREAM_STATE="$RUN_DIR/upstream"
 RESULTS=/workspace/results

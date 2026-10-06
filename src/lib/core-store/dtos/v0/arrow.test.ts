@@ -523,6 +523,16 @@ describe('toArrowDetail', () => {
 		expect(result.last_return).toBeNull();
 	});
 
+	it('maps active_run.surface when present and leaves it undefined when absent or null', () => {
+		const surface = { mode: 'listen' as const, path: '/', ready: true };
+		const run = { method: 'execute', variables: {}, steps: [] };
+		const map = (active_run: typeof run & { surface?: typeof surface | null }) =>
+			toArrowDetail({ ...DETAIL, active_run }, MANIFEST, [], null, [], []).active_run;
+		expect(map({ ...run, surface })?.surface).toEqual(surface);
+		expect(map(run)?.surface).toBeUndefined();
+		expect(map({ ...run, surface: null })?.surface).toBeUndefined();
+	});
+
 	it('preserves a non-null active_run/last_return exactly', () => {
 		const activeRun = { method: 'execute', variables: {}, steps: [] };
 		const lastReturn = { method: 'install', outcome: 'success' as const, variables: {}, steps: [] };

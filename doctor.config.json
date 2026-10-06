@@ -9,6 +9,10 @@
 			{
 				"files": ["src/components/ui/**"],
 				"rules": ["react-doctor/only-export-components"]
+			},
+			{
+				"files": ["src/features/arrow-app/components/arrow-app-frame.tsx"],
+				"rules": ["react-doctor/iframe-missing-sandbox"]
 			}
 		]
 	}

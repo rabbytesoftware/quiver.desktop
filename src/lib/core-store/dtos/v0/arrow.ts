@@ -1,5 +1,4 @@
 import type {
-	ActiveRun,
 	ArrowChannel,
 	ArrowCredit,
 	ArrowDependency,
@@ -17,6 +16,8 @@ import type {
 import { parseArrowOrigin, parseInferenceConfidence, parseSelectorKind } from '@/domain/arrow';
 import { selectorOf } from '@/lib/namespace';
 import type { ArrowCatalogRecord } from '@/lib/persistence/schemas';
+
+import { toActiveRun, type ActiveRunDTO } from './runtime';
 
 export interface InferenceDTO {
 	generator?: string;
@@ -100,7 +101,7 @@ export interface ArrowDetailDTO {
 	/** Omitted when current. */
 	available?: AvailableDTO | null;
 	outdated?: boolean;
-	active_run?: ActiveRun | null;
+	active_run?: ActiveRunDTO | null;
 	last_return?: LastReturnDTO | null;
 	/** Absent on a daemon that predates inference; reads as declared. */
 	origin?: string;
@@ -394,7 +395,7 @@ export function toArrowDetail(
 		installed_commit: detail.installed_commit ?? '',
 		available,
 		outdated: detail.outdated ?? available !== null,
-		active_run: detail.active_run ?? null,
+		active_run: toActiveRun(detail.active_run),
 		last_return: detail.last_return ?? null,
 		origin: parseArrowOrigin(detail.origin),
 		confidence: parseInferenceConfidence(detail.inference?.confidence),

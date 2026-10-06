@@ -13,6 +13,7 @@
 
 	--rail: 246px;
 	--row: 34px;
+	--arrow-app-header: 44px;
 	--icon: 20px;
 	--inset: calc((var(--row) - var(--icon)) / 2);
 

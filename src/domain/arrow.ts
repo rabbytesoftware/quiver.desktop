@@ -31,11 +31,18 @@ export interface StepProgress {
 	note?: string;
 }
 
+export interface ArrowSurface {
+	mode: 'listen' | 'static';
+	path: string;
+	ready: boolean;
+}
+
 export interface ActiveRun {
 	method: string;
 	pid?: number;
 	variables: Record<string, string>;
 	steps: StepProgress[];
+	surface?: ArrowSurface | null;
 }
 
 /**
