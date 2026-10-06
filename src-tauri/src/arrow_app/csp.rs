@@ -7,7 +7,8 @@ use tauri::http::{header, HeaderName, HeaderValue, Response};
 /// `*` and adds the bearer token in Rust). Inline scripts and styles are
 /// allowed because Next static exports need them. `'wasm-unsafe-eval'` lets an
 /// arrow compile its own WebAssembly modules (it does not allow `eval`).
-pub const ARROW_CSP: &str = "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; \
+pub const ARROW_CSP: &str =
+	"default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; \
 style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; \
 connect-src 'self'; frame-src 'none'; form-action 'self'; base-uri 'self'";
 
