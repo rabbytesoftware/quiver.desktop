@@ -5,8 +5,10 @@ use tauri::http::{header, HeaderName, HeaderValue, Response};
 /// The page can only talk to its own origin. `connect-src 'self'` is what
 /// keeps an arrow from calling `quiver://localhost` (which answers CORS with
 /// `*` and adds the bearer token in Rust). Inline scripts and styles are
-/// allowed because Next static exports need them.
-pub const ARROW_CSP: &str = "default-src 'self'; script-src 'self' 'unsafe-inline'; \
+/// allowed because Next static exports need them. `'wasm-unsafe-eval'` lets an
+/// arrow compile its own WebAssembly modules (it does not allow `eval`).
+pub const ARROW_CSP: &str =
+	"default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; \
 style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; \
 connect-src 'self'; frame-src 'none'; form-action 'self'; base-uri 'self'";
 
@@ -91,7 +93,8 @@ mod tests {
 			assert!(ARROW_CSP.contains(directive), "{directive}");
 		}
 		// Next static exports need inline scripts and styles.
-		assert!(ARROW_CSP.contains("script-src 'self' 'unsafe-inline'"));
+		assert!(ARROW_CSP.contains("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'"));
+		assert!(!ARROW_CSP.contains("'unsafe-eval'"));
 		assert!(!ARROW_CSP.contains("quiver:"));
 	}
 }
