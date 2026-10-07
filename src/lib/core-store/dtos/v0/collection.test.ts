@@ -20,6 +20,24 @@ describe('toCollectionArrow', () => {
 		expect(arrow.version).toBeUndefined();
 	});
 
+	it("carries the member's own icon and banner, and drops empty ones", () => {
+		const withMedia = toCollectionArrow({
+			namespace: 'github.com/rabbyte/minecraft',
+			resolved: true,
+			media: { icon: 'https://example.com/icon.svg', banner: 'https://example.com/banner.png' },
+		});
+		expect(withMedia.icon).toBe('https://example.com/icon.svg');
+		expect(withMedia.banner).toBe('https://example.com/banner.png');
+
+		const withoutMedia = toCollectionArrow({
+			namespace: 'github.com/rabbyte/minecraft',
+			resolved: true,
+			media: { icon: '', banner: '' },
+		});
+		expect(withoutMedia.icon).toBeUndefined();
+		expect(withoutMedia.banner).toBeUndefined();
+	});
+
 	it('carries an unresolved member through with no name or description', () => {
 		const arrow = toCollectionArrow({ namespace: 'github.com/rabbyte/ark-survival@v3.1.0', resolved: false });
 		expect(arrow.resolved).toBe(false);

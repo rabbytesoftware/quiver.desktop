@@ -36,6 +36,30 @@ async function renderTile(arrow: CollectionArrow) {
 }
 
 describe('CollectionArrowTile', () => {
+	it("draws the member's banner as the tile background and drops the drawn-art overlay", async () => {
+		const { container } = await renderTile({
+			namespace: 'github.com/rabbyte/minecraft',
+			resolved: true,
+			name: 'Minecraft Server',
+			banner: 'https://example.com/banner.png',
+		});
+		const banner = container.querySelector('[data-slot="card-banner"]') as HTMLElement;
+		expect(banner.style.backgroundImage).toContain('https://example.com/banner.png');
+		expect(container.querySelector('[data-slot="card-drawn"]')).toBeNull();
+	});
+
+	it("draws the member's icon over the ghost letter when it has no banner", async () => {
+		const { container } = await renderTile({
+			namespace: 'github.com/rabbyte/minecraft',
+			resolved: true,
+			name: 'Minecraft Server',
+			icon: 'https://example.com/icon.svg',
+		});
+		const mark = container.querySelector('[data-slot="drawn-mark"]') as HTMLElement;
+		expect(mark.style.backgroundImage).toContain('https://example.com/icon.svg');
+		expect(container.querySelector('[data-slot="drawn-ghost"]')).not.toBeNull();
+	});
+
 	it('renders the arrow name (in both the drawn-art overlay and the caption) and its bare namespace as the caption subtitle', async () => {
 		await renderTile({
 			namespace: 'github.com/rabbyte/minecraft',

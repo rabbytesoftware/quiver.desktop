@@ -4,6 +4,9 @@ export interface CollectionArrow {
 	resolved: boolean;
 	name?: string;
 	description?: string;
+	/** The member's own icon and banner (from its resolved manifest); absent when it has none. */
+	icon?: string;
+	banner?: string;
 }
 
 export interface CollectionListItem {

@@ -7,6 +7,8 @@ export interface CollectionArrowDTO {
 	resolved: boolean;
 	name?: string;
 	description?: string;
+	/** The member's own media; both fields are empty strings when it declares none. */
+	media?: CollectionMediaDTO;
 }
 
 export interface CollectionMediaDTO {
@@ -43,7 +45,15 @@ function parseArrowRef(namespace: string): { namespace: string; version?: string
 
 export function toCollectionArrow(dto: CollectionArrowDTO): CollectionArrow {
 	const { namespace, version } = parseArrowRef(dto.namespace);
-	return { namespace, version, resolved: dto.resolved, name: dto.name, description: dto.description };
+	return {
+		namespace,
+		version,
+		resolved: dto.resolved,
+		name: dto.name,
+		description: dto.description,
+		icon: dto.media?.icon || undefined,
+		banner: dto.media?.banner || undefined,
+	};
 }
 
 function toCollectionMedia(dto: CollectionMediaDTO | undefined): CollectionMedia {
