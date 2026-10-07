@@ -22,9 +22,6 @@ if (mock.enabled) installMock(mock.scenario);
 installLocaleSync();
 installThemeSync();
 
-setupListeners().catch((error: unknown) => console.error('setupListeners failed', error));
-setupConnectionListeners().catch((error: unknown) => console.error('setupConnectionListeners failed', error));
-
 const queryClient = new QueryClient({
 	defaultOptions: {
 		queries: {
@@ -33,6 +30,9 @@ const queryClient = new QueryClient({
 		},
 	},
 });
+
+setupListeners(queryClient).catch((error: unknown) => console.error('setupListeners failed', error));
+setupConnectionListeners().catch((error: unknown) => console.error('setupConnectionListeners failed', error));
 
 const router = createRouter({
 	routeTree,

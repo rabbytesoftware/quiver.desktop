@@ -1,3 +1,5 @@
+import type { QueryClient } from '@tanstack/react-query';
+
 import type { RuntimeUpdate } from '@/domain/arrow';
 import { getArrowsFor } from '@/lib/persistence/entity-cache';
 import { subscribeArrowStream } from '@/lib/persistence/entity-stream';
@@ -11,20 +13,29 @@ import type { ArrowListResponseItemDTO } from '../dtos/v0/arrow';
 import { toArrowCatalogRecords, toInitialRuntimeUpdates } from '../dtos/v0/arrow';
 import type { RuntimeUpdateDTO } from '../dtos/v0/runtime';
 import { toRuntimeUpdate } from '../dtos/v0/runtime';
+import { arrowDetailQueryKeyPrefix } from '../queries/arrow';
+import { collectionQueryKeyPrefix } from '../queries/collection';
 import { useArrowStore } from '../store/arrows';
 import { useStatusStore } from '../store/status';
 
 const RUNTIME_ENDPOINT = '/v0/runtime';
 
+// Arrows that are not in the library: core pushes one here when it refreshes a
+// manifest it had served from an expired cache, so a screen that showed the old
+// one re-reads. The library stream (`user_installed` defaulting to true) never
+// carries these.
+const REFRESHED_ENDPOINT = '/v0/arrow?user_installed=false';
+
 function isSuccessfulUpdate(lastReturn: RuntimeUpdate['last_return']): boolean {
 	return lastReturn?.outcome === 'success' && lastReturn.method.replace(/^_/, '') === 'update';
 }
 
-export async function setupListeners(): Promise<void> {
+export async function setupListeners(queryClient?: QueryClient): Promise<void> {
 	const wipeDone = maybeWipeOnVersionChange();
 
 	let disposeArrowStream: (() => void) | null = null;
 	let disposeRuntimeStream: (() => void) | null = null;
+	let disposeRefreshStream: (() => void) | null = null;
 	let startPending = 0;
 	let generation = 0;
 
@@ -34,6 +45,8 @@ export async function setupListeners(): Promise<void> {
 		useArrowStore.getState().setCatalogRefresh(() => {});
 		disposeRuntimeStream?.();
 		disposeRuntimeStream = null;
+		disposeRefreshStream?.();
+		disposeRefreshStream = null;
 	}
 
 	function startStreams(connectionId: string): void {
@@ -72,6 +85,14 @@ export async function setupListeners(): Promise<void> {
 		});
 		disposeArrowStream = stream;
 		useArrowStore.getState().setCatalogRefresh(() => stream.reseed());
+
+		// A reconnect may have dropped frames, so the sentinel re-reads too.
+		if (queryClient) {
+			disposeRefreshStream = wsManager.subscribe(REFRESHED_ENDPOINT, () => {
+				void queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
+				void queryClient.invalidateQueries({ queryKey: collectionQueryKeyPrefix });
+			});
+		}
 
 		disposeRuntimeStream = wsManager.subscribe(RUNTIME_ENDPOINT, (data) => {
 			if (isReconnectSentinel(data)) return;

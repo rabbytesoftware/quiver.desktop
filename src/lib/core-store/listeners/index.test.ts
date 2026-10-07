@@ -1,3 +1,4 @@
+import { QueryClient } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -123,6 +124,45 @@ beforeEach(() => {
 	mockAnnounceSelf.mockResolvedValue(undefined);
 	useArrowStore.getState().reset();
 	useStatusStore.setState({ status: 'starting' });
+});
+
+describe('setupListeners manifest refresh', () => {
+	async function readyWith(queryClient: QueryClient): Promise<void> {
+		await setupListeners(queryClient);
+		await emit('core://status', { status: 'ready' });
+	}
+
+	it('re-reads every open arrow detail and collection when core refreshes a manifest', async () => {
+		const queryClient = new QueryClient();
+		const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+		await readyWith(queryClient);
+
+		const call = mockWsSubscribe.mock.calls.find(([endpoint]) => endpoint === '/v0/arrow?user_installed=false');
+		expect(call).toBeDefined();
+		call![1]({ event: 'upserted', namespace: 'github.com/u/r@v1', user_installed: false });
+
+		expect(invalidate).toHaveBeenCalledWith({ queryKey: ['arrow'] });
+		expect(invalidate).toHaveBeenCalledWith({ queryKey: ['collection'] });
+	});
+
+	it('stops listening when the streams stop', async () => {
+		const disposeRefresh = vi.fn();
+		const disposeRuntime = vi.fn();
+		mockWsSubscribe.mockReturnValueOnce(disposeRefresh).mockReturnValueOnce(disposeRuntime);
+		await readyWith(new QueryClient());
+
+		await emit('core://status', { status: 'starting' });
+
+		expect(disposeRefresh).toHaveBeenCalledTimes(1);
+		expect(disposeRuntime).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not subscribe when there is no query client to refresh', async () => {
+		await setupListeners();
+		await emit('core://status', { status: 'ready' });
+
+		expect(mockWsSubscribe.mock.calls.map(([endpoint]) => endpoint)).toEqual(['/v0/runtime']);
+	});
 });
 
 describe('setupListeners', () => {

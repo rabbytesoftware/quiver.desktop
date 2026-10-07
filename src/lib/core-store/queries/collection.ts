@@ -6,8 +6,10 @@ import { apiFetch } from '@/lib/transport/api';
 import type { CollectionDetailDTO } from '../dtos/v0/collection';
 import { toCollectionDetail } from '../dtos/v0/collection';
 
+export const collectionQueryKeyPrefix = ['collection'] as const;
+
 export function collectionQueryKey(namespace: string) {
-	return ['collection', namespace] as const;
+	return [...collectionQueryKeyPrefix, namespace] as const;
 }
 
 export function useCollectionDetail(namespace: string) {
