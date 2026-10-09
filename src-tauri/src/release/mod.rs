@@ -1,4 +1,4 @@
-//! Resolving THIS app's own release asset out of the GitHub releases API.
+//! Resolving THIS app's own release asset from its GitHub release page.
 //!
 //! `ARROW.md`'s `install`/`update` lifecycles need `${QUIVER_RELEASE_ASSET_URL}`
 //! and `${QUIVER_RELEASE_CHECKSUM}` with no default, so the caller must
@@ -15,42 +15,37 @@
 //! `uname -s`/`uname -m`.
 //!
 //! Selection rules below are a port of `install.sh`'s, not a second opinion.
+//!
+//! Nothing here calls `api.github.com`. Its anonymous quota is 60 requests an
+//! hour per IP, which a shared NAT exhausts without this user having made one,
+//! and the update then refuses to start. The release page does not count
+//! against it: the tag is the redirect of `/releases/latest`, and the assets
+//! and their sha256 digests are on `/releases/expanded_assets/<tag>`.
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 /// The repository this app publishes itself from.
 pub const DEFAULT_REPO: &str = "rabbytesoftware/quiver.desktop";
 
-/// GitHub's API origin. Overridable only so the tests can point at a local
+/// GitHub's origin. Overridable only so the tests can point at a local
 /// server; nothing reads an environment variable for it at runtime.
-pub const DEFAULT_API: &str = "https://api.github.com";
+pub const DEFAULT_ORIGIN: &str = "https://github.com";
 
-/// GitHub rejects an API request that arrives without one.
+/// GitHub rejects a request that arrives without one.
 const USER_AGENT: &str = concat!("quiver.desktop/", env!("CARGO_PKG_VERSION"));
 
 const REQUEST_TIMEOUT_SECS: u64 = 15;
 
-/// One asset as the releases API reports it.
-#[derive(Debug, Clone, Deserialize)]
-pub struct ApiAsset {
+/// One asset as the release page lists it.
+#[derive(Debug, Clone)]
+pub struct ReleaseAsset {
 	pub name: String,
 	pub browser_download_url: String,
-	/// `"sha256:<hex>"` when GitHub has one for this asset, absent or null
-	/// otherwise. GitHub began reporting this in 2025 and it is populated for
-	/// every asset uploaded since; an older release predating the feature
-	/// carries `null`, which is why [`resolve_checksum`] still falls back to a
+	/// `"sha256:<hex>"` when the page shows one for this asset, `None`
+	/// otherwise. GitHub began recording it in 2025, so an older release
+	/// carries none, which is why [`resolve_checksum`] still falls back to a
 	/// published checksum manifest.
-	#[serde(default)]
 	pub digest: Option<String>,
-}
-
-/// The subset of a release document this module reads.
-#[derive(Debug, Clone, Deserialize)]
-pub struct ApiRelease {
-	#[serde(default)]
-	pub tag_name: String,
-	#[serde(default)]
-	pub assets: Vec<ApiAsset>,
 }
 
 /// What the frontend gets back: enough to start an execution with.
@@ -96,17 +91,16 @@ impl ResolveError {
 	}
 }
 
-/// The machine could not reach the API at all: DNS, TLS, connect or timeout.
+/// The machine could not reach GitHub at all: DNS, TLS, connect or timeout.
 pub const KIND_OFFLINE: &str = "offline";
-/// GitHub answered, and refused on quota. Unauthenticated callers get 60
-/// requests an hour per IP, which a shared NAT can exhaust without this user
-/// having made a single one.
+/// GitHub answered, and refused on quota: the release page throttles a client
+/// that asks too often, with a 403 or 429.
 pub const KIND_RATE_LIMITED: &str = "rate_limited";
-/// The repository publishes no release the API will name.
+/// The repository publishes no release GitHub will name.
 pub const KIND_NO_RELEASE: &str = "no_release";
 /// Any other non-success status.
 pub const KIND_HTTP: &str = "http";
-/// A 2xx whose body was not a release document.
+/// A 2xx whose body was not a release page.
 pub const KIND_MALFORMED: &str = "malformed";
 /// The release exists but carries nothing installable on this platform.
 pub const KIND_NO_ASSET: &str = "no_asset";
@@ -161,10 +155,10 @@ fn names_arch(name: &str, aliases: &[&str]) -> bool {
 /// a release publishing a single universal bundle (which is what the macOS
 /// `.dmg` is) must not be narrowed out of existence.
 pub fn select_asset<'a>(
-	assets: &'a [ApiAsset],
+	assets: &'a [ReleaseAsset],
 	os: &str,
 	arch: &str,
-) -> Result<&'a ApiAsset, ResolveError> {
+) -> Result<&'a ReleaseAsset, ResolveError> {
 	let Some(suffix) = platform_suffix(os) else {
 		return Err(ResolveError::new(
 			KIND_UNSUPPORTED_PLATFORM,
@@ -172,7 +166,7 @@ pub fn select_asset<'a>(
 		));
 	};
 
-	let candidates: Vec<&ApiAsset> = assets
+	let candidates: Vec<&ReleaseAsset> = assets
 		.iter()
 		.filter(|asset| asset.name.to_ascii_lowercase().ends_with(suffix))
 		.collect();
@@ -185,7 +179,7 @@ pub fn select_asset<'a>(
 	}
 
 	let aliases = arch_aliases(arch);
-	let narrowed: Vec<&ApiAsset> = candidates
+	let narrowed: Vec<&ReleaseAsset> = candidates
 		.iter()
 		.copied()
 		.filter(|asset| names_arch(&asset.name, aliases))
@@ -203,7 +197,7 @@ pub fn select_asset<'a>(
 /// publishes one.
 ///
 /// Matched against the same four names `install.sh` and `install.ps1` accept.
-pub fn checksum_manifest_url(assets: &[ApiAsset]) -> Option<&str> {
+pub fn checksum_manifest_url(assets: &[ReleaseAsset]) -> Option<&str> {
 	assets.iter()
 		.find(|asset| {
 			matches!(
@@ -214,9 +208,9 @@ pub fn checksum_manifest_url(assets: &[ApiAsset]) -> Option<&str> {
 		.map(|asset| asset.browser_download_url.as_str())
 }
 
-/// The bare hex out of an API `digest` value.
+/// The bare hex out of a `digest` value.
 ///
-/// The API writes `sha256:<hex>`; quiver.core's fetch step compares a BARE
+/// GitHub writes `sha256:<hex>`; quiver.core's fetch step compares a BARE
 /// hex digest with no algorithm prefix, so the prefix has to come off here. A
 /// digest under any other algorithm, or one that is not hex, is discarded
 /// rather than passed on as something that would fail verification with a
@@ -245,20 +239,15 @@ pub fn expected_sum(manifest: &str, name: &str) -> Option<String> {
 	None
 }
 
-/// A client configured the way GitHub expects to be called.
+/// A client configured the way GitHub expects to be called. Redirects are not
+/// followed: the tag of the latest release is read off the redirect itself.
 fn client() -> Result<reqwest::Client, ResolveError> {
 	reqwest::Client::builder()
 		.user_agent(USER_AGENT)
 		.timeout(std::time::Duration::from_secs(REQUEST_TIMEOUT_SECS))
+		.redirect(reqwest::redirect::Policy::none())
 		.build()
 		.map_err(|err| ResolveError::new(KIND_OFFLINE, err.to_string()))
-}
-
-fn release_url(api_base: &str, repo: &str, tag: Option<&str>) -> String {
-	match tag {
-		Some(tag) => format!("{api_base}/repos/{repo}/releases/tags/{tag}"),
-		None => format!("{api_base}/repos/{repo}/releases/latest"),
-	}
 }
 
 /// Turns a non-success status into the kind the UI branches on.
@@ -271,44 +260,156 @@ fn status_error(status: reqwest::StatusCode, body: &str) -> ResolveError {
 	ResolveError::new(kind, format!("GitHub answered {status}: {body}"))
 }
 
-/// Reads the release document.
-async fn fetch_release(
-	http: &reqwest::Client,
-	api_base: &str,
-	repo: &str,
-	tag: Option<&str>,
-) -> Result<ApiRelease, ResolveError> {
-	let url = release_url(api_base, repo, tag);
-	let response = http
-		.get(&url)
-		.header("Accept", "application/vnd.github+json")
+/// Reads one page, as text. A non-success status becomes its error kind.
+async fn get_page(http: &reqwest::Client, url: &str) -> Result<reqwest::Response, ResolveError> {
+	http.get(url)
 		.send()
 		.await
-		.map_err(|err| ResolveError::new(KIND_OFFLINE, err.to_string()))?;
+		.map_err(|err| ResolveError::new(KIND_OFFLINE, err.to_string()))
+}
 
+async fn page_body(response: reqwest::Response) -> Result<String, ResolveError> {
 	let status = response.status();
 	let body = response
 		.text()
 		.await
 		.map_err(|err| ResolveError::new(KIND_OFFLINE, err.to_string()))?;
-
 	if !status.is_success() {
-		// Truncated: a rate-limit body is a paragraph, and this ends up in a
-		// dialog next to a sentence a person has to read.
+		// Truncated: this ends up in a dialog next to a sentence a person has
+		// to read.
 		let excerpt: String = body.chars().take(200).collect();
 		return Err(status_error(status, &excerpt));
 	}
+	Ok(body)
+}
 
-	serde_json::from_str::<ApiRelease>(&body)
-		.map_err(|err| ResolveError::new(KIND_MALFORMED, err.to_string()))
+/// The tag of the newest published release: where `/releases/latest`
+/// redirects to. A repository with no release redirects to `/releases`.
+async fn latest_tag(
+	http: &reqwest::Client,
+	origin: &str,
+	repo: &str,
+) -> Result<String, ResolveError> {
+	let response = get_page(http, &format!("{origin}/{repo}/releases/latest")).await?;
+	let status = response.status();
+	if !status.is_redirection() {
+		let err = match page_body(response).await {
+			Err(err) => err,
+			Ok(_) => ResolveError::new(
+				KIND_MALFORMED,
+				"the latest release did not redirect",
+			),
+		};
+		return Err(err);
+	}
+	response.headers()
+		.get(reqwest::header::LOCATION)
+		.and_then(|location| location.to_str().ok())
+		.and_then(|location| location.split_once("/releases/tag/"))
+		.map(|(_, tag)| percent_decode(tag))
+		.filter(|tag| !tag.is_empty())
+		.ok_or_else(|| {
+			ResolveError::new(
+				KIND_NO_RELEASE,
+				"the repository has no published release",
+			)
+		})
+}
+
+/// Undoes the `%XX` escapes of a URL path segment.
+fn percent_decode(segment: &str) -> String {
+	let bytes = segment.as_bytes();
+	let mut out = Vec::with_capacity(bytes.len());
+	let mut i = 0;
+	while i < bytes.len() {
+		let escaped = (bytes[i] == b'%' && i + 2 < bytes.len())
+			.then(|| {
+				segment.get(i + 1..i + 3)
+					.and_then(|hex| u8::from_str_radix(hex, 16).ok())
+			})
+			.flatten();
+		match escaped {
+			Some(byte) => {
+				out.push(byte);
+				i += 3;
+			}
+			None => {
+				out.push(bytes[i]);
+				i += 1;
+			}
+		}
+	}
+	String::from_utf8_lossy(&out).into_owned()
+}
+
+/// The `sha256:<hex>` closest to the end of `text`, if any.
+fn last_digest(text: &str) -> Option<String> {
+	let mut found = None;
+	let mut from = 0;
+	while let Some(at) = text[from..].find("sha256:") {
+		let start = from + at;
+		let hex = text.get(start + 7..start + 71);
+		if hex.is_some_and(|h| h.bytes().all(|b| b.is_ascii_hexdigit())) {
+			found = Some(text[start..start + 71].to_string());
+		}
+		from = start + 7;
+	}
+	found
+}
+
+/// The assets an `expanded_assets` page lists, each with the digest shown
+/// beside it. Source archives are not assets.
+fn parse_assets(page: &str, origin: &str) -> Result<Vec<ReleaseAsset>, ResolveError> {
+	if !page.contains("<ul") {
+		return Err(ResolveError::new(
+			KIND_MALFORMED,
+			"not a release assets page",
+		));
+	}
+	let mut items: Vec<&str> = Vec::new();
+	let mut rest = page;
+	while let Some(at) = rest.find("<li") {
+		rest = &rest[at + 3..];
+		let opens = rest.starts_with('>') || rest.starts_with(char::is_whitespace);
+		let end = rest.find("<li").unwrap_or(rest.len());
+		if opens {
+			items.push(&rest[..end]);
+		}
+	}
+
+	let mut assets = Vec::new();
+	for item in items {
+		let Some(href) = item
+			.split_once("href=\"")
+			.and_then(|(_, after)| after.split_once('"'))
+			.map(|(href, _)| href)
+		else {
+			continue;
+		};
+		if href.contains("/archive/") {
+			continue;
+		}
+		let name = percent_decode(href.rsplit('/').next().unwrap_or(href));
+		let url = if href.starts_with('/') {
+			format!("{origin}{href}")
+		} else {
+			href.to_string()
+		};
+		assets.push(ReleaseAsset {
+			name,
+			browser_download_url: url,
+			digest: last_digest(item),
+		});
+	}
+	Ok(assets)
 }
 
 /// The asset's checksum, from the strongest source the release offers.
 ///
 /// Two sources, in order:
 ///
-///   1. the API's own per-asset `digest`, which is GitHub's record of what it
-///      stored and needs no extra request;
+///   1. the digest the release page shows beside the asset, which is GitHub's
+///      record of what it stored and needs no extra request;
 ///   2. a published sha256sum-format manifest, which is what `install.sh`
 ///      has always read.
 ///
@@ -319,8 +420,8 @@ async fn fetch_release(
 /// from GitHub over TLS), and the one it is deliberately consistent with.
 async fn resolve_checksum(
 	http: &reqwest::Client,
-	asset: &ApiAsset,
-	assets: &[ApiAsset],
+	asset: &ReleaseAsset,
+	assets: &[ReleaseAsset],
 ) -> Option<String> {
 	if let Some(hex) = asset.digest.as_deref().and_then(digest_hex) {
 		return Some(hex);
@@ -338,24 +439,31 @@ async fn resolve_checksum(
 	expected_sum(&manifest, &asset.name)
 }
 
-/// Resolves this machine's asset out of `repo`'s release, against `api_base`.
-///
-/// Split from [`resolve_latest`] so the tests can drive the whole path,
-/// request and all, against a local server.
+/// Resolves this machine's asset out of `repo`'s release `tag`, or its newest
+/// release, against `origin`.
 pub async fn resolve(
-	api_base: &str,
+	origin: &str,
 	repo: &str,
 	tag: Option<&str>,
 	os: &str,
 	arch: &str,
 ) -> Result<ResolvedAsset, ResolveError> {
 	let http = client()?;
-	let release = fetch_release(&http, api_base, repo, tag).await?;
-	let asset = select_asset(&release.assets, os, arch)?;
-	let checksum = resolve_checksum(&http, asset, &release.assets).await;
+	let tag = match tag {
+		Some(tag) => tag.to_string(),
+		None => latest_tag(&http, origin, repo).await?,
+	};
+	let page = get_page(
+		&http,
+		&format!("{origin}/{repo}/releases/expanded_assets/{tag}"),
+	)
+	.await?;
+	let assets = parse_assets(&page_body(page).await?, origin)?;
+	let asset = select_asset(&assets, os, arch)?;
+	let checksum = resolve_checksum(&http, asset, &assets).await;
 
 	Ok(ResolvedAsset {
-		tag: release.tag_name.clone(),
+		tag,
 		name: asset.name.clone(),
 		url: asset.browser_download_url.clone(),
 		checksum,
@@ -365,11 +473,11 @@ pub async fn resolve(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use wiremock::matchers::{header, method, path};
+	use wiremock::matchers::{method, path};
 	use wiremock::{Mock, MockServer, ResponseTemplate};
 
-	fn asset(name: &str, digest: Option<&str>) -> ApiAsset {
-		ApiAsset {
+	fn asset(name: &str, digest: Option<&str>) -> ReleaseAsset {
+		ReleaseAsset {
 			name: name.to_string(),
 			browser_download_url: format!(
 				"https://github.com/rabbytesoftware/quiver.desktop/releases/download/stable-1.0/{name}"
@@ -386,7 +494,7 @@ mod tests {
 	/// The whole reason selection is by extension: these are the six names a
 	/// real `tauri build` publishes, all carrying the same static product
 	/// version, none of them naming the tag.
-	fn full_release() -> Vec<ApiAsset> {
+	fn full_release() -> Vec<ReleaseAsset> {
 		vec![
 			asset("quiver-desktop_0.1.0_amd64.AppImage", None),
 			asset("quiver-desktop_0.1.0_amd64.deb", None),
@@ -551,34 +659,58 @@ mod tests {
 		assert!(checksum_manifest_url(&[asset("x.AppImage", None)]).is_none());
 	}
 
-	// ── the whole path, against a real server ────────────────────────────
+	// ── the release page ─────────────────────────────────────────────────
 
-	async fn serve(release: serde_json::Value) -> MockServer {
+	const REPO_PATH: &str = "/rabbytesoftware/quiver.desktop";
+
+	/// An `expanded_assets` page: one list item per asset, the digest as text
+	/// beside the link, and the two source archives GitHub always adds.
+	fn page(tag: &str, assets: &[(&str, Option<&str>)]) -> String {
+		let mut html = String::from("<div><ul class=\"list-style-none\">");
+		for (name, digest) in assets {
+			html.push_str(&format!(
+				"<li class=\"Box-row\"><a href=\"{REPO_PATH}/releases/download/{tag}/{name}\" rel=\"nofollow\"><span>{name}</span></a>{}</li>",
+				digest.map_or(String::new(), |d| format!("<span class=\"digest\">sha256:{d}</span>"))
+			));
+		}
+		html.push_str(&format!(
+			"<li><a href=\"{REPO_PATH}/archive/refs/tags/{tag}.zip\">Source code (zip)</a></li></ul></div>"
+		));
+		html
+	}
+
+	async fn serve(tag: &str, html: String) -> MockServer {
 		let server = MockServer::start().await;
 		Mock::given(method("GET"))
-			.and(path(
-				"/repos/rabbytesoftware/quiver.desktop/releases/latest",
-			))
-			.and(header("accept", "application/vnd.github+json"))
-			.respond_with(ResponseTemplate::new(200).set_body_json(release))
+			.and(path(format!("{REPO_PATH}/releases/expanded_assets/{tag}")))
+			.respond_with(ResponseTemplate::new(200).set_body_string(html))
 			.mount(&server)
 			.await;
 		server
 	}
 
+	async fn latest_redirects_to(server: &MockServer, location: &str) {
+		Mock::given(method("GET"))
+			.and(path(format!("{REPO_PATH}/releases/latest")))
+			.respond_with(
+				ResponseTemplate::new(302).insert_header("location", location),
+			)
+			.mount(server)
+			.await;
+	}
+
 	#[tokio::test]
 	async fn the_normal_case_resolves_a_url_and_a_checksum() {
-		let server = serve(serde_json::json!({
-			"tag_name": "stable-26.9",
-			"assets": [
-				{
-					"name": "quiver-desktop_0.1.0_amd64.AppImage",
-					"browser_download_url": "https://github.com/r/q/releases/download/stable-26.9/quiver-desktop_0.1.0_amd64.AppImage",
-					"digest": format!("sha256:{SUM_A}")
-				}
-			]
-		}))
+		let server = serve(
+			"stable-26.9",
+			page(
+				"stable-26.9",
+				&[("quiver-desktop_0.1.0_amd64.AppImage", Some(SUM_A))],
+			),
+		)
 		.await;
+		latest_redirects_to(&server, &format!("{REPO_PATH}/releases/tag/stable-26.9"))
+			.await;
 
 		let resolved = resolve(&server.uri(), DEFAULT_REPO, None, "linux", "x86_64")
 			.await
@@ -586,40 +718,52 @@ mod tests {
 
 		assert_eq!(resolved.tag, "stable-26.9");
 		assert_eq!(resolved.name, "quiver-desktop_0.1.0_amd64.AppImage");
-		assert!(resolved
-			.url
-			.ends_with("quiver-desktop_0.1.0_amd64.AppImage"));
+		assert_eq!(
+			resolved.url,
+			format!(
+				"{}{REPO_PATH}/releases/download/stable-26.9/quiver-desktop_0.1.0_amd64.AppImage",
+				server.uri()
+			)
+		);
 		assert_eq!(resolved.checksum.as_deref(), Some(SUM_A));
 	}
 
-	/// An asset predating GitHub's digest field still verifies, off the
-	/// manifest `install.sh` has always read.
+	#[tokio::test]
+	async fn an_explicit_tag_never_asks_which_release_is_the_latest() {
+		let server = serve(
+			"nightly-rolling",
+			page("nightly-rolling", &[("Quiver.AppImage", Some(SUM_A))]),
+		)
+		.await;
+
+		let resolved = resolve(
+			&server.uri(),
+			DEFAULT_REPO,
+			Some("nightly-rolling"),
+			"linux",
+			"x86_64",
+		)
+		.await
+		.unwrap();
+
+		assert_eq!(resolved.tag, "nightly-rolling");
+		assert_eq!(server.received_requests().await.unwrap().len(), 1);
+	}
+
+	/// An asset without a digest on the page still verifies, off the manifest
+	/// `install.sh` has always read.
 	#[tokio::test]
 	async fn a_digestless_asset_falls_back_to_the_published_manifest() {
-		let server = MockServer::start().await;
-		let base = server.uri();
+		let server = serve(
+			"t",
+			page(
+				"t",
+				&[("Quiver.AppImage", None), ("SHA256SUMS", Some(SUM_A))],
+			),
+		)
+		.await;
 		Mock::given(method("GET"))
-			.and(path(
-				"/repos/rabbytesoftware/quiver.desktop/releases/latest",
-			))
-			.respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-				"tag_name": "stable-26.9",
-				"assets": [
-					{
-						"name": "Quiver.AppImage",
-						"browser_download_url": format!("{base}/dl/Quiver.AppImage"),
-						"digest": serde_json::Value::Null
-					},
-					{
-						"name": "checksums.txt",
-						"browser_download_url": format!("{base}/dl/checksums.txt")
-					}
-				]
-			})))
-			.mount(&server)
-			.await;
-		Mock::given(method("GET"))
-			.and(path("/dl/checksums.txt"))
+			.and(path(format!("{REPO_PATH}/releases/download/t/SHA256SUMS")))
 			.respond_with(
 				ResponseTemplate::new(200)
 					.set_body_string(format!("{SUM_B}  Quiver.AppImage\n")),
@@ -627,31 +771,19 @@ mod tests {
 			.mount(&server)
 			.await;
 
-		let resolved = resolve(&base, DEFAULT_REPO, None, "linux", "x86_64")
+		let resolved = resolve(&server.uri(), DEFAULT_REPO, Some("t"), "linux", "x86_64")
 			.await
 			.unwrap();
 		assert_eq!(resolved.checksum.as_deref(), Some(SUM_B));
 	}
 
-	/// The state every quiver.desktop release is in today:
-	/// `stable-release.yml` uploads the bundles and nothing else, and these
-	/// assets predate nothing -- the digest is simply absent. Resolution
-	/// SUCCEEDS with no checksum; refusing to install is the caller's
-	/// decision, not this function's.
+	/// Resolution SUCCEEDS with no checksum; refusing to install is the
+	/// caller's decision, not this function's.
 	#[tokio::test]
 	async fn a_release_with_no_checksum_anywhere_resolves_without_one() {
-		let server = serve(serde_json::json!({
-			"tag_name": "stable-26.9",
-			"assets": [
-				{
-					"name": "Quiver.AppImage",
-					"browser_download_url": "https://github.com/r/q/releases/download/stable-26.9/Quiver.AppImage"
-				}
-			]
-		}))
-		.await;
+		let server = serve("t", page("t", &[("Quiver.AppImage", None)])).await;
 
-		let resolved = resolve(&server.uri(), DEFAULT_REPO, None, "linux", "x86_64")
+		let resolved = resolve(&server.uri(), DEFAULT_REPO, Some("t"), "linux", "x86_64")
 			.await
 			.unwrap();
 		assert_eq!(resolved.checksum, None);
@@ -662,28 +794,20 @@ mod tests {
 	/// checksum invented to fill the hole.
 	#[tokio::test]
 	async fn an_unreadable_checksum_manifest_is_the_same_as_none() {
-		let server = MockServer::start().await;
-		let base = server.uri();
+		let server = serve(
+			"t",
+			page("t", &[("Quiver.AppImage", None), ("checksums.txt", None)]),
+		)
+		.await;
 		Mock::given(method("GET"))
-			.and(path(
-				"/repos/rabbytesoftware/quiver.desktop/releases/latest",
-			))
-			.respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-				"tag_name": "stable-26.9",
-				"assets": [
-					{ "name": "Quiver.AppImage", "browser_download_url": format!("{base}/dl/Quiver.AppImage") },
-					{ "name": "checksums.txt", "browser_download_url": format!("{base}/dl/checksums.txt") }
-				]
-			})))
-			.mount(&server)
-			.await;
-		Mock::given(method("GET"))
-			.and(path("/dl/checksums.txt"))
+			.and(path(format!(
+				"{REPO_PATH}/releases/download/t/checksums.txt"
+			)))
 			.respond_with(ResponseTemplate::new(404))
 			.mount(&server)
 			.await;
 
-		let resolved = resolve(&base, DEFAULT_REPO, None, "linux", "x86_64")
+		let resolved = resolve(&server.uri(), DEFAULT_REPO, Some("t"), "linux", "x86_64")
 			.await
 			.unwrap();
 		assert_eq!(resolved.checksum, None);
@@ -691,37 +815,73 @@ mod tests {
 
 	#[tokio::test]
 	async fn no_asset_for_this_platform_is_reported_as_such() {
-		let server = serve(serde_json::json!({
-			"tag_name": "stable-26.9",
-			"assets": [
-				{ "name": "quiver-desktop_0.1.0_amd64.deb", "browser_download_url": "https://x/y.deb" }
-			]
-		}))
+		let server = serve(
+			"t",
+			page("t", &[("quiver-desktop_0.1.0_amd64.deb", Some(SUM_A))]),
+		)
 		.await;
 
-		let err = resolve(&server.uri(), DEFAULT_REPO, None, "linux", "x86_64")
+		let err = resolve(&server.uri(), DEFAULT_REPO, Some("t"), "linux", "x86_64")
 			.await
 			.unwrap_err();
 		assert_eq!(err.kind, KIND_NO_ASSET);
 	}
 
+	/// A repository whose only releases are pre-releases redirects `latest` to
+	/// the releases list, which is no release to install.
 	#[tokio::test]
-	async fn a_rate_limited_api_is_distinguished_from_everything_else() {
+	async fn a_repository_with_no_release_is_distinguished_from_a_dead_network() {
+		let server = MockServer::start().await;
+		latest_redirects_to(&server, &format!("{REPO_PATH}/releases")).await;
+
+		let err = resolve(&server.uri(), DEFAULT_REPO, None, "linux", "x86_64")
+			.await
+			.unwrap_err();
+		assert_eq!(err.kind, KIND_NO_RELEASE);
+	}
+
+	#[tokio::test]
+	async fn a_page_that_is_not_a_release_page_is_reported_as_malformed() {
+		let server = serve("t", "<html>nope</html>".to_string()).await;
+
+		let err = resolve(&server.uri(), DEFAULT_REPO, Some("t"), "linux", "x86_64")
+			.await
+			.unwrap_err();
+		assert_eq!(err.kind, KIND_MALFORMED);
+	}
+
+	#[tokio::test]
+	async fn a_latest_that_does_not_redirect_is_reported_as_malformed() {
 		let server = MockServer::start().await;
 		Mock::given(method("GET"))
-			.and(path(
-				"/repos/rabbytesoftware/quiver.desktop/releases/latest",
-			))
-			.respond_with(ResponseTemplate::new(403).set_body_string(
-				"{\"message\":\"API rate limit exceeded for 1.2.3.4.\"}",
-			))
+			.and(path(format!("{REPO_PATH}/releases/latest")))
+			.respond_with(ResponseTemplate::new(200).set_body_string("<html></html>"))
 			.mount(&server)
 			.await;
 
 		let err = resolve(&server.uri(), DEFAULT_REPO, None, "linux", "x86_64")
 			.await
 			.unwrap_err();
-		assert_eq!(err.kind, KIND_RATE_LIMITED);
+		assert_eq!(err.kind, KIND_MALFORMED);
+	}
+
+	#[tokio::test]
+	async fn a_throttled_release_page_is_distinguished_from_everything_else() {
+		for status in [403, 429] {
+			let server = MockServer::start().await;
+			Mock::given(method("GET"))
+				.respond_with(
+					ResponseTemplate::new(status).set_body_string("slow down"),
+				)
+				.mount(&server)
+				.await;
+
+			let err =
+				resolve(&server.uri(), DEFAULT_REPO, Some("t"), "linux", "x86_64")
+					.await
+					.unwrap_err();
+			assert_eq!(err.kind, KIND_RATE_LIMITED, "status {status}");
+		}
 	}
 
 	/// Everything that is neither a quota refusal nor a missing release: a
@@ -733,36 +893,23 @@ mod tests {
 	async fn any_other_bad_status_is_its_own_kind() {
 		let server = MockServer::start().await;
 		Mock::given(method("GET"))
-			.and(path(
-				"/repos/rabbytesoftware/quiver.desktop/releases/latest",
-			))
 			.respond_with(
 				ResponseTemplate::new(500).set_body_string("upstream is unwell"),
 			)
 			.mount(&server)
 			.await;
 
-		let err = resolve(&server.uri(), DEFAULT_REPO, None, "linux", "x86_64")
+		let err = resolve(&server.uri(), DEFAULT_REPO, Some("t"), "linux", "x86_64")
 			.await
 			.unwrap_err();
 		assert_eq!(err.kind, KIND_HTTP);
 	}
 
 	#[tokio::test]
-	async fn a_repository_with_no_release_is_distinguished_from_a_dead_network() {
+	async fn an_unknown_tag_is_a_missing_release() {
 		let server = MockServer::start().await;
-		Mock::given(method("GET"))
-			.and(path(
-				"/repos/rabbytesoftware/quiver.desktop/releases/latest",
-			))
-			.respond_with(
-				ResponseTemplate::new(404)
-					.set_body_string("{\"message\":\"Not Found\"}"),
-			)
-			.mount(&server)
-			.await;
 
-		let err = resolve(&server.uri(), DEFAULT_REPO, None, "linux", "x86_64")
+		let err = resolve(&server.uri(), DEFAULT_REPO, Some("nope"), "linux", "x86_64")
 			.await
 			.unwrap_err();
 		assert_eq!(err.kind, KIND_NO_RELEASE);
@@ -775,57 +922,49 @@ mod tests {
 	/// substitute; it is released back to the OS and can be reused, and this
 	/// test caught exactly that by reporting `no_release`.
 	#[tokio::test]
-	async fn an_unreachable_api_reports_offline() {
-		let err = resolve("http://127.0.0.1:1", DEFAULT_REPO, None, "linux", "x86_64")
-			.await
-			.unwrap_err();
-		assert_eq!(err.kind, KIND_OFFLINE);
-	}
-
-	#[tokio::test]
-	async fn a_body_that_is_not_a_release_is_reported_as_malformed() {
-		let server = MockServer::start().await;
-		Mock::given(method("GET"))
-			.and(path(
-				"/repos/rabbytesoftware/quiver.desktop/releases/latest",
-			))
-			.respond_with(
-				ResponseTemplate::new(200).set_body_string("<html>nope</html>"),
-			)
-			.mount(&server)
-			.await;
-
-		let err = resolve(&server.uri(), DEFAULT_REPO, None, "linux", "x86_64")
-			.await
-			.unwrap_err();
-		assert_eq!(err.kind, KIND_MALFORMED);
-	}
-
-	#[tokio::test]
-	async fn an_explicit_tag_reads_that_tag_rather_than_the_latest() {
-		let server = MockServer::start().await;
-		Mock::given(method("GET"))
-			.and(path(
-				"/repos/rabbytesoftware/quiver.desktop/releases/tags/stable-26.8",
-			))
-			.respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-				"tag_name": "stable-26.8",
-				"assets": [
-					{ "name": "Quiver.AppImage", "browser_download_url": "https://x/Quiver.AppImage" }
-				]
-			})))
-			.mount(&server)
-			.await;
-
-		let resolved = resolve(
-			&server.uri(),
+	async fn an_unreachable_origin_reports_offline() {
+		let err = resolve(
+			"http://127.0.0.1:1",
 			DEFAULT_REPO,
-			Some("stable-26.8"),
+			Some("t"),
 			"linux",
 			"x86_64",
 		)
 		.await
-		.unwrap();
-		assert_eq!(resolved.tag, "stable-26.8");
+		.unwrap_err();
+		assert_eq!(err.kind, KIND_OFFLINE);
+	}
+
+	// ── reading the page ─────────────────────────────────────────────────
+
+	#[test]
+	fn source_archives_are_not_assets_and_names_are_unescaped() {
+		let html = page("t", &[("Quiver%20App.dmg", Some(SUM_A))]);
+
+		let assets = parse_assets(&html, "https://github.com").unwrap();
+
+		assert_eq!(assets.len(), 1);
+		assert_eq!(assets[0].name, "Quiver App.dmg");
+		assert_eq!(
+			assets[0].digest.as_deref(),
+			Some(format!("sha256:{SUM_A}").as_str())
+		);
+	}
+
+	#[test]
+	fn the_digest_nearest_the_end_of_an_item_is_the_asset_s() {
+		let text = format!("sha256:{SUM_A} then sha256:{SUM_B}");
+		assert_eq!(
+			last_digest(&text).as_deref(),
+			Some(format!("sha256:{SUM_B}").as_str())
+		);
+		assert_eq!(last_digest("sha256:short"), None);
+	}
+
+	#[test]
+	fn a_stray_percent_sign_is_left_alone() {
+		assert_eq!(percent_decode("100%"), "100%");
+		assert_eq!(percent_decode("a%zzb"), "a%zzb");
+		assert_eq!(percent_decode("%é"), "%é");
 	}
 }

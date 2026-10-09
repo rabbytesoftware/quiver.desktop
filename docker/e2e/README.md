@@ -145,9 +145,10 @@ reading the pixels (`fixtures/find-button.py`, so a layout change moves the
 click rather than silently missing it), and presses a real mouse button on it
 with `xdotool`. Everything after that is the app's own code: the click
 handler, `releaseVariables()`, the `invoke` into `src-tauri/src/release/`, a
-real HTTPS request to the releases API, and the mutation that posts the
+real HTTPS request to the release page, and the mutation that posts the
 result to core. The fixture's own request log is what proves the app went to
-the releases API, because nothing else in the run ever asks it anything.
+the release page, because nothing else in the run ever asks it anything, and
+that it never went to the releases API.
 
 ## Why the app is built with `tauri build --no-bundle`
 

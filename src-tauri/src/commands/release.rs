@@ -9,12 +9,12 @@
 //! the message the user would read.
 //!
 //! Supplying the defaults is also this layer's job rather than
-//! `crate::release`'s. A function that reaches for `api.github.com` with no
+//! `crate::release`'s. A function that reaches for `github.com` with no
 //! way to be pointed anywhere else cannot be tested without the network, so
 //! it belongs here, where nothing else is either, and `resolve` stays a
 //! function that can be driven against a local server.
 
-use crate::release::{resolve, ResolveError, ResolvedAsset, DEFAULT_API, DEFAULT_REPO};
+use crate::release::{resolve, ResolveError, ResolvedAsset, DEFAULT_ORIGIN, DEFAULT_REPO};
 
 /// This app's own release asset for the platform it is running on, from the
 /// release tagged `tag` -- the ref the row is moving to -- or the newest
@@ -34,7 +34,7 @@ use crate::release::{resolve, ResolveError, ResolvedAsset, DEFAULT_API, DEFAULT_
 #[tauri::command]
 pub async fn resolve_release_asset(tag: Option<String>) -> Result<ResolvedAsset, ResolveError> {
 	resolve(
-		DEFAULT_API,
+		DEFAULT_ORIGIN,
 		DEFAULT_REPO,
 		tag.as_deref(),
 		std::env::consts::OS,

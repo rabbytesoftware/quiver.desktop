@@ -103,7 +103,7 @@ variables:
   # quiver.desktop's own filenames carry tauri.conf.json's static "0.1.0",
   # which never tracks the git tag a release is cut from, so neither ${REF}
   # nor any template built from it names a real file. The caller resolves the
-  # asset (GitHub's releases API, filtered by extension, exactly as install.sh
+  # asset (from the release page, filtered by extension, as install.sh
   # does) and hands both values in. Same contract, same names, as
   # quiver.core's own self-manifest, so one resolver serves both self-arrows.
   #
@@ -118,7 +118,7 @@ variables:
   # Inside the app, the caller is quiver.desktop itself: clicking Update (or
   # Install) on Quiver's own tile resolves the asset through
   # src-tauri/src/release/mod.rs first and sends both values with the request.
-  # The checksum is read from the releases API's own per-asset digest, falling
+  # The checksum is the digest the release page shows beside the asset, falling
   # back to a published checksum manifest; if a release publishes neither, the
   # app says so and does not start the update, because a fetch step cannot be
   # told to skip verification and would fail after the running app had already
