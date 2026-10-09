@@ -335,6 +335,8 @@ export interface ArrowDetail extends ArrowOriginFields {
 	outdated: boolean;
 	active_run: ActiveRun | null;
 	last_return: LastReturnDetail | null;
+	/** Core can launch this arrow's own app: installed, with a desktop entry placed on install. Absent on a core that predates it. */
+	openable?: boolean;
 	/**
 	 * Every channel this arrow's repo publishes -- `GET /v0/arrow/:ns/channels`.
 	 * Always an array, empty when there is nothing to show. Answers "what could

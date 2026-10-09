@@ -1,0 +1,91 @@
+import type { MouseEvent } from 'react';
+
+import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+
+import { isTauri } from '@tauri-apps/api/core';
+import { Menu } from '@tauri-apps/api/menu';
+
+import type { ArrowEntry } from '@/domain/arrow';
+import type { ArrowActionKind } from '@/features/arrow-details/lib/actions';
+import { resolveRealPlatform } from '@/features/arrow-details/lib/use-real-platform';
+import { useArrowStore } from '@/lib/core-store';
+import { openArrowRequest, removeArrowRequest } from '@/lib/core-store/mutations/arrow';
+import { runtimeMethod } from '@/lib/core-store/mutations/runtime';
+import { arrowDetailQueryKey, arrowDetailQueryKeyPrefix, fetchArrowDetail } from '@/lib/core-store/queries/arrow';
+import { t } from '@/lib/i18n';
+
+import { arrowMenuItems } from './arrow-menu';
+
+/**
+ * Right-click on a sidebar arrow row: a native context menu offering what the
+ * arrow's details page offers, without opening the page. Anything that needs
+ * input (variables) is routed to the page instead of guessed at.
+ */
+export function useArrowContextMenu(arrow: ArrowEntry): (event: MouseEvent) => void {
+	const queryClient = useQueryClient();
+	const navigate = useNavigate();
+	const refreshCatalog = useArrowStore((state) => state.refreshCatalog);
+
+	const showDetails = () => navigate({ to: '/arrow/$', params: { _splat: arrow.namespace } });
+
+	async function run(kind: ArrowActionKind): Promise<void> {
+		const { namespace } = arrow;
+		switch (kind) {
+			case 'open':
+				return openArrowRequest(namespace);
+			case 'execute':
+			case 'stop':
+			case 'install':
+			case 'reinstall':
+			case 'update':
+			case 'uninstall': {
+				await runtimeMethod({ namespace, method: kind === 'reinstall' ? 'install' : kind });
+				if (kind === 'update' || kind === 'uninstall') refreshCatalog();
+				return;
+			}
+			case 'removeFromLibrary':
+				await removeArrowRequest(namespace);
+				await queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
+				return refreshCatalog();
+			default:
+				return showDetails();
+		}
+	}
+
+	return (event) => {
+		// Outside Tauri (a plain browser, tests) there is no native menu to show:
+		// leave the browser's own menu alone.
+		if (!isTauri()) return;
+		event.preventDefault();
+
+		void (async () => {
+			const [detail, platform] = await Promise.all([
+				queryClient.fetchQuery({
+					queryKey: arrowDetailQueryKey(arrow.namespace),
+					queryFn: () => fetchArrowDetail(arrow.namespace),
+					staleTime: 5_000,
+				}),
+				resolveRealPlatform(),
+			]);
+
+			const actions = arrowMenuItems(detail, platform).map((item) => ({
+				id: item.kind,
+				text: item.viaDetails ? `${t(item.labelKey)}…` : t(item.labelKey),
+				action: () => {
+					const done = item.viaDetails ? showDetails() : run(item.kind);
+					Promise.resolve(done).catch((err) => console.error(`arrow menu: ${item.kind} failed`, err));
+				},
+			}));
+
+			const menu = await Menu.new({
+				items: [
+					{ id: 'details', text: t('arrow.menu.details'), action: () => void showDetails() },
+					{ item: 'Separator' },
+					...actions,
+				],
+			});
+			await menu.popup();
+		})().catch((err) => console.error('arrow menu failed', err));
+	};
+}

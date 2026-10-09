@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vites
 
 import { apiFetch } from '@/lib/transport/api';
 
-import { useRecheckArrow, useRegisterArrow, useRemoveArrow } from './arrow';
+import { useOpenArrow, useRecheckArrow, useRegisterArrow, useRemoveArrow } from './arrow';
 
 vi.mock('@/lib/transport/api', () => ({ apiFetch: vi.fn() }));
 
@@ -55,5 +55,13 @@ describe('useRecheckArrow', () => {
 		const out = await act(() => result.current.mutateAsync({ namespace: 'github.com/x/y@v1' }));
 		expect(apiFetch).toHaveBeenCalledWith('/v0/arrow/github.com%2Fx%2Fy%40v1', { method: 'PATCH' });
 		expect(out).toEqual({ available: { ref: 'stable-2', commit: 'abc' } });
+	});
+});
+
+describe('useOpenArrow', () => {
+	it('POSTs /v0/arrow/:ns/open with no body', async () => {
+		const { result } = renderHook(() => useOpenArrow(), { wrapper: wrapper() });
+		await act(() => result.current.mutateAsync({ namespace: 'github.com/x/y@v1' }));
+		expect(apiFetch).toHaveBeenCalledWith('/v0/arrow/github.com%2Fx%2Fy%40v1/open', { method: 'POST' });
 	});
 });

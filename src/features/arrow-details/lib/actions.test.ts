@@ -98,6 +98,24 @@ describe('computeActions', () => {
 		expect(update).toMatchObject({ forceDisabled: false, forceBusy: false, steps: LIFECYCLE.update });
 	});
 
+	it('ready and openable: Open leads as the primary action, Start steps down to outline', () => {
+		expect(kinds('ready', { openable: true })).toEqual(['open', 'execute', 'uninstall']);
+		const [open, start] = computeActions(detail({ state: 'ready', openable: true }), PLATFORM);
+		expect(open.variant).toBe('default');
+		expect(start.variant).toBe('outline');
+	});
+
+	it('ready, openable and outdated: Update stays primary, Open is outline', () => {
+		const available = { ref: 'v2', commit: 'abc' };
+		const actions = computeActions(detail({ state: 'ready', openable: true, available, outdated: true }), PLATFORM);
+		expect(actions.map((a) => a.kind)).toEqual(['update', 'open', 'execute', 'uninstall']);
+		expect(actions[1].variant).toBe('outline');
+	});
+
+	it('ready and not openable: no Open', () => {
+		expect(kinds('ready', { openable: false })).not.toContain('open');
+	});
+
 	it('ready with nothing available: no Update at all', () => {
 		expect(kinds('ready', { available: null, outdated: false })).not.toContain('update');
 	});

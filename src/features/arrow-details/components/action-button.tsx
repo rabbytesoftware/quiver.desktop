@@ -9,6 +9,7 @@ import { useTranslation } from '@/lib/i18n';
 
 import {
 	DownloadIcon,
+	ExternalLinkIcon,
 	InfoIcon,
 	PlayIcon,
 	PlusIcon,
@@ -24,6 +25,7 @@ const ACTION_ICONS: Partial<Record<ArrowActionKind, LucideIcon>> = {
 	addToLibrary: PlusIcon,
 	install: DownloadIcon,
 	reinstall: RefreshCwIcon,
+	open: ExternalLinkIcon,
 	execute: PlayIcon,
 	restart: RefreshCwIcon,
 	stop: SquareIcon,

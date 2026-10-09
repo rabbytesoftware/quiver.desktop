@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -79,7 +80,11 @@ async function renderRail(at: string, side: SidebarSide = 'left') {
 		history: createMemoryHistory({ initialEntries: [at] }),
 	});
 
-	const { container } = render(<RouterProvider router={router} />);
+	const { container } = render(
+		<QueryClientProvider client={new QueryClient()}>
+			<RouterProvider router={router} />
+		</QueryClientProvider>
+	);
 	await screen.findAllByRole('tab');
 
 	const rail = container.querySelector<HTMLElement>('[data-slot="sidebar"]');

@@ -18,6 +18,7 @@ import {
 	useArrowStore,
 	useExecuteArrow,
 	useInstall,
+	useOpenArrow,
 	useRegisterArrow,
 	useRemoveArrow,
 	useStop,
@@ -103,6 +104,7 @@ export function useHeroActions(
 	const stop = useStop();
 	const update = useUpdate();
 	const execute = useExecuteArrow();
+	const open = useOpenArrow();
 	const refreshCatalog = useArrowStore((state) => state.refreshCatalog);
 
 	useEffect(() => {
@@ -216,6 +218,9 @@ export function useHeroActions(
 					refreshCatalog();
 					break;
 				}
+				case 'open':
+					await open.mutateAsync({ namespace: detail.namespace });
+					break;
 				case 'execute':
 					await execute.mutateAsync({ namespace: detail.namespace, variables: values });
 					break;

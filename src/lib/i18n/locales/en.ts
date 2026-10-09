@@ -273,6 +273,8 @@ export const en = {
 	'arrow.action.install': 'Install',
 	'arrow.action.installing': 'Installing…',
 	'arrow.action.removeFromLibrary': 'Remove from Library',
+	'arrow.action.open': 'Open',
+	'arrow.menu.details': 'Open details',
 	'arrow.action.start': 'Start',
 	'arrow.action.uninstall': 'Uninstall',
 	'arrow.action.uninstalling': 'Uninstalling…',

@@ -8,6 +8,7 @@ import type { ArrowEntry } from '@/domain/arrow';
 import { isInferred } from '@/domain/arrow';
 import { blockReselect } from '@/features/sidebar/lib/reselect';
 import { ROW_ACTIVE, ROW_BASE, ROW_INACTIVE, ROW_SUBLABEL } from '@/features/sidebar/lib/row-base';
+import { useArrowContextMenu } from '@/features/sidebar/lib/use-arrow-context-menu';
 import { cn } from '@/lib/cn';
 import { splitNamespace } from '@/lib/namespace';
 
@@ -22,13 +23,20 @@ interface ArrowRowProps {
 }
 
 export function ArrowRow({ arrow }: ArrowRowProps): JSX.Element {
+	const onContextMenu = useArrowContextMenu(arrow);
 	const { head, tail } = splitNamespace(arrow.namespace);
 	// The identity names what the row follows (`@stable`, `@v1.*`); the
 	// version is the ref that resolved to, worth showing only when different.
 	const resolved = arrow.version && arrow.version !== tail.slice(1) ? arrow.version : null;
 
 	return (
-		<Link to="/arrow/$" params={{ _splat: arrow.namespace }} onClick={blockReselect} className={ROW}>
+		<Link
+			to="/arrow/$"
+			params={{ _splat: arrow.namespace }}
+			onClick={blockReselect}
+			onContextMenu={onContextMenu}
+			className={ROW}
+		>
 			<ArrowIcon namespace={arrow.namespace} name={arrow.name} icon={arrow.icon} />
 			<span className="flex min-w-0 flex-1 flex-col justify-center">
 				<span className="flex min-w-0 items-center gap-1.5">
