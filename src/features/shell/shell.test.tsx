@@ -9,7 +9,7 @@ import {
 	Outlet,
 	RouterProvider,
 } from '@tanstack/react-router';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@tanstack/react-router-devtools', () => ({ TanStackRouterDevtools: () => null }));
@@ -118,11 +118,14 @@ function renderRoot(at: string) {
 	// The root layout now mounts `CommandPalette`, which -- like the rest of
 	// the app -- needs a QueryClientProvider ancestor for its mutations.
 	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-	return render(
-		<QueryClientProvider client={queryClient}>
-			<RouterProvider router={router} />
-		</QueryClientProvider>
-	);
+	return {
+		...render(
+			<QueryClientProvider client={queryClient}>
+				<RouterProvider router={router} />
+			</QueryClientProvider>
+		),
+		router,
+	};
 }
 
 beforeEach(() => {
@@ -319,6 +322,21 @@ describe('the root layout', () => {
 		expect(main?.className).not.toContain('overflow-auto');
 		expect(main?.firstElementChild?.className).toContain('overflow-auto');
 		expect(main?.firstElementChild?.className).toContain('flex-1');
+	});
+
+	it('starts the next screen at the top rather than inheriting the last one’s scroll', async () => {
+		installMock('normal');
+		const { container, router } = renderRoot('/');
+
+		await screen.findByText('Mock');
+		const scroller = container.querySelector<HTMLElement>('main')?.firstElementChild as HTMLElement;
+		scroller.scrollTop = 400;
+
+		await act(async () => {
+			await router.navigate({ to: '/settings' });
+		});
+
+		expect(scroller.scrollTop).toBe(0);
 	});
 
 	it('gives the grid the whole window again, now that nothing stacks above it', async () => {

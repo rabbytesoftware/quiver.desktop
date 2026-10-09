@@ -107,7 +107,7 @@ describe('SearchBar', () => {
 		expect(router.history.length).toBe(1);
 
 		await user.type(input, 'm');
-		expect(router.state.location.pathname).toBe('/search');
+		await waitFor(() => expect(router.state.location.pathname).toBe('/search'));
 		expect(router.history.length).toBe(2);
 
 		await user.type(input, 'inecraft');
@@ -155,11 +155,9 @@ describe('SearchBar', () => {
 		expect(input).toHaveValue('');
 	});
 
-	// Clearing from another page cannot happen without focusing the field first,
-	// and focusing reopens the search it is holding. So the two steps read as
-	// one: reopen minecraft, then empty it -- landing on the empty search rather
-	// than on whatever history had underneath.
-	it('empties into an empty search when reopened from another page and then cleared', async () => {
+	// Emptying a field that is holding a query from another page is an edit, so
+	// it lands on the empty search rather than on whatever history had underneath.
+	it('empties into an empty search when cleared from another page', async () => {
 		const { input, router, user } = await renderField(['/search?q=minecraft']);
 
 		await act(async () => {
@@ -191,14 +189,23 @@ describe('SearchBar', () => {
 		expect(lens?.querySelector('path')?.getAttribute('stroke')).toBe('currentColor');
 	});
 
-	it('navigates to /search when the field is focused', async () => {
-		const { input, router } = await renderField();
-		expect(router.state.location.pathname).toBe('/');
+	it('stays on the current page when the field is focused or clicked', async () => {
+		const { input, router, user } = await renderField();
 
-		input.focus();
-		await screen.findByTestId('search-page');
+		await user.click(input);
+		await settle();
+
+		expect(router.state.location.pathname).toBe('/');
+	});
+
+	it('navigates to /search once the user types', async () => {
+		const { input, router, user } = await renderField();
+
+		await user.type(input, 'redis');
+		await settle();
 
 		expect(router.state.location.pathname).toBe('/search');
+		expect(router.state.location.search).toEqual({ q: 'redis' });
 	});
 
 	it('does not push another entry when focused again on /search', async () => {
@@ -229,21 +236,6 @@ describe('SearchBar', () => {
 		expect(input).toHaveValue('minecraft');
 	});
 
-	it('reopens the search it is still holding when the field is focused again', async () => {
-		const { input, router } = await renderField(['/search?q=minecraft']);
-		await act(async () => {
-			await router.navigate({ to: '/' });
-		});
-		await screen.findByTestId('home');
-
-		input.focus();
-		await screen.findByTestId('search-page');
-
-		expect(router.state.location.pathname).toBe('/search');
-		expect(router.state.location.search).toEqual({ q: 'minecraft' });
-		expect(input).toHaveValue('minecraft');
-	});
-
 	// A deep link is still authoritative: it names a query, and that one wins
 	// over whatever the field happened to be holding.
 	it('takes the query from a link into /search over the one it was holding', async () => {
@@ -257,19 +249,6 @@ describe('SearchBar', () => {
 		});
 
 		expect(input).toHaveValue('redis');
-	});
-
-	it('asks for a restore, not a fresh pass, when it reopens the search it holds', async () => {
-		const { input, router } = await renderField(['/search?q=minecraft']);
-		await act(async () => {
-			await router.navigate({ to: '/' });
-		});
-		useSearchStore.getState().clearRestore();
-
-		input.focus();
-		await screen.findByTestId('search-page');
-
-		expect(useSearchStore.getState().restoreQuery).toBe('minecraft');
 	});
 
 	it('marks itself active on the results route', async () => {
