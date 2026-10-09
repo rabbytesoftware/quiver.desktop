@@ -46,7 +46,7 @@ import { APP_BINARY, E2E_TMP, homeForSpec, quiverHome, selfInstalledCore } from 
  * against the real github.com, so a native run leaves them out. The box sets
  * QUIVER_E2E_UPSTREAM_STATE (docker/e2e/scenarios/run-wdio.sh).
  */
-const BOX_ONLY_SPECS = ['update-core', 'self-update-while-running', 'arrow-apps'].map((name) =>
+const BOX_ONLY_SPECS = ['update-core', 'self-update-while-running', 'arrow-apps', 'qol'].map((name) =>
 	path.join(import.meta.dirname, 'scenarios', `${name}.spec.ts`)
 );
 
