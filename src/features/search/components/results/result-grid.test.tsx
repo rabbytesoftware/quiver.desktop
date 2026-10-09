@@ -101,8 +101,14 @@ describe('ResultGrid', () => {
 		});
 		// TanStack Router carries a splat verbatim -- slashes are not percent-encoded.
 		const links = screen.getAllByRole('link').map((a) => a.getAttribute('href'));
-		expect(links[0]).toContain('net/held');
-		expect(links[1]).toContain('local/unheld');
+		expect(links[0]).toContain('local/unheld');
+		expect(links[1]).toContain('net/held');
+	});
+
+	it('leads with the network shelf and follows with the vault', async () => {
+		await renderGrid({ local: [entry('vault/held', true), entry('net/new')], phase: 'settled', streamed: [] });
+		const labels = screen.getAllByText(/In your vault|From the network/).map((n) => n.textContent);
+		expect(labels).toEqual(['From the network', 'In your vault']);
 	});
 
 	it('keeps the ranked lane above the unranked one inside a shelf', async () => {

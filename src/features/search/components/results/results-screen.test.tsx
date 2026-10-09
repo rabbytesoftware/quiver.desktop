@@ -29,7 +29,8 @@ function selfEntry(namespace: string, name: string): SearchEntry {
 		namespace,
 		name,
 		description: '',
-		tags: [],
+		// Named by the query these tests run, since held rows are filtered to it.
+		tags: ['minecraft'],
 		icon: null,
 		banner: null,
 		versions: ['stable-1.0'],
