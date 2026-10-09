@@ -27,8 +27,11 @@ Endpoints, matched on the Host header:
 
   github.com
     GET /{user}/{repo}/releases/latest
-        302 -> /{user}/{repo}/releases/tag/{latest}. What install.sh and
-        GitHub's own "latest" links follow. quiver.core's version check does
+        302 -> /{user}/{repo}/releases/tag/{latest}. What install.sh, the
+        app's own resolver and GitHub's own "latest" links follow.
+    GET /{user}/{repo}/releases/expanded_assets/{tag}
+        The asset list of a release, with each asset's digest beside it. What
+        quiver.core's host and the app's own resolver read. quiver.core's version check does
         not: it reads the tags git smart-HTTP (below) advertises, so a
         scenario publishes a new version with git_tag.
     GET /{user}/{repo}/releases/download/{tag}/{asset}
@@ -46,12 +49,11 @@ Endpoints, matched on the Host header:
   api.github.com
     GET /repos/{user}/{repo}/releases/latest
     GET /repos/{user}/{repo}/releases/tags/{tag}
-        The releases API shape install.sh selects assets from, and that the
-        app's own resolver (src-tauri/src/release/mod.rs) reads when the user
-        clicks Update on Quiver's own tile. Pretty-printed, with a nested
-        uploader object and a real per-asset "digest", because that is what
-        api.github.com sends -- and because the digest is the only checksum a
-        quiver.desktop release publishes, so the update verifies against it.
+        The releases API shape install.sh selects assets from. The app's own
+        resolver (src-tauri/src/release/mod.rs) does NOT read it: it reads
+        the release page below, and scenario 3 asserts it never asks this.
+        Pretty-printed, with a nested uploader object and a real per-asset
+        "digest", because that is what api.github.com sends.
 
 Every request is logged as one line of JSON to the results directory, so a
 scenario can prove after the fact that a download really was served from here

@@ -18,9 +18,10 @@
 #
 # The "user agrees" click is a REAL click: a pointer moved onto the button in
 # the running app and a mouse button pressed. Everything it sets off is the
-# app's own code, including resolving its own release asset against the
-# releases API, which is the half that used to be missing and made the button
-# 422 before a single step ran.
+# app's own code, including resolving its own release asset from the release
+# page, which is the half that used to be missing and made the button 422
+# before a single step ran. It does so without api.github.com, whose
+# anonymous quota a shared IP exhausts.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -232,9 +233,11 @@ screenshot "04-quiver-own-page"
 
 # The app resolves the asset of the release the row is moving to (the
 # detail's available.ref), not whatever is newest.
+RELEASE_PAGE="/rabbytesoftware/quiver.desktop/releases/expanded_assets/$DESK_V2"
 RELEASES_API="/repos/rabbytesoftware/quiver.desktop/releases/tags/$DESK_V2"
+PAGE_HITS_BEFORE="$(upstream_hits "$RELEASE_PAGE")"
 API_HITS_BEFORE="$(upstream_hits "$RELEASES_API")"
-info "the releases API has been asked $API_HITS_BEFORE times before the click"
+info "the release page has been asked $PAGE_HITS_BEFORE times before the click"
 
 UPDATE_BUTTON="$(find_button_center)"
 info "the hero's primary action is at window $UPDATE_BUTTON"
@@ -242,18 +245,19 @@ info "the hero's primary action is at window $UPDATE_BUTTON"
 click_in_app $UPDATE_BUTTON
 screenshot "05-update-clicked"
 
-say "C. The click must have sent the app to the releases API for its own asset"
-# Read off the upstream fixture's own request log, which is written by the
-# stand-in for api.github.com and by nothing else. This request exists only
+say "C. The click must have sent the app to the release page for its own asset"
+# Read off the upstream fixture's own request log. This request exists only
 # because the app resolved its own release at click time: no step of the
-# manifest talks to the releases API, and this harness never calls it.
+# manifest reads that page, and this harness never calls it.
 #
 # NOT asserted by polling the runtime state: the row keeps stable-1.0
 # installed until the update execution ends and core advances it, near the
 # bottom of this scenario, so a poll for a transient `updating` here would be
 # racing a state that does not settle until well after this point.
-wait_for_upstream_hit "$RELEASES_API" "$API_HITS_BEFORE" 30 \
-	"the app asked api.github.com for its own latest release when Update was clicked"
+wait_for_upstream_hit "$RELEASE_PAGE" "$PAGE_HITS_BEFORE" 30 \
+	"the app read its own release's page when Update was clicked"
+assert_eq "$API_HITS_BEFORE" "$(upstream_hits "$RELEASES_API")" \
+	"api.github.com was not asked: its anonymous quota is not the app's to spend"
 
 say "C. The old process must go away"
 gone=0
@@ -333,15 +337,15 @@ assert_eq "completed,completed,completed,completed" \
 
 # WHAT THE BUTTON ACTUALLY SENT. The execution's own recorded variables, read
 # back off the runtime aggregate: nothing in this harness put them there.
-# They can only have come from the app resolving its own release against the
-# releases API at the moment the pointer went down, which is the claim the
+# They can only have come from the app resolving its own release from the
+# release page at the moment the pointer went down, which is the claim the
 # whole click is here to make.
 assert_eq "$DESK_URL" \
 	"$(printf '%s' "$UPDATE_RETURN" | jq -r '.variables.QUIVER_RELEASE_ASSET_URL')" \
 	"the asset URL the app resolved and sent"
 assert_eq "$DESK_SUM_V2" \
 	"$(printf '%s' "$UPDATE_RETURN" | jq -r '.variables.QUIVER_RELEASE_CHECKSUM')" \
-	"the checksum the app read off the releases API's own per-asset digest"
+	"the checksum the app read off the release page's digest"
 # And it is the NEW release, not the one the row sits at -- the distinction
 # that makes a caller-side resolver necessary in the first place.
 assert_ne "$DESK_SUM_V1" \
