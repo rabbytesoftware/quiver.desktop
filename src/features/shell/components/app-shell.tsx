@@ -1,4 +1,7 @@
 import type { CSSProperties, JSX, ReactNode } from 'react';
+import { useLayoutEffect, useRef } from 'react';
+
+import { useRouterState } from '@tanstack/react-router';
 
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -20,6 +23,15 @@ export function AppShell({ children, footer }: AppShellProps): JSX.Element {
 	const width = useShellStore((s) => s.sidebarWidth);
 
 	const holdsControls = useContentHoldsControls();
+
+	// One scroller serves every route, so without this a screen inherits the
+	// offset of the one before it. Keyed on the path alone: a search refining
+	// its query in place keeps its position.
+	const scroller = useRef<HTMLDivElement>(null);
+	const pathname = useRouterState({ select: (state) => state.location.pathname });
+	useLayoutEffect(() => {
+		if (scroller.current) scroller.current.scrollTop = 0;
+	}, [pathname]);
 
 	const railColumn = side === 'left' ? 'col-start-1' : 'col-start-2';
 	const contentColumn = side === 'left' ? 'col-start-2' : 'col-start-1';
@@ -50,7 +62,7 @@ export function AppShell({ children, footer }: AppShellProps): JSX.Element {
 					    17px back to the content, moving every tile sideways. The results
 					    grid already pins its column *count* against that (spec 9.3.1); this
 					    pins the width the count is measured against. */}
-					<div className="relative min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]">
+					<div ref={scroller} className="relative min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]">
 						{children}
 						<ArrowAppHost />
 					</div>

@@ -81,7 +81,14 @@ export async function setupListeners(queryClient?: QueryClient): Promise<void> {
 				if (generation !== streamGeneration) return;
 				useArrowStore.getState().setCatalogError();
 			},
-			onUnversionedUpsert: () => stream.reseed(),
+			onUnversionedUpsert: () => {
+				stream.reseed();
+				// An update's commit runs after its run has ended, so the detail
+				// the run-end refetch read can still carry the old `available`.
+				// This frame is core announcing the commit; no runtime frame
+				// follows it, so only a re-read here can drop the update button.
+				if (queryClient) void queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
+			},
 		});
 		disposeArrowStream = stream;
 		useArrowStore.getState().setCatalogRefresh(() => stream.reseed());

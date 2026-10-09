@@ -24,7 +24,7 @@ APP_DIR="$RUN_DIR/wdio-app"
 WDIO_RESULTS="$RESULTS/wdio"
 SPEC_HOMES=/tmp/quiver-e2e
 
-ALL_SPECS=(bootstrap generic-outdated-badge self-update-while-running update-core)
+ALL_SPECS=(bootstrap generic-outdated-badge self-update-while-running update-core qol)
 # arrow-apps drives quiver.chat, so it needs that checkout mounted (see
 # docker/e2e/README.md, "Arrow apps").
 [ -f "$CHAT_CHECKOUT/ARROW.md" ] && ALL_SPECS+=(arrow-apps)
@@ -136,6 +136,9 @@ seed_baseline() {
 	for fixture in e2e-supervised e2e-required; do
 		publish_manifest "rabbytesoftware/$fixture" develop "$E2E_DIR/fixtures/arrows/$fixture/ARROW.md"
 	done
+	publish_manifest rabbytesoftware/e2e-updatable develop "$E2E_DIR/fixtures/arrows/e2e-updatable/ARROW.md"
+	publish_manifest rabbytesoftware/e2e-updatable stable-1.0 "$E2E_DIR/fixtures/arrows/e2e-updatable/ARROW.md"
+	git_tag rabbytesoftware/e2e-updatable stable-1.0
 	publish_manifest rabbytesoftware/e2e-required stable-1.0 "$E2E_DIR/fixtures/arrows/e2e-required/ARROW.md"
 	git_tag rabbytesoftware/e2e-required stable-1.0
 }
@@ -163,6 +166,7 @@ export QUIVER_E2E_TMP="$SPEC_HOMES"
 export QUIVER_E2E_BUILD_CHANNEL=stable
 export QUIVER_E2E_FIXTURE_NS="github.com/rabbytesoftware/e2e-supervised"
 export QUIVER_E2E_REQUIRED_NS="github.com/rabbytesoftware/e2e-required"
+export QUIVER_E2E_UPDATABLE_NS="github.com/rabbytesoftware/e2e-updatable"
 export QUIVER_E2E_VERSION_CHECK_TTL=1s
 export QUIVER_E2E_RESULTS="$WDIO_RESULTS"
 export QUIVER_E2E_UPSTREAM_STATE="$UPSTREAM_STATE"

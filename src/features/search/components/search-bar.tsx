@@ -61,7 +61,7 @@ export function SearchBar(): JSX.Element {
 		// just deleted -- or the arrow page you had come back from. Replacing
 		// keeps the cursor where it is, on a results route with nothing in it.
 		if (next === '') {
-			if (showingResults) void navigate({ to: RESULTS, search: { q: '' }, replace: true });
+			void navigate({ to: RESULTS, search: { q: '' }, replace: showingResults });
 			return;
 		}
 
@@ -102,18 +102,6 @@ export function SearchBar(): JSX.Element {
 		commit(draft);
 	}
 
-	// Focusing reopens whatever the field is still holding, so the field and the
-	// results always name the same query. Clearing the field is what asks for an
-	// empty search, and the only thing that does.
-	function open(): void {
-		if (showingResults) return;
-		// Reopening restores a screen rather than asking for a search: Lane A
-		// rebuilds it from the vault the last pass filled, and the git hosts are
-		// left alone until the query actually changes or Enter asks for them.
-		useSearchStore.getState().requestRestore(draft);
-		void navigate({ to: RESULTS, search: { q: draft } });
-	}
-
 	return (
 		<div className={FIELD} {...(showingResults ? { 'data-active': '' } : {})}>
 			<span className="grid flex-none" aria-hidden="true">
@@ -125,7 +113,6 @@ export function SearchBar(): JSX.Element {
 			<input
 				type="text"
 				value={draft}
-				onFocus={open}
 				onChange={(event) => change(event.target.value)}
 				onKeyDown={(event) => {
 					if (event.key === 'Enter') void submit();

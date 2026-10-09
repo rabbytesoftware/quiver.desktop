@@ -145,6 +145,17 @@ describe('setupListeners manifest refresh', () => {
 		expect(invalidate).toHaveBeenCalledWith({ queryKey: ['collection'] });
 	});
 
+	it('re-reads open arrow details when core announces a row it changed, so a finished update drops its button', async () => {
+		const queryClient = new QueryClient();
+		const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+		await readyWith(queryClient);
+		invalidate.mockClear();
+
+		mockSubscribeArrowStream.mock.calls[0][0].onUnversionedUpsert?.('github.com/u/r@v1');
+
+		expect(invalidate).toHaveBeenCalledWith({ queryKey: ['arrow'] });
+	});
+
 	it('stops listening when the streams stop', async () => {
 		const disposeRefresh = vi.fn();
 		const disposeRuntime = vi.fn();
