@@ -10,7 +10,7 @@ import type { ArrowEntry } from '@/domain/arrow';
 import type { ArrowActionKind } from '@/features/arrow-details/lib/actions';
 import { resolveRealPlatform } from '@/features/arrow-details/lib/use-real-platform';
 import { useArrowStore } from '@/lib/core-store';
-import { openArrowRequest, removeArrowRequest } from '@/lib/core-store/mutations/arrow';
+import { removeArrowRequest } from '@/lib/core-store/mutations/arrow';
 import { runtimeMethod } from '@/lib/core-store/mutations/runtime';
 import { arrowDetailQueryKey, arrowDetailQueryKeyPrefix, fetchArrowDetail } from '@/lib/core-store/queries/arrow';
 import { t } from '@/lib/i18n';
@@ -43,8 +43,6 @@ export function useArrowContextMenu(arrow: ArrowEntry): (event: MouseEvent) => v
 	async function run(kind: ArrowActionKind): Promise<void> {
 		const { namespace } = arrow;
 		switch (kind) {
-			case 'open':
-				return openArrowRequest(namespace);
 			case 'execute':
 			case 'stop':
 			case 'install':

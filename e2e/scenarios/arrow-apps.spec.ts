@@ -180,13 +180,7 @@ async function press(selector: string): Promise<void> {
 		await el.click();
 	} catch {
 		await browser.execute((sel: string) => {
-			const found = document.evaluate(
-				sel,
-				document,
-				null,
-				XPathResult.FIRST_ORDERED_NODE_TYPE,
-				null
-			).singleNodeValue;
+			const found = document.evaluate(sel, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
 			(found as HTMLElement).click();
 		}, selector);
 	}
@@ -319,29 +313,12 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		}
 	});
 
-	it("A0: quiver.chat's own ARROW.md, unmodified, validates and is what the stand-in serves", async () => {
+	it('A0: quiver.chat\'s own ARROW.md, unmodified, validates and is what the stand-in serves', async () => {
 		const manifest = fs.readFileSync(process.env.QUIVER_E2E_CHAT_MANIFEST ?? '', 'utf8');
-		const res = await rawRequest(
-			local,
-			'POST',
-			`/v0/arrow/${encodeURIComponent(CHAT_NS)}/manifest/validate`,
-			{},
-			manifest
-		);
-		const served = path.join(
-			process.env.QUIVER_E2E_UPSTREAM_STATE ?? '',
-			'raw',
-			'rabbytesoftware',
-			'quiver.chat',
-			'develop',
-			'ARROW.md'
-		);
+		const res = await rawRequest(local, 'POST', `/v0/arrow/${encodeURIComponent(CHAT_NS)}/manifest/validate`, {}, manifest);
+		const served = path.join(process.env.QUIVER_E2E_UPSTREAM_STATE ?? '', 'raw', 'rabbytesoftware', 'quiver.chat', 'develop', 'ARROW.md');
 		const identical = fs.existsSync(served) && fs.readFileSync(served, 'utf8') === manifest;
-		evidence('A0.validate', {
-			status: res.status,
-			body: JSON.parse(res.body),
-			servedByStandInIsTheCheckoutFile: identical,
-		});
+		evidence('A0.validate', { status: res.status, body: JSON.parse(res.body), servedByStandInIsTheCheckoutFile: identical });
 		expect(res.status).toBe(200);
 		expect(JSON.parse(res.body).data.valid).toBe(true);
 		// What A1 adds and installs is this exact file.
@@ -356,11 +333,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		evidence('A1.identity', chat);
 
 		const installed = quiverCli(home, ['install', chat]);
-		evidence('A1.cli.install', {
-			status: installed.status,
-			stdout: installed.stdout.slice(-3000),
-			stderr: installed.stderr.slice(-2000),
-		});
+		evidence('A1.cli.install', { status: installed.status, stdout: installed.stdout.slice(-3000), stderr: installed.stderr.slice(-2000) });
 		expect(installed.status).toBe(0);
 		expect((await getArrow(home, chat)).body!.state).toBe('ready');
 
@@ -379,19 +352,10 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		evidence('A1.detail', detail);
 		evidence('A1.runtime', runtime);
 		expect(runtime.body?.state).toBe('running');
-		expect(runtime.body?.active_run?.surface).toEqual({
-			title: 'Quiver Chat',
-			mode: 'listen',
-			path: '/',
-			ready: true,
-		});
+		expect(runtime.body?.active_run?.surface).toEqual({ title: 'Quiver Chat', mode: 'listen', path: '/', ready: true });
 		expect(surfaceOf(detail)).toEqual({ title: 'Quiver Chat', mode: 'listen', path: '/', ready: true });
 
-		chatPids = await until(
-			'no quiver-chat process appeared',
-			() => pidsByExe('quiver-chat-linux'),
-			(p) => p.length > 0
-		);
+		chatPids = await until('no quiver-chat process appeared', () => pidsByExe('quiver-chat-linux'), (p) => p.length > 0);
 		evidence('A1.chat.pids', chatPids);
 	});
 
@@ -422,21 +386,14 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		// The address is derived from the namespace (surface.md, "Socket address").
 		const expected = crypto.createHash('sha256').update(chat).digest('hex').slice(0, 12);
 		expect(sockets[0]).toBe(`${expected}.sock`);
-		evidence('A2.socket.derivation', {
-			expected: `${expected}.sock`,
-			bareExpected: crypto.createHash('sha256').update(CHAT_NS).digest('hex').slice(0, 12),
-		});
+		evidence('A2.socket.derivation', { expected: `${expected}.sock`, bareExpected: crypto.createHash('sha256').update(CHAT_NS).digest('hex').slice(0, 12) });
 	});
 
 	it('A3: serves the chat HTML and a broadcasting WebSocket at /v0/ui, versioned and bare', async () => {
 		const versioned = await rawRequest(local, 'GET', uiPath(chat));
 		const bare = await rawRequest(local, 'GET', uiPath(CHAT_NS));
 		evidence('A3.html', {
-			versioned: {
-				status: versioned.status,
-				type: versioned.headers['content-type'],
-				head: versioned.body.slice(0, 200),
-			},
+			versioned: { status: versioned.status, type: versioned.headers['content-type'], head: versioned.body.slice(0, 200) },
 			bare: { status: bare.status, head: bare.body.slice(0, 200) },
 		});
 		for (const res of [versioned, bare]) {
@@ -511,12 +468,8 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		const loaded = await inFrame(chat, () => ({
 			origin: location.origin,
 			href: location.href,
-			scripts: Array.from(document.scripts)
-				.map((s) => s.src)
-				.filter(Boolean),
-			styles: Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map(
-				(l) => (l as HTMLLinkElement).href
-			),
+			scripts: Array.from(document.scripts).map((s) => s.src).filter(Boolean),
+			styles: Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map((l) => (l as HTMLLinkElement).href),
 			shim: Array.from(document.scripts).some((s) => s.src.endsWith('/__arrow/shim.js')),
 		}));
 		evidence('B7.loaded', loaded);
@@ -541,10 +494,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		await waitForFrameText(chat, fromOutside);
 
 		const origins = await browser.execute(() => (window as unknown as { __e2eOrigins: string[] }).__e2eOrigins);
-		evidence('B7.bridge.origins', {
-			seenByShell: [...new Set(origins)],
-			expected: `arrow-app://${arrowHost(chat)}`,
-		});
+		evidence('B7.bridge.origins', { seenByShell: [...new Set(origins)], expected: `arrow-app://${arrowHost(chat)}` });
 		expect(origins).toContain(`arrow-app://${arrowHost(chat)}`);
 		evidence('B7.typing', [...typingPath]);
 		await screens('B7-chat-roundtrip');
@@ -552,13 +502,9 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 
 	it('B8: keeps the same document alive across Details and another page, sockets included', async () => {
 		const marker = `keep-${nonce}`;
-		await inFrame(
-			chat,
-			(m: string) => {
-				(window as unknown as { __e2eMarker: string }).__e2eMarker = m;
-			},
-			marker
-		);
+		await inFrame(chat, (m: string) => {
+			(window as unknown as { __e2eMarker: string }).__e2eMarker = m;
+		}, marker);
 		await browser.execute((title: string) => {
 			(document.querySelector(`iframe[title="${title}"]`) as unknown as { __e2eKeep: string }).__e2eKeep = 'same';
 		}, arrowHost(chat));
@@ -578,11 +524,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		expect(await routePath()).toBe(`/arrow/${chat}`);
 		expect(await underneath.isExisting()).toBe(true);
 		await browser.keys('Escape');
-		await dialog.waitForExist({
-			reverse: true,
-			timeout: 15_000,
-			timeoutMsg: 'Escape did not close the details dialog',
-		});
+		await dialog.waitForExist({ reverse: true, timeout: 15_000, timeoutMsg: 'Escape did not close the details dialog' });
 		await openRoute('/library');
 		await browser.waitUntil(async () => (await routePath()) === '/library', { timeout: 15_000 });
 
@@ -602,18 +544,12 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		});
 
 		const sameElement = await browser.execute(
-			(title: string) =>
-				(document.querySelector(`iframe[title="${title}"]`) as unknown as { __e2eKeep?: string }).__e2eKeep,
+			(title: string) => (document.querySelector(`iframe[title="${title}"]`) as unknown as { __e2eKeep?: string }).__e2eKeep,
 			arrowHost(chat)
 		);
 		const state = await frameState(chat);
 		const after = await frameText(chat);
-		evidence('B8.keepalive', {
-			sameElement,
-			marker: state.marker,
-			beforeLength: before.length,
-			after: after.slice(-400),
-		});
+		evidence('B8.keepalive', { sameElement, marker: state.marker, beforeLength: before.length, after: after.slice(-400) });
 		expect(sameElement).toBe('same');
 		expect(state.marker).toBe(marker);
 		expect(after).toContain(`from the app ${nonce}`);
@@ -625,9 +561,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 
 	it('B9a: the frame has no Tauri globals, can not reach quiver:// or the daemon API, and carries ARROW_CSP', async () => {
 		const globals = await inFrame(chat, () => {
-			const w = window as unknown as Record<string, unknown> & {
-				webkit?: { messageHandlers?: Record<string, unknown> };
-			};
+			const w = window as unknown as Record<string, unknown> & { webkit?: { messageHandlers?: Record<string, unknown> } };
 			let parent = 'readable';
 			try {
 				void (window.parent as Window).document.title;
@@ -662,9 +596,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 				);
 			void Promise.all([
 				settle(fetch('quiver://localhost/v0/health').then((r) => r.status)),
-				settle(
-					fetch('/v0/arrow').then(async (r) => ({ status: r.status, body: (await r.text()).slice(0, 200) }))
-				),
+				settle(fetch('/v0/arrow').then(async (r) => ({ status: r.status, body: (await r.text()).slice(0, 200) }))),
 				settle(
 					fetch(location.href).then(async (r) => ({
 						status: r.status,
@@ -691,14 +623,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		expect(ownApi!.status).toBe(404);
 		const page = (
 			probes.page as {
-				resolved?: {
-					status: number;
-					csp: string;
-					nosniff: string;
-					referrer: string;
-					setCookie: string | null;
-					shim: boolean;
-				};
+				resolved?: { status: number; csp: string; nosniff: string; referrer: string; setCookie: string | null; shim: boolean };
 			}
 		).resolved!;
 		expect(page.status).toBe(200);
@@ -719,13 +644,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		echo = await register(home, ECHO_NS);
 		const client = coreClient(home);
 		expect([200, 202]).toContain((await client.post(`/v0/runtime/${encodeURIComponent(echo)}/install`, {})).status);
-		await until(
-			'the echo app never installed',
-			async () => (await getArrow(home, echo)).body?.state ?? '',
-			(s) => s === 'ready',
-			120_000,
-			500
-		);
+		await until('the echo app never installed', async () => (await getArrow(home, echo)).body?.state ?? '', (s) => s === 'ready', 120_000, 500);
 
 		await openArrowPage(echo);
 		await browser.waitUntil(async () => (await routePath()) === `/arrow/${echo}`, { timeout: 15_000 });
@@ -766,10 +685,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		evidence('A3.headers', { viaDaemon: seenDaemon, viaApp });
 		// Whether WebKitGTK sends Fetch Metadata on a custom-scheme subresource
 		// request (the arrow-app handler forwards sec-fetch-* untouched).
-		evidence(
-			'webkitgtk.sec-fetch',
-			Object.keys(viaApp.headers ?? {}).filter((k) => k.startsWith('sec-fetch'))
-		);
+		evidence('webkitgtk.sec-fetch', Object.keys(viaApp.headers ?? {}).filter((k) => k.startsWith('sec-fetch')));
 		expect(seenDaemon.headers['x-e2e-kept']).toBe('yes');
 		expect(seenDaemon.headers.authorization).toBeUndefined();
 		expect(seenDaemon.headers.cookie).toBeUndefined();
@@ -796,15 +712,11 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		}
 
 		await inFrame(s1, () => {}); // s1 is hidden now; WebDriver may still enter it
-		const fromS1 = await inFrame(
-			s1,
-			(m: string) => {
-				localStorage.setItem('e2e-key', 'written by app 1');
-				(window as unknown as { __e2eMarker: string }).__e2eMarker = m;
-				return { origin: location.origin, stored: localStorage.getItem('e2e-key') };
-			},
-			`s1-${nonce}`
-		);
+		const fromS1 = await inFrame(s1, (m: string) => {
+			localStorage.setItem('e2e-key', 'written by app 1');
+			(window as unknown as { __e2eMarker: string }).__e2eMarker = m;
+			return { origin: location.origin, stored: localStorage.getItem('e2e-key') };
+		}, `s1-${nonce}`);
 		const fromS2 = await inFrame(s2, () => ({ origin: location.origin, stored: localStorage.getItem('e2e-key') }));
 		evidence('B11.isolation', { fromS1, fromS2 });
 		expect(fromS1.stored).toBe('written by app 1');
@@ -828,26 +740,13 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		// Every kept-alive frame carries a marker; switching in any order must
 		// not reload one (same marker, same performance.timeOrigin), and the chat
 		// must keep its socket throughout.
-		await inFrame(
-			s2,
-			(m: string) => {
-				(window as unknown as { __e2eMarker: string }).__e2eMarker = m;
-			},
-			`s2-${nonce}`
-		);
-		await inFrame(
-			echo,
-			(m: string) => {
-				(window as unknown as { __e2eMarker: string }).__e2eMarker = m;
-			},
-			`echo-${nonce}`
-		);
-		const markers: Record<string, string> = {
-			[chat]: `keep-${nonce}`,
-			[s1]: `s1-${nonce}`,
-			[s2]: `s2-${nonce}`,
-			[echo]: `echo-${nonce}`,
-		};
+		await inFrame(s2, (m: string) => {
+			(window as unknown as { __e2eMarker: string }).__e2eMarker = m;
+		}, `s2-${nonce}`);
+		await inFrame(echo, (m: string) => {
+			(window as unknown as { __e2eMarker: string }).__e2eMarker = m;
+		}, `echo-${nonce}`);
+		const markers: Record<string, string> = { [chat]: `keep-${nonce}`, [s1]: `s1-${nonce}`, [s2]: `s2-${nonce}`, [echo]: `echo-${nonce}` };
 		const baseline: Record<string, number> = {};
 		for (const id of Object.keys(markers)) {
 			const st = await frameState(id);
@@ -911,13 +810,9 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		await joinFromUi(chat, `ui-dave-${nonce}`);
 		await outside.waitFor('the UI user joining', (m) => m.content === `ui-dave-${nonce} joined the chat`);
 
-		await inFrame(
-			chat,
-			(target: string) => {
-				window.location.href = target;
-			},
-			`arrow-app://${arrowHost(s1)}/`
-		);
+		await inFrame(chat, (target: string) => {
+			window.location.href = target;
+		}, `arrow-app://${arrowHost(s1)}/`);
 		const left = await outside!.waitFor(
 			'the chat socket closing when its frame left for another origin',
 			(m) => m.content === `ui-dave-${nonce} left the chat`,
@@ -925,17 +820,13 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		);
 		await waitForFrameText(chat, 'E2E Static App 1');
 		const foreign = await frameState(chat);
-		await inFrame(
-			chat,
-			(url: string) => {
-				try {
-					new WebSocket(url);
-				} catch {
-					/* the shim may refuse it outright */
-				}
-			},
-			'ws://localhost/ws?username=intruder'
-		);
+		await inFrame(chat, (url: string) => {
+			try {
+				new WebSocket(url);
+			} catch {
+				/* the shim may refuse it outright */
+			}
+		}, 'ws://localhost/ws?username=intruder');
 		await new Promise((r) => setTimeout(r, 3000));
 		const intruder = outside!.messages.some((m) => m.content.startsWith('intruder'));
 		evidence('B9c.foreign', { left, foreign, intruderJoined: intruder });
@@ -949,9 +840,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		await clickReload();
 		await waitForFrameText(chat, 'Join Chat', 30_000);
 		const remounted = await browser.execute(
-			(title: string) =>
-				(document.querySelector(`iframe[title="${title}"]`) as unknown as { __e2eKeep?: string }).__e2eKeep ??
-				null,
+			(title: string) => (document.querySelector(`iframe[title="${title}"]`) as unknown as { __e2eKeep?: string }).__e2eKeep ?? null,
 			arrowHost(chat)
 		);
 		const fresh = await frameState(chat);
@@ -978,38 +867,25 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 			'quiver://localhost/v0/runtime',
 		];
 		const probesFor = ['/v0/arrow', '/v0/health', '/v0/runtime', uiPath(chat)];
-		const results: {
-			target: string;
-			state: Record<string, unknown>;
-			text: string;
-			probes: Record<string, unknown>;
-		}[] = [];
+		const results: { target: string; state: Record<string, unknown>; text: string; probes: Record<string, unknown> }[] = [];
 		for (const target of targets) {
-			await inFrame(
-				chat,
-				(url: string) => {
-					window.location.href = url;
-				},
-				target
-			);
+			await inFrame(chat, (url: string) => {
+				window.location.href = url;
+			}, target);
 			await new Promise((r) => setTimeout(r, 3000));
 			const state = await frameState(chat);
 			const text = await frameText(chat);
 			// From INSIDE the navigated document: same-origin, Origin-less requests.
-			const probes = await inFrameAsync<Record<string, unknown>>(
-				chat,
-				(paths: string[], done: (v: unknown) => void) => {
-					void Promise.all(
-						paths.map((p) =>
-							fetch(p).then(
-								async (r) => ({ path: p, status: r.status, body: (await r.text()).slice(0, 200) }),
-								(e) => ({ path: p, rejected: String(e) })
-							)
+			const probes = await inFrameAsync<Record<string, unknown>>(chat, (paths: string[], done: (v: unknown) => void) => {
+				void Promise.all(
+					paths.map((p) =>
+						fetch(p).then(
+							async (r) => ({ path: p, status: r.status, body: (await r.text()).slice(0, 200) }),
+							(e) => ({ path: p, rejected: String(e) })
 						)
-					).then((all) => done(Object.fromEntries(all.map((a) => [a.path, a]))));
-				},
-				probesFor
-			);
+					)
+				).then((all) => done(Object.fromEntries(all.map((a) => [a.path, a]))));
+			}, probesFor);
 			results.push({ target, state, text, probes });
 			await screens(`B9b-quiver-navigation-${results.length}`);
 			await clickReload();
@@ -1035,12 +911,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		if (elapsed < 65_000) await new Promise((r) => setTimeout(r, 65_000 - elapsed));
 		const runtime = await coreClient(home).get<{ state: string }>(`/v0/runtime/${encodeURIComponent(chat)}`);
 		const pids = pidsByExe('quiver-chat-linux');
-		evidence('survive', {
-			seconds: Math.round((Date.now() - executedAt) / 1000),
-			state: runtime.body?.state,
-			pids,
-			chatPids,
-		});
+		evidence('survive', { seconds: Math.round((Date.now() - executedAt) / 1000), state: runtime.body?.state, pids, chatPids });
 		expect(runtime.body?.state).toBe('running');
 		expect(pids).toEqual(chatPids);
 	});
@@ -1050,25 +921,13 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		await header().waitForExist({ timeout: 15_000 });
 		await button('Stop').click();
 
-		await frame(chat).waitForExist({
-			reverse: true,
-			timeout: 60_000,
-			timeoutMsg: 'the chat iframe stayed after Stop',
-		});
+		await frame(chat).waitForExist({ reverse: true, timeout: 60_000, timeoutMsg: 'the chat iframe stayed after Stop' });
 		await header().waitForExist({ reverse: true, timeout: 30_000, timeoutMsg: 'the app header stayed after Stop' });
-		await $('//h1').waitForExist({
-			timeout: 30_000,
-			timeoutMsg: 'the arrow page never returned to its details after Stop',
-		});
+		await $('//h1').waitForExist({ timeout: 30_000, timeoutMsg: 'the arrow page never returned to its details after Stop' });
 		expect(await routePath()).toBe(`/arrow/${chat}`);
 		await screens('B10-after-stop');
 
-		const gone = await until(
-			'the chat process outlived Stop',
-			() => pidsByExe('quiver-chat-linux'),
-			(p) => p.length === 0,
-			30_000
-		);
+		const gone = await until('the chat process outlived Stop', () => pidsByExe('quiver-chat-linux'), (p) => p.length === 0, 30_000);
 		const echoSocket = crypto.createHash('sha256').update(echo).digest('hex').slice(0, 12);
 		const sockets = await until(
 			'the chat socket file outlived Stop',
@@ -1094,9 +953,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 	});
 
 	it('shell: every quiver:// request the app made carried an allowlisted Origin (none refused)', async () => {
-		const seen = await browser.execute(
-			() => (window as unknown as { __e2eQuiver: { calls: number; refused: string[] } }).__e2eQuiver
-		);
+		const seen = await browser.execute(() => (window as unknown as { __e2eQuiver: { calls: number; refused: string[] } }).__e2eQuiver);
 		const own = (await browser.executeAsync((done: (v: unknown) => void) => {
 			fetch('quiver://localhost/v0/health').then(
 				async (r) => done({ status: r.status, body: (await r.text()).slice(0, 80) }),
@@ -1118,12 +975,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 			if (stop.status !== 202) throw new Error(`stop of ${identity} answered ${stop.status}`);
 			return until(
 				`${identity} never settled after stop`,
-				async () =>
-					(
-						await client.get<{ state: string; active_run?: ActiveRun | null }>(
-							`/v0/runtime/${encodeURIComponent(identity)}`
-						)
-					).body,
+				async () => (await client.get<{ state: string; active_run?: ActiveRun | null }>(`/v0/runtime/${encodeURIComponent(identity)}`)).body,
 				(rt) => !!rt && rt.state !== 'running' && rt.state !== 'stopping' && !rt.active_run,
 				30_000,
 				200
@@ -1166,21 +1018,10 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 				await stopAndSettle(identity);
 				const survivors = await until(
 					'processes outlived stop',
-					() =>
-						[
-							...new Set([
-								...tree,
-								...program,
-								...(isChat ? pidsByExe('quiver-chat-linux') : sleepers()),
-							]),
-						].filter(alive),
+					() => [...new Set([...tree, ...program, ...(isChat ? pidsByExe('quiver-chat-linux') : sleepers())])].filter(alive),
 					(p) => p.length === 0,
 					15_000
-				).catch(() =>
-					[
-						...new Set([...tree, ...program, ...(isChat ? pidsByExe('quiver-chat-linux') : sleepers())]),
-					].filter(alive)
-				);
+				).catch(() => [...new Set([...tree, ...program, ...(isChat ? pidsByExe('quiver-chat-linux') : sleepers())])].filter(alive));
 				Object.assign(cycle, { survivors, ms: Date.now() - t0 });
 				cycles.push(cycle);
 				if (survivors.length > 0) fail(cycle, 'left processes running after stop');
@@ -1205,26 +1046,13 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		// The run is `sleep 12`: nothing stops it, it ends by itself.
 		const ended = await until(
 			'the short app surface outlived its run',
-			async () =>
-				(
-					await coreClient(home).get<{ state: string; active_run?: ActiveRun | null; last_return?: unknown }>(
-						`/v0/runtime/${encodeURIComponent(short)}`
-					)
-				).body,
+			async () => (await coreClient(home).get<{ state: string; active_run?: ActiveRun | null; last_return?: unknown }>(`/v0/runtime/${encodeURIComponent(short)}`)).body,
 			(rt) => !!rt && !rt.active_run?.surface,
 			40_000,
 			250
 		);
-		await frame(short).waitForExist({
-			reverse: true,
-			timeout: 15_000,
-			timeoutMsg: 'the short app frame stayed after its run ended',
-		});
-		await header().waitForExist({
-			reverse: true,
-			timeout: 15_000,
-			timeoutMsg: 'the app header stayed after the run ended',
-		});
+		await frame(short).waitForExist({ reverse: true, timeout: 15_000, timeoutMsg: 'the short app frame stayed after its run ended' });
+		await header().waitForExist({ reverse: true, timeout: 15_000, timeoutMsg: 'the app header stayed after the run ended' });
 		await $('//h1').waitForExist({ timeout: 15_000, timeoutMsg: 'the page never returned to the details view' });
 		const route = await routePath();
 		const ui = await rawRequest(local, 'GET', uiPath(short));
@@ -1236,10 +1064,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 
 		expect((await coreClient(home).post(`/v0/runtime/${encodeURIComponent(short)}/execute`, {})).status).toBe(202);
 		const again = await waitForSurface(home, short, 'a ready surface after restart', true, 15_000);
-		await header().waitForExist({
-			timeout: 15_000,
-			timeoutMsg: 'the restarted short app never showed the app view',
-		});
+		await header().waitForExist({ timeout: 15_000, timeoutMsg: 'the restarted short app never showed the app view' });
 		await waitForFrameText(short, 'E2E Short App');
 		evidence('A7.restarted', { surface: surfaceOf(again) });
 		expect(surfaceOf(again)?.ready).toBe(true);
@@ -1250,10 +1075,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		const tcpHome = path.join(E2E_TMP, 'arrow-apps-tcp');
 		fs.rmSync(tcpHome, { recursive: true, force: true });
 		fs.mkdirSync(quiverHome(tcpHome), { recursive: true });
-		fs.writeFileSync(
-			path.join(quiverHome(tcpHome), 'config.yaml'),
-			'config:\n  arrows:\n    version_check_ttl: 1s\n'
-		);
+		fs.writeFileSync(path.join(quiverHome(tcpHome), 'config.yaml'), 'config:\n  arrows:\n    version_check_ttl: 1s\n');
 		tcpLog = path.join(process.env.QUIVER_E2E_RESULTS ?? tcpHome, 'arrow-apps', 'tcp-daemon.log');
 		const log = fs.openSync(tcpLog, 'a');
 		tcpDaemon = spawn(selfInstalledCore(home), ['daemon', '--host', `tcp://127.0.0.1:${TCP_PORT}`], {
@@ -1261,46 +1083,20 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 			stdio: ['ignore', log, log],
 		});
 		const tcp: Endpoint = { host: '127.0.0.1', port: TCP_PORT };
-		await until(
-			'the tcp daemon never answered',
-			async () => (await rawRequest(tcp, 'GET', '/v0/health').catch(() => null))?.status ?? 0,
-			(s) => s === 200,
-			60_000,
-			500
-		);
+		await until('the tcp daemon never answered', async () => (await rawRequest(tcp, 'GET', '/v0/health').catch(() => null))?.status ?? 0, (s) => s === 200, 60_000, 500);
 
 		const code = JSON.parse((await rawRequest(tcp, 'POST', '/v0/auth/pairing')).body).data.code as string;
-		const redeemed = await rawRequest(
-			tcp,
-			'POST',
-			'/v0/auth/pairing/redeem',
-			{},
-			{ code, device_id: `e2e-${nonce}`, label: 'arrow-apps e2e' }
-		);
+		const redeemed = await rawRequest(tcp, 'POST', '/v0/auth/pairing/redeem', {}, { code, device_id: `e2e-${nonce}`, label: 'arrow-apps e2e' });
 		const token = JSON.parse(redeemed.body).data.token as string;
 		expect(token).toBeTruthy();
 		const auth = { Authorization: `Bearer ${token}` };
 
 		const add = await rawRequest(tcp, 'POST', `/v0/arrow/${encodeURIComponent(CHAT_NS)}`, auth);
 		expect([200, 201]).toContain(add.status);
-		const identity = JSON.parse(
-			(await rawRequest(tcp, 'GET', `/v0/arrow/${encodeURIComponent(CHAT_NS)}`, auth)).body
-		).data.namespace as string;
-		expect([200, 202]).toContain(
-			(await rawRequest(tcp, 'POST', `/v0/runtime/${encodeURIComponent(identity)}/install`, auth, {})).status
-		);
-		await until(
-			'the tcp daemon never installed chat',
-			async () =>
-				JSON.parse((await rawRequest(tcp, 'GET', `/v0/arrow/${encodeURIComponent(identity)}`, auth)).body).data
-					?.state,
-			(s) => s === 'ready',
-			120_000,
-			500
-		);
-		expect(
-			(await rawRequest(tcp, 'POST', `/v0/runtime/${encodeURIComponent(identity)}/execute`, auth, {})).status
-		).toBe(202);
+		const identity = JSON.parse((await rawRequest(tcp, 'GET', `/v0/arrow/${encodeURIComponent(CHAT_NS)}`, auth)).body).data.namespace as string;
+		expect([200, 202]).toContain((await rawRequest(tcp, 'POST', `/v0/runtime/${encodeURIComponent(identity)}/install`, auth, {})).status);
+		await until('the tcp daemon never installed chat', async () => JSON.parse((await rawRequest(tcp, 'GET', `/v0/arrow/${encodeURIComponent(identity)}`, auth)).body).data?.state, (s) => s === 'ready', 120_000, 500);
+		expect((await rawRequest(tcp, 'POST', `/v0/runtime/${encodeURIComponent(identity)}/execute`, auth, {})).status).toBe(202);
 		// Not `ready`: the bearer gate is what this check is about, and the
 		// route proxies as soon as the surface exists. Whether the readiness
 		// probe ever recorded `ready` here is kept as evidence (see the report's
@@ -1312,19 +1108,13 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 			60_000,
 			300
 		);
-		const tcpSurface = JSON.parse(
-			(await rawRequest(tcp, 'GET', `/v0/arrow/${encodeURIComponent(identity)}`, auth)).body
-		).data?.active_run?.surface;
+		const tcpSurface = JSON.parse((await rawRequest(tcp, 'GET', `/v0/arrow/${encodeURIComponent(identity)}`, auth)).body).data?.active_run?.surface;
 
 		const noToken = await rawRequest(tcp, 'GET', uiPath(identity));
 		const badToken = await rawRequest(tcp, 'GET', uiPath(identity), { Authorization: 'Bearer nope' });
 		const withToken = await rawRequest(tcp, 'GET', uiPath(identity), auth);
 		const wsNoToken = await wsConnect({ ...tcp, path: uiPath(identity, '/ws?username=anon') });
-		const wsBadToken = await wsConnect({
-			...tcp,
-			path: uiPath(identity, '/ws?username=anon'),
-			headers: { Authorization: 'Bearer nope' },
-		});
+		const wsBadToken = await wsConnect({ ...tcp, path: uiPath(identity, '/ws?username=anon'), headers: { Authorization: 'Bearer nope' } });
 		wsNoToken.ws?.close();
 		wsBadToken.ws?.close();
 		const a = await ChatClient.join(tcp, identity, `tcp-a-${nonce}`, auth);
@@ -1361,12 +1151,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		const stop = await tcpStop();
 		let left: number[] = [];
 		try {
-			left = await until(
-				'the tcp chat outlived its stop',
-				() => pidsByExe('quiver-chat-linux'),
-				(p) => p.length === 0,
-				30_000
-			);
+			left = await until('the tcp chat outlived its stop', () => pidsByExe('quiver-chat-linux'), (p) => p.length === 0, 30_000);
 		} catch {
 			left = pidsByExe('quiver-chat-linux');
 		}
@@ -1380,8 +1165,7 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		for (const file of logs) {
 			if (!file || !fs.existsSync(file)) continue;
 			for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
-				if (line.includes('version conflict') || line.includes('no process for namespace'))
-					lost.push(`${path.basename(path.dirname(file))}/${path.basename(file)}: ${line}`);
+				if (line.includes('version conflict') || line.includes('no process for namespace')) lost.push(`${path.basename(path.dirname(file))}/${path.basename(file)}: ${line}`);
 			}
 		}
 		evidence('core.version-conflicts', lost);

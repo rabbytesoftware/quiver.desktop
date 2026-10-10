@@ -54,9 +54,9 @@ function detail(overrides: Partial<ArrowDetail> = {}): ArrowDetail {
 }
 
 describe('arrowMenuItems', () => {
-	it('mirrors the details page: Open leads for an openable ready arrow', () => {
-		const items = arrowMenuItems(detail({ openable: true }), PLATFORM);
-		expect(items.map((i) => i.kind)).toEqual(['open', 'execute', 'uninstall']);
+	it('mirrors the details page action set', () => {
+		const items = arrowMenuItems(detail(), PLATFORM);
+		expect(items.map((i) => i.kind)).toEqual(['execute', 'uninstall']);
 		expect(items.every((i) => !i.viaDetails)).toBe(true);
 	});
 

@@ -36,12 +36,26 @@ const other = entry({
 });
 
 describe('matchesQuery', () => {
-	it.each(['quiver.chat', 'quiver-chat', 'quiver_chat', 'Quiver Chat', 'quiverchat'])(
-		'finds quiver.chat by %s',
-		(q) => {
-			expect(matchesQuery(chat, q)).toBe(true);
-		}
-	);
+	it.each([
+		'quiver.chat',
+		'quiver-chat',
+		'quiver_chat',
+		'Quiver Chat',
+		'quiverchat',
+		'quiver/chat',
+		' quiver . chat ',
+	])('finds quiver.chat by %s', (q) => {
+		expect(matchesQuery(chat, q)).toBe(true);
+	});
+
+	it.each([
+		['quiver_chat', 'quiver.chat'],
+		['quiver-chat', 'quiver_chat'],
+		['Quiver Chat', 'quiver-chat'],
+	])('ignores separators on the entry side too: %s is found by %s', (name, q) => {
+		const e = entry({ namespace: 'github.com/x/other', name });
+		expect(matchesQuery(e, q)).toBe(true);
+	});
 
 	it('does not match on the description', () => {
 		expect(matchesQuery(other, 'quiver.chat')).toBe(false);

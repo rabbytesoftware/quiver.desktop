@@ -103,8 +103,6 @@ export interface ArrowDetailDTO {
 	outdated?: boolean;
 	active_run?: ActiveRunDTO | null;
 	last_return?: LastReturnDTO | null;
-	/** Omitted unless core can launch the arrow's app. */
-	openable?: boolean;
 	/** Absent on a daemon that predates inference; reads as declared. */
 	origin?: string;
 	/** Omitted unless the arrow is inferred. */
@@ -399,7 +397,6 @@ export function toArrowDetail(
 		outdated: detail.outdated ?? available !== null,
 		active_run: toActiveRun(detail.active_run),
 		last_return: detail.last_return ?? null,
-		openable: detail.openable ?? false,
 		origin: parseArrowOrigin(detail.origin),
 		confidence: parseInferenceConfidence(detail.inference?.confidence),
 		warnings: detail.inference?.warnings ?? [],

@@ -58,10 +58,7 @@ export function rawRequest(
 				headers: {
 					Host: 'localhost',
 					...(data
-						? {
-								'Content-Type': typeof body === 'string' ? 'text/markdown' : 'application/json',
-								'Content-Length': Buffer.byteLength(data),
-							}
+						? { 'Content-Type': typeof body === 'string' ? 'text/markdown' : 'application/json', 'Content-Length': Buffer.byteLength(data) }
 						: {}),
 					...headers,
 				},
@@ -70,11 +67,7 @@ export function rawRequest(
 				const chunks: Buffer[] = [];
 				res.on('data', (c: Buffer) => chunks.push(c));
 				res.on('end', () =>
-					resolve({
-						status: res.statusCode ?? 0,
-						headers: res.headers,
-						body: Buffer.concat(chunks).toString('utf8'),
-					})
+					resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks).toString('utf8') })
 				);
 			}
 		);
@@ -99,11 +92,7 @@ export class ChatClient {
 	) {}
 
 	static async join(endpoint: Endpoint, namespace: string, username: string, headers: Record<string, string> = {}) {
-		const target: WsTarget = {
-			...endpoint,
-			path: uiPath(namespace, `/ws?username=${encodeURIComponent(username)}`),
-			headers,
-		};
+		const target: WsTarget = { ...endpoint, path: uiPath(namespace, `/ws?username=${encodeURIComponent(username)}`), headers };
 		const result = await wsConnect(target);
 		if (result.status !== 101 || !result.ws) {
 			throw new Error(`chat upgrade for ${username} answered ${result.status}: ${result.body ?? ''}`);

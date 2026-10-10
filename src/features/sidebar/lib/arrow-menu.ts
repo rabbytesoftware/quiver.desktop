@@ -4,7 +4,6 @@ import { isSelfArrow } from '@/features/arrow-details/lib/release-variables';
 
 /** Actions the sidebar can run straight from the menu; the rest need the details page. */
 const DIRECT: ReadonlySet<ArrowActionKind> = new Set([
-	'open',
 	'execute',
 	'stop',
 	'install',

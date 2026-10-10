@@ -13,7 +13,6 @@ export type ArrowActionKind =
 	| 'addToLibrary'
 	| 'install'
 	| 'removeFromLibrary'
-	| 'open'
 	| 'execute'
 	| 'uninstall'
 	| 'update'
@@ -108,18 +107,6 @@ export function computeActions(detail: ArrowDetail, platform: string): ArrowActi
 		forceDisabled,
 	});
 
-	// Launches the arrow's own app. Core only reports it for a ready arrow, so
-	// it needs no state check of its own.
-	const open = (variant: ArrowActionVariant): ArrowAction => ({
-		kind: 'open',
-		labelKey: 'arrow.action.open',
-		variant,
-		steps: [],
-		usesVariables: [],
-		forceBusy: false,
-		forceDisabled: false,
-	});
-
 	switch (detail.state) {
 		case 'absent':
 			return [
@@ -182,9 +169,7 @@ export function computeActions(detail: ArrowDetail, platform: string): ArrowActi
 					forceDisabled: false,
 				});
 			}
-			const openable = detail.openable === true;
-			if (openable) actions.push(open(detail.available ? 'outline' : 'default'));
-			if (hasExecute) actions.push(execute(false, detail.available || openable ? 'outline' : 'default'));
+			if (hasExecute) actions.push(execute(false, detail.available ? 'outline' : 'default'));
 			actions.push({
 				kind: 'uninstall',
 				labelKey: 'arrow.action.uninstall',

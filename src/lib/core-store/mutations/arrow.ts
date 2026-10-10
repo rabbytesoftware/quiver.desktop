@@ -27,17 +27,6 @@ export function useRemoveArrow() {
 	});
 }
 
-/** `POST /v0/arrow/:ns/open`: core launches the installed arrow's own app, detached from the daemon. */
-export function openArrowRequest(namespace: string): Promise<void> {
-	return apiFetch<void>(`/v0/arrow/${namespaceSegment(namespace)}/open`, { method: 'POST' });
-}
-
-export function useOpenArrow() {
-	return useMutation({
-		mutationFn: ({ namespace }: { namespace: string }) => openArrowRequest(namespace),
-	});
-}
-
 /**
  * `PATCH /v0/arrow/:ns`, no body: re-checks the row's selector against its
  * repository and answers what is ahead, if anything. An installed row stays
