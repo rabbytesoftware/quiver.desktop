@@ -232,6 +232,28 @@ describe('ResultsScreen', () => {
 		expect((await screen.findAllByText('Quiver Desktop')).length).toBeGreaterThan(0);
 	});
 
+	it('filters the local lane to the query but keeps every streamed result, even an installed one that does not name it', async () => {
+		renderScreen('minecraft');
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0), ANSWER);
+
+		const base = { ...selfEntry('github.com/x/base', 'Base'), tags: [], installed: false };
+		act(() => {
+			useSearchStore.setState({
+				local: [
+					{ ...base, namespace: 'github.com/x/minecraft-server', name: 'Minecraft Server' },
+					{ ...base, namespace: 'github.com/x/unrelated-local', name: 'Unrelated Local' },
+				],
+				streamed: [
+					{ ...base, namespace: 'github.com/x/unrelated-net', name: 'Unrelated Net', installed: true },
+				],
+			});
+		});
+
+		expect((await screen.findAllByText('Unrelated Net')).length).toBeGreaterThan(0);
+		expect(screen.getAllByText('Minecraft Server').length).toBeGreaterThan(0);
+		expect(screen.queryByText('Unrelated Local')).not.toBeInTheDocument();
+	});
+
 	it('excludes both of Quiver’s own self-registered rows from results once the setting is off', async () => {
 		renderScreen('minecraft');
 		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0), ANSWER);

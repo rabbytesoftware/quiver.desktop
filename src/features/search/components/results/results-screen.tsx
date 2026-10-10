@@ -5,7 +5,7 @@ import { SearchInspector } from '@/features/search/components/search-inspector';
 import { useSearch } from '@/features/search/hooks/use-search';
 import type { FacetKind } from '@/features/search/lib/narrow';
 import { NO_SELECTION, applySelection, toggle } from '@/features/search/lib/narrow';
-import { isRelevant } from '@/features/search/lib/relevance';
+import { relevantLocal } from '@/features/search/lib/relevance';
 import type { SortKey } from '@/features/search/lib/sort';
 import { DEFAULT_SORT, sortEntries } from '@/features/search/lib/sort';
 import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
@@ -60,8 +60,8 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 
 	const answer = useMemo(
 		() =>
-			[...local, ...streamed].filter(
-				(e) => (showSelfComponents || !isQuiverOwnComponent(e.namespace)) && isRelevant(e, query)
+			[...relevantLocal(local, query), ...streamed].filter(
+				(e) => showSelfComponents || !isQuiverOwnComponent(e.namespace)
 			),
 		[local, streamed, showSelfComponents, query]
 	);

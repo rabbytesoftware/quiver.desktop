@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react';
+import { useRef, type MouseEvent } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -26,6 +26,10 @@ export function useArrowContextMenu(arrow: ArrowEntry): (event: MouseEvent) => v
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const refreshCatalog = useArrowStore((state) => state.refreshCatalog);
+
+	// popup() resolves only when the native menu closes; a second right-click
+	// meanwhile would stack a second menu on the first.
+	const busy = useRef(false);
 
 	const showDetails = () => navigate({ to: '/arrow/$', params: { _splat: arrow.namespace } });
 
@@ -58,34 +62,52 @@ export function useArrowContextMenu(arrow: ArrowEntry): (event: MouseEvent) => v
 		// leave the browser's own menu alone.
 		if (!isTauri()) return;
 		event.preventDefault();
+		if (busy.current) return;
+		busy.current = true;
 
 		void (async () => {
-			const [detail, platform] = await Promise.all([
-				queryClient.fetchQuery({
-					queryKey: arrowDetailQueryKey(arrow.namespace),
-					queryFn: () => fetchArrowDetail(arrow.namespace),
-					staleTime: 5_000,
-				}),
-				resolveRealPlatform(),
-			]);
+			let menu: Menu | null = null;
+			try {
+				const [detail, platform] = await Promise.all([
+					queryClient.fetchQuery({
+						queryKey: arrowDetailQueryKey(arrow.namespace),
+						queryFn: () => fetchArrowDetail(arrow.namespace),
+						staleTime: 5_000,
+					}),
+					resolveRealPlatform(),
+				]);
 
-			const actions = arrowMenuItems(detail, platform).map((item) => ({
-				id: item.kind,
-				text: item.viaDetails ? `${t(item.labelKey)}…` : t(item.labelKey),
-				action: () => {
-					const done = item.viaDetails ? showDetails() : run(item.kind);
-					Promise.resolve(done).catch((err) => console.error(`arrow menu: ${item.kind} failed`, err));
-				},
-			}));
+				const actions = arrowMenuItems(detail, platform).map((item) => ({
+					id: item.kind,
+					text: item.viaDetails ? `${t(item.labelKey)}…` : t(item.labelKey),
+					action: () => {
+						if (item.viaDetails) return void showDetails();
+						// The app has no toast or banner for a failure raised away from
+						// the details page, so a failed action hands over to it: that
+						// page shows the arrow's live state and can retry with its own
+						// error banner.
+						run(item.kind).catch((err) => {
+							console.error(`arrow menu: ${item.kind} failed`, err);
+							void showDetails();
+						});
+					},
+				}));
 
-			const menu = await Menu.new({
-				items: [
-					{ id: 'details', text: t('arrow.menu.details'), action: () => void showDetails() },
-					{ item: 'Separator' },
-					...actions,
-				],
-			});
-			await menu.popup();
-		})().catch((err) => console.error('arrow menu failed', err));
+				menu = await Menu.new({
+					items: [
+						{ id: 'details', text: t('arrow.menu.details'), action: () => void showDetails() },
+						{ item: 'Separator' },
+						...actions,
+					],
+				});
+				await menu.popup();
+			} catch (err) {
+				console.error('arrow menu failed', err);
+			} finally {
+				busy.current = false;
+				// The native handle outlives the popup until closed.
+				await menu?.close().catch(() => {});
+			}
+		})();
 	};
 }

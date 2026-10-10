@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { SearchEntry } from '@/domain/search';
 
-import { isRelevant, matchesQuery } from './relevance';
+import { matchesQuery, relevantLocal } from './relevance';
 
 function entry(overrides: Partial<SearchEntry>): SearchEntry {
 	return {
@@ -52,13 +52,8 @@ describe('matchesQuery', () => {
 	});
 });
 
-describe('isRelevant', () => {
-	it('filters held entries by the query', () => {
-		expect(isRelevant(other, 'quiver.chat')).toBe(false);
-		expect(isRelevant(chat, 'quiver.chat')).toBe(true);
-	});
-
-	it('never filters the network shelf', () => {
-		expect(isRelevant(entry({ namespace: 'github.com/x/y', name: 'unrelated' }), 'quiver.chat')).toBe(true);
+describe('relevantLocal', () => {
+	it('keeps only the local entries the query names', () => {
+		expect(relevantLocal([chat, other], 'quiver.chat')).toEqual([chat]);
 	});
 });

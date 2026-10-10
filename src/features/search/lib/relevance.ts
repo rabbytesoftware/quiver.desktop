@@ -1,5 +1,4 @@
 import type { SearchEntry } from '@/domain/search';
-import { isHeld } from '@/domain/search';
 
 const SEPARATORS = /[.\-_/\s]+/g;
 
@@ -31,10 +30,16 @@ export function matchesQuery(entry: SearchEntry, query: string): boolean {
 }
 
 /**
- * The network shelf is core's own ranking and passes untouched. The vault shelf
- * is only what the query names: core matches loosely there, and a followed
- * collection would otherwise fill the screen with arrows nobody asked for.
+ * Narrows the local lane to what the query names. Core matches that lane
+ * loosely (its text index reads descriptions, and a followed collection would
+ * otherwise fill the screen with arrows nobody asked for), so it is filtered
+ * here.
+ *
+ * Only the local lane. A streamed entry is a network result, ranked by core's
+ * discovery and kept whole -- including one already installed or in a followed
+ * collection, which says what it is to this machine, not that it missed the
+ * query.
  */
-export function isRelevant(entry: SearchEntry, query: string): boolean {
-	return !isHeld(entry) || matchesQuery(entry, query);
+export function relevantLocal(local: SearchEntry[], query: string): SearchEntry[] {
+	return local.filter((entry) => matchesQuery(entry, query));
 }
