@@ -23,7 +23,11 @@ function entry(overrides: Partial<SearchEntry>): SearchEntry {
 	};
 }
 
-const chat = entry({ namespace: 'github.com/rabbytesoftware/quiver.chat', name: 'Quiver Chat', provenance: 'collection' });
+const chat = entry({
+	namespace: 'github.com/rabbytesoftware/quiver.chat',
+	name: 'Quiver Chat',
+	provenance: 'collection',
+});
 const other = entry({
 	namespace: 'github.com/rabbytesoftware/quiver.essentials',
 	name: 'Essentials',
@@ -32,9 +36,12 @@ const other = entry({
 });
 
 describe('matchesQuery', () => {
-	it.each(['quiver.chat', 'quiver-chat', 'quiver_chat', 'Quiver Chat', 'quiverchat'])('finds quiver.chat by %s', (q) => {
-		expect(matchesQuery(chat, q)).toBe(true);
-	});
+	it.each(['quiver.chat', 'quiver-chat', 'quiver_chat', 'Quiver Chat', 'quiverchat'])(
+		'finds quiver.chat by %s',
+		(q) => {
+			expect(matchesQuery(chat, q)).toBe(true);
+		}
+	);
 
 	it('does not match on the description', () => {
 		expect(matchesQuery(other, 'quiver.chat')).toBe(false);

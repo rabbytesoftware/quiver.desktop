@@ -30,14 +30,18 @@ export interface ArrowMenuItem {
  * details page rather than guessed at.
  */
 export function arrowMenuItems(detail: ArrowDetail, platform: string): ArrowMenuItem[] {
-	return computeActions(detail, platform)
-		.filter((action) => !action.forceDisabled)
-		.map((action) => ({
-			kind: action.kind,
-			labelKey: action.labelKey,
-			viaDetails:
-				!DIRECT.has(action.kind) ||
-				action.usesVariables.length > 0 ||
-				(RELEASE_ACTIONS.has(action.kind) && isSelfArrow(detail.namespace)),
-		}));
+	return computeActions(detail, platform).flatMap((action) =>
+		action.forceDisabled
+			? []
+			: [
+					{
+						kind: action.kind,
+						labelKey: action.labelKey,
+						viaDetails:
+							!DIRECT.has(action.kind) ||
+							action.usesVariables.length > 0 ||
+							(RELEASE_ACTIONS.has(action.kind) && isSelfArrow(detail.namespace)),
+					},
+				]
+	);
 }
