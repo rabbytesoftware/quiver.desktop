@@ -4,14 +4,14 @@ Five scenarios driven through the **real, built** Quiver Desktop app and a
 **real** `quiver.core` daemon: no mocks, no stubbed resolver, no in-process
 test seam.
 
-| Spec | Claim |
-|---|---|
-| `scenarios/bootstrap.spec.ts` | A clean `QUIVER_HOME` comes up with a self-installed Core at `<QUIVER_HOME>/self/quiver`, both self-arrows are registered `user_installed: true`, and quiver.desktop is filed under one channel identity (`<ns>@<channel>`), never a pin of its version. |
-| `scenarios/self-update-while-running.spec.ts` | A process Core supervises keeps its PID across Core's own self-update swap. |
-| `scenarios/generic-outdated-badge.spec.ts` | An outdated self-arrow gets the *generic* outdated badge, via the *generic* `/v0/runtime` broadcast. |
-| `scenarios/console.spec.ts` | The build indicator and the daemon console. The rail shows both builds once the daemon has answered `/versions`; the console opens from the indicator and shows the daemon's own log, typed; a command runs on the daemon and its output arrives; what the daemon does not offer (`daemon`, a bare `add`) is refused in the daemon's own words (403), a line with quoting or shell characters is rejected (400), and `--server` is accepted and has no effect; a destructive command without `--yes` refuses at once instead of waiting on a prompt; the daemon logs each command it ran. Needs a quiver.core with the console (`features` has `console.v1`), so point `QUIVER_CORE_DEV_PATH` at one. |
-| `scenarios/update-core.spec.ts` | Updating quiver.core from the arrow page and from Settings, Engine: core downloads the release, verifies it against the release's `checksums.txt` and swaps the daemon in place, the app stays up and reconnects on the same socket, and a supervised arrow survives detached with the same pid. A wrong checksum changes nothing and says why, a build that never becomes healthy is rolled back to the old version with the row Outdated, and quitting the app stops the daemon running by then. **Runs only in the E2E box**, see below. |
-| `scenarios/qol.spec.ts` | The pre-playtest QOL fixes: a screen starts at the top instead of inheriting the last one's scroll, focusing the search field does not navigate while typing does, and an update that finishes drops its Update button without a reload. **Runs only in the E2E box**. |
+| Spec                                          | Claim                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scenarios/bootstrap.spec.ts`                 | A clean `QUIVER_HOME` comes up with a self-installed Core at `<QUIVER_HOME>/self/quiver`, both self-arrows are registered `user_installed: true`, and quiver.desktop is filed under one channel identity (`<ns>@<channel>`), never a pin of its version.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `scenarios/self-update-while-running.spec.ts` | A process Core supervises keeps its PID across Core's own self-update swap.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `scenarios/generic-outdated-badge.spec.ts`    | An outdated self-arrow gets the _generic_ outdated badge, via the _generic_ `/v0/runtime` broadcast.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `scenarios/console.spec.ts`                   | The build indicator and the daemon console. The rail shows both builds once the daemon has answered `/versions`; the console opens from the indicator and shows the daemon's own log, typed; a command runs on the daemon and its output arrives; what the daemon does not offer (`daemon`, a bare `add`) is refused in the daemon's own words (403), a line with quoting or shell characters is rejected (400), and `--server` is accepted and has no effect; a destructive command without `--yes` refuses at once instead of waiting on a prompt; the daemon logs each command it ran. Needs a quiver.core with the console (`features` has `console.v1`), so point `QUIVER_CORE_DEV_PATH` at one. |
+| `scenarios/update-core.spec.ts`               | Updating quiver.core from the arrow page and from Settings, Engine: core downloads the release, verifies it against the release's `checksums.txt` and swaps the daemon in place, the app stays up and reconnects on the same socket, and a supervised arrow survives detached with the same pid. A wrong checksum changes nothing and says why, a build that never becomes healthy is rolled back to the old version with the row Outdated, and quitting the app stops the daemon running by then. **Runs only in the E2E box**, see below.                                                                                                                                                           |
+| `scenarios/qol.spec.ts`                       | The pre-playtest QOL fixes: a screen starts at the top instead of inheriting the last one's scroll, focusing the search field does not navigate while typing does, and an update that finishes drops its Update button without a reload. **Runs only in the E2E box**.                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 | `scenarios/arrow-apps.spec.ts` | Arrow apps end to end: quiver.chat's real ARROW.md installed and executed through the CLI, its interface served on a daemon-provisioned unix socket with no TCP listener, proxied at `/v0/ui` (bearer-gated on `tcp://`), and opened from the details page in a sandboxed `arrow-app://` iframe whose chat talks both ways with a client outside the app. Also keep-alive, Reload, Stop, header stripping, origin isolation, the 4-app cap, and what an arrow frame can and can not reach. **Runs only in the E2E box**, with quiver.chat mounted. |
 
@@ -82,7 +82,7 @@ fn main() {
 
 `cargo install tauri-driver` succeeds on macOS and installs that stub — so
 even `tauri-driver --version` prints the message above and exits `1`. Its
-README lists macOS as *"[Todo] … (probably)"* via the Appium Mac2 driver.
+README lists macOS as _"[Todo] … (probably)"_ via the Appium Mac2 driver.
 Verified against **tauri-driver 2.0.6**.
 
 Supported: **Linux** (via `WebKitWebDriver`, the `webkit2gtk-driver` package)
@@ -96,21 +96,21 @@ config surface (verified against 2.0.6's `src/cli.rs` and `src/server.rs`):
 
 **Process flags** — strict; any unrecognised argument is a hard exit.
 
-| Flag | Default | Notes |
-|---|---|---|
-| `--port` | `4444` | the intermediary port WebdriverIO talks to |
-| `--native-port` | `4445` | the native WebDriver behind it |
-| `--native-host` | `127.0.0.1` | Linux only |
-| `--native-driver` | *(searched on `PATH`)* | path to `WebKitWebDriver` / `msedgedriver.exe` |
+| Flag              | Default                | Notes                                          |
+| ----------------- | ---------------------- | ---------------------------------------------- |
+| `--port`          | `4444`                 | the intermediary port WebdriverIO talks to     |
+| `--native-port`   | `4445`                 | the native WebDriver behind it                 |
+| `--native-host`   | `127.0.0.1`            | Linux only                                     |
+| `--native-driver` | _(searched on `PATH`)_ | path to `WebKitWebDriver` / `msedgedriver.exe` |
 
 **One capability** — `tauri:options`, on `capabilities.alwaysMatch`, parsed by
 `struct TauriOptions` (serde `rename_all = "camelCase"`):
 
-| Field | Required | Notes |
-|---|---|---|
-| `application` | yes | path to the built executable |
-| `args` | no | argv for it |
-| `webviewOptions` | no | Windows only |
+| Field            | Required | Notes                        |
+| ---------------- | -------- | ---------------------------- |
+| `application`    | yes      | path to the built executable |
+| `args`           | no       | argv for it                  |
+| `webviewOptions` | no       | Windows only                 |
 
 `map_capabilities` strips `tauri:options` and substitutes the native object:
 `webkitgtk:browserOptions {binary, args}` on Linux, `ms:edgeOptions` +
@@ -118,7 +118,7 @@ config surface (verified against 2.0.6's `src/cli.rs` and `src/server.rs`):
 
 So all configuration lives in [`wdio.conf.ts`](./wdio.conf.ts).
 
-## Why a *release* build
+## Why a _release_ build
 
 `tauri:options.application` must point at
 `src-tauri/target/release/quiverdesktop`, built with `tauri build --no-bundle`.
@@ -134,8 +134,8 @@ environment and the harness can hand each spec its own.
 ## Why the harness sets `HOME`, not `QUIVER_HOME`
 
 These are not interchangeable. In a release build the app passes core a bare
-`unix://` host argument (`LocalHost::host_arg(false)`), meaning *"core's own
-default socket"* — which core resolves under `QUIVER_HOME`. The app's own
+`unix://` host argument (`LocalHost::host_arg(false)`), meaning _"core's own
+default socket"_ — which core resolves under `QUIVER_HOME`. The app's own
 transport meanwhile dials `default_socket_path()`, built from **`$HOME`**
 (`format!("{}/.quiver/quiver.sock", home)`).
 
@@ -168,15 +168,15 @@ xvfb-run -a --server-args="-screen 0 1280x800x24" bun run test
 
 ### Environment overrides
 
-| Variable | Purpose |
-|---|---|
-| `QUIVER_E2E_APP_BINARY` | use an already-built app binary |
-| `QUIVER_E2E_TMP` | where per-spec homes are created (default `$TMPDIR/quiver-e2e`) |
-| `QUIVER_E2E_DRIVER_PORT` / `QUIVER_E2E_NATIVE_PORT` | driver ports |
-| `QUIVER_E2E_TAURI_DRIVER` | path to `tauri-driver` |
-| `QUIVER_E2E_BUILD_CHANNEL` | the channel the app under test was built for (`VITE_QUIVER_BUILD_CHANNEL`); default: the first channel quiver.desktop's repository lists |
-| `QUIVER_E2E_FIXTURE_NS` | the supervised arrow for scenario 2 (see below) |
-| `QUIVER_E2E_OUTDATED_NS` | the arrow driven outdated for scenario 3 |
+| Variable                                            | Purpose                                                                                                                                  |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `QUIVER_E2E_APP_BINARY`                             | use an already-built app binary                                                                                                          |
+| `QUIVER_E2E_TMP`                                    | where per-spec homes are created (default `$TMPDIR/quiver-e2e`)                                                                          |
+| `QUIVER_E2E_DRIVER_PORT` / `QUIVER_E2E_NATIVE_PORT` | driver ports                                                                                                                             |
+| `QUIVER_E2E_TAURI_DRIVER`                           | path to `tauri-driver`                                                                                                                   |
+| `QUIVER_E2E_BUILD_CHANNEL`                          | the channel the app under test was built for (`VITE_QUIVER_BUILD_CHANNEL`); default: the first channel quiver.desktop's repository lists |
+| `QUIVER_E2E_FIXTURE_NS`                             | the supervised arrow for scenario 2 (see below)                                                                                          |
+| `QUIVER_E2E_OUTDATED_NS`                            | the arrow driven outdated for scenario 3                                                                                                 |
 
 ## Known preconditions these scenarios depend on
 
@@ -193,7 +193,7 @@ quietly and reporting green.
    the remote through `metadata.GetPlatforms()`. The repository must publish
    at least one channel whose tag carries an `ARROW.md`.
 
-2. **Scenarios 2 and 3 need an arrow a *production* daemon can resolve.**
+2. **Scenarios 2 and 3 need an arrow a _production_ daemon can resolve.**
    quiver.core's own `quiver-test/self-update-fixture` is injected through the
    Go integration suite's in-process stub resolver (`newTestResolver` /
    `stubEngines`, `tests/kit/env.go`). A production daemon has no such seam —
@@ -204,7 +204,7 @@ quietly and reporting green.
 
 ## A note on where the outdated badge actually renders
 
-The brief for scenario 3 describes *"the sidebar renders the badge"*. Read
+The brief for scenario 3 describes _"the sidebar renders the badge"_. Read
 against the components, it does not: `ArrowRow` — what the sidebar's own
 `ArrowList` renders — draws an icon, a name and a namespace, and has **no
 status badge at all**. The badge belongs to `ArrowTile`, which lives under

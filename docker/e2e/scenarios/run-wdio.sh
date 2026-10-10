@@ -148,8 +148,13 @@ seed_baseline() {
 # server; the short app; and the three rendered static apps (fixtures/upstream-up.sh).
 seed_arrow_apps() {
 	publish_manifest rabbytesoftware/quiver.chat develop "$CHAT_CHECKOUT/ARROW.md"
-	publish_release rabbytesoftware/quiver.chat nightly \
-		"$CHAT_DIST/quiver-chat-linux-arm64.tar.gz" "$CHAT_DIST/quiver-chat-linux-amd64.tar.gz"
+	# The ARROW.md fetches releases/download/${REF}/..., so the archives sit under
+	# every ref a spec installs from (develop) as well as the rolling nightly.
+	local ref
+	for ref in nightly develop; do
+		publish_release rabbytesoftware/quiver.chat "$ref" \
+			"$CHAT_DIST/quiver-chat-linux-arm64.tar.gz" "$CHAT_DIST/quiver-chat-linux-amd64.tar.gz"
+	done
 	publish_manifest rabbytesoftware/e2e-echo-app develop "$E2E_DIR/fixtures/arrows/e2e-echo-app/ARROW.md"
 	publish_release rabbytesoftware/e2e-echo-app v1 "$E2E_DIR/fixtures/arrows/e2e-echo-app/server.py"
 	publish_manifest rabbytesoftware/e2e-short-app develop "$E2E_DIR/fixtures/arrows/e2e-short-app/ARROW.md"

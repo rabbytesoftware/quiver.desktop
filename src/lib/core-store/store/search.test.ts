@@ -62,21 +62,13 @@ describe('receive — the merge', () => {
 		expect(s().streamed.map((e) => e.namespace)).toEqual(['github.com/a/one', 'github.com/a/two']);
 	});
 
-	it('drops a streamed result the local band already shows', () => {
+	it('keeps a streamed result the local band also holds, leaving local untouched', () => {
 		const s = () => useSearchStore.getState();
 		s().setLocal([entry('github.com/a/one', { installed: true, known: true, provenance: 'installed' })]);
 		s().beginPass(JOB);
 		s().receive(entry('github.com/a/one', { known: true, provenance: 'seen' }));
-		expect(s().streamed).toEqual([]);
+		expect(s().streamed.map((e) => e.namespace)).toEqual(['github.com/a/one']);
 		expect(s().local[0].provenance).toBe('installed');
-	});
-
-	it('dedups on the bare namespace, ignoring the ref', () => {
-		const s = () => useSearchStore.getState();
-		s().setLocal([entry('github.com/a/one', { versions: ['v2.0.0'], installed: true, known: true })]);
-		s().beginPass(JOB);
-		s().receive(entry('github.com/a/one', { versions: ['v1.0.0'] }));
-		expect(s().streamed).toEqual([]);
 	});
 
 	it('does not append the same streamed namespace twice', () => {
@@ -97,7 +89,7 @@ describe('receive — the merge', () => {
 });
 
 describe('settle', () => {
-	it('moves a streamed namespace the re-query now returns into local, leaving streamed', () => {
+	it('keeps a streamed namespace the re-query now returns too, for the screen to dedup against what it shows', () => {
 		const s = () => useSearchStore.getState();
 		s().setLocal([entry('github.com/a/one', { installed: true, known: true })]);
 		s().beginPass(JOB);
@@ -107,7 +99,7 @@ describe('settle', () => {
 			entry('github.com/a/one', { installed: true, known: true }),
 			entry('github.com/a/two', { known: true }),
 		]);
-		expect(s().streamed).toEqual([]);
+		expect(s().streamed.map((e) => e.namespace)).toEqual(['github.com/a/two']);
 		expect(s().local).toHaveLength(2);
 	});
 
