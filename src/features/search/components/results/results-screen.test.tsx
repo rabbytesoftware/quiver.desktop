@@ -29,7 +29,8 @@ function selfEntry(namespace: string, name: string): SearchEntry {
 		namespace,
 		name,
 		description: '',
-		tags: [],
+		// Named by the query these tests run, since held rows are filtered to it.
+		tags: ['minecraft'],
 		icon: null,
 		banner: null,
 		versions: ['stable-1.0'],
@@ -229,6 +230,48 @@ describe('ResultsScreen', () => {
 		// The name legitimately renders twice per card (the drawn-banner
 		// fallback name, and the always-visible caption below it).
 		expect((await screen.findAllByText('Quiver Desktop')).length).toBeGreaterThan(0);
+	});
+
+	it('filters the local lane to the query but keeps every streamed result, even an installed one that does not name it', async () => {
+		renderScreen('minecraft');
+		await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0), ANSWER);
+
+		const base = { ...selfEntry('github.com/x/base', 'Base'), tags: [], installed: false };
+		act(() => {
+			useSearchStore.setState({
+				local: [
+					{ ...base, namespace: 'github.com/x/minecraft-server', name: 'Minecraft Server' },
+					{ ...base, namespace: 'github.com/x/unrelated-local', name: 'Unrelated Local' },
+				],
+				streamed: [
+					{ ...base, namespace: 'github.com/x/unrelated-net', name: 'Unrelated Net', installed: true },
+				],
+			});
+		});
+
+		expect((await screen.findAllByText('Unrelated Net')).length).toBeGreaterThan(0);
+		expect(screen.getAllByText('Minecraft Server').length).toBeGreaterThan(0);
+		expect(screen.queryByText('Unrelated Local')).not.toBeInTheDocument();
+	});
+
+	it('shows an arrow both lanes return when only its description names the query', async () => {
+		renderScreen('xeyes');
+		await waitFor(() => expect(useSearchStore.getState().phase).not.toBe('idle'), ANSWER);
+
+		const base = { ...selfEntry('github.com/x/base', 'Base'), tags: [], installed: true };
+		const both = {
+			...base,
+			namespace: 'github.com/x/e2e-desktop-app',
+			name: 'E2E Desktop App',
+			description: 'xeyes',
+		};
+		act(() => {
+			useSearchStore.setState({ phase: 'discovering', local: [both], streamed: [{ ...both }] });
+			useSearchStore.getState().settle([both]);
+		});
+
+		expect((await screen.findAllByText('E2E Desktop App')).length).toBeGreaterThan(0);
+		expect(screen.queryByText(/0 results/)).not.toBeInTheDocument();
 	});
 
 	it('excludes both of Quiver’s own self-registered rows from results once the setting is off', async () => {

@@ -125,16 +125,18 @@ async function fetchDependents(namespace: string): Promise<string[]> {
  * repository is its own row with its own manifest, and a bare namespace only
  * reaches whichever row core prefers.
  */
+export async function fetchArrowDetail(namespace: string): Promise<ArrowDetail> {
+	const [detail, manifest] = await Promise.all([
+		apiFetch<ArrowDetailDTO>(`/v0/arrow/${namespaceSegment(namespace)}`),
+		apiFetch<ArrowManifestDTO>(`/v0/arrow/${namespaceSegment(namespace)}/manifest`),
+	]);
+	return toArrowDetail(detail, manifest, [], null, [], []);
+}
+
 export function useArrowDetail(namespace: string) {
 	return useQuery<ArrowDetail>({
 		queryKey: arrowDetailQueryKey(namespace),
-		queryFn: async () => {
-			const [detail, manifest] = await Promise.all([
-				apiFetch<ArrowDetailDTO>(`/v0/arrow/${namespaceSegment(namespace)}`),
-				apiFetch<ArrowManifestDTO>(`/v0/arrow/${namespaceSegment(namespace)}/manifest`),
-			]);
-			return toArrowDetail(detail, manifest, [], null, [], []);
-		},
+		queryFn: () => fetchArrowDetail(namespace),
 		enabled: namespace.length > 0,
 	});
 }

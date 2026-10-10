@@ -117,7 +117,10 @@ describe('the pass', () => {
 		controller.setQuery('server');
 		await vi.advanceTimersByTimeAsync(IDLE_BEFORE_PASS_MS + 10_000);
 		expect(phase()).toBe('settled');
-		expect(useSearchStore.getState().streamed).toEqual([]);
+		// Streamed copies are kept (the screen dedups them against the local
+		// band it shows), but nothing is left that the re-query did not return.
+		const { local, streamed } = useSearchStore.getState();
+		expect(streamed.every((e) => local.some((l) => l.namespace === e.namespace))).toBe(true);
 	});
 
 	it('carries every discovered arrow into the re-queried local band, not just the seam (spec 3.5)', async () => {

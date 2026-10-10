@@ -17,10 +17,13 @@ export function useRegisterArrow() {
 	});
 }
 
+export function removeArrowRequest(namespace: string): Promise<void> {
+	return apiFetch<void>(`/v0/arrow/${namespaceSegment(namespace)}`, { method: 'DELETE' });
+}
+
 export function useRemoveArrow() {
 	return useMutation({
-		mutationFn: ({ namespace }: { namespace: string }) =>
-			apiFetch<void>(`/v0/arrow/${namespaceSegment(namespace)}`, { method: 'DELETE' }),
+		mutationFn: ({ namespace }: { namespace: string }) => removeArrowRequest(namespace),
 	});
 }
 

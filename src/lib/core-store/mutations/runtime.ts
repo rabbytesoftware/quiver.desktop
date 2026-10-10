@@ -20,7 +20,8 @@ function runtimeRequest({ namespace, method, variables = {} }: RuntimeMethodInpu
 	];
 }
 
-function runtimeMethod(input: RuntimeMethodInput): Promise<void> {
+/** The plain request behind every lifecycle mutation, for callers that cannot hold a hook (a context menu on a list row). */
+export function runtimeMethod(input: RuntimeMethodInput): Promise<void> {
 	return apiFetch<void>(...runtimeRequest(input));
 }
 

@@ -451,6 +451,18 @@ describe('arrow apps: quiver.chat in the shell, end to end', () => {
 		await screens('B6-app-open');
 	});
 
+	it('B6b: the BARE route (what Search links to) shows the same running app, not the details page', async () => {
+		const bare = chat.split('@')[0];
+		expect(bare).not.toBe(chat);
+		await openArrowPage(bare);
+		await header().waitForExist({ timeout: 15_000 });
+		await browser.waitUntil(async () => (await headerText()).includes('Running'), { timeout: 30_000 });
+		const el = await frame(chat);
+		await el.waitForExist({ timeout: 30_000 });
+		expect(await el.getAttribute('src')).toBe(`arrow-app://${arrowHost(chat)}/`);
+		expect(await routePath()).toBe(`/arrow/${bare}`);
+	});
+
 	it('B7: the chat renders in the frame and talks both ways with a client outside the app', async () => {
 		await waitForFrameText(chat, 'Join Chat', 30_000);
 		const loaded = await inFrame(chat, () => ({

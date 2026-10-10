@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -71,7 +72,11 @@ function renderList(path: string) {
 		history: createMemoryHistory({ initialEntries: [path] }),
 	});
 
-	render(<RouterProvider router={router} />);
+	render(
+		<QueryClientProvider client={new QueryClient()}>
+			<RouterProvider router={router} />
+		</QueryClientProvider>
+	);
 	return router;
 }
 

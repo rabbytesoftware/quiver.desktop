@@ -84,26 +84,24 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
 
 	beginPass: (job) => set({ job, phase: 'discovering', passFailed: false }),
 
-	// Dedup on the bare namespace against both bands; a namespace already in
-	// `local` is dropped, never moved -- it's on screen already, ranked.
+	// Dedup on the bare namespace within the streamed band only. A namespace
+	// `local` also holds is kept: whether the local copy is on screen is the
+	// screen's call (it filters that lane to the query), and dropping the
+	// streamed copy here would lose the arrow when it is not.
 	receive: (entry) => {
-		const { phase, local, streamed } = get();
+		const { phase, streamed } = get();
 		if (phase !== 'discovering') return;
-		if (local.some((e) => e.namespace === entry.namespace)) return;
 		if (streamed.some((e) => e.namespace === entry.namespace)) return;
 		set({ streamed: [...streamed, entry] });
 	},
 
 	endPass: (summary) => set({ summary, phase: 'settling' }),
 
-	// Local is a replacement, but a streamed entry the re-query misses survives
-	// in `streamed` (arrival order): some probed results are deliberately never
-	// indexed, so the re-query alone would erase them.
-	settle: (local) => {
-		const { streamed } = get();
-		const stillStreamed = streamed.filter((e) => !local.some((l) => l.namespace === e.namespace));
-		set({ local, streamed: stillStreamed, phase: 'settled' });
-	},
+	// Local is a replacement; `streamed` is left whole (arrival order). Some
+	// probed results are deliberately never indexed, so the re-query alone would
+	// erase them, and one it does return may be filtered out of the local band by
+	// the screen -- which then still needs the streamed copy.
+	settle: (local) => set({ local, phase: 'settled' }),
 
 	// Holds the phase and keeps both bands: clearing them would delete
 	// results the user can see, to recover from a failed re-query.

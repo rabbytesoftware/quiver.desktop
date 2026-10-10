@@ -5,6 +5,7 @@ import { SearchInspector } from '@/features/search/components/search-inspector';
 import { useSearch } from '@/features/search/hooks/use-search';
 import type { FacetKind } from '@/features/search/lib/narrow';
 import { NO_SELECTION, applySelection, toggle } from '@/features/search/lib/narrow';
+import { relevantLocal } from '@/features/search/lib/relevance';
 import type { SortKey } from '@/features/search/lib/sort';
 import { DEFAULT_SORT, sortEntries } from '@/features/search/lib/sort';
 import { useCatalogVisibilityStore } from '@/features/settings/stores/catalog-visibility-store';
@@ -57,10 +58,16 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 		setSort(DEFAULT_SORT);
 	}
 
-	const answer = useMemo(
-		() => [...local, ...streamed].filter((e) => showSelfComponents || !isQuiverOwnComponent(e.namespace)),
-		[local, streamed, showSelfComponents]
-	);
+	// The local lane is narrowed to the query; a streamed result is a network hit
+	// and stays whole. One that the local lane also holds shows only when that
+	// local copy was narrowed away, so the arrow is never on screen twice or lost.
+	const relevant = useMemo(() => relevantLocal(local, query), [local, query]);
+	const answer = useMemo(() => {
+		const shownNamespaces = new Set(relevant.map((e) => e.namespace));
+		return [...relevant, ...streamed.filter((e) => !shownNamespaces.has(e.namespace))].filter(
+			(e) => showSelfComponents || !isQuiverOwnComponent(e.namespace)
+		);
+	}, [relevant, streamed, showSelfComponents]);
 	const shown = useMemo(
 		() => sortEntries(applySelection(answer, selection), sort, locale),
 		[answer, selection, sort, locale]
@@ -68,7 +75,7 @@ export function ResultsScreen({ query }: ResultsScreenProps): JSX.Element {
 
 	// Sorting and narrowing are view-level, so both bands are rebuilt from the
 	// result rather than re-partitioned: `ResultGrid` decides the shelves.
-	const fromLocal = useMemo(() => new Set(local), [local]);
+	const fromLocal = useMemo(() => new Set(relevant), [relevant]);
 	const shownLocal = useMemo(() => shown.filter((e) => fromLocal.has(e)), [shown, fromLocal]);
 	const shownStreamed = useMemo(() => shown.filter((e) => !fromLocal.has(e)), [shown, fromLocal]);
 

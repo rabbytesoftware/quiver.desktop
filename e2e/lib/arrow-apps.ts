@@ -10,7 +10,7 @@ import { wsConnect, type TextSocket, type WsTarget } from './ws-client';
 
 /** The handler's Content-Security-Policy (src-tauri/src/arrow_app/csp.rs ARROW_CSP). */
 export const ARROW_CSP =
-	"default-src 'self'; script-src 'self' 'unsafe-inline'; " +
+	"default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; " +
 	"style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; " +
 	"connect-src 'self'; frame-src 'none'; form-action 'self'; base-uri 'self'";
 
