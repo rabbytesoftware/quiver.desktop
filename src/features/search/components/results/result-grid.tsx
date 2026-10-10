@@ -46,8 +46,6 @@ function Shelf({ label, count, children }: { label: string; count: ReactNode; ch
 export function ResultGrid({ local, streamed, phase, total }: ResultGridProps): JSX.Element {
 	const { t } = useTranslation();
 
-	// The network shelf leads: what the user searched for is rarely already in the
-	// vault, and the vault shelf is the tail of a query, not its answer.
 	// Lane A is ranked and Lane B is arrival order, so concatenating in that
 	// order keeps the ranked rows at the top of whichever shelf they land in.
 	const all = [...local, ...streamed];
@@ -63,6 +61,15 @@ export function ResultGrid({ local, streamed, phase, total }: ResultGridProps): 
 
 	return (
 		<div className={GRID}>
+			{held.length > 0 && (
+				<Shelf count={held.length} label={t('search.shelf.vault')}>
+					<div className="grid gap-x-3 gap-y-[18px]" style={columns}>
+						{held.map((entry) => (
+							<ArrowCard entry={entry} key={entry.namespace} />
+						))}
+					</div>
+				</Shelf>
+			)}
 			{(rest.length > 0 || discovering) && (
 				<Shelf
 					count={discovering ? t('search.shelf.soFar', { count: rest.length }) : rest.length}
@@ -73,15 +80,6 @@ export function ResultGrid({ local, streamed, phase, total }: ResultGridProps): 
 							<ArrowCard entry={entry} key={entry.namespace} />
 						))}
 						{discovering && <CardSkeleton count={SKELETON_COUNT} />}
-					</div>
-				</Shelf>
-			)}
-			{held.length > 0 && (
-				<Shelf count={held.length} label={t('search.shelf.vault')}>
-					<div className="grid gap-x-3 gap-y-[18px]" style={columns}>
-						{held.map((entry) => (
-							<ArrowCard entry={entry} key={entry.namespace} />
-						))}
 					</div>
 				</Shelf>
 			)}
