@@ -81,8 +81,8 @@ describe('computeActions', () => {
 		expect(actions.map((a) => a.kind)).toEqual(['addToLibrary']);
 	});
 
-	it('an executable with nothing to stop is labelled Open', () => {
-		const lifecycle = { ...LIFECYCLE, stop: [] };
+	it('an execute that launches the exposed desktop app is labelled Open', () => {
+		const lifecycle = { ...LIFECYCLE, execute: [{ ...runStep('Start'), command: 'exec "${ARROW_APP}"' }] };
 		const actions = computeActions(detail({ state: 'ready', targets: [{ ...TARGET, lifecycle }] }), PLATFORM);
 		expect(actions.find((a) => a.kind === 'execute')).toMatchObject({ labelKey: 'arrow.action.open' });
 	});

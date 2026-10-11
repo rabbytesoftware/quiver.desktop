@@ -75,12 +75,15 @@ function allVariableNames(detail: ArrowDetail): string[] {
  * -- never render it enabled outside `ready`, even speculatively.
  */
 /**
- * "Open" for something that is launched and then lives on its own (a desktop
- * app: nothing for Quiver to stop), "Start" for something Quiver keeps
- * running (a service: it declares how to stop it).
+ * "Open" for an arrow whose execute launches its exposed desktop app: core
+ * derives that step from `expose.desktop` and runs `${ARROW_APP}`, which a
+ * service never does. Everything else is "Start".
  */
 export function launchLabelKey(lifecycle: ArrowLifecycle | undefined): ArrowActionLabelKey {
-	return lifecycle && lifecycle.stop.length === 0 ? 'arrow.action.open' : 'arrow.action.start';
+	const launchesApp = lifecycle?.execute.some(
+		(step) => step.type === 'run' && JSON.stringify(step.command).includes('ARROW_APP')
+	);
+	return launchesApp ? 'arrow.action.open' : 'arrow.action.start';
 }
 
 export function computeActions(detail: ArrowDetail, platform: string): ArrowAction[] {
