@@ -81,7 +81,7 @@ function allVariableNames(detail: ArrowDetail): string[] {
  */
 export function launchLabelKey(lifecycle: ArrowLifecycle | undefined): ArrowActionLabelKey {
 	const launchesApp = lifecycle?.execute.some(
-		(step) => step.type === 'run' && JSON.stringify(step.command).includes('ARROW_APP')
+		(step) => step.type === 'run' && /ARROW_APP/.test(JSON.stringify(step.command))
 	);
 	return launchesApp ? 'arrow.action.open' : 'arrow.action.start';
 }
