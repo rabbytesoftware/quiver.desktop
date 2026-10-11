@@ -59,10 +59,32 @@ function kinds(state: ArrowState, opts: Partial<ArrowDetail> = {}) {
 }
 
 describe('computeActions', () => {
-	it('offers only Add to Library when the arrow is not in the library, regardless of state', () => {
+	it('not in the library: Install is primary and Add to Library is secondary', () => {
 		const actions = computeActions(detail({ user_installed: false, state: 'absent' }), PLATFORM);
-		expect(actions).toHaveLength(1);
-		expect(actions[0]).toMatchObject({ kind: 'addToLibrary', forceBusy: false, forceDisabled: false });
+		expect(actions.map((a) => a.kind)).toEqual(['install', 'addToLibrary']);
+		expect(actions[0]).toMatchObject({ variant: 'default' });
+		expect(actions[1]).toMatchObject({ variant: 'outline' });
+	});
+
+	it('not in the library, no install method: Start is primary, no Install', () => {
+		const lifecycle = { ...LIFECYCLE, install: [] };
+		const actions = computeActions(
+			detail({ user_installed: false, state: 'absent', targets: [{ ...TARGET, lifecycle }] }),
+			PLATFORM
+		);
+		expect(actions.map((a) => a.kind)).toEqual(['execute', 'addToLibrary']);
+		expect(actions[0]).toMatchObject({ labelKey: 'arrow.action.start' });
+	});
+
+	it('not in the library, nothing to run: only Add to Library', () => {
+		const actions = computeActions(detail({ user_installed: false, state: 'absent', targets: [] }), PLATFORM);
+		expect(actions.map((a) => a.kind)).toEqual(['addToLibrary']);
+	});
+
+	it('an execute that launches the exposed desktop app is labelled Open', () => {
+		const lifecycle = { ...LIFECYCLE, execute: [{ ...runStep('Start'), command: 'exec "${ARROW_APP}"' }] };
+		const actions = computeActions(detail({ state: 'ready', targets: [{ ...TARGET, lifecycle }] }), PLATFORM);
+		expect(actions.find((a) => a.kind === 'execute')).toMatchObject({ labelKey: 'arrow.action.open' });
 	});
 
 	it('absent: Install (idle) + Remove from Library', () => {

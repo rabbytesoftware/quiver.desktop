@@ -275,6 +275,8 @@ export const en = {
 	'arrow.action.removeFromLibrary': 'Remove from Library',
 	'arrow.menu.details': 'Open details',
 	'arrow.action.start': 'Start',
+	'arrow.action.open': 'Open',
+	'arrow.installed.toast': '{name} is installed. Open it from here, or find it in the Start menu.',
 	'arrow.action.uninstall': 'Uninstall',
 	'arrow.action.uninstalling': 'Uninstalling…',
 	'arrow.action.update': 'Update',
@@ -387,6 +389,10 @@ export const en = {
 	'arrow.activity.outcome.success': 'Succeeded',
 	'arrow.activity.outcome.failed': 'Failed',
 	'arrow.activity.outcome.cancelled': 'Cancelled',
+	'arrow.methods.steps': {
+		one: '{count} step',
+		other: '{count} steps',
+	},
 	'arrow.methods.count': {
 		one: '{count} method',
 		other: '{count} methods',

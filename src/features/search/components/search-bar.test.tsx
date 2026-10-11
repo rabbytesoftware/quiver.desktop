@@ -125,7 +125,7 @@ describe('SearchBar', () => {
 	// itself on the state before the commit had a chance to move it.
 	const settle = () => new Promise((resolve) => setTimeout(resolve, LOCAL_DEBOUNCE_MS + 150));
 
-	it('stays on an empty results screen when the query is emptied, rather than popping history', async () => {
+	it('returns Home when the query is emptied, replacing the results entry', async () => {
 		const { input, router, user } = await renderField();
 
 		await user.type(input, 'minecraft');
@@ -135,8 +135,7 @@ describe('SearchBar', () => {
 		await user.clear(input);
 		await settle();
 
-		expect(router.state.location.pathname).toBe('/search');
-		expect(router.state.location.search).toEqual({ q: '' });
+		expect(router.state.location.pathname).toBe('/');
 		expect(input).toHaveValue('');
 		expect(router.history.length).toBe(2);
 	});
@@ -150,8 +149,7 @@ describe('SearchBar', () => {
 		await user.clear(input);
 		await settle();
 
-		expect(router.state.location.pathname).toBe('/search');
-		expect(router.state.location.search).toEqual({ q: '' });
+		expect(router.state.location.pathname).toBe('/');
 		expect(input).toHaveValue('');
 	});
 
@@ -169,8 +167,7 @@ describe('SearchBar', () => {
 		await user.clear(input);
 		await settle();
 
-		expect(router.state.location.pathname).toBe('/search');
-		expect(router.state.location.search).toEqual({ q: '' });
+		expect(router.state.location.pathname).toBe('/');
 		expect(input).toHaveValue('');
 	});
 
@@ -310,7 +307,7 @@ describe('SearchBar', () => {
 		await user.keyboard('{Enter}');
 
 		expect(mockResolveNamespaceTarget).not.toHaveBeenCalled();
-		expect(router.state.location.search).toEqual({ q: '' });
+		expect(router.state.location.pathname).toBe('/');
 	});
 
 	it('does not let a stale debounce undo a back-navigation that lands before it fires', async () => {

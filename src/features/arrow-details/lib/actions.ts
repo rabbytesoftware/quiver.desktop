@@ -1,4 +1,4 @@
-import type { ArrowDetail, ArrowStepDefinition } from '@/domain/arrow';
+import type { ArrowDetail, ArrowLifecycle, ArrowStepDefinition } from '@/domain/arrow';
 import { targetForPlatform } from '@/domain/arrow';
 import { isSelfArrow, RELEASE_VARIABLE_NAMES } from '@/features/arrow-details/lib/release-variables';
 import type { MessageKey } from '@/lib/i18n';
@@ -74,24 +74,67 @@ function allVariableNames(detail: ArrowDetail): string[] {
  * only, unconditionally, for every arrow, with no manifest override possible
  * -- never render it enabled outside `ready`, even speculatively.
  */
-export function computeActions(detail: ArrowDetail, platform: string): ArrowAction[] {
-	if (!detail.user_installed) {
-		return [
-			{
-				kind: 'addToLibrary',
-				labelKey: 'arrow.action.addToLibrary',
-				variant: 'default',
-				steps: [],
-				usesVariables: [],
-				forceBusy: false,
-				forceDisabled: false,
-			},
-		];
-	}
+/**
+ * "Open" for an arrow whose execute launches its exposed desktop app: core
+ * derives that step from `expose.desktop` and runs `${ARROW_APP}`, which a
+ * service never does. Everything else is "Start".
+ */
+export function launchLabelKey(lifecycle: ArrowLifecycle | undefined): ArrowActionLabelKey {
+	const launchesApp = lifecycle?.execute.some(
+		(step) => step.type === 'run' && /ARROW_APP/.test(JSON.stringify(step.command))
+	);
+	return launchesApp ? 'arrow.action.open' : 'arrow.action.start';
+}
 
+export function computeActions(detail: ArrowDetail, platform: string): ArrowAction[] {
 	const target = targetForPlatform(detail.targets, platform);
 	const lifecycle = target?.lifecycle;
+
+	if (!detail.user_installed) {
+		const addToLibrary = (variant: ArrowActionVariant): ArrowAction => ({
+			kind: 'addToLibrary',
+			labelKey: 'arrow.action.addToLibrary',
+			variant,
+			steps: [],
+			usesVariables: [],
+			forceBusy: false,
+			forceDisabled: false,
+		});
+		// What the primary button is depends on the methods the arrow declares,
+		// not on a fixed flow. Both of these add it to the library first.
+		if ((lifecycle?.install.length ?? 0) > 0) {
+			return [
+				{
+					kind: 'install',
+					labelKey: 'arrow.action.install',
+					variant: 'default',
+					steps: lifecycle!.install,
+					usesVariables: allVariableNames(detail),
+					forceBusy: false,
+					forceDisabled: false,
+				},
+				addToLibrary('outline'),
+			];
+		}
+		if ((lifecycle?.execute.length ?? 0) > 0) {
+			return [
+				{
+					kind: 'execute',
+					labelKey: launchLabelKey(lifecycle),
+					variant: 'default',
+					steps: lifecycle!.execute,
+					usesVariables: allVariableNames(detail),
+					forceBusy: false,
+					forceDisabled: false,
+				},
+				addToLibrary('outline'),
+			];
+		}
+		return [addToLibrary('default')];
+	}
+
 	const hasExecute = (lifecycle?.execute.length ?? 0) > 0;
+	const hasInstall = (lifecycle?.install.length ?? 0) > 0;
 	const configVars = allVariableNames(detail);
 
 	// Only ever called under an `if (hasExecute)` guard, which already implies
@@ -99,7 +142,7 @@ export function computeActions(detail: ArrowDetail, platform: string): ArrowActi
 	// safe here, not a shortcut around a real null case.
 	const execute = (forceDisabled: boolean, variant: ArrowActionVariant = 'outline'): ArrowAction => ({
 		kind: 'execute',
-		labelKey: 'arrow.action.start',
+		labelKey: launchLabelKey(lifecycle),
 		variant,
 		steps: lifecycle!.execute,
 		usesVariables: configVars,
@@ -110,15 +153,17 @@ export function computeActions(detail: ArrowDetail, platform: string): ArrowActi
 	switch (detail.state) {
 		case 'absent':
 			return [
-				{
-					kind: 'install',
-					labelKey: 'arrow.action.install',
-					variant: 'default',
-					steps: lifecycle?.install ?? [],
-					usesVariables: configVars,
-					forceBusy: false,
-					forceDisabled: false,
-				},
+				!hasInstall && hasExecute
+					? execute(false, 'default')
+					: {
+							kind: 'install',
+							labelKey: 'arrow.action.install',
+							variant: 'default',
+							steps: lifecycle?.install ?? [],
+							usesVariables: configVars,
+							forceBusy: false,
+							forceDisabled: false,
+						},
 				{
 					kind: 'removeFromLibrary',
 					labelKey: 'arrow.action.removeFromLibrary',
