@@ -173,25 +173,28 @@ export function MetaPanel({
 			</FrameHeader>
 			<FramePanel>
 				<div className="flex flex-col divide-y divide-border">
-					{requirement && (
-						<Section title={t('arrow.details.requirements')}>
-							<RequirementRow
-								icon={CpuIcon}
-								label={t('arrow.details.requirements.cpu')}
-								value={t('arrow.details.requirements.cpu.value', { count: requirement.cpu_cores })}
-							/>
-							<RequirementRow
-								icon={MemoryStickIcon}
-								label={t('arrow.details.requirements.memory')}
-								value={t('arrow.details.requirements.memory.value', { count: requirement.memory_gb })}
-							/>
-							<RequirementRow
-								icon={HardDriveIcon}
-								label={t('arrow.details.requirements.disk')}
-								value={t('arrow.details.requirements.disk.value', { count: requirement.disk_gb })}
-							/>
-						</Section>
-					)}
+					{requirement &&
+						(requirement.cpu_cores > 0 || requirement.memory_gb > 0 || requirement.disk_gb > 0) && (
+							<Section title={t('arrow.details.requirements')}>
+								<RequirementRow
+									icon={CpuIcon}
+									label={t('arrow.details.requirements.cpu')}
+									value={t('arrow.details.requirements.cpu.value', { count: requirement.cpu_cores })}
+								/>
+								<RequirementRow
+									icon={MemoryStickIcon}
+									label={t('arrow.details.requirements.memory')}
+									value={t('arrow.details.requirements.memory.value', {
+										count: requirement.memory_gb,
+									})}
+								/>
+								<RequirementRow
+									icon={HardDriveIcon}
+									label={t('arrow.details.requirements.disk')}
+									value={t('arrow.details.requirements.disk.value', { count: requirement.disk_gb })}
+								/>
+							</Section>
+						)}
 
 					{dependsOn.length > 0 && (
 						<Section title={t('arrow.details.dependencies')}>

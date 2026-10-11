@@ -49,13 +49,13 @@ describe('MethodsPanel', () => {
 		expect(screen.getByText('2 steps')).toBeInTheDocument();
 
 		expect(screen.getByText('rcon')).toBeInTheDocument();
-		expect(screen.getByText('1 steps')).toBeInTheDocument();
+		expect(screen.getByText('1 step')).toBeInTheDocument();
 	});
 
 	it('omits the description paragraph for a method with an empty description', () => {
 		render(<MethodsPanel methods={[METHODS[1]]} variables={[]} />);
 		expect(screen.queryByText('Snapshots the world to disk.')).not.toBeInTheDocument();
-		expect(screen.getByText('1 steps')).toBeInTheDocument();
+		expect(screen.getByText('1 step')).toBeInTheDocument();
 	});
 
 	it('renders no rows and a 0-count badge when there are no methods', () => {
@@ -126,7 +126,7 @@ describe('MethodsPanel', () => {
 		render(<MethodsPanel lifecycle={onlyInstall} methods={[]} variables={[]} />);
 
 		expect(screen.getByText('Install')).toBeInTheDocument();
-		expect(screen.getByText('1 steps')).toBeInTheDocument();
+		expect(screen.getByText('1 step')).toBeInTheDocument();
 	});
 
 	it('previews a lifecycle action’s own steps when its info button is clicked', async () => {

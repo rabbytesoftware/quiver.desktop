@@ -55,13 +55,9 @@ export function SearchBar(): JSX.Element {
 	useEffect(() => () => clearPending(), []);
 
 	function commit(next: string): void {
-		// Emptying the field asks for an empty search, not for a different page.
-		// This popped history instead, which landed wherever the stack happened
-		// to point: home, an older search -- refilling the field with the query
-		// just deleted -- or the arrow page you had come back from. Replacing
-		// keeps the cursor where it is, on a results route with nothing in it.
+		// An empty query has nothing to show: go Home instead of a blank results page.
 		if (next === '') {
-			void navigate({ to: RESULTS, search: { q: '' }, replace: showingResults });
+			void navigate({ to: '/', replace: showingResults });
 			return;
 		}
 

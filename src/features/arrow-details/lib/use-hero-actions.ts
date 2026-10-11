@@ -14,6 +14,7 @@ import {
 	type ReleaseMessageKey,
 } from '@/features/arrow-details/lib/release-variables';
 import { resolveRealPlatform } from '@/features/arrow-details/lib/use-real-platform';
+import { useRemoteStore } from '@/features/remote/stores/remote-store';
 import {
 	useArrowStore,
 	useExecuteArrow,
@@ -25,6 +26,7 @@ import {
 	useUpdate,
 } from '@/lib/core-store';
 import { arrowDetailQueryKeyPrefix } from '@/lib/core-store/queries/arrow';
+import { t } from '@/lib/i18n';
 import { ApiError } from '@/lib/transport/api';
 
 /**
@@ -142,7 +144,7 @@ export function useHeroActions(
 		setUpToDate(false);
 		setRetryKind(null);
 
-		if (kind === 'addToLibrary' && !skipPlatformWarning) {
+		if ((kind === 'addToLibrary' || !detail.user_installed) && !skipPlatformWarning) {
 			// A fresh, authoritative read, not the platform prop: gating this
 			// click on the reactive value risks the UA guess if the click lands
 			// before useRealPlatform's effect has resolved, which would silently
@@ -170,19 +172,25 @@ export function useHeroActions(
 			return;
 		}
 
+		// Install and Start on an arrow that is not in the library yet add it
+		// first and only continue once the daemon has answered.
+		async function addToLibrary(): Promise<string> {
+			if (detail.user_installed) return detail.namespace;
+			await registerArrow.mutateAsync({ namespace: registerAs });
+			// `user_installed` isn't part of the live WS-driven overlay (only
+			// state/active_run/last_return are) -- the one-time detail fetch
+			// needs an explicit refetch to pick up the new library membership.
+			// Keyed by prefix: the mounted query may run under a bare namespace.
+			await queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
+			refreshCatalog();
+			if (registerAs !== detail.namespace) onIdentityChange?.(registerAs);
+			return registerAs;
+		}
+
 		try {
 			switch (kind) {
 				case 'addToLibrary':
-					await registerArrow.mutateAsync({ namespace: registerAs });
-					// `user_installed` isn't part of the live WS-driven overlay (only
-					// state/active_run/last_return are) -- the one-time detail fetch
-					// needs an explicit refetch to pick up the new library membership.
-					// Keyed by prefix, not the exact namespace: the mounted query may
-					// be running under a bare namespace (Search's own links carry no
-					// ref), which differs from the identity core filed it under.
-					await queryClient.invalidateQueries({ queryKey: arrowDetailQueryKeyPrefix });
-					refreshCatalog();
-					if (registerAs !== detail.namespace) onIdentityChange?.(registerAs);
+					await addToLibrary();
 					break;
 				case 'removeFromLibrary':
 					await removeArrow.mutateAsync({ namespace: detail.namespace });
@@ -191,7 +199,7 @@ export function useHeroActions(
 				case 'install':
 				case 'reinstall':
 					await install.mutateAsync({
-						namespace: detail.namespace,
+						namespace: await addToLibrary(),
 						variables: { ...values, ...release },
 					});
 					break;
@@ -217,7 +225,7 @@ export function useHeroActions(
 					break;
 				}
 				case 'execute':
-					await execute.mutateAsync({ namespace: detail.namespace, variables: values });
+					await execute.mutateAsync({ namespace: await addToLibrary(), variables: values });
 					break;
 				case 'stop':
 					await stop.mutateAsync({ namespace: detail.namespace });
@@ -240,6 +248,14 @@ export function useHeroActions(
 		}
 		setPendingKind(null);
 	}
+
+	const previousState = useRef(detail.state);
+	useEffect(() => {
+		if (previousState.current === 'installing' && detail.state === 'ready') {
+			useRemoteStore.getState().pushToast(t('arrow.installed.toast', { name: detail.name }));
+		}
+		previousState.current = detail.state;
+	}, [detail.state, detail.name]);
 
 	// Restart's second leg: core only accepts `execute` once the arrow has
 	// genuinely reached `ready` (not merely once the `stop` request was

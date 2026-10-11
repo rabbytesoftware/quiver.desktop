@@ -93,7 +93,9 @@ export function MethodsPanel({ lifecycle, methods, variables, values, onValueCha
 								{row.description && (
 									<p className="mt-0.5 truncate text-xs text-muted-foreground">{row.description}</p>
 								)}
-								<p className="mt-0.5 text-xs text-muted-foreground">{`${row.steps.length} steps`}</p>
+								<p className="mt-0.5 text-xs text-muted-foreground">
+									{t('arrow.methods.steps', { count: row.steps.length })}
+								</p>
 							</div>
 							<Button
 								aria-label={t('arrow.action.info')}
