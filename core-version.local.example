@@ -1,0 +1,7 @@
+# Pin an exact quiver.core release tag for local `make fetch-sidecar` / `make dev`.
+# e.g.:
+#   stable-26.5.1
+#
+# Leave every line commented out (or the file empty) to use package.json's
+# "stable" channel instead — the default. This file is gitignored; it's
+# copied here once on first use of `make fetch-sidecar` and never read by CI.

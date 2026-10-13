@@ -1,0 +1,133 @@
+/* Declared before the layer is opened below, because this file is imported from
+   a component and Vite injects it ahead of `index.css`. Layer order is fixed by
+   first appearance, so without this line `@layer components` registers first and
+   Tailwind's preflight -- `base`, which sets `padding: 0` and `margin: 0` on `*`
+   -- ends up ordered after it and silently wins every padding and margin rule in
+   this file. Nothing here used either until the drawn banner did. */
+@layer theme, base, components, utilities;
+
+/* Motion measured frame-by-frame off the reference recording at 120fps.
+   Spec 8.4-8.6. Amplitude and velocity were tuned separately: the first
+   attempt read as a twitch, and the cause was velocity, not size. The kick
+   keeps a slow 59px/s and buys its amplitude back with time. Do not replace
+   this with a spring -- it will twitch again. */
+@layer components {
+	[data-slot='card-banner'] {
+		transition: transform 300ms cubic-bezier(0.3, 0.9, 0.4, 1);
+		transition-timing-function: linear(
+			0,
+			0.15 8.3%,
+			0.32 16.7%,
+			0.53 25%,
+			0.76 31.7%,
+			0.96 36.7%,
+			0.9 43.3%,
+			0.855 50%,
+			0.833 58.3%,
+			0.86 68.3%,
+			0.91 78.3%,
+			0.955 88.3%,
+			0.988 96%,
+			1
+		);
+	}
+
+	[data-slot='arrow-card']:hover [data-slot='card-banner'],
+	[data-slot='arrow-card']:focus-visible [data-slot='card-banner'] {
+		transform: translateY(calc(-1 * var(--reveal)));
+		transition: transform 40ms cubic-bezier(0.22, 0.68, 0.36, 1);
+		transition-timing-function: linear(0, 0.35 25%, 0.7 50%, 0.92 75%, 1);
+		/* Scoped to the hover rather than set on every banner: the grid renders up
+		   to `SEARCH_LIMIT` cards, and a permanent hint promotes all of them to
+		   compositor layers to serve the one the pointer is on. The fall keeps its
+		   layer without the hint -- a running transform transition is composited on
+		   its own. */
+		will-change: transform;
+	}
+
+	/* The drawn banner (spec 8.1.1). Most arrows publish an icon and no banner,
+	   so this is the rule rather than the exception, and a 36px mark centred on
+	   flat grey got worse the wider the tile grew. It lives inside the banner
+	   layer, which means it rides the lift instead of fighting it, and it is
+	   sized in container units so one rule serves every column width. */
+	[data-slot='card-banner'] {
+		container-type: inline-size;
+	}
+
+	[data-slot='card-drawn'] {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-end;
+		padding: 6.2cqw;
+		overflow: hidden;
+	}
+
+	/* The initial, cropped -- deterministic per arrow, so a wall of drawn tiles
+	   is not a wall of one tile. */
+	[data-slot='drawn-ghost'] {
+		position: absolute;
+		right: -1.5cqw;
+		bottom: -17cqw;
+		font-size: 58cqw;
+		line-height: 1;
+		font-weight: 800;
+		letter-spacing: -0.06em;
+		color: var(--foreground);
+		opacity: 0.048;
+	}
+
+	[data-slot='drawn-mark'] {
+		position: absolute;
+		top: 6.2cqw;
+		left: 6.2cqw;
+		width: 10.5cqw;
+		height: 10.5cqw;
+		border-radius: 2.6cqw;
+		background-size: cover;
+		background-position: center;
+	}
+
+	[data-slot='drawn-type'] {
+		display: block;
+		min-width: 0;
+	}
+
+	[data-slot='drawn-name'] {
+		display: block;
+		font-size: 8.6cqw;
+		line-height: 1.02;
+		font-weight: 620;
+		letter-spacing: -0.03em;
+		color: var(--foreground);
+		opacity: 0.88;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	[data-slot='drawn-owner'] {
+		display: block;
+		margin-top: 1.3cqw;
+		font-family: var(--font-mono);
+		font-size: 4.2cqw;
+		line-height: 1.2;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: var(--foreground);
+		opacity: 0.33;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		[data-slot='card-banner'],
+		[data-slot='arrow-card']:hover [data-slot='card-banner'],
+		[data-slot='arrow-card']:focus-visible [data-slot='card-banner'] {
+			transform: none;
+			transition: none;
+		}
+	}
+}

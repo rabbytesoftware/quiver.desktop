@@ -1,0 +1,887 @@
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::Duration;
+
+use tauri::async_runtime::Receiver;
+use tauri::AppHandle;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::ShellExt;
+
+use crate::connection::transport::Transport;
+
+use super::{quiver_home, LocalHost};
+
+const HEALTH_RETRY_MS: u64 = 200;
+const HEALTH_MAX_ATTEMPTS: u32 = 25;
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(3);
+
+pub struct SidecarManager {
+	host: LocalHost,
+	/// The daemon THIS app spawned, and the only one it may ever kill.
+	///
+	/// `CommandChild` has no `Drop` impl, so a handle dropped on the floor — which
+	/// is what `spawn` used to do with it — leaves the process running with
+	/// nothing left in the app that can address it. Holding it here is what makes
+	/// [`SidecarManager::reap`] possible at all.
+	///
+	/// `None` covers two very different situations, and conflating them is the
+	/// mistake this field exists to prevent: nothing has been spawned yet, and
+	/// `ensure_running` found a daemon already listening and adopted it. In the
+	/// second case there is a live daemon on the address this app is talking to
+	/// and it still must not be killed — it belongs to whoever started it.
+	///
+	/// A `std::sync::Mutex`, not tokio's, and deliberately: the critical section
+	/// is one `Option::take` with no await in it (see `take_spawned`), and an
+	/// async lock would invite exactly the "held across the kill" shape that
+	/// `teardown`'s `&self` makes tempting.
+	child: Mutex<Option<CommandChild>>,
+}
+
+impl SidecarManager {
+	pub fn new(host: LocalHost) -> Self {
+		Self {
+			host,
+			child: Mutex::new(None),
+		}
+	}
+
+	/// Bring the local daemon up, or notice that it already is.
+	///
+	/// The probe comes FIRST, and that is the whole point. `LocalConnection::new()`
+	/// runs at startup and again on every switch back to local, and each run used
+	/// to spawn unconditionally. On unix that was merely wasteful — the second
+	/// daemon loses the race for a fixed socket path and exits — and on Windows,
+	/// where the port used to be picked fresh each time, it was an orphaned daemon
+	/// per switch (see `local::LOCAL_PIPE_NAME`). With a fixed address on both
+	/// platforms, one health probe answers "is there already one of these?" and
+	/// makes the second spawn unnecessary rather than merely doomed.
+	///
+	/// The probe also decides what "ready" means, which is what keeps the fixed
+	/// address honest: if something that is not quiver.core holds the address, it
+	/// cannot answer `/v0/health`, so this reports failure rather than handing
+	/// the app a transport pointed at a stranger.
+	///
+	/// The early return is also what makes the ownership rule in [`Self::reap`]
+	/// hold: an adopted daemon never reaches `spawn`, so no child handle is
+	/// recorded for it, so nothing later kills it.
+	pub async fn ensure_running(
+		&self,
+		app: &AppHandle,
+		transport: &dyn Transport,
+	) -> Result<(), String> {
+		if health_ok(transport).await {
+			log::info!("[local] a daemon is already listening — not spawning another");
+			return Ok(());
+		}
+		self.spawn(app).await?;
+		self.wait_for_ready(transport).await
+	}
+
+	/// Start the daemon and keep hold of both halves of what that returns.
+	///
+	/// Private on purpose: `ensure_running` is the only way in, because it is
+	/// the probe that decides whether a spawn is wanted at all, and because a
+	/// second spawn on the same manager would displace the child handle the
+	/// first one recorded.
+	async fn spawn(&self, app: &AppHandle) -> Result<(), String> {
+		// `sidecar(name)` resolves to `dirname(current_exe)/name`, so the
+		// argument must be the bare binary name, NOT the `binaries/quiver`
+		// path from tauri.conf.json's externalBin. `tauri dev` runs unbundled
+		// and never catches a mistake here — use `make dev-bundle`.
+		// A dev/preview build points the daemon it spawns at this checkout's
+		// own `.quiver`, never the user's real one — quiver.core only infers
+		// this on its own for an unstamped `go run` build, and this sidecar is
+		// always a version-stamped release download, so it never would.
+		let dev_home = quiver_home();
+
+		// The bundled `binaries/quiver` is only ever day-one bootstrap seed: once
+		// quiver.core has self-updated at least once (its own Task 1.8), the
+		// current binary lives at a stable path outside the bundle and this app
+		// must prefer it — otherwise every launch after a self-update would
+		// still run the stale seed the app first shipped with. This is checked
+		// against `effective_home` — the SAME home `dev_home`, when set, scopes
+		// the spawned daemon's *data* directory to below — so a dev build only
+		// ever prefers a binary self-installed into THIS checkout's own scoped
+		// `.quiver/self/`, never a developer's real, unrelated one. Checking it
+		// against the real home instead (as this used to) would silently spawn
+		// that unrelated production binary the moment one existed there, while
+		// still correctly scoping the child's data directory to the checkout —
+		// defeating half of `dev_home`'s isolation guarantee.
+		let effective_home = Self::effective_home(dev_home.as_deref());
+		let mut command = match Self::resolve_binary_path(&effective_home) {
+			Some(installed) => {
+				log::info!(
+					"[local] using self-installed quiver.core at {}",
+					installed.display()
+				);
+				app.shell().command(&installed)
+			}
+			None => app.shell().sidecar("quiver").map_err(|e| e.to_string())?,
+		}
+		.args(["daemon", "--host", &self.host.host_arg(dev_home.is_some())]);
+
+		if let Some(home) = dev_home {
+			command = command.env("QUIVER_HOME", home);
+		}
+
+		let (events, child) = command.spawn().map_err(|e| e.to_string())?;
+
+		log::info!("[local] spawned quiver.core (pid {})", child.pid());
+
+		// Nothing should be here — `ensure_running` probes before spawning and
+		// each `LocalConnection` builds its own manager — but a handle displaced
+		// from this slot is a daemon nothing can ever kill, so it is reaped
+		// rather than overwritten.
+		if let Some(displaced) = take_spawned(&self.child) {
+			kill(displaced);
+		}
+		self.store(child);
+
+		// The receiver is the daemon's stdout and stderr, and dropping it (which
+		// is what this function used to do) throws both away. See `pump_events`.
+		tauri::async_runtime::spawn(pump_events(events));
+		Ok(())
+	}
+
+	/// Looks for a self-installed quiver.core at its stable, version-independent
+	/// install path (`{quiver_home}/self/` — see quiver.core's Task 1.8, not the
+	/// per-`@ref` `namespaces/` tree ordinary arrows use). Returns `None` when
+	/// nothing is installed there yet, in which case the caller falls back to
+	/// the bundled bootstrap sidecar.
+	pub fn resolve_binary_path(quiver_home: &Path) -> Option<PathBuf> {
+		let bin_name = if cfg!(windows) {
+			"quiver.exe"
+		} else {
+			"quiver"
+		};
+		let candidate = quiver_home.join("self").join(bin_name);
+		candidate.exists().then_some(candidate)
+	}
+
+	/// Mirrors quiver.core's own default home-directory resolution exactly —
+	/// see quiver.core's `internal/core/metadata/resolve_home.go` and
+	/// `resolve_home_windows.go`, both driven by `metadata.yaml`'s
+	/// `paths.home`: `QUIVER_HOME` wins when set (and non-empty), otherwise the
+	/// platform default (`~/.quiver` on Unix, `C:\Users\{{USER}}\Documents\.quiver`
+	/// on Windows). This has to track that default exactly, not just plausibly
+	/// — it is how this app finds the same `self/` directory quiver.core's own
+	/// Task 1.8 installs into.
+	fn quiver_home_dir() -> PathBuf {
+		if let Ok(home) = std::env::var("QUIVER_HOME") {
+			if !home.is_empty() {
+				return PathBuf::from(home);
+			}
+		}
+		platform_default_home()
+	}
+
+	/// The one home `spawn` uses both to look for a self-installed binary and
+	/// (via `dev_home`, at the call site) to scope the spawned daemon's data
+	/// directory — the same directory for both, always, which is what keeps
+	/// `dev_home`'s isolation guarantee whole. `Some` (a dev build) wins over
+	/// [`Self::quiver_home_dir`]'s real, production resolution entirely: a dev
+	/// build must never fall through to a developer's real, unrelated
+	/// self-installed Core just because none is installed under the checkout's
+	/// own scoped home yet. `None` (a release build) falls back to
+	/// `quiver_home_dir()` unchanged.
+	fn effective_home(dev_home: Option<&Path>) -> PathBuf {
+		dev_home.map(Path::to_path_buf)
+			.unwrap_or_else(Self::quiver_home_dir)
+	}
+
+	/// Record the child, and let go of the lock. See [`take_spawned`] for why the
+	/// critical section is kept to exactly this.
+	fn store(&self, child: CommandChild) {
+		*self.child.lock().unwrap_or_else(|e| e.into_inner()) = Some(child);
+	}
+
+	/// Stop the daemon this app spawned, if this app spawned one.
+	///
+	/// Asks it to exit over its own socket (`POST /v0/system/shutdown`) and only
+	/// kills the remembered pid if that fails or times out. The socket is the
+	/// right address because a self-update swaps the binary and restarts the
+	/// daemon under a NEW pid, so the pid recorded at spawn may be gone or
+	/// reused by then, while the socket still reaches whichever daemon is live.
+	///
+	/// Reached from `LocalConnection::teardown`, which runs when the app
+	/// switches away from local and when it quits (`ExitRequested` and `Exit`
+	/// both fire, hence idempotent: taking the handle out of the slot makes every
+	/// call after the first a no-op).
+	///
+	/// It does not stop whatever else holds the local address. The slot is filled
+	/// only by `spawn`; a daemon `ensure_running` adopted belongs to whoever
+	/// started it. The lock is never held across the request or the kill, which
+	/// run on the way out of the app where a block is a hang the user cannot
+	/// escape.
+	pub async fn reap(&self, transport: &dyn Transport) {
+		let Some(child) = take_spawned(&self.child) else {
+			log::debug!(
+				"[local] nothing to reap: this app did not spawn the local daemon"
+			);
+			return;
+		};
+		if request_shutdown(transport, SHUTDOWN_TIMEOUT).await {
+			log::info!("[local] asked quiver.core to shut down");
+			return;
+		}
+		log::warn!("[local] shutdown request failed, killing the spawned pid instead");
+		kill(child);
+	}
+
+	/// See [`Self::spawn`]: private for the same reason.
+	async fn wait_for_ready(&self, transport: &dyn Transport) -> Result<(), String> {
+		for _ in 0..HEALTH_MAX_ATTEMPTS {
+			if health_ok(transport).await {
+				return Ok(());
+			}
+			tokio::time::sleep(Duration::from_millis(HEALTH_RETRY_MS)).await;
+		}
+		Err(format!(
+			"quiver.core did not become ready after {}ms",
+			HEALTH_RETRY_MS * HEALTH_MAX_ATTEMPTS as u64,
+		))
+	}
+}
+
+/// The Unix half of `SidecarManager::quiver_home_dir`'s platform default:
+/// `$HOME/.quiver`, matching quiver.core's own `resolveHome()` (which expands
+/// its `~/.quiver` template via `os.UserHomeDir()` — `$HOME` on Unix). Falling
+/// back to `/tmp` when `HOME` is unset mirrors the same fallback already used
+/// for the dev socket path in `local::mod::default_socket_path`, and keeps
+/// this infallible rather than forcing every caller to handle an env lookup
+/// that essentially never fails on a real desktop.
+#[cfg(unix)]
+fn platform_default_home() -> PathBuf {
+	let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+	PathBuf::from(home).join(".quiver")
+}
+
+/// The Windows half of `SidecarManager::quiver_home_dir`'s platform default.
+/// `metadata.yaml`'s `paths.home.windows` documents the literal template
+/// `C:\Users\{{USER}}\Documents\.quiver`; quiver.core's own
+/// `resolve_home_windows.go` fills `{{USER}}` from `os/user.Current()`
+/// (falling back to `"unknown"` if that fails) rather than deriving the whole
+/// path from `%USERPROFILE%`, so this mirrors that exactly — including the
+/// same `"unknown"` fallback — instead of reconstructing a differently-shaped
+/// but plausible-looking path.
+#[cfg(windows)]
+fn platform_default_home() -> PathBuf {
+	let user = std::env::var("USERNAME").unwrap_or_else(|_| "unknown".into());
+	PathBuf::from(format!(r"C:\Users\{user}\Documents\.quiver"))
+}
+
+/// Take the spawned child out of `slot`, if there is one — the whole of the
+/// locked section of a reap, and nothing else.
+///
+/// Written this way so the lock CANNOT be held across the kill: the guard's life
+/// ends with this call, and the caller receives an owned child it can only kill
+/// afterwards. The alternative shape — lock, match, kill inside the `Some` arm —
+/// reads almost identically and holds a shared mutex across a blocking OS call
+/// on the app's exit path.
+///
+/// Generic over the handle because a real `CommandChild` cannot be built without
+/// an `AppHandle` and a live process, and this rule is worth testing.
+///
+/// A poisoned lock is recovered rather than propagated. The only thing behind it
+/// is an `Option`, so a panic elsewhere cannot have left it half-updated, and
+/// "the daemon does not get reaped, and the quit panics again" is a bad way to
+/// react to somebody else's bug.
+fn take_spawned<C>(slot: &Mutex<Option<C>>) -> Option<C> {
+	slot.lock().unwrap_or_else(|e| e.into_inner()).take()
+}
+
+fn kill(child: CommandChild) {
+	let pid = child.pid();
+	match child.kill() {
+		Ok(()) => log::info!("[local] killed the quiver.core we spawned (pid {pid})"),
+		Err(e) => log::warn!("[local] could not kill quiver.core (pid {pid}): {e}"),
+	}
+}
+
+/// One `POST /v0/system/shutdown`: did the daemon accept it in time?
+async fn request_shutdown(transport: &dyn Transport, timeout: Duration) -> bool {
+	let Ok(req) = tauri::http::Request::builder()
+		.method("POST")
+		.uri("quiver://localhost/v0/system/shutdown")
+		.body(Vec::new())
+	else {
+		return false;
+	};
+	matches!(
+		tokio::time::timeout(timeout, transport.request(req)).await,
+		Ok(Ok(resp)) if resp.status().is_success()
+	)
+}
+
+/// Drain the daemon's event stream into the log, for as long as it lasts.
+///
+/// This is the half of `.spawn()` that used to be dropped on the floor.
+/// `Command::spawn` returns `(Receiver<CommandEvent>, CommandChild)`, and the
+/// receiver is where quiver.core's stdout and stderr come out: dropping it
+/// closed the channel, so everything the daemon said went nowhere. A daemon that
+/// died on startup — wrong flag, address in use, missing dependency — produced
+/// exactly one symptom in this app, "quiver.core did not become ready after
+/// 5000ms", with the actual reason discarded a few lines earlier.
+///
+/// Ends when the channel closes, which the plugin does once the process has
+/// terminated and its reader threads are done. So this task cannot outlive the
+/// daemon, and does not need cancelling.
+async fn pump_events(mut events: Receiver<CommandEvent>) {
+	while let Some(event) = events.recv().await {
+		if let Some((level, line)) = describe_event(&event) {
+			log::log!(level, "{line}");
+		}
+	}
+}
+
+/// One event as a log line: at what level, and saying what.
+///
+/// Lifted out of [`pump_events`] so the mapping can be asserted directly —
+/// `spawn` needs an `AppHandle` and a real binary, so anything left inside it is
+/// beyond reach of the suite.
+fn describe_event(event: &CommandEvent) -> Option<(log::Level, String)> {
+	match event {
+		CommandEvent::Stdout(bytes) => Some((log::Level::Info, core_line(bytes))),
+		// Warn, not info: quiver.core's own logs come out here, and this is the
+		// stream that carries the reason a start failed.
+		CommandEvent::Stderr(bytes) => Some((log::Level::Warn, core_line(bytes))),
+		CommandEvent::Error(e) => Some((log::Level::Error, format!("[core] {e}"))),
+		// The daemon is gone. Worth a line even when it exited cleanly: the app
+		// carries on holding a transport pointed at an address nothing answers
+		// on any more, and this is the only notice of that.
+		CommandEvent::Terminated(status) => Some((
+			log::Level::Warn,
+			format!(
+				"[core] daemon exited — code: {:?}, signal: {:?}",
+				status.code, status.signal
+			),
+		)),
+		// `CommandEvent` is `#[non_exhaustive]`: a variant added by a future
+		// version of the plugin is something this app has no opinion about, and
+		// must not be a compile error either.
+		_ => None,
+	}
+}
+
+/// A line the daemon wrote, tagged and stripped of the newline the pipe kept.
+fn core_line(bytes: &[u8]) -> String {
+	format!("[core] {}", String::from_utf8_lossy(bytes).trim_end())
+}
+
+/// One `/v0/health` call: is a daemon answering on this transport right now?
+///
+/// Every failure is the same answer — no daemon here — so they collapse to
+/// `false`: a refused connection, a peer that is not quiver.core, a request
+/// that will not even build. The caller's job is to spawn one or to keep
+/// waiting, and neither depends on which.
+async fn health_ok(transport: &dyn Transport) -> bool {
+	let req = match tauri::http::Request::builder()
+		.method("GET")
+		.uri("quiver://localhost/v0/health")
+		.body(Vec::new())
+	{
+		Ok(r) => r,
+		Err(_) => return false,
+	};
+	match transport.request(req).await {
+		Ok(resp) => resp.status().is_success(),
+		Err(_) => false,
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::connection::transport::{TransportError, WsStream};
+	use std::fs;
+	use tauri::http::{Request, Response};
+	use tauri_plugin_shell::process::TerminatedPayload;
+	use tempfile::TempDir;
+
+	fn test_host() -> LocalHost {
+		#[cfg(unix)]
+		return LocalHost::Unix("/tmp/quiver-test.sock".into());
+		#[cfg(windows)]
+		return LocalHost::Pipe("quiver-test".into());
+	}
+
+	/// Answers `/v0/health` however the test needs it answered.
+	enum Peer {
+		/// A daemon that is up.
+		Healthy,
+		/// Something is listening, but it is not quiver.core — the case the
+		/// fixed local address makes possible, and the reason the decision to
+		/// spawn is taken on a health ANSWER rather than on a bind.
+		AStranger,
+		/// Nothing is listening at all.
+		Absent,
+		/// Accepts the connection and never answers.
+		Hung,
+	}
+
+	struct StubTransport(Peer);
+
+	#[async_trait::async_trait]
+	impl Transport for StubTransport {
+		async fn request(
+			&self,
+			_req: Request<Vec<u8>>,
+		) -> Result<Response<Vec<u8>>, TransportError> {
+			match self.0 {
+				Peer::Healthy => Ok(Response::builder()
+					.status(200)
+					.body(br#"{"status":"ok"}"#.to_vec())
+					.unwrap()),
+				Peer::AStranger => Ok(Response::builder()
+					.status(404)
+					.body(Vec::new())
+					.unwrap()),
+				Peer::Absent => {
+					Err(TransportError::Connect("connection refused".into()))
+				}
+				Peer::Hung => std::future::pending().await,
+			}
+		}
+
+		async fn open_ws(&self, _path: &str) -> Result<WsStream, TransportError> {
+			unreachable!("the health probe never opens a WebSocket")
+		}
+	}
+
+	/// The probe `ensure_running` decides on. A daemon that answers is one the
+	/// app must NOT spawn a second copy of — that is the whole of finding D on
+	/// Windows, where the second copy used to land on a port of its own and
+	/// survive as an orphan.
+	#[tokio::test]
+	async fn a_daemon_that_answers_health_is_reported_running() {
+		assert!(health_ok(&StubTransport(Peer::Healthy)).await);
+	}
+
+	/// Nothing listening: the app must spawn. This is the case that has to keep
+	/// working — a convergence check that reports "already running" when nothing
+	/// is would leave the app with no daemon at all.
+	#[tokio::test]
+	async fn an_unreachable_address_is_not_reported_running() {
+		assert!(!health_ok(&StubTransport(Peer::Absent)).await);
+	}
+
+	/// The fixed local port is a shared name, and an unrelated process can hold
+	/// it. It cannot answer `/v0/health`, so the probe must say no — otherwise
+	/// the app skips its own spawn and proxies to a stranger, which is the one
+	/// outcome worse than not starting.
+	#[tokio::test]
+	async fn a_process_that_is_not_quiver_core_is_not_reported_running() {
+		assert!(!health_ok(&StubTransport(Peer::AStranger)).await);
+	}
+
+	// ── Reaping the daemon ───────────────────────────────────────────────────
+
+	/// Stands in for `CommandChild`, which cannot be constructed without an
+	/// `AppHandle` and a running process. Nothing about `take_spawned` depends on
+	/// what the handle is, which is exactly why it is generic.
+	#[derive(Debug, PartialEq)]
+	struct FakeChild(u32);
+
+	/// The property both callers of `reap` depend on. `ExitRequested` and `Exit`
+	/// both arrive on a normal quit, and a switch away from local can be followed
+	/// by one of them — so the handle must come out once and then be gone. A
+	/// second `kill()` on the same pid is a signal aimed at whatever the OS has
+	/// since given that number to.
+	#[test]
+	fn a_spawned_child_is_taken_exactly_once() {
+		let slot = Mutex::new(Some(FakeChild(4242)));
+		assert_eq!(take_spawned(&slot), Some(FakeChild(4242)));
+		assert_eq!(
+			take_spawned(&slot),
+			None,
+			"the second reap must find nothing: both exit events fire, and a \
+			 re-kill targets a pid that is no longer ours"
+		);
+	}
+
+	/// `teardown` takes `&self`, so this mutex is shared with every other caller,
+	/// and `kill()` consumes the child and blocks on the OS. The lock must
+	/// therefore be gone by the time the caller has a child to kill — which is
+	/// what returning it achieves, and what "lock, match, kill in the arm" would
+	/// not.
+	#[test]
+	fn the_lock_is_free_once_the_child_is_out_of_it() {
+		let slot = Mutex::new(Some(FakeChild(1)));
+		let child = take_spawned(&slot);
+		assert!(child.is_some(), "the child must come out");
+		assert!(
+			slot.try_lock().is_ok(),
+			"the kill runs after this point, so the lock must already be released"
+		);
+	}
+
+	/// The ownership rule, through the real type. `ensure_running` adopts a daemon
+	/// that is already answering `/v0/health` rather than spawning one, so no
+	/// handle is recorded, and reaping must be a quiet no-op that does not even
+	/// ask the adopted daemon to shut down.
+	#[tokio::test]
+	async fn a_daemon_this_app_did_not_spawn_is_left_alone() {
+		let manager = SidecarManager::new(test_host());
+
+		manager.reap(&StubTransport(Peer::Healthy)).await;
+
+		assert!(
+			manager.child
+				.lock()
+				.unwrap_or_else(|e| e.into_inner())
+				.is_none(),
+			"only `spawn` may fill this slot"
+		);
+	}
+
+	const TICK: Duration = Duration::from_millis(50);
+
+	#[tokio::test]
+	async fn a_daemon_that_accepts_shutdown_is_not_killed() {
+		assert!(request_shutdown(&StubTransport(Peer::Healthy), TICK).await);
+	}
+
+	/// Each of these must fall back to killing the remembered pid.
+	#[tokio::test]
+	async fn a_refused_or_unreachable_or_hung_shutdown_reports_failure() {
+		assert!(!request_shutdown(&StubTransport(Peer::AStranger), TICK).await);
+		assert!(!request_shutdown(&StubTransport(Peer::Absent), TICK).await);
+		assert!(!request_shutdown(&StubTransport(Peer::Hung), TICK).await);
+	}
+
+	// ── The daemon's own output ──────────────────────────────────────────────
+
+	fn described(event: CommandEvent) -> (log::Level, String) {
+		describe_event(&event).expect("this event must reach the log")
+	}
+
+	/// The daemon's stdout is where its startup lines come out. They used to go
+	/// nowhere, because the receiver carrying them was dropped.
+	#[test]
+	fn stdout_from_the_daemon_reaches_the_log_at_info() {
+		let (level, line) = described(CommandEvent::Stdout(
+			b"starting quiver daemon on unix://\n".to_vec(),
+		));
+		assert_eq!(level, log::Level::Info);
+		// Tagged, so a daemon line is distinguishable from a Quiver line, and
+		// stripped of the newline the pipe kept — the logger adds its own.
+		assert_eq!(line, "[core] starting quiver daemon on unix://");
+	}
+
+	/// The case the discarded receiver actually cost. A daemon that cannot bind
+	/// says so on stderr and exits; the app then reported only "did not become
+	/// ready after 5000ms" and threw the reason away.
+	#[test]
+	fn stderr_from_the_daemon_reaches_the_log_loudly() {
+		let (level, line) = described(CommandEvent::Stderr(
+			b"listen npipe \\\\.\\pipe\\quiver: address already in use\n".to_vec(),
+		));
+		assert_eq!(level, log::Level::Warn);
+		assert!(line.contains("address already in use"), "got {line:?}");
+	}
+
+	/// Not the daemon failing — the plugin failing to keep reading it. Distinct
+	/// enough to be worth its own level: nothing more will arrive on this stream.
+	#[test]
+	fn a_stream_error_is_logged_as_an_error() {
+		let (level, line) = described(CommandEvent::Error("stdout is not utf-8".into()));
+		assert_eq!(level, log::Level::Error);
+		assert!(line.contains("stdout is not utf-8"), "got {line:?}");
+	}
+
+	/// A daemon that has exited leaves the app holding a transport aimed at an
+	/// address nothing answers on. The exit code is the whole of the diagnosis,
+	/// so it has to be in the line.
+	#[test]
+	fn a_terminated_daemon_names_its_exit_code_and_signal() {
+		let (level, line) = described(CommandEvent::Terminated(TerminatedPayload {
+			code: Some(1),
+			signal: None,
+		}));
+		assert_eq!(level, log::Level::Warn);
+		assert!(line.contains("code: Some(1)"), "got {line:?}");
+		assert!(line.contains("signal: None"), "got {line:?}");
+	}
+
+	/// The pump has to consume the stream to the end and then stop on its own.
+	/// A pump that returned early would stop draining the pipe, and the plugin's
+	/// reader threads fill a bounded channel — so the daemon would eventually
+	/// block on its own stdout. A pump that never returned would leak a task per
+	/// spawn.
+	#[tokio::test]
+	async fn the_pump_drains_the_stream_and_ends_with_it() {
+		let (tx, rx) = tauri::async_runtime::channel(4);
+		tx.send(CommandEvent::Stdout(b"one\n".to_vec()))
+			.await
+			.expect("the pump's channel must accept events");
+		tx.send(CommandEvent::Stderr(b"two\n".to_vec()))
+			.await
+			.expect("the pump's channel must accept events");
+		// The daemon is gone and the plugin has closed the channel. Without the
+		// sender dropped this call never returns, which is the point.
+		drop(tx);
+
+		tokio::time::timeout(Duration::from_secs(5), pump_events(rx))
+			.await
+			.expect("the pump must end when the daemon's stream closes");
+	}
+
+	// ── Preferring a self-installed Core ─────────────────────────────────────
+
+	#[test]
+	fn resolve_binary_path_prefers_installed_core_when_present() {
+		let home = TempDir::new().unwrap();
+		let self_dir = home.path().join("self");
+		fs::create_dir_all(&self_dir).unwrap();
+		let installed_bin = self_dir.join(if cfg!(windows) {
+			"quiver.exe"
+		} else {
+			"quiver"
+		});
+		fs::write(&installed_bin, b"fake binary").unwrap();
+
+		let resolved = SidecarManager::resolve_binary_path(home.path());
+
+		assert_eq!(resolved, Some(installed_bin));
+	}
+
+	#[test]
+	fn resolve_binary_path_none_when_not_installed() {
+		let home = TempDir::new().unwrap();
+
+		let resolved = SidecarManager::resolve_binary_path(home.path());
+
+		assert_eq!(resolved, None);
+	}
+
+	/// Guards every test below that touches `QUIVER_HOME` (and, further down,
+	/// `HOME`/`USERNAME`): `std::env::set_var` and `remove_var` mutate
+	/// process-global state, and two tests racing on the same variable could
+	/// each observe the other's value. Serializing the tests below against
+	/// EACH OTHER is what this lock actually buys. It is a narrower guarantee
+	/// than full soundness, and this comment used to claim otherwise: per
+	/// `set_var`/`remove_var`'s own safety docs, they race against a
+	/// concurrent env-var READ on any other thread, not just a concurrent
+	/// write to the same key, because most platform implementations (glibc's
+	/// `environ` included) back the whole environment table with one shared
+	/// allocation. `cargo test`'s default multi-threaded runner can run one of
+	/// these `set_var` calls concurrently with, say, `tempfile::TempDir::new()`
+	/// reading `TMPDIR` in an unrelated test elsewhere in this file — a
+	/// different key, still a documented race. In practice, two full
+	/// `make test-rust` runs back to back showed no failures (128/128 both
+	/// times), so the real-world blast radius appears small — but that is an
+	/// empirical observation about this suite's current shape, not a
+	/// soundness argument this lock provides on its own.
+	fn quiver_home_env_lock() -> &'static Mutex<()> {
+		static LOCK: std::sync::OnceLock<Mutex<()>> = std::sync::OnceLock::new();
+		LOCK.get_or_init(|| Mutex::new(()))
+	}
+
+	/// The override quiver.core itself honors first — see
+	/// `resolveHome()`/`homeOverrideEnv` in its own `metadata` package. This
+	/// app has to agree on that env var, or it would look for a self-installed
+	/// Core in a directory quiver.core was never told to use.
+	#[test]
+	fn quiver_home_dir_prefers_the_env_var_override_when_set() {
+		let _guard = quiver_home_env_lock()
+			.lock()
+			.unwrap_or_else(|e| e.into_inner());
+		unsafe {
+			std::env::set_var("QUIVER_HOME", "/tmp/quiver-home-dir-override-test");
+		}
+
+		let resolved = SidecarManager::quiver_home_dir();
+
+		unsafe {
+			std::env::remove_var("QUIVER_HOME");
+		}
+		assert_eq!(
+			resolved,
+			PathBuf::from("/tmp/quiver-home-dir-override-test")
+		);
+	}
+
+	/// With no override, this has to land on exactly the same default
+	/// quiver.core's own `metadata.yaml` (`paths.home`) documents — not
+	/// merely a plausible-looking `~/.quiver`. Unix and Windows are asserted
+	/// separately because the underlying env var (`HOME` vs `USERNAME`) and
+	/// the shape of the default path differ per platform.
+	#[test]
+	fn quiver_home_dir_falls_back_to_the_platform_default_when_unset() {
+		let _guard = quiver_home_env_lock()
+			.lock()
+			.unwrap_or_else(|e| e.into_inner());
+		unsafe {
+			std::env::remove_var("QUIVER_HOME");
+		}
+
+		let resolved = SidecarManager::quiver_home_dir();
+
+		#[cfg(unix)]
+		{
+			let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+			assert_eq!(resolved, PathBuf::from(home).join(".quiver"));
+		}
+		#[cfg(windows)]
+		{
+			let user = std::env::var("USERNAME").unwrap_or_else(|_| "unknown".into());
+			assert_eq!(
+				resolved,
+				PathBuf::from(format!(r"C:\Users\{user}\Documents\.quiver"))
+			);
+		}
+	}
+
+	/// Exercises `platform_default_home()`'s own INNER fallback, reached only
+	/// when the platform env var it reads (`HOME` on Unix, `USERNAME` on
+	/// Windows) is unset too — not just `QUIVER_HOME`. The test above only
+	/// ever clears `QUIVER_HOME`, so it never reaches `/tmp/.quiver` (Unix) or
+	/// `"unknown"` (Windows): exactly the branches documented as this app's
+	/// deliberate divergence from quiver.core's Go implementation, which
+	/// returns the raw, unexpanded `~/.quiver` template instead. A regression
+	/// here — say, an `.unwrap()` that panics instead of falling back — would
+	/// pass the test above and still be invisible without this one.
+	#[test]
+	fn quiver_home_dir_falls_back_further_when_the_platform_env_var_is_also_unset() {
+		let _guard = quiver_home_env_lock()
+			.lock()
+			.unwrap_or_else(|e| e.into_inner());
+		unsafe {
+			std::env::remove_var("QUIVER_HOME");
+		}
+
+		#[cfg(unix)]
+		{
+			let prior = std::env::var("HOME").ok();
+			unsafe {
+				std::env::remove_var("HOME");
+			}
+
+			let resolved = SidecarManager::quiver_home_dir();
+
+			unsafe {
+				match &prior {
+					Some(value) => std::env::set_var("HOME", value),
+					None => std::env::remove_var("HOME"),
+				}
+			}
+			assert_eq!(resolved, PathBuf::from("/tmp/.quiver"));
+		}
+		#[cfg(windows)]
+		{
+			let prior = std::env::var("USERNAME").ok();
+			unsafe {
+				std::env::remove_var("USERNAME");
+			}
+
+			let resolved = SidecarManager::quiver_home_dir();
+
+			unsafe {
+				match &prior {
+					Some(value) => std::env::set_var("USERNAME", value),
+					None => std::env::remove_var("USERNAME"),
+				}
+			}
+			assert_eq!(
+				resolved,
+				PathBuf::from(r"C:\Users\unknown\Documents\.quiver")
+			);
+		}
+	}
+
+	// ── Scoping the self-install check to `dev_home` ─────────────────────────
+
+	/// The bug Finding 1 of the Task 2.2 review describes: without this,
+	/// `spawn` checked for a self-installed Core against the REAL production
+	/// home regardless of `dev_home`, so the moment a developer's own,
+	/// unrelated `quiver.core` self-updated once, every `make dev`/
+	/// `make dev-bundle` afterwards would silently spawn that production
+	/// binary — while still correctly scoping its *data* directory to the
+	/// checkout via `dev_home` — defeating half of `dev_home`'s isolation
+	/// guarantee. This proves the fix: with `dev_home` set (as in any debug
+	/// build) and a binary self-installed under the checkout-scoped home's
+	/// `self/`, resolution must land on THAT binary even when the real
+	/// production home (here, `QUIVER_HOME`) has an entirely different
+	/// self-installed binary of its own.
+	#[test]
+	fn effective_home_prefers_dev_home_over_a_real_self_installed_core() {
+		let _guard = quiver_home_env_lock()
+			.lock()
+			.unwrap_or_else(|e| e.into_inner());
+
+		let bin_name = if cfg!(windows) {
+			"quiver.exe"
+		} else {
+			"quiver"
+		};
+
+		// The checkout-scoped dev home, with its OWN self-installed binary.
+		let dev_home = TempDir::new().unwrap();
+		let dev_self_dir = dev_home.path().join("self");
+		fs::create_dir_all(&dev_self_dir).unwrap();
+		let dev_installed_bin = dev_self_dir.join(bin_name);
+		fs::write(&dev_installed_bin, b"dev-scoped binary").unwrap();
+
+		// The real production home -- what `quiver_home_dir()` resolves to
+		// without a `dev_home` override -- which ALSO has a self-installed
+		// binary: an unrelated one that must never be picked while `dev_home`
+		// is set, even though it exists and predates this fix's check.
+		let real_home = TempDir::new().unwrap();
+		let real_self_dir = real_home.path().join("self");
+		fs::create_dir_all(&real_self_dir).unwrap();
+		fs::write(real_self_dir.join(bin_name), b"real production binary").unwrap();
+		unsafe {
+			std::env::set_var("QUIVER_HOME", real_home.path());
+		}
+
+		let effective = SidecarManager::effective_home(Some(dev_home.path()));
+
+		unsafe {
+			std::env::remove_var("QUIVER_HOME");
+		}
+
+		assert_eq!(
+			effective,
+			dev_home.path(),
+			"a dev build must resolve the self-install check against its own \
+			 checkout-scoped home, never the real one -- even when the real \
+			 home also has a self-installed binary"
+		);
+
+		let resolved = SidecarManager::resolve_binary_path(&effective);
+		assert_eq!(
+			resolved,
+			Some(dev_installed_bin),
+			"spawn must prefer the binary self-installed into the checkout's \
+			 own home, not the real, unrelated production install"
+		);
+	}
+
+	/// The other half of `effective_home`: a release build (`dev_home: None`,
+	/// since `quiver_home()` only ever returns `Some` in a debug build) must
+	/// fall back to `quiver_home_dir()`'s real resolution unchanged -- this
+	/// fix must not touch production behavior at all.
+	#[test]
+	fn effective_home_falls_back_to_quiver_home_dir_when_dev_home_is_none() {
+		let _guard = quiver_home_env_lock()
+			.lock()
+			.unwrap_or_else(|e| e.into_inner());
+		unsafe {
+			std::env::set_var(
+				"QUIVER_HOME",
+				"/tmp/quiver-effective-home-fallback-test",
+			);
+		}
+
+		let effective = SidecarManager::effective_home(None);
+
+		unsafe {
+			std::env::remove_var("QUIVER_HOME");
+		}
+
+		assert_eq!(
+			effective,
+			PathBuf::from("/tmp/quiver-effective-home-fallback-test")
+		);
+	}
+}

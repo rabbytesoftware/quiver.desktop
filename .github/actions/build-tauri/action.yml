@@ -1,0 +1,298 @@
+name: 'Build Tauri App'
+description: 'Fetch the quiver.core sidecar and build the Tauri app for the current platform'
+
+inputs:
+  quiver-version:
+    description: >-
+      Resolved quiver.core release TAG to fetch the sidecar from (e.g.
+      stable-26.5.1, nightly-latest) — never a package.json `coreChannels`
+      key. Callers resolve that through scripts/resolve-core-version.mjs
+      first; see the `prepare` job in nightly/prerelease/stable-release.yml.
+    required: true
+  release-tag:
+    description: >-
+      The quiver.desktop release tag THIS build is being cut from
+      (`stable-<series>[.patch]`), baked into the binary by src-tauri/build.rs
+      so the app can announce its own arrow at a ref that really resolves.
+      Optional, and empty is the ordinary case: only stable-release.yml pushes
+      its tag before building, so only it can name one. Nightly and
+      pre-release builds leave it unset and the app falls back to announcing
+      refless, exactly as before.
+    required: false
+    default: ''
+  build-label:
+    description: >-
+      The release tag THIS build is published as, in any channel
+      (`stable-26.5.1`, `beta-26.5-4`, `hotfix-26.5.1-1`), baked into the binary
+      by src-tauri/build.rs so the rail's build indicator can name it. Display
+      only: unlike `release-tag` it is never announced to quiver.core as a ref,
+      so beta and hotfix builds can pass theirs. Falls back to `release-tag`,
+      which is what a stable build wants, and is empty for nightly, PR and
+      local builds (a rolling build is identified by its commit and build time,
+      which build.rs stamps by itself).
+    required: false
+    default: ''
+  release-channel:
+    description: >-
+      The quiver.desktop channel THIS build is published on (`stable`,
+      `beta`, `hotfix` or `nightly-rolling`), baked into the frontend as
+      VITE_QUIVER_BUILD_CHANNEL so the app files its own arrow under that
+      channel instead of the repository's default one. Empty for PR and
+      local builds.
+    required: false
+    default: ''
+  rust-version:
+    description: 'Rust toolchain version'
+    required: false
+    default: '1.90'
+  bun-version:
+    description: 'Bun version'
+    required: false
+    default: 'latest'
+
+runs:
+  using: 'composite'
+  steps:
+    # A guard, not ceremony. package.json's coreChannels holds a CHANNEL NAME
+    # ("stable"), and resolving it to a real tag is the caller's job. When
+    # that was missed, every `gh release download` below ran with a literal
+    # channel name and every platform of every release build failed at
+    # sidecar fetch — three jobs deep, with an error naming the symptom
+    # rather than the cause. Fail here, where the cause is, and before an
+    # hour of toolchain setup.
+    - name: Validate the resolved quiver.core tag
+      shell: bash
+      env:
+        QUIVER_VERSION: ${{ inputs.quiver-version }}
+      run: |
+        if [ -z "$QUIVER_VERSION" ]; then
+          echo "❌ quiver-version is empty — the caller's resolve step produced no tag."
+          exit 1
+        fi
+        case "$QUIVER_VERSION" in
+          stable-*|beta-*|hotfix-*|nightly-latest) ;;
+          *)
+            echo "❌ quiver-version must be a resolved quiver.core tag (stable-*/beta-*/hotfix-*/nightly-latest), got '${QUIVER_VERSION}'."
+            echo "   Resolve package.json's quiver.coreChannels entry with scripts/resolve-core-version.mjs before calling this action."
+            exit 1
+            ;;
+        esac
+        echo "✅ fetching the quiver.core sidecar from ${QUIVER_VERSION}"
+
+    # Same reasoning as the guard above, one layer quieter: a malformed tag
+    # here does not break the build, it is simply rejected at runtime by
+    # `commands::build_info::is_release_tag` and the app announces refless —
+    # so a mistyped caller would ship a release that silently behaves like a
+    # dev build. Say so here instead, where the cause is.
+    - name: Validate the release tag, when one was given
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ inputs.release-tag }}
+      run: |
+        if [ -z "$RELEASE_TAG" ]; then
+          echo "ℹ️  no release-tag given — this build will announce its own arrow refless."
+          exit 0
+        fi
+        if ! echo "$RELEASE_TAG" | grep -Eq '^stable-[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+          echo "❌ release-tag must be a quiver.desktop stable tag (stable-<series>[.patch]), got '${RELEASE_TAG}'."
+          echo "   Anything else is rejected at runtime and the build would ship announcing refless."
+          exit 1
+        fi
+        echo "✅ stamping this build as ${RELEASE_TAG}"
+
+    - name: Validate the build label, when one was given
+      shell: bash
+      env:
+        BUILD_LABEL: ${{ inputs.build-label || inputs.release-tag }}
+      run: |
+        if [ -z "$BUILD_LABEL" ]; then
+          echo "ℹ️  no build label — the build indicator will show this build by its commit and time."
+          exit 0
+        fi
+        # Anything else is dropped by `commands::build_info::valid_label` at
+        # runtime, so a malformed label would silently show as an unstamped build.
+        if ! echo "$BUILD_LABEL" | grep -Eq '^(stable-[0-9]+\.[0-9]+(\.[0-9]+)?|(beta|hotfix)-([0-9]+(\.[0-9]+)+|[0-9]{4}-[0-9]{2}-[0-9]{2})(-[0-9]+)?)$'; then
+          echo "❌ build-label must be a stable, beta or hotfix tag, got '${BUILD_LABEL}'."
+          exit 1
+        fi
+        echo "✅ the build indicator will name this build ${BUILD_LABEL}"
+
+    - name: Validate the release channel, when one was given
+      shell: bash
+      env:
+        RELEASE_CHANNEL: ${{ inputs.release-channel }}
+      run: |
+        case "$RELEASE_CHANNEL" in
+          '') echo "ℹ️  no release-channel given — this build will announce the repository's default channel." ;;
+          stable|beta|hotfix|nightly-rolling) echo "✅ this build announces the ${RELEASE_CHANNEL} channel" ;;
+          *) echo "❌ release-channel must be stable, beta, hotfix or nightly-rolling, got '${RELEASE_CHANNEL}'."; exit 1 ;;
+        esac
+
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev \
+          build-essential curl wget file \
+          libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+    - name: Set up Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ inputs.rust-version }}
+        # macOS ships a universal binary, which cargo can only produce by
+        # building each arch and lipo-ing them — so both targets must exist.
+        target: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ inputs.bun-version }}
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          src-tauri/target/
+        key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-release-
+
+    # macOS gets BOTH architectures lipo'd into one sidecar. Fetching only
+    # arm64 (as this action used to) produces a DMG that installs happily on an
+    # Intel Mac and then fails to start its daemon — the app looks fine right
+    # up until it needs the backend.
+    - name: Fetch quiver.core sidecar (macOS, universal)
+      if: runner.os == 'macOS'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        mkdir -p src-tauri/binaries
+        gh release download "${{ inputs.quiver-version }}" \
+          --repo rabbytesoftware/quiver.core \
+          --pattern 'quiver-darwin-arm64' --pattern 'quiver-darwin-amd64' \
+          --dir src-tauri/binaries --clobber
+
+        mv src-tauri/binaries/quiver-darwin-arm64 src-tauri/binaries/quiver-aarch64-apple-darwin
+        mv src-tauri/binaries/quiver-darwin-amd64 src-tauri/binaries/quiver-x86_64-apple-darwin
+
+        # `cargo tauri build --target universal-apple-darwin` looks for a single
+        # sidecar named for the universal triple. It does NOT lipo the two
+        # arch-specific ones on its own.
+        lipo -create \
+          src-tauri/binaries/quiver-aarch64-apple-darwin \
+          src-tauri/binaries/quiver-x86_64-apple-darwin \
+          -output src-tauri/binaries/quiver-universal-apple-darwin
+
+        chmod +x src-tauri/binaries/quiver-*
+        lipo -info src-tauri/binaries/quiver-universal-apple-darwin
+
+    - name: Fetch quiver.core sidecar (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        mkdir -p src-tauri/binaries
+        gh release download "${{ inputs.quiver-version }}" \
+          --repo rabbytesoftware/quiver.core \
+          --pattern 'quiver-linux-amd64' \
+          --dir src-tauri/binaries --clobber
+        mv src-tauri/binaries/quiver-linux-amd64 \
+           src-tauri/binaries/quiver-x86_64-unknown-linux-gnu
+        chmod +x src-tauri/binaries/quiver-x86_64-unknown-linux-gnu
+
+    - name: Fetch quiver.core sidecar (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        mkdir -p src-tauri/binaries
+        gh release download "${{ inputs.quiver-version }}" \
+          --repo rabbytesoftware/quiver.core \
+          --pattern 'quiver-windows-amd64.exe' \
+          --dir src-tauri/binaries --clobber
+        mv src-tauri/binaries/quiver-windows-amd64.exe \
+           src-tauri/binaries/quiver-x86_64-pc-windows-msvc.exe
+
+    # The NSIS installer embeds this (src-tauri/windows-installer-hooks.nsh) so
+    # a bare Windows can run the app. aka.ms always serves the latest 14.x, so
+    # there is no stable hash to pin; the Microsoft Authenticode signature is
+    # what proves the file is genuine.
+    - name: Fetch the VC++ redistributable (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $path = Join-Path $env:RUNNER_TEMP 'vc_redist.x64.exe'
+        Invoke-WebRequest -Uri 'https://aka.ms/vs/17/release/vc_redist.x64.exe' -OutFile $path
+        $sig = Get-AuthenticodeSignature $path
+        if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+          throw "vc_redist.x64.exe is not validly signed by Microsoft (status: $($sig.Status))"
+        }
+        "QUIVER_VCREDIST_PATH=$path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        Write-Host "vc_redist.x64.exe signed by $($sig.SignerCertificate.Subject)"
+
+    - name: Install frontend dependencies
+      shell: bash
+      run: bun install --frozen-lockfile
+
+    - uses: cargo-bins/cargo-binstall@main
+
+    - name: Install tauri-cli
+      shell: bash
+      run: cargo binstall tauri-cli@^2 --no-confirm --locked --force
+
+    # macOS only, and a self-skipping no-op unless Xcode 26+ is selected. The
+    # job must run on `macos-26`: macOS 15's newest Xcode is 26.3, whose actool
+    # CRASHES on our .icon (CompileAssetCatalogVariant exit 65).
+    - name: Compile the Tahoe adaptive icon
+      if: runner.os == 'macOS'
+      shell: bash
+      run: bash icons-compiler/compile-icon.sh
+
+    # QUIVER_DESKTOP_RELEASE_TAG on each of the three build steps (and only on
+    # those): it is read by src-tauri/build.rs at compile time, and cargo
+    # re-runs that script when the variable changes, so a restored target/
+    # cache cannot carry the previous release's stamp into this one.
+    # VITE_QUIVER_BUILD_CHANNEL rides along for the `bun run build` that
+    # `cargo tauri build` runs first (tauri.conf.json's beforeBuildCommand).
+    - name: Build Tauri app (macOS universal DMG)
+      if: runner.os == 'macOS'
+      shell: bash
+      env:
+        QUIVER_DESKTOP_RELEASE_TAG: ${{ inputs.release-tag }}
+        QUIVER_DESKTOP_STAMP_LABEL: ${{ inputs.build-label || inputs.release-tag }}
+        VITE_QUIVER_BUILD_CHANNEL: ${{ inputs.release-channel }}
+      run: bash scripts/build-macos-dmg.sh
+
+    # bundle.macOS.files points at icons/Assets.car, which only ever exists
+    # after the macOS icon step. Clear the mapping so the bundler doesn't trip
+    # over a file that was never going to be there on this platform.
+    - name: Build Tauri app (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      env:
+        QUIVER_DESKTOP_RELEASE_TAG: ${{ inputs.release-tag }}
+        QUIVER_DESKTOP_STAMP_LABEL: ${{ inputs.build-label || inputs.release-tag }}
+        VITE_QUIVER_BUILD_CHANNEL: ${{ inputs.release-channel }}
+      run: |
+        cargo tauri build --bundles appimage,deb \
+          --config '{"bundle":{"macOS":{"files":{}}}}'
+
+    - name: Build Tauri app (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      env:
+        QUIVER_DESKTOP_RELEASE_TAG: ${{ inputs.release-tag }}
+        QUIVER_DESKTOP_STAMP_LABEL: ${{ inputs.build-label || inputs.release-tag }}
+        VITE_QUIVER_BUILD_CHANNEL: ${{ inputs.release-channel }}
+      run: |
+        cargo tauri build --bundles msi,nsis \
+          --config '{"bundle":{"macOS":{"files":{}}}}'

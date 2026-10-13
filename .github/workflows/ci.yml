@@ -1,0 +1,741 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ master, develop ]
+    types: [ opened, synchronize, reopened, ready_for_review ]
+
+env:
+  RUST_VERSION: 'stable'
+  BUN_VERSION: 'latest'
+  # Only used by the jobs that run scripts/resolve-core-version.mjs. `import.meta.main`
+  # (the script's entry-point guard) was added in Node v22.18.0 / v24.2.0 -- an
+  # unpatched runtime silently prints nothing and exits 0 instead of erroring, which
+  # is why every call site also carries an empty-output guard as the real safety net,
+  # not the version pin alone.
+  NODE_VERSION: '24'
+
+jobs:
+  draft-reminder:
+    name: Draft PR Reminder
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == true && github.event.action == 'opened'
+    permissions:
+      pull-requests: write
+    steps:
+    - name: Comment on draft PR
+      uses: actions/github-script@v9
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `⚠️ **Draft PR Reminder**\n\nHey @${context.payload.pull_request.user.login}!\n\nBe sure to run the command \`make pr-checks\` before opening this PR. Thanks!\n\n> **Note:** CI won't run on draft PRs to optimize [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions). Mark as ready for review when you're done! 🚀`
+          });
+
+  validate-branch:
+    name: Validate Branch Model
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check if PR is draft
+      run: |
+        if [ "${{ github.event.pull_request.draft }}" == "true" ]; then
+          echo "❌ This PR is a draft. Please mark it as ready for review to run CI checks."
+          exit 1
+        fi
+        echo "✅ PR is ready for review"
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Validate branching model
+      run: |
+        SOURCE_BRANCH="${{ github.head_ref }}"
+        TARGET_BRANCH="${{ github.base_ref }}"
+
+        echo "Source branch: $SOURCE_BRANCH"
+        echo "Target branch: $TARGET_BRANCH"
+
+        validate_branch() {
+          case "$SOURCE_BRANCH" in
+            enhancement/*)
+              if [ "$TARGET_BRANCH" != "develop" ]; then
+                echo "❌ Enhancement branches can only target 'develop', not '$TARGET_BRANCH'"
+                exit 1
+              fi
+              ;;
+            feature/*)
+              if [ "$TARGET_BRANCH" != "develop" ]; then
+                echo "❌ Feature branches can only target 'develop', not '$TARGET_BRANCH'"
+                exit 1
+              fi
+              ;;
+            fix/*)
+              if [ "$TARGET_BRANCH" != "develop" ]; then
+                echo "❌ Fix branches can only target 'develop', not '$TARGET_BRANCH'"
+                exit 1
+              fi
+              ;;
+            refactor/*)
+              if [ "$TARGET_BRANCH" != "develop" ]; then
+                echo "❌ Refactor branches can only target 'develop', not '$TARGET_BRANCH'"
+                exit 1
+              fi
+              ;;
+            dependabot/*)
+              if [ "$TARGET_BRANCH" != "develop" ]; then
+                echo "❌ Dependabot branches can only target 'develop', not '$TARGET_BRANCH'"
+                exit 1
+              fi
+              ;;
+            hotfix/*)
+              if [ "$TARGET_BRANCH" != "master" ]; then
+                echo "❌ Hotfix branches can only target 'master', not '$TARGET_BRANCH'"
+                exit 1
+              fi
+              ;;
+            beta/*)
+              if [ "$TARGET_BRANCH" != "master" ]; then
+                echo "❌ Beta branches can only target 'master', not '$TARGET_BRANCH'"
+                exit 1
+              fi
+              ;;
+            backport/*)
+              if [ "$TARGET_BRANCH" != "develop" ]; then
+                echo "❌ Backport branches can only target 'develop', not '$TARGET_BRANCH'"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "❌ Invalid branch name '$SOURCE_BRANCH'. Must follow pattern:"
+              echo "  - enhancement/name (→ develop)"
+              echo "  - feature/name (→ develop)"
+              echo "  - fix/name (→ develop)"
+              echo "  - refactor/name (→ develop)"
+              echo "  - hotfix/name (→ master)"
+              echo "  - beta/YY.M or beta/YY.M.P (→ master)"
+              echo "  - backport/DATE-VERSION (→ develop)"
+              exit 1
+              ;;
+          esac
+
+          echo "✅ Quiver loves your PR: $SOURCE_BRANCH → $TARGET_BRANCH"
+        }
+
+        validate_branch
+
+  validate-core-version:
+    name: Validate CORE_VERSION
+    runs-on: ubuntu-latest
+    needs: validate-branch
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ env.BUN_VERSION }}
+
+    # scripts/resolve-core-version.mjs is a real module with real needs: it
+    # `import`s `semver` (so node_modules has to exist) and guards its entry
+    # point with `import.meta.main`, added in Node v22.18.0 / v24.2.0 — on an
+    # unpatched runtime the script silently prints nothing and exits 0 instead
+    # of erroring, handing the steps below an empty string instead of a tag
+    # (the empty-output guard further down is the real safety net here, not
+    # the version pin alone). Neither node_modules nor a supporting Node
+    # version can be assumed of the runner image, so pin both.
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+
+    - name: Validate CORE_VERSION resolves to a real quiver.core release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # package.json's coreChannels holds a CHANNEL NAME, not a tag, so it
+        # cannot be handed to `gh` as-is. Resolve it exactly the way
+        # `make pr-checks` does, then check what it resolved to. This gate
+        # always tracks the CURRENT newest stable release — there is no
+        # compatibility range any more; this build/test run is the gate.
+        CORE_CHANNEL=$(node -p "require('./package.json').quiver.coreChannels.stable")
+        if [ -z "$CORE_CHANNEL" ]; then
+          echo "❌ quiver.coreChannels.stable missing from package.json"
+          exit 1
+        fi
+        echo "Resolving quiver.core channel: ${CORE_CHANNEL}"
+
+        CORE_VERSION=$(node scripts/resolve-core-version.mjs "$CORE_CHANNEL")
+        if [ -z "$CORE_VERSION" ]; then
+          echo "❌ could not resolve a quiver.core release on channel ${CORE_CHANNEL}"
+          exit 1
+        fi
+        echo "Resolved to: ${CORE_VERSION}"
+
+        gh release view "$CORE_VERSION" --repo rabbytesoftware/quiver.core || {
+          echo "❌ quiver.core release ${CORE_VERSION} not found."
+          exit 1
+        }
+        echo "✅ quiver.core release ${CORE_VERSION} exists"
+
+  code-quality-frontend:
+    name: Code Quality - Frontend
+    runs-on: ubuntu-latest
+    needs: validate-branch
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ env.BUN_VERSION }}
+
+    - name: Cache Bun dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.bun/install/cache
+          node_modules
+        key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-
+
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+
+    - name: Format check
+      run: |
+        bunx prettier --check "src/**/*.{ts,tsx,js,jsx}"
+        echo "✅ Code formatting is correct"
+
+    - name: Lint check
+      run: |
+        bunx eslint "src/**/*.{ts,tsx,js,jsx}"
+        echo "✅ Linting passed"
+
+    - name: Type checking
+      run: |
+        bunx tsc --noEmit
+        echo "✅ Type checking passed"
+
+  code-quality-react-doctor:
+    name: Code Quality - React Doctor
+    runs-on: ubuntu-latest
+    needs: validate-branch
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ env.BUN_VERSION }}
+
+    - name: Cache Bun dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.bun/install/cache
+          node_modules
+        key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-
+
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+
+    # `bun run doctor` passes --blocking warning, which is what makes this a
+    # 100/100 gate rather than an error-only one: the score counts every
+    # diagnostic, so an error-free run still scores under 100 if any warning
+    # survives. Deliberate exemptions belong in doctor.config.json and
+    # knip.json, where a reviewer sees them, not in a flag here.
+    #
+    # The version is pinned in package.json on purpose. An unpinned quality
+    # gate fails on the day the tool ships a new rule, on a PR that changed
+    # nothing related — upgrades should be their own commit.
+    - name: React Doctor
+      run: |
+        bun run doctor
+        echo "✅ React Doctor: 100/100"
+
+  code-quality-rust:
+    name: Code Quality - Rust
+    runs-on: ubuntu-latest
+    needs: validate-branch
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev \
+          build-essential \
+          curl \
+          wget \
+          file \
+          libssl-dev \
+          libayatana-appindicator3-dev \
+          librsvg2-dev
+
+    - name: Set up Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+        components: rustfmt, clippy
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          src-tauri/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Create sidecar placeholder
+      run: |
+        mkdir -p src-tauri/binaries
+        TARGET_TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
+        touch "src-tauri/binaries/quiver-${TARGET_TRIPLE}"
+        chmod +x "src-tauri/binaries/quiver-${TARGET_TRIPLE}"
+
+    - name: Format check
+      run: |
+        cd src-tauri
+        cargo fmt --check
+        echo "✅ Rust formatting is correct"
+
+    - name: Clippy check
+      run: |
+        cd src-tauri
+        cargo clippy -- -D warnings
+        echo "✅ Clippy checks passed"
+
+    - name: Security audit
+      continue-on-error: true
+      run: |
+        cargo install cargo-audit --locked --force
+        cd src-tauri
+        cargo audit
+        echo "✅ Security audit passed"
+
+  # Cross-platform verification, mirroring quiver.core's test-multi-platform job.
+  #
+  # Every other job here runs on ubuntu-latest, which means the #[cfg(windows)]
+  # and #[cfg(target_os = "macos")] arms were compiled by nothing on the merge
+  # path — a Windows-only defect (e.g. the WebView2 scheme rewrite) shipped
+  # green because no runner ever built that code. Tauri's own platform split
+  # (tauri.macos.conf.json) has the same exposure.
+  #
+  # This runs the Rust and frontend suites on all three desktop targets. The
+  # heavy jobs (coverage, audit, bundling) stay on ubuntu — this is about
+  # compiling and exercising the per-platform arms, not re-measuring coverage.
+  test-cross-platform:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [code-quality-rust, code-quality-frontend]
+    strategy:
+      # One platform failing must not hide the others: a Windows-only break is
+      # exactly what this job exists to surface.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install system dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev \
+          build-essential \
+          curl \
+          wget \
+          file \
+          libssl-dev \
+          libayatana-appindicator3-dev \
+          librsvg2-dev
+
+    - name: Set up Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          src-tauri/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ env.BUN_VERSION }}
+
+    - name: Install frontend dependencies
+      run: bun install --frozen-lockfile
+
+    # tauri-build fails the build outright if an externalBin listed in
+    # tauri.conf.json is missing, so every job that compiles the crate needs a
+    # stand-in. `shell: bash` because Windows runners default to PowerShell and
+    # Git Bash is present on all three images. The .exe matters: Tauri resolves
+    # the Windows sidecar with that suffix, so a placeholder without it is not
+    # the file the build looks for.
+    - name: Create sidecar placeholder
+      shell: bash
+      run: |
+        mkdir -p src-tauri/binaries
+        TARGET_TRIPLE=$(rustc -vV | grep '^host:' | awk '{print $2}')
+        SUFFIX=""
+        case "$TARGET_TRIPLE" in *windows*) SUFFIX=".exe" ;; esac
+        touch "src-tauri/binaries/quiver-${TARGET_TRIPLE}${SUFFIX}"
+        chmod +x "src-tauri/binaries/quiver-${TARGET_TRIPLE}${SUFFIX}"
+        echo "placeholder: quiver-${TARGET_TRIPLE}${SUFFIX}"
+
+    - name: Rust tests
+      shell: bash
+      run: |
+        cd src-tauri
+        cargo test
+        echo "✅ Rust suite passed on ${{ matrix.os }}"
+
+    - name: Frontend tests
+      shell: bash
+      run: |
+        bun run test
+        echo "✅ Frontend suite passed on ${{ matrix.os }}"
+
+  build-frontend:
+    name: Build - Frontend
+    runs-on: ubuntu-latest
+    needs: [code-quality-frontend]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ env.BUN_VERSION }}
+
+    - name: Cache Bun dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.bun/install/cache
+          node_modules
+        key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-
+
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+
+    - name: Build frontend
+      run: bun run build
+
+    - name: Verify build output
+      run: |
+        if [ ! -d "dist" ]; then
+          echo "❌ dist/ folder not found after build"
+          exit 1
+        fi
+        echo "✅ Frontend built successfully"
+        ls -la dist/
+
+  build-tauri:
+    name: Build - Tauri
+    runs-on: ubuntu-latest
+    needs: [code-quality-rust]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev \
+          build-essential \
+          curl \
+          wget \
+          file \
+          libssl-dev \
+          libayatana-appindicator3-dev \
+          librsvg2-dev
+
+    - name: Set up Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ env.BUN_VERSION }}
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          src-tauri/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Install frontend dependencies
+      run: bun install --frozen-lockfile
+
+    - name: Create sidecar placeholder
+      run: |
+        mkdir -p src-tauri/binaries
+        TARGET_TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
+        touch "src-tauri/binaries/quiver-${TARGET_TRIPLE}"
+        chmod +x "src-tauri/binaries/quiver-${TARGET_TRIPLE}"
+
+    - name: Build Tauri backend
+      run: |
+        cd src-tauri
+        cargo build --release
+
+    - name: Verify binary
+      run: |
+        BINARY="src-tauri/target/release/quiverdesktop"
+        if [ ! -f "$BINARY" ]; then
+          echo "❌ Binary not found at $BINARY after build"
+          exit 1
+        fi
+        echo "✅ Tauri binary built successfully"
+
+  test-coverage-frontend:
+    name: Test Coverage - Frontend
+    runs-on: ubuntu-latest
+    needs: [code-quality-frontend]
+    permissions:
+      pull-requests: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ env.BUN_VERSION }}
+
+    - name: Cache Bun dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.bun/install/cache
+          node_modules
+        key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-
+
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+
+    - name: Run tests with coverage
+      run: bun run test:coverage
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: frontend-coverage
+        path: coverage/
+
+    - name: Post TypeScript coverage comment
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v9
+      with:
+        script: |
+          const fs = require('fs');
+          const lcov = fs.readFileSync('coverage/lcov.info', 'utf8');
+
+          const sum = (re) => [...lcov.matchAll(re)].reduce((a, m) => a + parseInt(m[1]), 0);
+          const lf = sum(/^LF:(\d+)/mg),  lh = sum(/^LH:(\d+)/mg);
+          const fnf = sum(/^FNF:(\d+)/mg), fnh = sum(/^FNH:(\d+)/mg);
+          const brf = sum(/^BRF:(\d+)/mg), brh = sum(/^BRH:(\d+)/mg);
+          const pct = (h, f) => f > 0 ? `${(h / f * 100).toFixed(2)}%` : 'N/A';
+
+          const body = [
+            '<!-- coverage-ts -->',
+            '## TypeScript Coverage',
+            '',
+            '| Branches | Functions | Lines |',
+            '|----------|-----------|-------|',
+            `| ${pct(brh, brf)} | ${pct(fnh, fnf)} | ${pct(lh, lf)} |`,
+          ].join('\n');
+
+          const comments = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          for (const c of comments.data) {
+            if (c.user.type === 'Bot' && c.body.includes('<!-- coverage-ts -->')) {
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: c.id,
+              });
+            }
+          }
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body,
+          });
+
+  test-coverage-rust:
+    name: Test Coverage - Rust
+    runs-on: ubuntu-latest
+    needs: [code-quality-rust]
+    permissions:
+      pull-requests: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev \
+          build-essential \
+          curl \
+          wget \
+          file \
+          libssl-dev \
+          libayatana-appindicator3-dev \
+          librsvg2-dev
+
+    - name: Set up Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          src-tauri/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Create sidecar placeholder
+      run: |
+        mkdir -p src-tauri/binaries
+        TARGET_TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
+        touch "src-tauri/binaries/quiver-${TARGET_TRIPLE}"
+        chmod +x "src-tauri/binaries/quiver-${TARGET_TRIPLE}"
+
+    - name: Install cargo-tarpaulin
+      run: cargo install cargo-tarpaulin --locked
+
+    - name: Run tests with coverage
+      run: |
+        cd src-tauri
+        cargo tarpaulin --out Xml --out Html --out Lcov \
+          --output-dir ../coverage/rust \
+          --fail-under 95 \
+          --exclude-files 'src/lib.rs' 'src/main.rs' \
+            'src/commands/*.rs' \
+            'src/menu.rs' \
+            'src/fdlimit/sys.rs' \
+            'src/connection/local/mod.rs' \
+            'src/connection/local/sidecar.rs' \
+            'src/connection/remote/mod.rs' \
+            'src/connection/manager.rs' \
+            'src/connection/mod.rs' \
+            'src/connection/tauri_emitter.rs' \
+          --verbose
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: rust-coverage
+        path: coverage/rust/
+
+    - name: Post Rust coverage comment
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v9
+      with:
+        script: |
+          const fs = require('fs');
+          const xml = fs.readFileSync('coverage/rust/cobertura.xml', 'utf8');
+          const lineRate = parseFloat(xml.match(/line-rate="([0-9.]+)"/)?.[1] ?? '0');
+          const linesCovered = parseInt(xml.match(/lines-covered="([0-9]+)"/)?.[1] ?? '0');
+          const linesValid = parseInt(xml.match(/lines-valid="([0-9]+)"/)?.[1] ?? '0');
+          const rustPct = (lineRate * 100).toFixed(2);
+
+          const body = [
+            '<!-- coverage-rust -->',
+            '## Rust Coverage',
+            '',
+            `**${rustPct}%** (${linesCovered}/${linesValid} lines)`,
+            '',
+            '_Excludes Tauri-coupled files that require a live `AppHandle` (commands, ConnectionManager, connection drivers)._',
+          ].join('\n');
+
+          const comments = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          for (const c of comments.data) {
+            if (c.user.type === 'Bot' && c.body.includes('<!-- coverage-rust -->')) {
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: c.id,
+              });
+            }
+          }
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body,
+          });

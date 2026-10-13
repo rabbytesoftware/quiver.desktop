@@ -1,0 +1,12 @@
+{
+	"$schema": "https://unpkg.com/knip@5/schema.json",
+	"ignore": [
+		"__mocks__/**",
+		"src/__mocks__/**",
+		"src/components/ui/**",
+		"src/lib/core-store/mutations/index.ts",
+		"src/lib/core-store/store/index.ts"
+	],
+	"ignoreDependencies": ["@tauri-apps/plugin-opener"],
+	"ignoreExportsUsedInFile": true
+}

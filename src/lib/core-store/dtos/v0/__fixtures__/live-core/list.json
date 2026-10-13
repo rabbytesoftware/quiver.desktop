@@ -1,0 +1,52 @@
+{
+	"success": true,
+	"error": null,
+	"data": [
+		{
+			"namespace": "github.com/char2cs/crowbar",
+			"name": "crowbar",
+			"description": "Local-first desktop IDE where coding agents do the heavy lifting. Every branch becomes its own managed git worktree, Claude Code and Codex are interchangeable mid-conversation, and the diff review — inline comment threads and PR status — lives in the same window as the agent that wrote the code.",
+			"tags": ["ide", "development", "agents", "git", "desktop", "code-review"],
+			"media": {
+				"icon": "https://raw.githubusercontent.com/char2cs/crowbar/develop/.github/crowbar-icon.png",
+				"banner": "https://raw.githubusercontent.com/char2cs/crowbar/develop/.github/crowbar-banner.png"
+			},
+			"versions": [
+				{
+					"ref": "develop",
+					"resolved_ref": "develop",
+					"state": "outdated",
+					"installed_at": "2026-09-30T00:11:25Z"
+				},
+				{
+					"ref": "nightly",
+					"resolved_ref": "nightly",
+					"state": "absent"
+				}
+			]
+		},
+		{
+			"namespace": "github.com/rabbytesoftware/quiver.core",
+			"name": "Quiver Core",
+			"description": "The Quiver package manager's own engine daemon.",
+			"tags": null,
+			"media": {
+				"icon": "https://raw.githubusercontent.com/rabbytesoftware/quiver.core/develop/docs/quiver-icon.svg",
+				"banner": "https://raw.githubusercontent.com/rabbytesoftware/quiver.core/develop/docs/quiver-banner.svg"
+			},
+			"versions": [
+				{
+					"ref": "develop",
+					"resolved_ref": "develop",
+					"state": "ready",
+					"installed_at": "2026-09-30T00:12:17Z"
+				},
+				{
+					"ref": "stable",
+					"resolved_ref": "live",
+					"state": "outdated"
+				}
+			]
+		}
+	]
+}

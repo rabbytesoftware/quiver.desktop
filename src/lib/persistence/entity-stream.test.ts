@@ -1,0 +1,570 @@
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const subscribers: Array<(d: unknown) => void> = [];
+vi.mock('@/lib/transport/ws-manager', () => ({
+	wsManager: {
+		subscribe: (_e: string, cb: (d: unknown) => void) => {
+			subscribers.push(cb);
+			return () => {};
+		},
+		send: () => {},
+	},
+	isReconnectSentinel: (d: unknown) => (d as { reconnected?: boolean })?.reconnected === true,
+}));
+
+const { subscribeArrowStream } = await import('./entity-stream');
+const { getArrowsFor } = await import('./entity-cache');
+const { resetDB } = await import('./idb');
+
+const rec = (namespace: string) => ({
+	connectionId: 'local',
+	namespace,
+	name: namespace,
+	description: '',
+	tags: [],
+	icon: null,
+	banner: null,
+	version: '1',
+});
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>((r) => {
+		resolve = r;
+	});
+	return { promise, resolve };
+}
+
+describe('entity-stream', () => {
+	beforeEach(() => {
+		subscribers.length = 0;
+		globalThis.indexedDB = new IDBFactory();
+		resetDB();
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('seeds the cache before any frame arrives', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [rec('a@1')], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		expect(await getArrowsFor('local')).toEqual([rec('a@1')]);
+	});
+
+	it('reports a failed seed instead of only logging it', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		const onSeedError = vi.fn();
+		const boom = new Error('core unreachable');
+
+		subscribeArrowStream({
+			connectionId: 'local',
+			seed: () => Promise.reject(boom),
+			onChange: vi.fn(),
+			onSeedError,
+		});
+
+		await vi.waitFor(() => expect(onSeedError).toHaveBeenCalledWith(boom));
+	});
+
+	it('stays silent about a seed that failed after disposal', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		const onSeedError = vi.fn();
+
+		const dispose = subscribeArrowStream({
+			connectionId: 'local',
+			seed: () => Promise.reject(new Error('too late')),
+			onSeedError,
+		});
+		dispose();
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(onSeedError).not.toHaveBeenCalled();
+	});
+
+	it('prunes cached rows the seed no longer lists', async () => {
+		const first = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [rec('a@1'), rec('b@1')], onChange: first });
+		await vi.waitFor(() => expect(first).toHaveBeenCalled());
+
+		const second = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [rec('a@1')], onChange: second });
+		await vi.waitFor(() => expect(second).toHaveBeenCalled());
+		expect((await getArrowsFor('local')).map((r) => r.namespace)).toEqual(['a@1']);
+	});
+
+	it('never prunes another connection rows', async () => {
+		const other = vi.fn();
+		subscribeArrowStream({
+			connectionId: 'remote-1',
+			seed: async () => [rec('z@1')].map((r) => ({ ...r, connectionId: 'remote-1' })),
+			onChange: other,
+		});
+		await vi.waitFor(() => expect(other).toHaveBeenCalled());
+
+		const mine = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: mine });
+		await vi.waitFor(() => expect(mine).toHaveBeenCalled());
+		expect(await getArrowsFor('remote-1')).toHaveLength(1);
+	});
+
+	it('merges a live upsert frame', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({
+			event: 'upserted',
+			namespace: 'new@1',
+			name: 'New Arrow',
+			description: 'a description',
+			tags: ['a', 'b'],
+			icon: 'icon.png',
+			banner: 'banner.png',
+			version: '2',
+		});
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
+		expect(await getArrowsFor('local')).toEqual([
+			{
+				connectionId: 'local',
+				namespace: 'new@1',
+				name: 'New Arrow',
+				description: 'a description',
+				tags: ['a', 'b'],
+				icon: 'icon.png',
+				banner: 'banner.png',
+				version: '2',
+				last_used_at: null,
+				origin: 'declared',
+				confidence: null,
+			},
+		]);
+	});
+
+	it('carries origin and inference confidence from a live upsert frame', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({
+			event: 'upserted',
+			namespace: 'made@1',
+			name: 'Made',
+			origin: 'inferred',
+			inference: { generator: 'fletcher/1', confidence: 'medium' },
+		});
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
+		const [stored] = await getArrowsFor('local');
+		expect(stored.origin).toBe('inferred');
+		expect(stored.confidence).toBe('medium');
+	});
+
+	it('reads a live upsert frame with no origin as declared', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'plain@1', name: 'Plain' });
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
+		const [stored] = await getArrowsFor('local');
+		expect(stored.origin).toBe('declared');
+		expect(stored.confidence).toBeNull();
+	});
+
+	it('reads icon/banner from a nested media object on a live upsert frame', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({
+			event: 'upserted',
+			namespace: 'nested@1',
+			name: 'Nested',
+			description: '',
+			tags: [],
+			media: { icon: 'nested-icon.png', banner: 'nested-banner.png' },
+			version: '1',
+		});
+		await vi.waitFor(async () =>
+			expect(await getArrowsFor('local')).toEqual([
+				{
+					connectionId: 'local',
+					namespace: 'nested@1',
+					name: 'Nested',
+					description: '',
+					tags: [],
+					icon: 'nested-icon.png',
+					banner: 'nested-banner.png',
+					version: '1',
+					last_used_at: null,
+					origin: 'declared',
+					confidence: null,
+				},
+			])
+		);
+	});
+
+	it('prefers the nested media object over flat icon/banner when a frame carries both', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({
+			event: 'upserted',
+			namespace: 'both@1',
+			name: 'Both',
+			description: '',
+			tags: [],
+			icon: 'flat-icon.png',
+			banner: 'flat-banner.png',
+			media: { icon: 'nested-icon.png', banner: 'nested-banner.png' },
+			version: '1',
+		});
+		await vi.waitFor(async () =>
+			expect(await getArrowsFor('local')).toEqual([
+				{
+					connectionId: 'local',
+					namespace: 'both@1',
+					name: 'Both',
+					description: '',
+					tags: [],
+					icon: 'nested-icon.png',
+					banner: 'nested-banner.png',
+					version: '1',
+					last_used_at: null,
+					origin: 'declared',
+					confidence: null,
+				},
+			])
+		);
+	});
+
+	it('defaults the optional catalog fields on a minimal upsert frame', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'bare@1' });
+		await vi.waitFor(async () =>
+			expect(await getArrowsFor('local')).toEqual([
+				{
+					connectionId: 'local',
+					namespace: 'bare@1',
+					name: '',
+					description: '',
+					tags: [],
+					icon: null,
+					banner: null,
+					version: '',
+					last_used_at: null,
+					origin: 'declared',
+					confidence: null,
+				},
+			])
+		);
+	});
+
+	it('keeps the cached version when a live frame carries none, as quiver.core’s never do', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [rec('a@stable')], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'a@stable', name: 'renamed', description: '', tags: [] });
+		await vi.waitFor(async () =>
+			expect(await getArrowsFor('local')).toEqual([expect.objectContaining({ name: 'renamed', version: '1' })])
+		);
+	});
+
+	it('takes last_used_at from a live frame, and keeps the cached one when the frame has none', async () => {
+		const done = vi.fn();
+		const seeded = { ...rec('a@stable'), last_used_at: '2026-09-01T00:00:00Z' };
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [seeded, rec('b@stable')], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'a@stable', name: 'a' });
+		subscribers[0]({ event: 'upserted', namespace: 'b@stable', name: 'b', last_used_at: '2026-09-30T12:00:00Z' });
+		await vi.waitFor(async () =>
+			expect(await getArrowsFor('local')).toEqual([
+				expect.objectContaining({ namespace: 'a@stable', name: 'a', last_used_at: '2026-09-01T00:00:00Z' }),
+				expect.objectContaining({ namespace: 'b@stable', name: 'b', last_used_at: '2026-09-30T12:00:00Z' }),
+			])
+		);
+	});
+
+	it('asks for a re-read when a live frame upserts a row it has no version for', async () => {
+		const onUnversionedUpsert = vi.fn();
+		const done = vi.fn();
+		subscribeArrowStream({
+			connectionId: 'local',
+			seed: async () => [],
+			onChange: done,
+			onUnversionedUpsert,
+		});
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'fresh@beta', name: 'fresh' });
+		subscribers[0]({ event: 'upserted', namespace: 'versioned@1', name: 'v', version: '1' });
+		await vi.waitFor(() => expect(onUnversionedUpsert).toHaveBeenCalledWith('fresh@beta'));
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(2));
+		expect(onUnversionedUpsert).toHaveBeenCalledTimes(1);
+	});
+
+	// Live quiver.core: an update's advance lands after `runtime.ended`, only as this frame.
+	it('asks for a re-read when a live frame upserts a row it already has a version for', async () => {
+		const onUnversionedUpsert = vi.fn();
+		const done = vi.fn();
+		subscribeArrowStream({
+			connectionId: 'local',
+			seed: async () => [rec('known@stable')],
+			onChange: done,
+			onUnversionedUpsert,
+		});
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'known@stable', name: 'known' });
+		await vi.waitFor(() => expect(onUnversionedUpsert).toHaveBeenCalledWith('known@stable'));
+		expect(await getArrowsFor('local')).toEqual([expect.objectContaining({ version: '1' })]);
+	});
+
+	it('re-reads the catalog on request, picking up versions no frame carries', async () => {
+		const seed = vi
+			.fn()
+			.mockResolvedValueOnce([rec('a@stable')])
+			.mockResolvedValue([{ ...rec('a@stable'), version: '2' }]);
+		const stream = subscribeArrowStream({ connectionId: 'local', seed });
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(1));
+		stream.reseed();
+		await vi.waitFor(async () => expect((await getArrowsFor('local'))[0]?.version).toBe('2'));
+	});
+
+	it('coalesces a burst of re-read requests into at most one more seed after the one in flight', async () => {
+		const seed = vi.fn().mockResolvedValue([rec('a@stable')]);
+		const stream = subscribeArrowStream({ connectionId: 'local', seed });
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(1));
+
+		for (let i = 0; i < 10; i++) stream.reseed();
+		await vi.waitFor(() => expect(seed.mock.calls.length).toBeGreaterThan(1));
+		await new Promise((r) => setTimeout(r, 50));
+
+		expect(seed.mock.calls.length).toBeLessThanOrEqual(3);
+	});
+
+	it('does not ask again for a namespace a re-read showed is not a library row', async () => {
+		const onUnversionedUpsert = vi.fn();
+		const done = vi.fn();
+		const seed = vi.fn().mockResolvedValue([]);
+		const stream = subscribeArrowStream({ connectionId: 'local', seed, onChange: done, onUnversionedUpsert });
+		onUnversionedUpsert.mockImplementation(() => stream.reseed());
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+
+		subscribers[0]({ event: 'upserted', namespace: 'dep@stable', name: 'dep' });
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(2));
+		for (let i = 0; i < 5; i++) subscribers[0]({ event: 'upserted', namespace: 'dep@stable', name: 'dep' });
+		await new Promise((r) => setTimeout(r, 50));
+
+		expect(onUnversionedUpsert).toHaveBeenCalledTimes(1);
+		expect(seed).toHaveBeenCalledTimes(2);
+	});
+
+	it('asks again for a namespace a later re-read lists -- a dependency that became a library row', async () => {
+		const onUnversionedUpsert = vi.fn();
+		const done = vi.fn();
+		const seed = vi.fn().mockResolvedValue([]);
+		const stream = subscribeArrowStream({ connectionId: 'local', seed, onChange: done, onUnversionedUpsert });
+		onUnversionedUpsert.mockImplementation(() => stream.reseed());
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+
+		subscribers[0]({ event: 'upserted', namespace: 'dep@stable', name: 'dep' });
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(2));
+
+		seed.mockResolvedValue([{ ...rec('dep@stable'), version: '' }]);
+		stream.reseed();
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(3));
+		await new Promise((r) => setTimeout(r, 20));
+
+		subscribers[0]({ event: 'upserted', namespace: 'dep@stable', name: 'dep' });
+		await vi.waitFor(() => expect(onUnversionedUpsert).toHaveBeenCalledTimes(2));
+	});
+
+	it('never asks for a re-read on a frame that says the row is not user-installed', async () => {
+		const onUnversionedUpsert = vi.fn();
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done, onUnversionedUpsert });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'dep@stable', name: 'dep', user_installed: false });
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
+		expect(onUnversionedUpsert).not.toHaveBeenCalled();
+	});
+
+	it('commits an upsert then a delete in arrival order', async () => {
+		const cacheMod = await import('./entity-cache');
+		const realUpsertArrow = cacheMod.upsertArrow;
+		const gate = deferred<void>();
+		const invoked = deferred<void>();
+		const ref: { settled: Promise<void> } = { settled: Promise.resolve() };
+		vi.spyOn(cacheMod, 'upsertArrow').mockImplementationOnce((r) => {
+			ref.settled = gate.promise.then(() => realUpsertArrow(r));
+			invoked.resolve();
+			return ref.settled;
+		});
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'x@1', name: 'x', description: '', tags: [] });
+		subscribers[0]({ event: 'removed', namespace: 'x@1' });
+		gate.resolve();
+		await invoked.promise;
+		await ref.settled;
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toEqual([]));
+	});
+
+	it('reseeds on the reconnect sentinel', async () => {
+		const seed = vi.fn().mockResolvedValue([]);
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed, onChange: done });
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(1));
+		subscribers[0]({ reconnected: true });
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(2));
+	});
+
+	it('survives a failed seed and still applies later frames', async () => {
+		const seed = vi.fn().mockRejectedValueOnce(new Error('down')).mockResolvedValue([]);
+		subscribeArrowStream({ connectionId: 'local', seed });
+		await vi.waitFor(() => expect(seed).toHaveBeenCalled());
+		subscribers[0]({ event: 'upserted', namespace: 'after@1', name: 'after', description: '', tags: [] });
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
+	});
+
+	it('a seed superseded by a newer reconnect writes nothing', async () => {
+		const gen1 = deferred<ReturnType<typeof rec>[]>();
+		const gen2 = deferred<ReturnType<typeof rec>[]>();
+		const seed = vi.fn().mockReturnValueOnce(gen1.promise).mockReturnValueOnce(gen2.promise);
+		subscribeArrowStream({ connectionId: 'local', seed });
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(1));
+
+		subscribers[0]({ reconnected: true });
+
+		gen1.resolve([rec('a@1')]);
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(2));
+		await new Promise((r) => setTimeout(r, 10));
+		expect(await getArrowsFor('local')).toEqual([]);
+
+		gen2.resolve([rec('b@1')]);
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
+	});
+
+	it('a seed superseded between its GET and its diff read still writes nothing', async () => {
+		const cacheMod = await import('./entity-cache');
+		const realGetArrowsFor = cacheMod.getArrowsFor;
+		vi.spyOn(cacheMod, 'getArrowsFor').mockImplementationOnce(async (id: string) => {
+			subscribers[0]({ reconnected: true });
+			return realGetArrowsFor(id);
+		});
+		const gen2 = deferred<ReturnType<typeof rec>[]>();
+		const seed = vi
+			.fn()
+			.mockResolvedValueOnce([rec('a@1')])
+			.mockReturnValueOnce(gen2.promise);
+		subscribeArrowStream({ connectionId: 'local', seed });
+		await vi.waitFor(() => expect(seed).toHaveBeenCalledTimes(2));
+		await new Promise((r) => setTimeout(r, 10));
+		expect(await getArrowsFor('local')).toEqual([]);
+
+		gen2.resolve([rec('b@1')]);
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
+	});
+
+	it('does not write a seed that resolves after dispose', async () => {
+		const gen = deferred<ReturnType<typeof rec>[]>();
+		const off = subscribeArrowStream({ connectionId: 'local', seed: () => gen.promise });
+		off();
+		gen.resolve([rec('a@1')]);
+		await new Promise((r) => setTimeout(r, 10));
+		expect(await getArrowsFor('local')).toEqual([]);
+	});
+
+	it('ignores a null frame', async () => {
+		const done = vi.fn();
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		subscribers[0](null);
+		await new Promise((r) => setTimeout(r, 10));
+		expect(await getArrowsFor('local')).toEqual([]);
+	});
+
+	it('survives onChange throwing during a frame apply and still applies later frames', async () => {
+		let calls = 0;
+		const onChange = vi.fn(() => {
+			calls += 1;
+			if (calls === 2) throw new Error('boom');
+		});
+		subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange });
+		await vi.waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
+		subscribers[0]({ event: 'upserted', namespace: 'x@1', name: 'x', description: '', tags: [] });
+		await vi.waitFor(() => expect(onChange).toHaveBeenCalledTimes(2));
+		subscribers[0]({ event: 'upserted', namespace: 'y@1', name: 'y', description: '', tags: [] });
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(2));
+	});
+
+	it('does not call onChange for a frame applied after dispose', async () => {
+		const cacheMod = await import('./entity-cache');
+		const realUpsertArrow = cacheMod.upsertArrow;
+		let off: () => void = () => {};
+		vi.spyOn(cacheMod, 'upsertArrow').mockImplementationOnce(async (r) => {
+			off();
+			return realUpsertArrow(r);
+		});
+		const onChange = vi.fn();
+		off = subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange });
+		await vi.waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
+		subscribers[0]({ event: 'upserted', namespace: 'x@1', name: 'x', description: '', tags: [] });
+		await vi.waitFor(async () => expect(await getArrowsFor('local')).toHaveLength(1));
+		expect(onChange).toHaveBeenCalledTimes(1);
+	});
+
+	it('stops applying frames after dispose', async () => {
+		const done = vi.fn();
+		const off = subscribeArrowStream({ connectionId: 'local', seed: async () => [], onChange: done });
+		await vi.waitFor(() => expect(done).toHaveBeenCalled());
+		off();
+		subscribers[0]({ event: 'upserted', namespace: 'late@1', name: 'late', description: '', tags: [] });
+		await new Promise((r) => setTimeout(r, 10));
+		expect(await getArrowsFor('local')).toEqual([]);
+	});
+
+	describe('origin, confidence and last_used_at through an upserted frame', () => {
+		async function seedThenFrame(seeded: Record<string, unknown>, frame: Record<string, unknown>) {
+			const changes = vi.fn();
+			subscribeArrowStream({
+				connectionId: 'local',
+				seed: async () => [{ ...rec('a@1'), ...seeded }],
+				onChange: changes,
+			});
+			await vi.waitFor(() => expect(changes).toHaveBeenCalledTimes(1));
+			subscribers[0]({ event: 'upserted', namespace: 'a@1', name: 'A', version: '1', ...frame });
+			await vi.waitFor(() => expect(changes).toHaveBeenCalledTimes(2));
+			return (await getArrowsFor('local'))[0];
+		}
+
+		it('keeps what the seed recorded when the frame carries none of it', async () => {
+			const stored = await seedThenFrame(
+				{ origin: 'inferred', confidence: 'medium', last_used_at: '2026-01-01T00:00:00Z' },
+				{}
+			);
+			expect(stored).toMatchObject({
+				origin: 'inferred',
+				confidence: 'medium',
+				last_used_at: '2026-01-01T00:00:00Z',
+			});
+		});
+
+		it('takes origin and confidence from the frame when it has them', async () => {
+			const stored = await seedThenFrame({}, { origin: 'inferred', inference: { confidence: 'high' } });
+			expect(stored).toMatchObject({ origin: 'inferred', confidence: 'high' });
+		});
+
+		it('drops a stale confidence once the frame says the arrow is declared', async () => {
+			const stored = await seedThenFrame({ origin: 'inferred', confidence: 'medium' }, { origin: 'declared' });
+			expect(stored.origin).toBe('declared');
+			expect(stored.confidence).toBeNull();
+		});
+
+		it('takes last_used_at from the frame when present', async () => {
+			const stored = await seedThenFrame({ last_used_at: 'old' }, { last_used_at: '2026-02-02T00:00:00Z' });
+			expect(stored.last_used_at).toBe('2026-02-02T00:00:00Z');
+		});
+	});
+});

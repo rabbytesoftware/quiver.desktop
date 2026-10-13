@@ -1,0 +1,1010 @@
+//! The `quiver://` URI scheme: every HTTP call the webview makes.
+//!
+//! Requests arrive as `quiver://localhost/v0/...` and are forwarded to whatever
+//! connection is active — resolved PER REQUEST, so switching connections takes
+//! effect on the next call with nothing to re-register.
+//!
+//! Registered with `.register_asynchronous_uri_scheme_protocol("quiver", ...)`.
+//!
+//! # Why this handler speaks CORS
+//!
+//! The page is served from the webview's own origin (`tauri://localhost`, or
+//! `http://tauri.localhost` on Windows) and this scheme is a DIFFERENT origin,
+//! so every `fetch()` the frontend makes here is cross-origin. Tauri adds
+//! `Access-Control-Allow-Origin` for its own asset protocol and for nothing
+//! else, so a handler that sets no CORS headers gets two things wrong:
+//!
+//!   1. `x-quiver-proxy` is not a CORS-safelisted response header, so without
+//!      `Access-Control-Expose-Headers` the frontend reads `null` for it, and
+//!      `isProxyFailure` in `src/lib/transport/api.ts` never returns true —
+//!      the entire cold-start retry path is dead code.
+//!   2. `DELETE`, and `POST` with a JSON content type, are not simple requests,
+//!      so the browser sends an `OPTIONS` preflight first. Forwarded to gin,
+//!      that answers whatever gin feels like; answered here, it answers what
+//!      this proxy actually permits.
+//!
+//! Both are fixed below, on EVERY response — the marker is read on error
+//! responses, so an error that omits the expose header is exactly as dead as
+//! one that omits the marker.
+
+use std::future::Future;
+use std::sync::Arc;
+use std::time::Duration;
+
+use tauri::http::{header, HeaderValue, Method, Request, Response};
+
+use crate::connection::transport::Transport;
+
+/// Marks a response this proxy generated rather than relayed. `apiFetch`
+/// retries idempotent reads on a marked 502/504 and never on an unmarked one:
+/// a daemon's own 404 is meaningful and a 500 is a real server error, so
+/// replaying either would be wrong.
+pub const PROXY_ERROR_HEADER: &str = "x-quiver-proxy";
+
+/// Who may read a response from this scheme.
+///
+/// `*` rather than the window's origin, which is what Tauri's asset protocol
+/// echoes back. Two reasons. The origin differs per platform and per dev/bundle
+/// mode (`tauri://localhost`, `http://tauri.localhost`, `http://localhost:5173`)
+/// and nothing hands this handler that string; and `*` costs nothing here
+/// because no browser credential is ever attached — the webview sends no
+/// cookies to this scheme and the bearer token is added by the transport, in
+/// Rust, after the request has left the page. A wildcard would matter if a
+/// foreign origin could read what this handler returns, so `proxy_once` refuses
+/// any request whose `Origin` is missing or not one of the app's own
+/// (`request_allowed`) before a connection is even resolved. That matters because arrow pages
+/// (`arrow-app://...`) run in iframes of this same webview, where this scheme
+/// is reachable; they are additionally confined by their CSP
+/// (`connect-src 'self'`).
+const ALLOW_ORIGIN: HeaderValue = HeaderValue::from_static("*");
+
+/// The methods `apiFetch` and the connection commands actually send. Listing
+/// only these, rather than `*`, keeps the preflight answer an honest statement
+/// of what the proxy serves.
+const ALLOW_METHODS: HeaderValue = HeaderValue::from_static("GET, POST, DELETE, PATCH, OPTIONS");
+
+/// The only header the frontend sets on a request that a preflight can reject.
+/// (`Authorization` is not here on purpose: the page never sets it — the
+/// transport adds the bearer server-side.)
+const ALLOW_HEADERS: HeaderValue = HeaderValue::from_static("Content-Type");
+
+/// Without this the frontend's `res.headers.get('x-quiver-proxy')` is `null` on
+/// a cross-origin response, no matter what this proxy sets, because the header
+/// is not on the CORS-safelist.
+const EXPOSE_HEADERS: HeaderValue = HeaderValue::from_static(PROXY_ERROR_HEADER);
+
+/// How long a preflight answer may be cached. Ten minutes: long enough that a
+/// burst of DELETEs costs one preflight, short enough that changing the lists
+/// above takes effect within one sitting.
+const PREFLIGHT_MAX_AGE: HeaderValue = HeaderValue::from_static("600");
+
+/// Upper bound on one proxied request.
+///
+/// Each request costs this process a socket. A daemon that accepts a connection
+/// but never answers would otherwise pin that descriptor — and the tasks driving
+/// it — for the life of the app: nothing caps requests in flight, and the
+/// frontend's `fetch` has no AbortController, so it never gives up either.
+/// Dropping the timed-out future drops the request sender, which is what tells
+/// hyper's connection task to close and hand the descriptor back.
+#[cfg(not(test))]
+const PROXY_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// Same constant, shortened under test. `tokio`'s `test-util` feature — needed
+/// to pause the clock and jump straight to a timer — is not enabled in this
+/// crate, so a real but tiny wait is the remaining option that costs the suite
+/// half a second instead of an actual five minutes.
+///
+/// It must stay ABOVE `http::CONNECT_TIMEOUT`, which is what ships (10s under
+/// 300s) and what `the_proxy_ceiling_stays_above_the_transports_connect_ceiling`
+/// pins. At the 20ms this used to be, that ordering was INVERTED under test —
+/// the proxy's ceiling sat below the transport's own connect ceiling, so a
+/// request to a dead port raced its connect failure against this timeout.
+/// Loopback refuses in microseconds on Unix and the failure always won; the
+/// Windows runner is slower than that, the timeout won, and two tests that
+/// assert on the marked 502 a connect failure produces saw the marked 504 of a
+/// proxy that gave up first. Above `CONNECT_TIMEOUT` there is no race left to
+/// lose: reqwest bounds the connect itself and reports the expiry as a connect
+/// error, so a dead port is a `TransportError::Connect` within 250ms on any
+/// platform, however slowly the network stack answers.
+#[cfg(test)]
+const PROXY_TIMEOUT: Duration = Duration::from_millis(500);
+
+/// No `quiver://` document should render inside a frame. An arrow page can
+/// navigate its own iframe here (CSP governs fetches, not a frame navigating
+/// itself). WebKitGTK does NOT enforce either header on custom scheme
+/// responses (seen in the Linux E2E run), so these are a secondary guard:
+/// the primary one is that such a navigation carries no Origin and
+/// `request_allowed` refuses it. The shell only ever `fetch`es this scheme,
+/// where both headers are inert.
+const FRAME_ANCESTORS: HeaderValue = HeaderValue::from_static("frame-ancestors 'none'");
+const FRAME_OPTIONS: HeaderValue = HeaderValue::from_static("DENY");
+
+/// Stamp the headers every response from this scheme must carry, whoever built
+/// it. `insert` rather than `append`: a daemon that sets its own
+/// `Access-Control-Allow-Origin` must not end up with two, which browsers
+/// reject outright, and its own framing headers must not survive next to ours.
+fn with_cors(mut resp: Response<Vec<u8>>) -> Response<Vec<u8>> {
+	let headers = resp.headers_mut();
+	headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, ALLOW_ORIGIN);
+	headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, EXPOSE_HEADERS);
+	headers.insert(header::CONTENT_SECURITY_POLICY, FRAME_ANCESTORS);
+	headers.insert(header::X_FRAME_OPTIONS, FRAME_OPTIONS);
+	resp
+}
+
+fn error_response(status: u16, msg: &str) -> Response<Vec<u8>> {
+	with_cors(
+		Response::builder()
+			.status(status)
+			.header(header::CONTENT_TYPE, "text/plain")
+			.header(PROXY_ERROR_HEADER, "error")
+			.body(msg.as_bytes().to_vec())
+			.expect("a static error response always builds"),
+	)
+}
+
+/// The answer to a CORS preflight. Built here rather than forwarded: gin knows
+/// nothing about the origins this app runs on, and a preflight that reaches the
+/// daemon has already cost a socket and a round trip for a question only this
+/// process can answer.
+fn preflight_response() -> Response<Vec<u8>> {
+	let mut resp = with_cors(
+		Response::builder()
+			.status(204)
+			.body(Vec::new())
+			.expect("a static preflight response always builds"),
+	);
+	let headers = resp.headers_mut();
+	headers.insert(header::ACCESS_CONTROL_ALLOW_METHODS, ALLOW_METHODS);
+	headers.insert(header::ACCESS_CONTROL_ALLOW_HEADERS, ALLOW_HEADERS);
+	headers.insert(header::ACCESS_CONTROL_MAX_AGE, PREFLIGHT_MAX_AGE);
+	resp
+}
+
+/// Origins the app's own pages send. Arrow pages (`arrow-app://...`) share
+/// this webview process, so anything else must not reach the daemon through
+/// this scheme.
+///
+/// A request WITHOUT an Origin is refused too. The shell's page lives on a
+/// different origin from this scheme, so every `fetch` it makes here is a
+/// CORS request and the browser always attaches its Origin. What arrives
+/// without one is a frame navigating itself here, an `<img>`/`<script>`/
+/// `<link>` pointed here, or a same-origin GET from a `quiver://` document
+/// rendered in a frame: none of them is the shell, and the last one is real
+/// on WebKitGTK, which ignores the framing headers on custom schemes.
+const OWN_ORIGINS: [&str; 4] = [
+	"tauri://localhost",
+	"http://tauri.localhost",
+	"https://tauri.localhost",
+	"http://localhost:1420",
+];
+
+fn origin_allowed(req: &Request<Vec<u8>>) -> bool {
+	req.headers()
+		.get(header::ORIGIN)
+		.and_then(|o| o.to_str().ok())
+		.is_some_and(|o| OWN_ORIGINS.contains(&o))
+}
+
+/// `Sec-Fetch-Dest` values that mean the response would become a document.
+const DOCUMENT_DESTS: [&str; 5] = ["document", "iframe", "frame", "embed", "object"];
+
+fn fetch_metadata(req: &Request<Vec<u8>>, name: &str) -> Option<String> {
+	req.headers()
+		.get(name)
+		.and_then(|v| v.to_str().ok())
+		.map(str::to_ascii_lowercase)
+}
+
+/// Fetch Metadata, when the engine sends it, as defence in depth: a
+/// navigation or an embedding is never the shell, whatever Origin it claims.
+/// Not every engine sends these headers, so the Origin rule stands alone.
+fn is_navigation(req: &Request<Vec<u8>>) -> bool {
+	fetch_metadata(req, "sec-fetch-mode").is_some_and(|m| m == "navigate")
+		|| fetch_metadata(req, "sec-fetch-dest")
+			.is_some_and(|d| DOCUMENT_DESTS.contains(&d.as_str()))
+}
+
+fn request_allowed(req: &Request<Vec<u8>>) -> bool {
+	origin_allowed(req) && !is_navigation(req)
+}
+
+fn percent_decode(path: &str) -> String {
+	let mut decoded = Vec::with_capacity(path.len());
+	let bytes = path.as_bytes();
+	let mut i = 0;
+	while i < bytes.len() {
+		let hex = bytes
+			.get(i + 1..i + 3)
+			.and_then(|h| std::str::from_utf8(h).ok())
+			.and_then(|h| u8::from_str_radix(h, 16).ok());
+		match (bytes[i], hex) {
+			(b'%', Some(b)) => {
+				decoded.push(b);
+				i += 3;
+			}
+			(b, _) => {
+				decoded.push(b);
+				i += 1;
+			}
+		}
+	}
+	String::from_utf8_lossy(&decoded).into_owned()
+}
+
+/// Whether `quiver://` must refuse `path` before it reaches a transport.
+///
+/// The daemon's arrow interfaces (`/v0/ui...`) are refused in every spelling
+/// that could reach them: the daemon routes on the decoded path, and the HTTP
+/// transport's url parser turns `\` into `/` and resolves `.` and `..`
+/// (encoded too) where `http::Uri` leaves them alone. Backslashes and dot
+/// segments are refused outright, since the shell never sends them and that
+/// leaves no normalisation difference to exploit; what remains is compared
+/// with empty segments dropped and case folded.
+fn is_refused_path(path: &str) -> bool {
+	let decoded = percent_decode(path);
+	if decoded.contains('\\') {
+		return true;
+	}
+	let mut segments = Vec::new();
+	for segment in decoded.split('/') {
+		match segment {
+			"." | ".." => return true,
+			"" => {}
+			s => segments.push(s.to_lowercase()),
+		}
+	}
+	segments.starts_with(&["v0".to_string(), "ui".to_string()])
+}
+
+/// The whole proxy decision, free of Tauri's responder so it can be driven
+/// against a real socket. Everything worth asserting on lives here.
+///
+/// `transport` is a FUTURE, not a reference, and it is awaited INSIDE the
+/// timeout. Resolving the active connection means taking `ConnectionManager`'s
+/// read lock, and tokio's `RwLock` is fair: a reader that arrives while a
+/// writer waits queues behind that writer. Awaited before the timeout, as this
+/// used to be, a request that never even reaches a transport waits forever —
+/// past `PROXY_TIMEOUT`, past anything. Inside it, the worst case is the same
+/// marked 504 a stalled daemon produces, which is a thing the frontend already
+/// knows how to retry.
+pub async fn proxy_once<F>(transport: F, req: Request<Vec<u8>>) -> Response<Vec<u8>>
+where
+	F: Future<Output = Arc<dyn Transport>>,
+{
+	if !request_allowed(&req) {
+		return error_response(403, "origin not allowed");
+	}
+
+	if is_refused_path(req.uri().path()) {
+		return error_response(403, "path not served on this scheme");
+	}
+
+	// Answered before the transport is even resolved: a preflight asks what
+	// THIS proxy permits, and no daemon can answer that.
+	if req.method() == Method::OPTIONS {
+		return preflight_response();
+	}
+
+	let proxied = async move {
+		let transport = transport.await;
+		transport.request(req).await
+	};
+
+	match tokio::time::timeout(PROXY_TIMEOUT, proxied).await {
+		Ok(Ok(resp)) => with_cors(resp),
+		Ok(Err(e)) => error_response(502, &format!("quiver proxy: {e}")),
+		Err(_) => error_response(504, "quiver.core did not answer in time"),
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::connection::transport::http::{HttpTransport, CONNECT_TIMEOUT};
+	use crate::connection::transport::testing::drain_request;
+	use crate::connection::transport::{TransportError, WsStream};
+	use std::future::ready;
+	use tokio::io::AsyncWriteExt;
+	use tokio::net::TcpListener;
+
+	fn get(path: &str) -> Request<Vec<u8>> {
+		req("GET", path)
+	}
+
+	/// A request the shell itself would send: cross-origin from its page, so
+	/// the browser always attaches the page's Origin.
+	fn req(method: &str, path: &str) -> Request<Vec<u8>> {
+		shell_req(method, &format!("quiver://localhost{path}"))
+	}
+
+	fn shell_req(method: &str, uri: &str) -> Request<Vec<u8>> {
+		let mut r = bare(method, uri);
+		r.headers_mut().insert(
+			header::ORIGIN,
+			HeaderValue::from_static("tauri://localhost"),
+		);
+		r
+	}
+
+	/// A request with no Origin at all: a navigation or a subresource load.
+	fn bare(method: &str, uri: &str) -> Request<Vec<u8>> {
+		Request::builder()
+			.method(method)
+			.uri(uri)
+			.body(Vec::new())
+			.unwrap()
+	}
+
+	const HOSTS: [&str; 2] = ["quiver://localhost", "http://quiver.localhost"];
+	const METHODS: [&str; 4] = ["GET", "POST", "DELETE", "OPTIONS"];
+
+	/// Every refusal looks the same, whatever refused it: a marked 403 that
+	/// still carries the CORS and framing headers.
+	fn assert_refused(resp: &Response<Vec<u8>>, what: &str) {
+		assert_eq!(resp.status(), 403, "{what}");
+		assert_eq!(
+			resp.headers().get(PROXY_ERROR_HEADER).map(|v| v.as_bytes()),
+			Some(&b"error"[..]),
+			"{what}"
+		);
+		assert_eq!(
+			resp.headers()
+				.get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+				.map(|v| v.as_bytes()),
+			Some(&b"*"[..]),
+			"{what}"
+		);
+		assert_eq!(expose_header(resp), Some(PROXY_ERROR_HEADER), "{what}");
+		assert_eq!(
+			frame_guard(resp),
+			(Some("frame-ancestors 'none'"), Some("DENY")),
+			"{what}"
+		);
+	}
+
+	/// The shape `handle_request` passes in: an already-resolved transport,
+	/// wrapped in the future `proxy_once` awaits inside its timeout.
+	fn resolved(t: impl Transport + 'static) -> impl Future<Output = Arc<dyn Transport>> {
+		ready(Arc::new(t) as Arc<dyn Transport>)
+	}
+
+	async fn dead() -> HttpTransport {
+		let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let addr = l.local_addr().unwrap();
+		drop(l);
+		HttpTransport::new(format!("http://{addr}"), None)
+	}
+
+	/// A daemon that answers with the same canned bytes every time. It reads the
+	/// request before answering it, because a server that closes with the
+	/// request still unread closes ABORTIVELY — RST, not FIN — and on Windows
+	/// that reset discards the response it had already sent; see
+	/// `transport::testing::drain_request`.
+	async fn serving(raw: &'static str) -> HttpTransport {
+		let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let addr = l.local_addr().unwrap();
+		tokio::spawn(async move {
+			while let Ok((mut s, _)) = l.accept().await {
+				drain_request(&mut s).await;
+				let _ = s.write_all(raw.as_bytes()).await;
+				let _ = s.shutdown().await;
+			}
+		});
+		HttpTransport::new(format!("http://{addr}"), None)
+	}
+
+	fn expose_header(resp: &Response<Vec<u8>>) -> Option<&str> {
+		resp.headers()
+			.get(header::ACCESS_CONTROL_EXPOSE_HEADERS)
+			.and_then(|v| v.to_str().ok())
+	}
+
+	#[tokio::test]
+	async fn relays_a_successful_response_untouched() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let t = serving("HTTP/1.1 200 OK\r\nContent-Length: 15\r\n\r\n{\"status\":\"ok\"}")
+			.await;
+		let resp = proxy_once(resolved(t), get("/v0/health")).await;
+		assert_eq!(resp.status(), 200);
+		assert_eq!(resp.body(), br#"{"status":"ok"}"#);
+	}
+
+	/// A status the DAEMON produced must arrive unmarked. The marker is what
+	/// tells apiFetch a failure is ours and therefore retryable; marking a real
+	/// daemon 404 would make the frontend retry something that will never change.
+	#[tokio::test]
+	async fn a_daemon_status_is_relayed_without_the_proxy_marker() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let t = serving("HTTP/1.1 404 Not Found\r\nContent-Length: 2\r\n\r\n{}").await;
+		let resp = proxy_once(resolved(t), get("/v0/arrow/nope")).await;
+		assert_eq!(resp.status(), 404);
+		assert!(
+			resp.headers().get(PROXY_ERROR_HEADER).is_none(),
+			"a daemon's own status must never carry the proxy marker"
+		);
+	}
+
+	/// A dead socket becomes a 502 that IS marked, because the request never
+	/// reached the daemon and retrying is the right response.
+	#[tokio::test]
+	async fn a_connect_failure_becomes_a_marked_502() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let resp = proxy_once(resolved(dead().await), get("/v0/health")).await;
+		assert_eq!(resp.status(), 502);
+		assert_eq!(
+			resp.headers().get(PROXY_ERROR_HEADER).map(|v| v.as_bytes()),
+			Some(&b"error"[..])
+		);
+	}
+
+	#[tokio::test]
+	async fn the_502_body_names_the_cause() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let resp = proxy_once(resolved(dead().await), get("/v0/health")).await;
+		let body = String::from_utf8(resp.body().clone()).unwrap();
+		assert!(
+			body.contains("connect failed"),
+			"a 502 must say why; got {body:?}"
+		);
+	}
+
+	/// The two tests above dial a real dead port, so each of them is a race
+	/// between the transport failing to connect and this proxy giving up — and
+	/// they only mean anything when the transport wins it. What ships orders the
+	/// two so it always does (connect 10s, proxy 300s); the cfg(test) pair used
+	/// to invert that ordering (connect 250ms, proxy 20ms), and inverted, the
+	/// winner is decided by how fast the platform refuses a loopback connect.
+	/// Unix refuses in microseconds and the tests passed; the Windows runner does
+	/// not, the proxy's timeout fired first, and both saw a marked 504 instead of
+	/// the marked 502 they assert on. Ordered, the proxy cannot get there first:
+	/// reqwest bounds the connect itself and reports the expiry as a connect
+	/// error, so the failure is a `TransportError::Connect` inside
+	/// `CONNECT_TIMEOUT` no matter what the stack does.
+	#[test]
+	fn the_proxy_ceiling_stays_above_the_transports_connect_ceiling() {
+		assert!(
+			PROXY_TIMEOUT > CONNECT_TIMEOUT,
+			"a proxy ceiling at or below the transport's connect ceiling ({PROXY_TIMEOUT:?} \
+			 vs {CONNECT_TIMEOUT:?}) turns every connect failure into a race the slower \
+			 platform loses: the proxy answers 504 for a daemon that was never reached"
+		);
+	}
+
+	/// A transport whose `request()` never resolves — a daemon that accepts a
+	/// connection and then goes silent. The only way `proxy_once` can move on
+	/// is `PROXY_TIMEOUT` firing.
+	struct NeverResponds;
+
+	#[async_trait::async_trait]
+	impl Transport for NeverResponds {
+		async fn request(
+			&self,
+			_req: Request<Vec<u8>>,
+		) -> Result<Response<Vec<u8>>, TransportError> {
+			std::future::pending().await
+		}
+
+		async fn open_ws(&self, _path: &str) -> Result<WsStream, TransportError> {
+			std::future::pending().await
+		}
+	}
+
+	/// A transport that fails the test if it is dialled at all. A preflight is
+	/// answered by the proxy; reaching a daemon with it is the defect.
+	struct NeverDialled;
+
+	#[async_trait::async_trait]
+	impl Transport for NeverDialled {
+		async fn request(
+			&self,
+			_req: Request<Vec<u8>>,
+		) -> Result<Response<Vec<u8>>, TransportError> {
+			panic!("a CORS preflight must be answered by the proxy, not forwarded")
+		}
+
+		async fn open_ws(&self, _path: &str) -> Result<WsStream, TransportError> {
+			panic!("open_ws is not part of the proxy path")
+		}
+	}
+
+	/// A stalled daemon must not hang the request forever: `PROXY_TIMEOUT`
+	/// turns it into a marked 504 rather than an open-ended wait. The code
+	/// differs from the marked 502 a connect failure produces above only to
+	/// name the cause for a human reading a log — `apiFetch` treats 502 and
+	/// 504 identically, retrying an idempotent read on either as long as the
+	/// marker is present (`src/lib/transport/api.ts`, `isProxyFailure`). What
+	/// this test guards is the MARKER and the timeout firing at all; the exact
+	/// code is diagnostic. `PROXY_TIMEOUT` is milliseconds under `cfg(test)`
+	/// (see its definition), so this really waits it out rather than mocking
+	/// the clock.
+	#[tokio::test]
+	async fn a_stalled_daemon_times_out_as_a_marked_504() {
+		let resp = proxy_once(resolved(NeverResponds), get("/v0/health")).await;
+		assert_eq!(resp.status(), 504);
+		assert_eq!(
+			resp.headers().get(PROXY_ERROR_HEADER).map(|v| v.as_bytes()),
+			Some(&b"error"[..])
+		);
+	}
+
+	/// The other half of finding B: resolving the active connection takes
+	/// `ConnectionManager`'s read lock, which a switch can hold. Awaited
+	/// OUTSIDE the timeout, that wait is unbounded and every `quiver://`
+	/// request in the app hangs forever. Inside it, it is a marked 504 the
+	/// frontend already retries. A transport that never even resolves stands in
+	/// for the wedged lock.
+	#[tokio::test]
+	async fn a_transport_that_never_resolves_times_out_as_a_marked_504() {
+		let never = async {
+			std::future::pending::<()>().await;
+			unreachable!("pending never resolves")
+		};
+		let resp = proxy_once(never, get("/v0/health")).await;
+		assert_eq!(
+			resp.status(),
+			504,
+			"the transport lookup must be inside PROXY_TIMEOUT, not before it"
+		);
+		assert_eq!(
+			resp.headers().get(PROXY_ERROR_HEADER).map(|v| v.as_bytes()),
+			Some(&b"error"[..])
+		);
+	}
+
+	// ── CORS (finding C) ─────────────────────────────────────────────────────
+
+	/// `DELETE`, and `POST` with a JSON body, are not simple requests, so the
+	/// browser preflights them. The proxy answers; the daemon never hears about
+	/// it. `NeverDialled` panics if it does.
+	#[tokio::test]
+	async fn a_preflight_is_answered_locally_without_dialling_the_transport() {
+		let resp = proxy_once(resolved(NeverDialled), req("OPTIONS", "/v0/arrow/x")).await;
+		assert_eq!(resp.status(), 204);
+
+		let allow = |name: header::HeaderName| {
+			resp.headers()
+				.get(name)
+				.and_then(|v| v.to_str().ok())
+				.unwrap_or_default()
+				.to_string()
+		};
+		let methods = allow(header::ACCESS_CONTROL_ALLOW_METHODS);
+		for m in ["GET", "POST", "DELETE", "PATCH"] {
+			assert!(
+				methods.contains(m),
+				"the frontend sends {m}; the preflight must allow it. Got {methods:?}"
+			);
+		}
+		assert!(
+			allow(header::ACCESS_CONTROL_ALLOW_HEADERS)
+				.to_lowercase()
+				.contains("content-type"),
+			"a JSON POST sets Content-Type, which is not a safelisted request header"
+		);
+		assert_eq!(
+			resp.headers()
+				.get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+				.map(|v| v.as_bytes()),
+			Some(&b"*"[..]),
+			"a preflight without an allow-origin fails the preflight itself"
+		);
+	}
+
+	/// Without `Access-Control-Expose-Headers`, `x-quiver-proxy` is invisible to
+	/// the page — `res.headers.get(...)` reads `null` — so `isProxyFailure`
+	/// never fires and the whole cold-start retry path in
+	/// `src/lib/transport/api.ts` is dead. It is read on ERROR responses, so an
+	/// error that omits the expose header is exactly as dead as one that omits
+	/// the marker: every response has to carry it.
+	#[tokio::test]
+	async fn every_response_exposes_the_proxy_marker_to_the_page() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let ok = serving("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}").await;
+		let daemon_404 =
+			serving("HTTP/1.1 404 Not Found\r\nContent-Length: 2\r\n\r\n{}").await;
+
+		let cases: Vec<(&str, Response<Vec<u8>>)> = vec![
+			(
+				"a relayed 200",
+				proxy_once(resolved(ok), get("/v0/health")).await,
+			),
+			(
+				"a relayed daemon 404",
+				proxy_once(resolved(daemon_404), get("/v0/arrow/nope")).await,
+			),
+			(
+				"a marked 502",
+				proxy_once(resolved(dead().await), get("/v0/health")).await,
+			),
+			(
+				"a marked 504",
+				proxy_once(resolved(NeverResponds), get("/v0/health")).await,
+			),
+			(
+				"a preflight",
+				proxy_once(resolved(NeverDialled), req("OPTIONS", "/v0/arrow"))
+					.await,
+			),
+		];
+
+		for (what, resp) in cases {
+			assert_eq!(
+				resp.headers()
+					.get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+					.map(|v| v.as_bytes()),
+				Some(&b"*"[..]),
+				"{what} must be readable cross-origin at all"
+			);
+			assert_eq!(
+				expose_header(&resp),
+				Some(PROXY_ERROR_HEADER),
+				"{what} must expose {PROXY_ERROR_HEADER}, or the page reads null for it"
+			);
+		}
+	}
+
+	/// A daemon that sets its own `Access-Control-Allow-Origin` must not leave
+	/// the response with two of them — a browser rejects a duplicated
+	/// allow-origin outright, which would break exactly the responses that were
+	/// working before.
+	#[tokio::test]
+	async fn a_daemons_own_allow_origin_is_replaced_not_appended() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let t = serving(
+			"HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: https://elsewhere.example\r\nContent-Length: 2\r\n\r\n{}",
+		)
+		.await;
+		let resp = proxy_once(resolved(t), get("/v0/health")).await;
+		let origins: Vec<_> = resp
+			.headers()
+			.get_all(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+			.iter()
+			.map(|v| v.to_str().unwrap_or_default().to_string())
+			.collect();
+		assert_eq!(origins, vec!["*".to_string()], "got {origins:?}");
+	}
+
+	/// Arrow pages live in iframes of this very webview, so `quiver://` is
+	/// reachable from them. A request they make carries their own Origin and
+	/// must be refused before any connection is resolved.
+	#[tokio::test]
+	async fn quiver_scheme_refuses_foreign_origins_before_resolving() {
+		for host in HOSTS {
+			for method in METHODS {
+				for origin in [
+					"arrow-app://abc",
+					"http://arrow-app.abc",
+					"http://arrow-app.abc.localhost",
+					"arrow-app://abc.localhost",
+					"https://evil.example",
+					"quiver://localhost",
+					"http://quiver.localhost",
+					"null",
+					"",
+				] {
+					let mut r = bare(method, &format!("{host}/v0/arrow"));
+					r.headers_mut()
+						.insert(header::ORIGIN, origin.parse().unwrap());
+
+					let resp = proxy_once(resolved(NeverDialled), r).await;
+					assert_refused(
+						&resp,
+						&format!("{method} {host} from {origin:?}"),
+					);
+				}
+			}
+		}
+	}
+
+	/// A frame that navigates itself here, and any `<img>`, `<script>` or
+	/// `<link>` it points here, sends no Origin; so does a same-origin GET
+	/// from a `quiver://` document that WebKitGTK rendered inside a frame
+	/// despite the framing headers. The shell's own fetches are cross-origin
+	/// and always carry one, so a missing Origin is never the shell.
+	#[tokio::test]
+	async fn quiver_scheme_refuses_a_request_without_an_origin_before_resolving() {
+		for host in HOSTS {
+			for method in METHODS {
+				for path in ["/v0/arrow", "/v0/health", "/v0/arrow/x", "/"] {
+					let uri = format!("{host}{path}");
+					let resp = proxy_once(
+						resolved(NeverDialled),
+						bare(method, &uri),
+					)
+					.await;
+					assert_refused(
+						&resp,
+						&format!("{method} {uri} without an Origin"),
+					);
+				}
+			}
+		}
+	}
+
+	#[tokio::test]
+	async fn a_missing_origin_is_refused_exactly_like_a_foreign_one() {
+		let mut foreign = req("GET", "/v0/arrow");
+		foreign.headers_mut()
+			.insert(header::ORIGIN, "arrow-app://abc".parse().unwrap());
+		let foreign = proxy_once(resolved(NeverDialled), foreign).await;
+		let missing = proxy_once(
+			resolved(NeverDialled),
+			bare("GET", "quiver://localhost/v0/arrow"),
+		)
+		.await;
+
+		assert_eq!(missing.status(), foreign.status());
+		assert_eq!(missing.headers(), foreign.headers());
+		assert_eq!(missing.body(), foreign.body());
+	}
+
+	/// Defence in depth where the engine sends Fetch Metadata: a navigation
+	/// or an embedding is refused even when it claims the shell's Origin.
+	#[tokio::test]
+	async fn quiver_scheme_refuses_navigations_by_fetch_metadata() {
+		let cases = [
+			("sec-fetch-dest", "document"),
+			("sec-fetch-dest", "iframe"),
+			("sec-fetch-dest", "frame"),
+			("sec-fetch-dest", "embed"),
+			("sec-fetch-dest", "object"),
+			("sec-fetch-dest", "IFrame"),
+			("sec-fetch-mode", "navigate"),
+			("sec-fetch-mode", "Navigate"),
+		];
+		for host in HOSTS {
+			for method in METHODS {
+				for (name, value) in cases {
+					let mut r = shell_req(method, &format!("{host}/v0/arrow"));
+					r.headers_mut().insert(name, value.parse().unwrap());
+					let resp = proxy_once(resolved(NeverDialled), r).await;
+					assert_refused(
+						&resp,
+						&format!("{method} {host} {name}: {value}"),
+					);
+				}
+			}
+		}
+	}
+
+	/// What the shell's own `fetch` sends when the engine adds Fetch Metadata.
+	#[tokio::test]
+	async fn the_shells_fetch_metadata_still_passes() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let t = Arc::new(serving("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}").await);
+		for host in HOSTS {
+			let mut r = shell_req("GET", &format!("{host}/v0/arrow"));
+			r.headers_mut()
+				.insert("sec-fetch-dest", HeaderValue::from_static("empty"));
+			r.headers_mut()
+				.insert("sec-fetch-mode", HeaderValue::from_static("cors"));
+			r.headers_mut()
+				.insert("sec-fetch-site", HeaderValue::from_static("cross-site"));
+			let resp = proxy_once(ready(t.clone() as Arc<dyn Transport>), r).await;
+			assert_eq!(resp.status(), 200, "{host}");
+		}
+	}
+
+	#[tokio::test]
+	async fn quiver_scheme_refuses_a_foreign_preflight_too() {
+		let mut r = req("OPTIONS", "/v0/arrow");
+		r.headers_mut()
+			.insert(header::ORIGIN, "arrow-app://abc".parse().unwrap());
+		let resp = proxy_once(resolved(NeverDialled), r).await;
+		assert_eq!(resp.status(), 403);
+	}
+
+	fn frame_guard(resp: &Response<Vec<u8>>) -> (Option<&str>, Option<&str>) {
+		let get = |name: header::HeaderName| {
+			resp.headers().get(name).and_then(|v| v.to_str().ok())
+		};
+		(
+			get(header::CONTENT_SECURITY_POLICY),
+			get(header::X_FRAME_OPTIONS),
+		)
+	}
+
+	/// An arrow page can navigate its own iframe to a `quiver://` URL: CSP
+	/// governs fetches, not a frame navigating itself. Rendered there, the page
+	/// would run as `quiver://localhost`. That navigation and the document's
+	/// same-origin GETs carry no Origin and are refused; on engines that honour
+	/// them, both framing headers stop it rendering at all, so every response
+	/// kind still carries them. WebKitGTK ignores them on custom schemes.
+	#[tokio::test]
+	async fn every_response_refuses_to_render_inside_a_frame() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let ok = serving("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}").await;
+		let daemon_404 =
+			serving("HTTP/1.1 404 Not Found\r\nContent-Length: 2\r\n\r\n{}").await;
+		let mut foreign = req("GET", "/v0/arrow");
+		foreign.headers_mut()
+			.insert(header::ORIGIN, "arrow-app://abc".parse().unwrap());
+
+		let cases: Vec<(&str, Response<Vec<u8>>)> = vec![
+			(
+				"a relayed 200",
+				proxy_once(resolved(ok), get("/v0/health")).await,
+			),
+			(
+				"a relayed daemon 404",
+				proxy_once(resolved(daemon_404), get("/v0/arrow/nope")).await,
+			),
+			(
+				"a marked 502",
+				proxy_once(resolved(dead().await), get("/v0/health")).await,
+			),
+			(
+				"a marked 504",
+				proxy_once(resolved(NeverResponds), get("/v0/health")).await,
+			),
+			(
+				"a preflight",
+				proxy_once(resolved(NeverDialled), req("OPTIONS", "/v0/arrow"))
+					.await,
+			),
+			(
+				"an origin refusal",
+				proxy_once(resolved(NeverDialled), foreign).await,
+			),
+			(
+				"a /v0/ui refusal",
+				proxy_once(resolved(NeverDialled), get("/v0/ui/ns/index.html"))
+					.await,
+			),
+		];
+
+		for (what, resp) in cases {
+			assert_eq!(
+				frame_guard(&resp),
+				(Some("frame-ancestors 'none'"), Some("DENY")),
+				"{what} must refuse to render inside a frame"
+			);
+		}
+	}
+
+	/// A daemon response that sets its own framing headers must not keep them:
+	/// a looser `frame-ancestors` from upstream would undo the guard.
+	#[tokio::test]
+	async fn a_daemons_own_framing_headers_are_replaced() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let t = serving(
+			"HTTP/1.1 200 OK\r\nContent-Security-Policy: frame-ancestors *\r\nX-Frame-Options: ALLOWALL\r\nContent-Length: 2\r\n\r\n{}",
+		)
+		.await;
+		let resp = proxy_once(resolved(t), get("/v0/health")).await;
+		assert_eq!(
+			resp.headers()
+				.get_all(header::CONTENT_SECURITY_POLICY)
+				.iter()
+				.count(),
+			1
+		);
+		assert_eq!(
+			frame_guard(&resp),
+			(Some("frame-ancestors 'none'"), Some("DENY"))
+		);
+	}
+
+	/// The shell never loads arrow interfaces through `quiver://` (they have
+	/// their own `arrow-app://` origin), so any `/v0/ui/` request here is an
+	/// arrow trying to reach its own pages under the shell's scheme. Refused
+	/// before a transport is resolved, in every spelling the HTTP transport
+	/// would normalise to `/v0/ui/...`: reqwest's url parser turns `\` into `/`
+	/// and resolves `.` and `..` (also percent-encoded) for `http://`, while
+	/// `http::Uri` hands them through unchanged. Also in the Windows form wry
+	/// hands the handler.
+	#[tokio::test]
+	async fn quiver_scheme_refuses_arrow_interface_paths_before_resolving() {
+		let paths = [
+			"/v0/ui/ns/evil.html",
+			"/v0/ui",
+			"/v0/ui/",
+			"/V0/UI/ns",
+			"/v0//ui/ns",
+			"//v0//ui/ns/x",
+			"/v0/%75i/ns",
+			"/%76%30/ui/ns/x",
+			"/v0\\ui/ns/e.html",
+			"/v0/x/../ui/ns/e.html",
+			"/v0/x/%2e%2e/ui/ns/e.html",
+			"/v0/x/%2E%2E/ui/ns/e.html",
+			"/v0/./ui/ns",
+			"/v0/%2e/ui/ns",
+			"/v0%5cui/ns",
+			"/v0/x%2f..%2fui/ns",
+		];
+		for host in ["quiver://localhost", "http://quiver.localhost"] {
+			for path in paths {
+				let uri = format!("{host}{path}");
+				for method in ["GET", "POST", "OPTIONS"] {
+					let resp = proxy_once(
+						resolved(NeverDialled),
+						shell_req(method, &uri),
+					)
+					.await;
+					assert_eq!(resp.status(), 403, "{method} {uri}");
+					assert_eq!(
+						resp.headers()
+							.get(PROXY_ERROR_HEADER)
+							.map(|v| v.as_bytes()),
+						Some(&b"error"[..]),
+						"{method} {uri}"
+					);
+					assert_eq!(
+						frame_guard(&resp),
+						(Some("frame-ancestors 'none'"), Some("DENY")),
+						"{method} {uri}"
+					);
+				}
+			}
+		}
+	}
+
+	/// The shell never sends a backslash or a dot segment, and refusing them
+	/// outright leaves no normalisation difference between this check and the
+	/// transport to exploit, whatever the rest of the path says.
+	#[tokio::test]
+	async fn quiver_scheme_refuses_backslashes_and_dot_segments_anywhere() {
+		for path in [
+			"/v0/arrow/..",
+			"/v0/./arrow",
+			"/v0/arrow/%2e%2e/health",
+			"/v0\\arrow",
+			"/v0/arrow%5Cx",
+			"/..",
+		] {
+			let resp = proxy_once(resolved(NeverDialled), get(path)).await;
+			assert_eq!(resp.status(), 403, "{path}");
+		}
+	}
+
+	/// The shell's own paths, including encoded namespaces, dots inside a
+	/// segment and query strings, must still reach the daemon.
+	#[tokio::test]
+	async fn the_shells_own_paths_still_pass() {
+		let _serialised = crate::FD_TESTS.lock().await;
+
+		let t = Arc::new(serving("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}").await);
+		for path in [
+			"/v0/arrow",
+			"/v0/health",
+			"/v0/uix",
+			"/v0/units",
+			"/v0/arrow/ui/x",
+			"/v0/runtime/github.com%2Fuser%2Frepo",
+			"/v0/arrow.runtime",
+			"/v0/arrow?namespace=a%2Fb&x=..",
+			"/v0/arrow/a..b/.hidden",
+		] {
+			let resp =
+				proxy_once(ready(t.clone() as Arc<dyn Transport>), get(path)).await;
+			assert_eq!(resp.status(), 200, "{path}");
+		}
+	}
+
+	#[test]
+	fn only_the_apps_own_origins_are_allowed() {
+		for origin in [
+			"tauri://localhost",
+			"http://tauri.localhost",
+			"https://tauri.localhost",
+			"http://localhost:1420",
+		] {
+			let mut r = req("GET", "/v0/arrow");
+			r.headers_mut()
+				.insert(header::ORIGIN, origin.parse().unwrap());
+			assert!(origin_allowed(&r), "{origin}");
+		}
+		assert!(!origin_allowed(&bare("GET", "quiver://localhost/v0/arrow")));
+	}
+}
