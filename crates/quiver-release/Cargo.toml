@@ -1,11 +1,19 @@
 [package]
 name = "quiver-release"
-description = "Release lookup, checksum, app self-update, core update and rollback. No GPUI."
+description = "Resolving this app's own release asset from its GitHub release page, and the build stamp. No GPUI."
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+build = "build.rs"
 
 [lints]
 workspace = true
 
 [dependencies]
+reqwest.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+wiremock.workspace = true
