@@ -1,17 +1,13 @@
-# E2E verification box for the three hard install/update/sideload scenarios
-# covering quiver.core + quiver.desktop together.
+# E2E verification box for the native (GPUI) app: a disposable Linux desktop (Xvfb + openbox + Mesa lavapipe
+# software Vulkan, with a VNC/noVNC view for humans), the Rust toolchain to build the app with its debug-only
+# e2e bridge, and Go to build quiver.core versions from source. No browser driver, no node/bun: the scenarios
+# are Rust tests (`cargo test -p quiver-e2e --test scenarios`) that drive the app over its bridge.
 #
-# Adapted from Crowbar's docker/dev-linux box (same purpose: a disposable
-# Linux desktop sandbox with a real X11 session over noVNC, since a Tauri app
-# needs a real GTK/webkit2gtk display to actually run, not a headless mock).
-# Base: ubuntu:24.04, matching GitHub Actions' ubuntu-latest so apt package
-# versions (webkit2gtk-4.1, etc.) line up with what both repos' own CI
-# already proves builds.
+# System libraries are those of docker/native/Dockerfile (the dev container that proved GPUI renders here);
+# keep the two in step. Base ubuntu:24.04 matches GitHub Actions' ubuntu-latest.
 #
-# The build context is THIS directory, not the repo root. The repo itself is
-# bind-mounted at run time (see docker-compose.yml), and a repo-root context
-# would hand the daemon a 5 GB tarball (node_modules + src-tauri/target) on
-# every image build for the sake of one shell script.
+# The build context is THIS directory, not the repo root: the repo is bind-mounted at run time (see
+# docker-compose.yml), and a repo-root context would send gigabytes of target/ to the daemon on every image build.
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -21,39 +17,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
     VNC_PORT=5900 \
     NOVNC_PORT=6080
 
-# --- Desktop environment + remote access ---------------------------------
+# --- Desktop + capture + the tools the shell harness uses -------------------
+# openbox is required, not decoration: without a window manager the capture is black. imagemagick/scrot/xdotool
+# are for evidence and for tests that need a pixel-level look.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    xfce4 \
-    xfce4-terminal \
-    xvfb \
-    x11vnc \
-    x11-utils \
-    x11-xserver-utils \
-    xauth \
-    xdotool \
-    wmctrl \
-    scrot \
-    # Reading back what scrot captured, so a scenario can find the button it
-    # is about to press instead of trusting a coordinate written down once.
-    # See fixtures/find-button.py.
-    python3-pil \
-    dbus-x11 \
-    python3-websockify \
-    fonts-dejavu-core \
-    fonts-liberation \
-    git \
-    curl \
-    wget \
-    unzip \
-    jq \
-    procps \
-    psmisc \
-    lsof \
-    openssl \
-    python3 \
-    python3-venv \
-    ca-certificates \
-    sudo \
+    xvfb openbox x11vnc x11-utils x11-xserver-utils xauth xdotool wmctrl scrot imagemagick \
+    python3 python3-pil python3-websockify dbus-x11 gnome-keyring libsecret-1-dev \
+    mesa-vulkan-drivers vulkan-tools libgl1-mesa-dri libegl1 \
+    fonts-dejavu-core fonts-liberation \
+    git curl wget unzip jq procps psmisc lsof openssl ca-certificates sudo xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 ARG NOVNC_VERSION=1.5.0
@@ -61,61 +33,37 @@ RUN git clone --branch v${NOVNC_VERSION} --depth 1 \
     https://github.com/novnc/noVNC.git /opt/novnc \
     && ln -s /opt/novnc/vnc.html /opt/novnc/index.html
 
-# --- Tauri v2 Linux build prerequisites -----------------------------------
+# --- GPUI build prerequisites (same list as docker/native/Dockerfile) --------
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libwebkit2gtk-4.1-dev \
-    libayatana-appindicator3-dev \
-    librsvg2-dev \
-    libgtk-3-dev \
-    libssl-dev \
-    libxdo-dev \
-    build-essential \
-    file \
-    patchelf \
-    pkg-config \
+    build-essential cmake clang pkg-config file patchelf \
+    libfontconfig-dev libfreetype-dev libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+    libssl-dev libvulkan-dev libx11-dev libx11-xcb-dev libxcb-xkb-dev libxkbfile-dev libdbus-1-dev \
+    libzstd-dev libasound2-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# --- Toolchains, pinned to match each repo's own CI ------------------------
+# --- WebView of the arrow-app helper (quiver-arrow-window: tao + wry = WebKitGTK on Linux) ----------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Toolchains --------------------------------------------------------------
 ARG GO_VERSION=1.26.2
 RUN GOARCH_DEB="$(dpkg --print-architecture)" \
     && curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-${GOARCH_DEB}.tar.gz | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:${PATH}"
 
-ARG RUST_VERSION=1.90
+ARG RUST_VERSION=stable
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH="/usr/local/cargo/bin:${PATH}"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-    sh -s -- -y --default-toolchain ${RUST_VERSION} --profile default
+    sh -s -- -y --default-toolchain ${RUST_VERSION} --profile minimal
 
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:${PATH}"
-
-# --- WebDriver harness (e2e/): Node, WebKitWebDriver, tauri-driver ---------
-# The native driver tauri-driver wraps on Linux. It must come from the same
-# distribution as libwebkit2gtk above, or the two disagree about the protocol.
-# xz-utils is for unpacking Node.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    webkit2gtk-driver \
-    xz-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-# Node as well as bun: expect-webdriverio, which WebdriverIO pulls in, refuses
-# to load under bun alone. The tarball name maps dpkg's arch to Node's, so the
-# image builds on amd64 (CI) and arm64 (Apple silicon) alike.
-ARG NODE_VERSION=24.9.0
-RUN NODE_ARCH="$(dpkg --print-architecture | sed 's/amd64/x64/')" \
-    && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" \
-       | tar -C /usr/local --strip-components=1 -xJ
-
-RUN cargo install tauri-driver --locked
-
-# webkit2gtk's own sandbox needs privileges a default container does not have,
-# and its GPU/DMA-BUF paths need a GPU a container does not have either. Set
-# here rather than per-scenario so every process that ever launches the app --
-# a scenario driver, an arrow's own relaunch step, a human poking around over
-# VNC -- gets identical treatment.
-ENV WEBKIT_DISABLE_COMPOSITING_MODE=1 \
+# GPUI under software Vulkan: lavapipe is an "emulated GPU" GPUI refuses unless told otherwise; no Wayland here.
+# Set in the image so every process that launches the app (a test, a scenario, a human over VNC) is treated alike.
+ENV ZED_ALLOW_EMULATED_GPU=1 \
+    VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json \
+    WEBKIT_DISABLE_COMPOSITING_MODE=1 \
     WEBKIT_DISABLE_DMABUF_RENDERER=1 \
     WEBKIT_FORCE_SANDBOX=0 \
     GDK_BACKEND=x11 \

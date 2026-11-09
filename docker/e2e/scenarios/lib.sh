@@ -27,11 +27,10 @@ DESK_V2="stable-1.1"
 
 TARGET_TRIPLE="${TARGET_TRIPLE:-$(rustc -vV | awk '/^host:/{print $2}')}"
 
-# The Linux release asset quiver.desktop's bundler produces, and the name the
-# scenarios publish it under. Tauri's appimage bundler names it
-# {productName}_{version}_{arch}.AppImage, with version coming from
-# tauri.conf.json (a static "0.1.0" here, deliberately -- see ARROW.md) and
-# arch from the build target. The name is carried rather than derived by
+# The Linux release asset `cargo xtask package linux` produces, and the name the
+# scenarios publish it under: Quiver_<version>_<arch>.AppImage, with a static
+# numeric version that does not track the git tag (see ARROW.md) and the Debian
+# arch label. The name is carried rather than derived by
 # anything under test: the manifest never constructs it, the caller resolves
 # the asset and hands the URL in, exactly as install.sh does against the real
 # releases API.
@@ -104,8 +103,7 @@ collect_diagnostics() {
 	cp -r "$HOME/.quiver/logs" "$dest/core-logs" 2>/dev/null || true
 	list_core_daemons >"$dest/daemons.txt" 2>&1 || true
 	pgrep -a quiverdesktop >"$dest/desktop-processes.txt" 2>&1 || true
-	wmctrl -l >"$dest/windows.txt" 2>&1 || true
-	screenshot "failure" 2>/dev/null || true
+		screenshot "failure" 2>/dev/null || true
 }
 
 # --- assertions ------------------------------------------------------------
@@ -343,35 +341,6 @@ $(pgrep -a quiverdesktop || true)"
 	ok "exactly $want quiverdesktop process(es) running"
 }
 
-wait_for_desktop_window() {
-	local timeout="${1:-60}"
-	# Two statements, not one `local`: arithmetic in a `local` argument list
-	# is expanded before any of that list has been assigned, so a `deadline`
-	# built from `timeout` on the same line dies under `set -u`.
-	local deadline=$(( SECONDS + timeout ))
-	while [ "$SECONDS" -lt "$deadline" ]; do
-		if wmctrl -l 2>/dev/null | grep -q 'Quiver'; then
-			# One more beat so the webview has actually painted before a
-			# screenshot claims to show the app.
-			sleep 3
-			ok "a real Quiver window is mapped on $DISPLAY ($(wmctrl -l | grep Quiver | head -1))"
-			return 0
-		fi
-		sleep 0.5
-	done
-	fail "no Quiver window appeared on $DISPLAY within ${timeout}s; windows: $(wmctrl -l 2>&1)"
-}
-
-wait_for_no_desktop_window() {
-	local timeout="${1:-30}"
-	local deadline=$(( SECONDS + timeout ))
-	while [ "$SECONDS" -lt "$deadline" ]; do
-		wmctrl -l 2>/dev/null | grep -q 'Quiver' || { ok "no Quiver window is mapped any more"; return 0; }
-		sleep 0.5
-	done
-	fail "a Quiver window was still mapped after ${timeout}s: $(wmctrl -l 2>&1)"
-}
-
 # --- screenshots -----------------------------------------------------------
 
 screenshot() {
@@ -384,84 +353,6 @@ screenshot() {
 	else
 		info "screenshot FAILED for $name"
 	fi
-}
-
-# --- driving the real UI ---------------------------------------------------
-#
-# A scenario that wants to prove a BUTTON works has to press the button. These
-# move a real pointer on the real X display and press a real mouse button, so
-# what runs afterwards is the app's own click handler, its own mutation and
-# its own IPC into Rust -- not a request the harness composed itself.
-
-# desktop_window_id prints the X window id of the running app.
-desktop_window_id() {
-	xdotool search --name '^Quiver$' 2>/dev/null | tail -n 1
-}
-
-# focus_desktop raises and focuses the app window, and prints its CLIENT AREA
-# geometry on screen as "X Y W H". Clicks are placed relative to that origin
-# rather than to the screen, so a window manager that decorates or positions
-# the window differently cannot silently move every target.
-#
-# xwininfo, and not `xdotool getwindowgeometry`. Under xfwm the latter reports
-# the window's position within its own reparenting frame, which here is
-# (10,85) while the client area actually starts at (5,56) -- a 29-pixel
-# vertical lie, enough to turn a click on a sidebar row into a click on the
-# empty space below it, which is exactly what it did. xwininfo's "Absolute
-# upper-left" is the client area's real position on the root window.
-focus_desktop() {
-	local id info x y w h
-	id="$(desktop_window_id)"
-	[ -n "$id" ] || fail "no Quiver window to drive: $(wmctrl -l 2>&1)"
-
-	wmctrl -i -a "$id" 2>/dev/null || true
-	xdotool windowactivate --sync "$id" 2>/dev/null || true
-	sleep 0.5
-
-	info="$(xwininfo -id "$id")"
-	x="$(printf '%s' "$info" | awk '/Absolute upper-left X:/ {print $4}')"
-	y="$(printf '%s' "$info" | awk '/Absolute upper-left Y:/ {print $4}')"
-	w="$(printf '%s' "$info" | awk '/^  Width:/ {print $2}')"
-	h="$(printf '%s' "$info" | awk '/^  Height:/ {print $2}')"
-	[ -n "$x" ] && [ -n "$y" ] && [ -n "$w" ] && [ -n "$h" ] ||
-		fail "could not read the Quiver window's geometry: $info"
-	printf '%s %s %s %s\n' "$x" "$y" "$w" "$h"
-}
-
-# click_in_app X Y -- clicks at a point given in the app window's own
-# coordinates.
-click_in_app() {
-	local wx wy geom
-	geom="$(focus_desktop)"
-	wx=$(( $(printf '%s' "$geom" | cut -d' ' -f1) + $1 ))
-	wy=$(( $(printf '%s' "$geom" | cut -d' ' -f2) + $2 ))
-	info "clicking at window-relative ($1,$2) -> screen ($wx,$wy)"
-	xdotool mousemove --sync "$wx" "$wy" sleep 0.2 click 1
-	sleep 1
-}
-
-# find_button_center LABEL -- prints "X Y" in the app window's own coordinates
-# for the primary action button, located by reading the pixels rather than by
-# a coordinate written down once and left to rot.
-#
-# The hero's primary action is the one solid near-black pill in the content
-# area (everything right of the sidebar). Nothing else in that area is a
-# filled dark block: the status badge is an outline, the tags are outlines,
-# and the banner is light grey. Locating it this way means a layout change
-# moves the click with it, and a layout change that removes the button fails
-# here with the screenshot attached instead of clicking empty space.
-find_button_center() {
-	local shot="$SCENARIO_DIR/.locate.png"
-	scrot -o "$shot" 2>/dev/null || fail "could not screenshot to locate a button"
-	local geom
-	geom="$(focus_desktop)"
-	python3 "$E2E_DIR/fixtures/find-button.py" \
-		"$shot" \
-		"$(printf '%s' "$geom" | cut -d' ' -f1)" \
-		"$(printf '%s' "$geom" | cut -d' ' -f2)" \
-		"$(printf '%s' "$geom" | cut -d' ' -f3)" \
-		"$(printf '%s' "$geom" | cut -d' ' -f4)" ||
-		fail "could not find the primary action button on screen (see $shot)"
 }
 
 # upstream_hits PATH -- how many times the upstream fixture has served PATH.

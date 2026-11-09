@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Brings up the virtual X display, a desktop session, VNC, and noVNC's
+# Brings up the virtual X display, a window manager, VNC, and noVNC's
 # websocket bridge, then execs whatever the container was told to run (the
 # scenario driver script, or an interactive shell for manual poking), so the
 # real driving work happens as the container's own foreground process rather
@@ -30,8 +30,8 @@ if ! xdpyinfo -display "${DISPLAY}" >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "[start.sh] starting xfce4-session"
-dbus-launch --exit-with-session xfce4-session &
+echo "[start.sh] starting openbox (a window manager is needed or captures are black)"
+dbus-launch --exit-with-session openbox &
 
 echo "[start.sh] starting x11vnc on port ${VNC_PORT}"
 X11VNC_ARGS=(-display "${DISPLAY}" -forever -shared -rfbport "${VNC_PORT}" -nolookup -noxdamage)
@@ -46,9 +46,12 @@ x11vnc "${X11VNC_ARGS[@]}" &
 echo "[start.sh] starting noVNC/websockify on port ${NOVNC_PORT} -> 127.0.0.1:${VNC_PORT}"
 websockify --web /opt/novnc "${NOVNC_PORT}" "127.0.0.1:${VNC_PORT}" &
 
-# Give the desktop session a moment to actually paint before anything tries
-# to screenshot or drive it.
-sleep 2
+# Wait for the window manager to own the root window instead of sleeping: _NET_SUPPORTING_WM_CHECK appears
+# on the root window once openbox is up.
+for _ in $(seq 1 50); do
+    xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q 'window id' && break
+    sleep 0.2
+done
 
 if [ "$#" -eq 0 ]; then
     echo "[start.sh] no command given, keeping the box up (VNC at :${NOVNC_PORT})"
