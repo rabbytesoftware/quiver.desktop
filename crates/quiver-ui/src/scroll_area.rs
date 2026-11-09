@@ -5,9 +5,9 @@
 
 use gpui::prelude::*;
 use gpui::{
-    canvas, div, linear_color_stop, linear_gradient, point, px, transparent_black, AnyElement, App,
-    Axis, ElementId, Hsla, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollHandle,
-    StyleRefinement, Window,
+    canvas, div, linear_color_stop, linear_gradient, point, px, AnyElement, App, Axis, ElementId,
+    Hsla, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollHandle, StyleRefinement,
+    Window,
 };
 
 use crate::ids::child_id;
@@ -87,7 +87,7 @@ impl ParentElement for ScrollArea {
 }
 
 fn edge_fade(color: Hsla, top: bool, strength: f32) -> impl IntoElement {
-    let (from, to) = (color.opacity(strength), transparent_black());
+    let (from, to) = (color.opacity(strength), color.opacity(0.0));
     let angle = if top { 180.0 } else { 0.0 };
     let base = div()
         .absolute()
