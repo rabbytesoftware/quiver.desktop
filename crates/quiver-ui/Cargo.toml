@@ -12,3 +12,15 @@ workspace = true
 quiver-theme.workspace = true
 gpui.workspace = true
 gpui-component.workspace = true
+thiserror.workspace = true
+
+[features]
+# Element registry for the e2e control bridge; off in release builds.
+inspect = []
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+
+[[example]]
+name = "gallery"
+path = "examples/gallery.rs"
