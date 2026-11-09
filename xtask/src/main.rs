@@ -10,6 +10,7 @@ mod layout;
 mod package;
 mod package_layout;
 mod release_artifact;
+mod release_assets;
 mod sidecar;
 mod structure;
 mod target;
@@ -18,7 +19,7 @@ mod verify_update;
 use anyhow::{bail, Context, Result};
 
 const TASKS: &str = "gate, check-deps, check-layout, resolve-core-version <channel>, extract-core-version <tag>, \
-fetch-sidecar, package [macos|windows|linux], check-release-artifact <path>..., checksums <dir>, verify-update";
+fetch-sidecar, package [macos|windows|linux], check-release-artifact <path>..., check-release-assets <dir>, checksums <dir>, verify-update";
 
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
@@ -51,6 +52,7 @@ fn main() -> Result<()> {
         Some("fetch-sidecar") => sidecar::run(rest),
         Some("package") => package::run(rest),
         Some("check-release-artifact") => release_artifact::run(rest),
+        Some("check-release-assets") => release_assets::run(rest),
         Some("checksums") => checksums::run(rest),
         Some("verify-update") => verify_update::run(rest),
         Some(other) => bail!("unknown task `{other}`; try: {TASKS}"),

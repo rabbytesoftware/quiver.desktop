@@ -1,3 +1,7 @@
+# MIGRATION NOTE: every job below this banner up to "NATIVE (GPUI) JOBS" at the bottom is the OLD Tauri/bun
+# pipeline (code-quality-frontend/react-doctor/rust, test-cross-platform, build-frontend, build-tauri,
+# test-coverage-*). It is kept only while src-tauri/ and src/ stay in the tree; the lead REMOVES those jobs
+# in the final cleanup commit. The native-* jobs at the bottom are the pipeline that remains.
 name: CI
 
 on:
@@ -739,3 +743,148 @@ jobs:
             issue_number: context.issue.number,
             body,
           });
+
+
+  # ===========================================================================
+  # NATIVE (GPUI) JOBS. These replace everything above at cleanup.
+  # ===========================================================================
+
+  # No build of the GPUI crates: formatting, supply chain, structure. `cargo xtask` compiles only xtask.
+  native-lint:
+    name: Native - fmt, deny, audit, machete, structure
+    runs-on: ubuntu-latest
+    needs: validate-branch
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+        components: rustfmt
+
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-deny,cargo-audit,cargo-machete
+
+    - run: cargo fmt --all --check
+    - run: cargo deny check
+    - run: cargo audit
+    - run: cargo machete
+    - run: cargo xtask check-deps
+    - run: cargo xtask check-layout
+    - name: xtask tests (core version ranking, packaging layout, release-artifact check)
+      run: cargo test -p xtask
+
+  # GPUI needs the system libraries of docker/native/Dockerfile and a Vulkan device (lavapipe) plus a display
+  # for the rendering tests: Xvfb + Mesa software Vulkan, as in the dev container.
+  native-test:
+    name: Native - clippy, test (ubuntu)
+    runs-on: ubuntu-latest
+    needs: validate-branch
+    env:
+      ZED_ALLOW_EMULATED_GPU: '1'
+      VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install GPUI system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential cmake clang pkg-config libfontconfig-dev libfreetype-dev libxcb1-dev \
+          libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libssl-dev libvulkan-dev libx11-dev \
+          libx11-xcb-dev libxcb-xkb-dev libxkbfile-dev libdbus-1-dev libzstd-dev libasound2-dev \
+          libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev xvfb x11-utils mesa-vulkan-drivers \
+          vulkan-tools libgl1-mesa-dri libegl1 openbox fonts-dejavu-core gnome-keyring libsecret-1-dev \
+          libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+    - name: Set up Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+        components: clippy
+
+    - run: cargo clippy --workspace --all-targets -- -D warnings
+    - name: Clippy with the e2e bridge feature (debug-only code must stay warning free too)
+      run: cargo clippy -p quiver-app --all-targets --features e2e-bridge -- -D warnings
+    - run: xvfb-run -a cargo test --workspace
+
+  # Compile-check of the per-platform arms (cfg(windows), cfg(target_os = "macos")) that no Linux job builds.
+  # Compile only: running GPUI needs a GPU session these runners do not have.
+  native-build:
+    name: Native - build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: validate-branch
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest]
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+
+    - run: cargo build --workspace --all-targets
+
+  # The bridge must never ship: build the way release.yml does (no e2e-bridge), then scan the binaries.
+  native-release-artifact:
+    name: Native - release build has no e2e bridge
+    runs-on: ubuntu-latest
+    needs: validate-branch
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install GPUI system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential cmake clang pkg-config libfontconfig-dev libfreetype-dev libxcb1-dev \
+          libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libssl-dev libvulkan-dev libx11-dev \
+          libx11-xcb-dev libxcb-xkb-dev libxkbfile-dev libdbus-1-dev libzstd-dev libasound2-dev \
+          libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libsecret-1-dev \
+          libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+    - name: Set up Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+
+    - run: make build
+    - run: make check-release
+
+  # Builds the app WITH the bridge inside docker/e2e and runs `cargo test -p quiver-e2e --test scenarios`.
+  native-e2e-box:
+    name: Native - e2e box
+    runs-on: ubuntu-latest
+    needs: validate-branch
+    timeout-minutes: 90
+    steps:
+    - name: Checkout quiver.desktop
+      uses: actions/checkout@v4
+      with:
+        path: quiver.desktop
+
+    - name: Checkout quiver.core
+      uses: actions/checkout@v4
+      with:
+        repository: rabbytesoftware/quiver.core
+        ref: develop
+        token: ${{ secrets.GITHUB_TOKEN }}
+        path: quiver.core
+
+    - name: Run the scenarios in the box
+      env:
+        QUIVER_CORE_DEV_PATH: ${{ github.workspace }}/quiver.core
+      run: make -C quiver.desktop test-e2e-box
+
+    - name: Upload results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: native-e2e-box-results
+        path: quiver.desktop/docker/e2e/results/
+        if-no-files-found: ignore

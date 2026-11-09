@@ -1,0 +1,226 @@
+name: Release (native)
+
+# Builds, packages and (optionally) publishes the native GPUI app for every channel. It is the successor of the
+# build + publish halves of nightly.yml / prerelease.yml / stable-release.yml, which keep their branch triggers
+# and tag derivation until the lead's cleanup: after it, those three call this workflow with
+#   uses: ./.github/workflows/release-native.yml
+#   with: { channel: ..., tag: ..., core_version: ... }
+# (or are folded into it). Until then it is run by hand (workflow_dispatch) to validate the whole path with
+# `publish: false`, which uploads the bundles as workflow artifacts and creates no release.
+#
+# WHAT THE UPDATER NEEDS FROM A RELEASE (crates/quiver-release, ARROW.md at the repo root):
+#  * exactly the asset suffixes it selects on: *.AppImage (linux), *.dmg (macOS), *-setup.exe (windows). The
+#    file names do not track the git tag (the bundle version is a static numeric version), so selection is by
+#    suffix and architecture alias only. `cargo xtask check-release-assets` enforces this before publishing.
+#  * a checksum for each: the release page's per-asset sha256 digest when GitHub records one, else a
+#    `checksums.txt` in sha256sum format (written by `cargo xtask checksums`). ARROW.md's fetch step refuses an
+#    empty QUIVER_RELEASE_CHECKSUM, and the app refuses to start the update without one.
+#  * ARROW.md is NOT uploaded: quiver.core reads it from the repository at the announced ref (the tag). The
+#    check only proves it still declares QUIVER_RELEASE_ASSET_URL / QUIVER_RELEASE_CHECKSUM.
+#
+# SECRETS THIS WORKFLOW READS (none can be verified from the development container; same names the Tauri
+# workflows used, all optional: unset => ad-hoc signed, un-notarized DMG, exactly as before):
+#   APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
+#   APPLE_ID, APPLE_PASSWORD (app-specific), APPLE_TEAM_ID.
+# GITHUB_TOKEN needs contents: write (publish) and read access to rabbytesoftware/quiver.core releases.
+# UNTESTED here: the macOS and Windows jobs and the AppImage tooling. Windows installers are not Authenticode
+# signed (the Tauri build was not either).
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Channel: stable, beta, hotfix or nightly-rolling'
+        required: true
+        default: beta
+        type: choice
+        options: [stable, beta, hotfix, nightly-rolling]
+      tag:
+        description: 'Release tag to publish as (stable-26.6, beta-26.6-1, hotfix-26.6.1-1; nightly-rolling for nightly)'
+        required: true
+        type: string
+      core_version:
+        description: 'quiver.core tag to bundle; empty = newest on the channel (hotfix: the one the latest stable recorded)'
+        required: false
+        default: ''
+        type: string
+      publish:
+        description: 'Create the GitHub release (false = only upload the bundles as workflow artifacts)'
+        required: false
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      channel: { required: true, type: string }
+      tag: { required: true, type: string }
+      core_version: { required: false, type: string, default: '' }
+      publish: { required: false, type: boolean, default: true }
+    secrets:
+      APPLE_CERTIFICATE: { required: false }
+      APPLE_CERTIFICATE_PASSWORD: { required: false }
+      APPLE_SIGNING_IDENTITY: { required: false }
+      APPLE_ID: { required: false }
+      APPLE_PASSWORD: { required: false }
+      APPLE_TEAM_ID: { required: false }
+
+env:
+  RUST_VERSION: 'stable'
+
+concurrency:
+  group: release-native-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Resolve quiver.core
+    runs-on: ubuntu-latest
+    outputs:
+      core_version: ${{ steps.version.outputs.CORE_VERSION }}
+      stable_tag: ${{ steps.stamp.outputs.STABLE_TAG }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+
+    - name: Resolve and validate the quiver.core version
+      id: version
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        CHANNEL: ${{ inputs.channel }}
+        REQUESTED: ${{ inputs.core_version }}
+      run: |
+        if [ -n "$REQUESTED" ]; then
+          CORE_VERSION="$REQUESTED"
+        elif [ "$CHANNEL" = "hotfix" ]; then
+          # A hotfix keeps the quiver.core its latest stable release recorded: it must never drift.
+          LATEST_STABLE=$(git tag -l "stable-*" | sort -V | tail -1)
+          test -n "$LATEST_STABLE" || { echo "a hotfix needs an existing stable release"; exit 1; }
+          CORE_VERSION=$(cargo xtask extract-core-version "$LATEST_STABLE")
+        else
+          case "$CHANNEL" in
+            nightly-rolling) CORE_CHANNEL=$(jq -r .nightly installer/core-channels.json) ;;
+            beta) CORE_CHANNEL=$(jq -r .beta installer/core-channels.json) ;;
+            *) CORE_CHANNEL=$(jq -r .stable installer/core-channels.json) ;;
+          esac
+          CORE_VERSION=$(cargo xtask resolve-core-version "$CORE_CHANNEL")
+        fi
+        test -n "$CORE_VERSION" || { echo "no quiver.core version resolved"; exit 1; }
+        gh release view "$CORE_VERSION" --repo rabbytesoftware/quiver.core >/dev/null \
+          || { echo "quiver.core release ${CORE_VERSION} not found. Core must be released before desktop."; exit 1; }
+        echo "CORE_VERSION=${CORE_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "bundling quiver.core ${CORE_VERSION}"
+
+    # Only a stable tag is announced to quiver.core as a ref (QUIVER_DESKTOP_RELEASE_TAG); other channels stamp
+    # a display label only.
+    - name: Decide the stamps
+      id: stamp
+      env:
+        TAG: ${{ inputs.tag }}
+      run: |
+        case "$TAG" in
+          stable-*) echo "STABLE_TAG=${TAG}" >> "$GITHUB_OUTPUT" ;;
+          *) echo "STABLE_TAG=" >> "$GITHUB_OUTPUT" ;;
+        esac
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-latest]
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build and package
+      uses: ./.github/actions/build-native
+      with:
+        quiver-version: ${{ needs.prepare.outputs.core_version }}
+        release-tag: ${{ needs.prepare.outputs.stable_tag }}
+        build-label: ${{ startsWith(inputs.tag, 'nightly') && '' || inputs.tag }}
+        release-channel: ${{ inputs.channel }}
+        rust-version: ${{ env.RUST_VERSION }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+        APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+    - name: Upload bundles
+      uses: actions/upload-artifact@v4
+      with:
+        name: bundles-${{ runner.os }}
+        path: |
+          target/bundle/*.AppImage
+          target/bundle/*.deb
+          target/bundle/*.tar.gz
+          target/bundle/*.dmg
+          target/bundle/*-setup.exe
+        if-no-files-found: error
+
+  publish:
+    name: Assemble${{ inputs.publish && ' and publish' || '' }} the release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+
+    - name: Download the bundles
+      uses: actions/download-artifact@v4
+      with:
+        pattern: bundles-*
+        path: release/
+        merge-multiple: true
+
+    - name: Write checksums.txt and verify the release is installable by the updater
+      run: |
+        cargo xtask checksums release/
+        cargo xtask check-release-assets release/ --arrow ARROW.md
+
+    - name: Release notes
+      env:
+        CORE_VERSION: ${{ needs.prepare.outputs.core_version }}
+      run: |
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        if [ -n "$PREV_TAG" ]; then
+          echo "## Changes since ${PREV_TAG}" > CHANGELOG.md
+          git log "${PREV_TAG}..HEAD" --pretty=format:"- %s (%an)" --no-merges >> CHANGELOG.md
+        else
+          echo "## Initial Release" > CHANGELOG.md
+        fi
+        # A hotfix reads this exact line back (cargo xtask extract-core-version) to pin to the same quiver.core.
+        printf '\n\nBuilt against quiver.core `%s`.\n' "$CORE_VERSION" >> CHANGELOG.md
+
+    - name: Show what would be published
+      if: ${{ !inputs.publish }}
+      run: ls -l release/ && cat CHANGELOG.md
+
+    - name: Publish
+      if: ${{ inputs.publish }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: ${{ inputs.tag }}
+        CHANNEL: ${{ inputs.channel }}
+      run: |
+        FLAGS=""
+        if [ "$CHANNEL" != "stable" ]; then FLAGS="--prerelease"; fi
+        # The nightly pointer is replaced, never accumulated.
+        if [ "$CHANNEL" = "nightly-rolling" ]; then
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+        fi
+        gh release create "$TAG" --title "$TAG" --notes-file CHANGELOG.md --target "$GITHUB_SHA" $FLAGS release/*
