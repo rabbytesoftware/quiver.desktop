@@ -1,0 +1,151 @@
+//! The left rail (`SidebarAfter`): back/forward and the build indicator on top, the search field,
+//! the Home/Remote/Settings tabs, the arrow list and the resize handle.
+
+mod parts;
+
+use std::time::Duration;
+
+use gpui::prelude::*;
+use gpui::{
+    div, px, App, Context, Entity, Pixels, Point, Render, Subscription, Task,
+    UniformListScrollHandle, Window,
+};
+use quiver_state::search::{commit_target, submit_action, CommitTarget, SubmitAction};
+use quiver_state::shell::SidebarSide;
+use quiver_ui::{ActiveQuiver, InputEvent, InputState};
+
+use crate::bridge::observe_store;
+use crate::model::{AppModel, Route};
+
+pub struct Sidebar {
+    pub(super) app: Entity<AppModel>,
+    pub(super) search: Entity<InputState>,
+    pub(super) list_scroll: UniformListScrollHandle,
+    /// Right-clicked row: its namespace and where the menu opens.
+    pub(super) context: Option<(String, Point<Pixels>)>,
+    debounce: Option<Task<()>>,
+    _subscriptions: Vec<Subscription>,
+}
+
+impl Sidebar {
+    pub fn new(app: Entity<AppModel>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search Arrows"));
+        let services = app.read(cx).services.clone();
+        observe_store(cx, services.arrows.store());
+        observe_store(cx, services.status.store());
+        let core_versions = app.read(cx).core_versions.clone();
+        observe_store(cx, &core_versions);
+        let subscriptions = vec![
+            cx.observe_in(&app, window, Self::route_changed),
+            cx.subscribe_in(&search, window, Self::search_event),
+        ];
+        Self {
+            app,
+            search,
+            list_scroll: UniformListScrollHandle::new(),
+            context: None,
+            debounce: None,
+            _subscriptions: subscriptions,
+        }
+    }
+
+    /// The URL is the source of truth for a results page: keep the field in step with it.
+    fn route_changed(
+        &mut self,
+        app: Entity<AppModel>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Route::Search { query } = app.read(cx).route().clone() {
+            if self.search.read(cx).value().as_ref() != query {
+                self.search
+                    .update(cx, |input, cx| input.set_value(query, window, cx));
+            }
+        }
+        cx.notify();
+    }
+
+    fn showing_results(&self, cx: &App) -> bool {
+        matches!(self.app.read(cx).route(), Route::Search { .. })
+    }
+
+    fn commit(&mut self, target: CommitTarget, cx: &mut Context<Self>) {
+        let (route, replace) = match target {
+            CommitTarget::Home { replace } => (Route::Home, replace),
+            CommitTarget::Results { query, replace } => (Route::Search { query }, replace),
+        };
+        self.app.update(cx, |app, cx| {
+            if replace {
+                app.replace(route, cx);
+            } else {
+                app.navigate(route, cx);
+            }
+        });
+    }
+
+    fn search_event(
+        &mut self,
+        input: &Entity<InputState>,
+        event: &InputEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let text = input.read(cx).value().to_string();
+        match event {
+            InputEvent::Change => {
+                if text.is_empty() && !self.showing_results(cx) {
+                    return;
+                }
+                let target = commit_target(&text, self.showing_results(cx));
+                self.debounce = Some(cx.spawn(async move |this, cx| {
+                    cx.background_executor()
+                        .timer(Duration::from_millis(
+                            quiver_state::search::LOCAL_DEBOUNCE_MS,
+                        ))
+                        .await;
+                    this.update(cx, |this, cx| this.commit(target, cx)).ok();
+                }));
+            }
+            InputEvent::PressEnter { .. } => {
+                self.debounce = None;
+                let SubmitAction::Search { then, .. } =
+                    submit_action(&text, None, self.showing_results(cx))
+                else {
+                    return;
+                };
+                self.commit(then, cx);
+            }
+            _ => {}
+        }
+        cx.notify();
+    }
+}
+
+impl Render for Sidebar {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let p = cx.quiver().palette;
+        let (width, side) = {
+            let shell = self.app.read(cx).shell;
+            (shell.sidebar_width as f32, shell.sidebar_side)
+        };
+        div()
+            .id("sidebar")
+            .relative()
+            .flex_none()
+            .w(px(width))
+            .h_full()
+            .flex()
+            .flex_col()
+            .overflow_hidden()
+            .bg(p.sidebar)
+            .text_color(p.sidebar_foreground)
+            .when(side == SidebarSide::Left, |d| d.border_r_1())
+            .when(side == SidebarSide::Right, |d| d.border_l_1())
+            .border_color(p.sidebar_border)
+            .child(parts::top_row(self, cx))
+            .child(parts::search_and_tabs(self, cx))
+            .child(parts::arrow_list(self, window, cx))
+            .child(parts::resize_handle(self, cx))
+            .children(parts::context_menu(self, cx))
+    }
+}

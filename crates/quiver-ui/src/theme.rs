@@ -55,6 +55,12 @@ palette!(
     input,
     ring,
     selected_edge,
+    foreground_subtle,
+    sidebar,
+    sidebar_foreground,
+    sidebar_accent,
+    sidebar_accent_foreground,
+    sidebar_border,
 );
 
 /// The global theme: the mode and its resolved palette.

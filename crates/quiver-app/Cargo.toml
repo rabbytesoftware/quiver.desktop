@@ -42,6 +42,7 @@ quiver-core-client.workspace = true
 quiver-platform.workspace = true
 quiver-release.workspace = true
 quiver-state.workspace = true
+quiver-theme.workspace = true
 quiver-ui.workspace = true
 quiver-e2e = { workspace = true, optional = true }
 serde_json.workspace = true
@@ -52,10 +53,11 @@ tao = { version = "0.34", optional = true }
 wry = { version = "0.53", optional = true }
 
 [dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 wiremock.workspace = true
 
 # Reserved for the views and the arrow-window helper that land after the services.
 [package.metadata.cargo-machete]
-ignored = ["anyhow", "base64", "gpui", "quiver-e2e", "quiver-ui"]
+ignored = ["anyhow", "base64", "quiver-e2e"]

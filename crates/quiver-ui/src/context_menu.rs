@@ -11,6 +11,7 @@ use gpui::{
 use quiver_theme::Radius;
 
 use crate::ids::child_id;
+use crate::inspect::{probe, Kind};
 use crate::menu::{MenuEntry, MenuItem};
 use crate::popup::popup_surface;
 use crate::theme::ActiveQuiver;
@@ -23,6 +24,7 @@ pub struct ContextMenu {
     position: Point<Pixels>,
     entries: Vec<MenuEntry>,
     on_dismiss: Option<DismissFn>,
+    probe_prefix: Option<gpui::SharedString>,
 }
 
 impl ContextMenu {
@@ -32,7 +34,14 @@ impl ContextMenu {
             position,
             entries: Vec::new(),
             on_dismiss: None,
+            probe_prefix: None,
         }
+    }
+
+    /// E2e ids of the items: `<prefix>.<label, lower-cased with dashes>`.
+    pub fn probes(mut self, prefix: impl Into<gpui::SharedString>) -> Self {
+        self.probe_prefix = Some(prefix.into());
+        self
     }
 
     pub fn item(mut self, item: MenuItem) -> Self {
@@ -55,6 +64,7 @@ impl RenderOnce for ContextMenu {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let p = cx.quiver().palette;
         let dismiss = self.on_dismiss;
+        let prefix = self.probe_prefix;
         let items: Vec<gpui::AnyElement> = self
             .entries
             .into_iter()
@@ -75,8 +85,12 @@ impl RenderOnce for ContextMenu {
                     let disabled = item.is_disabled();
                     let (label, on_select) = (item.label().clone(), item.selector());
                     let dismiss = dismiss.clone();
+                    let probe_id = prefix
+                        .as_ref()
+                        .map(|p| format!("{p}.{}", label.to_lowercase().replace(' ', "-")));
                     let el = div()
                         .id(child_id(&self.id, format!("item-{i}")))
+                        .relative()
                         .flex()
                         .items_center()
                         .gap(px(8.))
@@ -85,7 +99,10 @@ impl RenderOnce for ContextMenu {
                         .py(px(6.))
                         .text_size(px(14.))
                         .text_color(fg)
-                        .child(label);
+                        .child(label.clone())
+                        .when_some(probe_id, |d, id| {
+                            d.child(probe(id, Kind::MenuItem, label, !disabled, ""))
+                        });
                     if disabled {
                         return el.opacity(0.64).into_any_element();
                     }

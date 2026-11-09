@@ -5519,6 +5519,7 @@ dependencies = [
  "quiver-platform",
  "quiver-release",
  "quiver-state",
+ "quiver-theme",
  "quiver-ui",
  "serde_json",
  "tao",
@@ -9277,6 +9278,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
 ]
 
 [[package]]

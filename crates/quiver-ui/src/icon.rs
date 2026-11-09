@@ -19,6 +19,9 @@ pub enum Glyph {
     Settings,
     Play,
     Terminal,
+    ArrowLeft,
+    ArrowRight,
+    Ellipsis,
     /// The Quiver arrow mark (an up chevron over a dot), as on the tile art.
     Mark,
 }
@@ -90,8 +93,8 @@ fn strokes(glyph: Glyph) -> Vec<Vec<(f32, f32)>> {
                 (4.0, 20.0),
                 (4.0, 13.0),
             ],
-            vec![(8.0, 7.5), (8.01, 7.5)],
-            vec![(8.0, 16.5), (8.01, 16.5)],
+            circle(8.0, 7.5, 0.7),
+            circle(8.0, 16.5, 0.7),
         ],
         Glyph::Settings => vec![cog(), circle(12.0, 12.0, 3.0)],
         Glyph::Play => vec![vec![(7.0, 4.5), (19.0, 12.0), (7.0, 19.5), (7.0, 4.5)]],
@@ -99,9 +102,22 @@ fn strokes(glyph: Glyph) -> Vec<Vec<(f32, f32)>> {
             vec![(4.0, 17.0), (10.0, 11.0), (4.0, 5.0)],
             vec![(12.0, 19.0), (20.0, 19.0)],
         ],
+        Glyph::ArrowLeft => vec![
+            vec![(11.0, 6.0), (5.0, 12.0), (11.0, 18.0)],
+            vec![(5.0, 12.0), (19.0, 12.0)],
+        ],
+        Glyph::ArrowRight => vec![
+            vec![(13.0, 6.0), (19.0, 12.0), (13.0, 18.0)],
+            vec![(19.0, 12.0), (5.0, 12.0)],
+        ],
+        Glyph::Ellipsis => vec![
+            circle(5.0, 12.0, 0.7),
+            circle(12.0, 12.0, 0.7),
+            circle(19.0, 12.0, 0.7),
+        ],
         Glyph::Mark => vec![
             vec![(5.5, 15.2), (12.0, 4.5), (18.5, 15.2)],
-            vec![(12.0, 19.6), (12.01, 19.6)],
+            circle(12.0, 19.6, 0.7),
         ],
     }
 }
