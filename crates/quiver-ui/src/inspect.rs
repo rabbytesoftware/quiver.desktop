@@ -68,7 +68,8 @@ mod live {
     use std::sync::{LazyLock, Mutex};
 
     static FRAME: AtomicU64 = AtomicU64::new(0);
-    static NODES: LazyLock<Mutex<BTreeMap<String, Node>>> = LazyLock::new(|| Mutex::new(BTreeMap::new()));
+    static NODES: LazyLock<Mutex<BTreeMap<String, Node>>> =
+        LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
     pub fn begin_frame() -> u64 {
         FRAME.fetch_add(1, Ordering::SeqCst) + 1
@@ -90,7 +91,13 @@ mod live {
         let current = frame();
         NODES
             .lock()
-            .map(|nodes| nodes.values().filter(|n| n.frame + 1 >= current).cloned().collect())
+            .map(|nodes| {
+                nodes
+                    .values()
+                    .filter(|n| n.frame + 1 >= current)
+                    .cloned()
+                    .collect()
+            })
             .unwrap_or_default()
     }
 

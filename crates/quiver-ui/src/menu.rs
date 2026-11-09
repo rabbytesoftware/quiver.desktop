@@ -57,6 +57,22 @@ impl MenuItem {
         self.on_select = Some(Rc::new(f));
         self
     }
+
+    pub(crate) fn is_destructive(&self) -> bool {
+        self.destructive
+    }
+
+    pub(crate) fn is_disabled(&self) -> bool {
+        self.disabled
+    }
+
+    pub(crate) fn label(&self) -> &SharedString {
+        &self.label
+    }
+
+    pub(crate) fn selector(&self) -> Option<SelectFn> {
+        self.on_select.clone()
+    }
 }
 
 pub enum MenuEntry {

@@ -12,15 +12,17 @@ pub(super) enum Page {
     Navigation,
     Overlays,
     Surfaces,
+    Tiles,
 }
 
 impl Page {
-    pub const ALL: [(Page, &'static str); 5] = [
+    pub const ALL: [(Page, &'static str); 6] = [
         (Page::Actions, "actions"),
         (Page::Forms, "forms"),
         (Page::Navigation, "navigation"),
         (Page::Overlays, "overlays"),
         (Page::Surfaces, "surfaces"),
+        (Page::Tiles, "tiles"),
     ];
 
     pub fn from_env() -> Page {
@@ -47,6 +49,7 @@ pub(super) struct Gallery {
     pub dialog_open: bool,
     pub sheet_open: Option<crate::SheetSide>,
     pub steps_open: bool,
+    pub search: Entity<InputState>,
     pub last_action: SharedString,
 }
 
@@ -67,6 +70,7 @@ impl Gallery {
             dialog_open: open == "dialog",
             sheet_open: (open == "sheet").then_some(crate::SheetSide::Right),
             steps_open: false,
+            search: cx.new(|cx| InputState::new(window, cx).placeholder("Search Arrows")),
             last_action: "(nothing yet)".into(),
         }
     }

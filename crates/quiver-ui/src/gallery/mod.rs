@@ -9,6 +9,7 @@ mod navigation;
 mod overlays;
 mod state;
 mod surfaces;
+mod tiles;
 
 use layout::gid;
 use state::{Gallery, Page};
@@ -32,6 +33,7 @@ impl Render for Gallery {
             Page::Navigation => navigation::page(self, cx),
             Page::Overlays => overlays::page(self, cx),
             Page::Surfaces => surfaces::page(self, cx),
+            Page::Tiles => tiles::page(self, cx),
         };
         let toggle = if self.mode == Mode::Dark {
             "Light mode"
@@ -110,14 +112,22 @@ impl Render for Gallery {
     }
 }
 
-/// Opens the gallery window and runs the app loop until it closes.
-pub fn run_gallery() {
+/// Registers font files (TTF/OTF bytes) with the text system. Call once at start-up, before any window.
+pub fn load_fonts(cx: &mut App, fonts: Vec<std::borrow::Cow<'static, [u8]>>) {
+    if let Err(err) = cx.text_system().add_fonts(fonts) {
+        eprintln!("quiver-ui: could not load fonts: {err}");
+    }
+}
+
+/// Opens the gallery window and runs the app loop until it closes. `fonts` are registered first.
+pub fn run_gallery(fonts: Vec<std::borrow::Cow<'static, [u8]>>) {
     let mode = if std::env::var("QUIVER_GALLERY_MODE").is_ok_and(|m| m == "dark") {
         Mode::Dark
     } else {
         Mode::Light
     };
     Application::new().run(move |cx: &mut App| {
+        load_fonts(cx, fonts);
         install(cx, mode);
         cx.activate(true);
         let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
