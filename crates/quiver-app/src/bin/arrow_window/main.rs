@@ -24,7 +24,9 @@ enum UserEvent {
 type Pending = Arc<Mutex<HashMap<u64, RequestAsyncResponder>>>;
 
 fn main() {
-    let start_url = std::env::args().nth(1).unwrap_or_else(|| format!("{SCHEME}://about.invalid/"));
+    let start_url = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| format!("{SCHEME}://about.invalid/"));
     let title = std::env::args().nth(2).unwrap_or_else(|| "Quiver".into());
 
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
@@ -43,24 +45,29 @@ fn main() {
     let webview = {
         let (pending, next_id) = (pending.clone(), next_id.clone());
         let builder = WebViewBuilder::new()
-            .with_asynchronous_custom_protocol(SCHEME.to_string(), move |_webview_id, request, responder| {
-                let id = next_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                let proto = ProtocolRequest {
-                    id,
-                    method: request.method().to_string(),
-                    uri: request.uri().to_string(),
-                    headers: request
-                        .headers()
-                        .iter()
-                        .filter_map(|(k, v)| v.to_str().ok().map(|v| (k.to_string(), v.to_string())))
-                        .collect(),
-                    body: request.body().to_vec(),
-                };
-                if let Ok(mut map) = pending.lock() {
-                    map.insert(id, responder);
-                }
-                ipc::send_to_host(&WindowToHost::ProtocolRequest(proto));
-            })
+            .with_asynchronous_custom_protocol(
+                SCHEME.to_string(),
+                move |_webview_id, request, responder| {
+                    let id = next_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let proto = ProtocolRequest {
+                        id,
+                        method: request.method().to_string(),
+                        uri: request.uri().to_string(),
+                        headers: request
+                            .headers()
+                            .iter()
+                            .filter_map(|(k, v)| {
+                                v.to_str().ok().map(|v| (k.to_string(), v.to_string()))
+                            })
+                            .collect(),
+                        body: request.body().to_vec(),
+                    };
+                    if let Ok(mut map) = pending.lock() {
+                        map.insert(id, responder);
+                    }
+                    ipc::send_to_host(&WindowToHost::ProtocolRequest(proto));
+                },
+            )
             .with_url(&start_url);
         build_webview(builder, &window)
     };
@@ -94,7 +101,10 @@ fn main() {
                     *flow = ControlFlow::Exit;
                 }
             },
-            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => {
                 ipc::send_to_host(&WindowToHost::Closed);
                 *flow = ControlFlow::Exit;
             }
@@ -105,25 +115,38 @@ fn main() {
 
 /// Answers a pending request on the main thread (WebKit requires scheme tasks to finish there).
 fn respond(pending: &Pending, resp: ProtocolResponse) {
-    let Some(responder) = pending.lock().ok().and_then(|mut m| m.remove(&resp.id)) else { return };
+    let Some(responder) = pending.lock().ok().and_then(|mut m| m.remove(&resp.id)) else {
+        return;
+    };
     let mut builder = Response::builder().status(resp.status);
     for (name, value) in resp.headers.iter() {
         builder = builder.header(name, value);
     }
     match builder.body(resp.body) {
         Ok(response) => responder.respond(response),
-        Err(_) => responder.respond(Response::builder().status(502).body(Vec::new()).unwrap_or_default()),
+        Err(_) => responder.respond(
+            Response::builder()
+                .status(502)
+                .body(Vec::new())
+                .unwrap_or_default(),
+        ),
     }
 }
 
 #[cfg(target_os = "linux")]
-fn build_webview(builder: WebViewBuilder, window: &tao::window::Window) -> wry::Result<wry::WebView> {
+fn build_webview(
+    builder: WebViewBuilder,
+    window: &tao::window::Window,
+) -> wry::Result<wry::WebView> {
     use tao::platform::unix::WindowExtUnix;
     use wry::WebViewBuilderExtUnix;
     builder.build_gtk(window.default_vbox().ok_or(wry::Error::MessageSender)?)
 }
 
 #[cfg(not(target_os = "linux"))]
-fn build_webview(builder: WebViewBuilder, window: &tao::window::Window) -> wry::Result<wry::WebView> {
+fn build_webview(
+    builder: WebViewBuilder,
+    window: &tao::window::Window,
+) -> wry::Result<wry::WebView> {
     builder.build(window)
 }

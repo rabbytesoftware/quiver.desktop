@@ -24,7 +24,9 @@ pub fn read_host_messages(on_message: impl Fn(HostToWindow) + Send + 'static) {
 
 /// Sends one message to the host. Failure means the host is gone; the caller closes the window.
 pub fn send_to_host(msg: &WindowToHost) -> bool {
-    let Ok(line) = encode_line(msg) else { return false };
+    let Ok(line) = encode_line(msg) else {
+        return false;
+    };
     let mut out = std::io::stdout().lock();
     writeln!(out, "{line}").and_then(|()| out.flush()).is_ok()
 }

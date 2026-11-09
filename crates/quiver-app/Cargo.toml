@@ -8,6 +8,10 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[lib]
+name = "quiver_app"
+path = "src/lib.rs"
+
 [[bin]]
 name = "quiver"
 path = "src/main.rs"
@@ -27,12 +31,31 @@ e2e-bridge = ["quiver-ui/inspect", "dep:quiver-e2e"]
 
 [dependencies]
 anyhow.workspace = true
+async-trait.workspace = true
 base64 = "0.22"
+futures-util.workspace = true
 gpui.workspace = true
+http.workspace = true
+log.workspace = true
 quiver-arrow-host.workspace = true
+quiver-core-client.workspace = true
+quiver-platform.workspace = true
+quiver-release.workspace = true
 quiver-state.workspace = true
 quiver-ui.workspace = true
 quiver-e2e = { workspace = true, optional = true }
 serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
 tao = { version = "0.34", optional = true }
 wry = { version = "0.53", optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+wiremock.workspace = true
+
+# Reserved for the views and the arrow-window helper that land after the services.
+[package.metadata.cargo-machete]
+ignored = ["anyhow", "base64", "gpui", "quiver-e2e", "quiver-ui"]

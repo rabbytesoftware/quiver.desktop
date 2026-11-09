@@ -5507,14 +5507,26 @@ name = "quiver-app"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "base64 0.22.1",
+ "futures-util",
  "gpui",
+ "http",
+ "log",
  "quiver-arrow-host",
+ "quiver-core-client",
  "quiver-e2e",
+ "quiver-platform",
+ "quiver-release",
  "quiver-state",
  "quiver-ui",
  "serde_json",
  "tao",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-tungstenite",
+ "wiremock",
  "wry",
 ]
 
