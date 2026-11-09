@@ -56,3 +56,16 @@ remote daemon is registered into too. The native app gates it on the local sidec
 - No deep links, tray, single-instance or window-state persistence exist in the Tauri app: none ported.
 - New crate `quiver-e2e` (bridge protocol/server/client/MCP/scenarios) is outside the prescribed layout:
   the bridge's wire types must be shared by the app (feature `e2e-bridge`) and the test driver.
+
+## 2026-11-09 — Installed binary names stay as the Tauri release had them
+
+The updater and installer contracts are text in the shipped `ARROW.md`, not code: `pkill -x quiverdesktop` /
+`taskkill /IM quiverdesktop.exe`, the Linux/Windows/macOS detect commands, `%LOCALAPPDATA%\Quiver\uninstall.exe`
+and the sidecar lookup (`quiver[.exe]` next to the running executable, `quiver-core-client`
+`LocalConfig::bundled_next_to_current_exe`). So `cargo xtask package` installs the GPUI app as
+`quiverdesktop[.exe]`, the quiver.core sidecar as `quiver[.exe]` and the arrow helper as
+`quiver-arrow-window[.exe]`, all in one directory, whatever the cargo bin is called. Consequence for dev:
+the cargo bin `quiver` of `quiver-app` cannot have the sidecar copied beside it under the same name, so the
+`[[bin]]` should be renamed `quiverdesktop` (then `make dev` drops the sidecar into `target/debug/quiver`).
+Asset names stay selectable by `quiver-release`: `Quiver_<v>_<arch>.AppImage`, `Quiver_<v>_universal.dmg`,
+`Quiver_<v>_x64-setup.exe`, plus `checksums.txt` (sha256sum format).
