@@ -45,4 +45,4 @@ pub const SCHEME: &str = "arrow-app";
 pub const SHIM_PATH: &str = "/__arrow/shim.js";
 
 /// The WebSocket shim, shipped inside the binary.
-pub const SHIM_JS: &str = include_str!("../../../src/arrow-shim/shim.js");
+pub const SHIM_JS: &str = include_str!("../assets/shim.js");
