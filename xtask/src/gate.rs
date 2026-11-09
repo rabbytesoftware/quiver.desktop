@@ -7,14 +7,28 @@ const STEPS: &[(&str, &[&str])] = &[
     ("fmt", &["cargo", "fmt", "--all", "--check"]),
     (
         "clippy",
-        &["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"],
+        &[
+            "cargo",
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings",
+        ],
     ),
     ("test", &["cargo", "test", "--workspace"]),
     ("deny", &["cargo", "deny", "check"]),
     ("audit", &["cargo", "audit"]),
     ("machete", &["cargo", "machete"]),
-    ("check-deps", &["cargo", "run", "-q", "-p", "xtask", "--", "check-deps"]),
-    ("check-layout", &["cargo", "run", "-q", "-p", "xtask", "--", "check-layout"]),
+    (
+        "check-deps",
+        &["cargo", "run", "-q", "-p", "xtask", "--", "check-deps"],
+    ),
+    (
+        "check-layout",
+        &["cargo", "run", "-q", "-p", "xtask", "--", "check-layout"],
+    ),
 ];
 
 pub fn run() -> Result<()> {

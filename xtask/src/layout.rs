@@ -27,18 +27,27 @@ fn walk(dir: &Path, problems: &mut Vec<String>) -> Result<()> {
     for entry in fs::read_dir(dir)? {
         let path = entry?.path();
         if path.is_dir() {
-            if path.file_name().is_some_and(|n| n == "target" || n == "node_modules") {
+            if path
+                .file_name()
+                .is_some_and(|n| n == "target" || n == "node_modules")
+            {
                 continue;
             }
             walk(&path, problems)?;
         } else if path.extension().is_some_and(|e| e == "rs") {
-            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default();
             if BANNED_STEMS.contains(&stem) {
                 problems.push(format!("{}: banned module name `{stem}`", path.display()));
             }
             let lines = fs::read_to_string(&path)?.lines().count();
             if lines > HARD_LIMIT {
-                problems.push(format!("{}: {lines} lines (hard limit {HARD_LIMIT})", path.display()));
+                problems.push(format!(
+                    "{}: {lines} lines (hard limit {HARD_LIMIT})",
+                    path.display()
+                ));
             }
         }
     }

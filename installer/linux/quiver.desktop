@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Quiver
+Comment=Quiver Desktop
+Exec=quiverdesktop
+Icon=quiver
+Categories=Development;
+Terminal=false
+StartupWMClass=quiverdesktop

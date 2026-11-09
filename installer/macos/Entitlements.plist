@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      Hardened Runtime entitlements for Quiver.
+
+      Only consumed when the app is signed with a real Developer ID identity and
+      `hardenedRuntime` is enabled — see scripts/build-macos-dmg.sh, which adds
+      both only when APPLE_SIGNING_IDENTITY is set.
+
+      These are REQUIRED for a notarized Tauri app to launch: WKWebView's
+      JavaScript engine JIT-compiles code and allocates executable memory, which
+      the Hardened Runtime blocks by default. Without these three keys the app
+      notarizes successfully and then crashes on first launch with a
+      code-signing / EXC_BAD_ACCESS error — a failure that cannot be reproduced
+      on an unsigned build.
+    -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+</dict>
+</plist>
