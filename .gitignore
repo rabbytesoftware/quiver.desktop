@@ -57,3 +57,6 @@ coverage/
 # Local pin for `make fetch-sidecar` — never read by CI, seeded from
 # core-version.local.example on first use.
 core-version.local
+
+# native workspace
+/target

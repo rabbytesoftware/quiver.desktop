@@ -1,0 +1,23 @@
+[package]
+name = "quiver-app"
+description = "The Quiver Desktop binary: views only."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "quiver"
+path = "src/main.rs"
+
+[features]
+# Debug-only control bridge. Never enabled in release builds (CI checks the artifact).
+e2e-bridge = []
+
+[dependencies]
+anyhow.workspace = true
+gpui.workspace = true
+quiver-ui.workspace = true
+quiver-state.workspace = true

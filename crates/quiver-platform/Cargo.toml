@@ -1,0 +1,11 @@
+[package]
+name = "quiver-platform"
+description = "Keyring, settings store, file-descriptor limit, paths and OS menus. No GPUI."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]

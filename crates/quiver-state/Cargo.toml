@@ -1,0 +1,12 @@
+[package]
+name = "quiver-state"
+description = "App state and actions (what the Zustand store did): one module per domain. No GPUI."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+quiver-core-client.workspace = true
