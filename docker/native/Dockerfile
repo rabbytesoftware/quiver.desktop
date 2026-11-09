@@ -6,3 +6,5 @@ RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --pr
 RUN rustup component add clippy rustfmt \
  && cargo install cargo-deny cargo-machete cargo-audit --locked
 RUN apt-get update && apt-get install -y --no-install-recommends gnome-keyring libsecret-1-dev jq python3 python3-pil procps psmisc lsof golang-go xz-utils && rm -rf /var/lib/apt/lists/*
+# WebView for arrow apps (wry/tao on Linux = WebKitGTK).
+RUN apt-get update && apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf file webkit2gtk-driver && rm -rf /var/lib/apt/lists/*

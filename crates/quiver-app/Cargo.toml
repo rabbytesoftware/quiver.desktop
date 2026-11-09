@@ -1,6 +1,6 @@
 [package]
 name = "quiver-app"
-description = "The Quiver Desktop binary: views only."
+description = "The Quiver Desktop binaries: views only."
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
@@ -12,12 +12,27 @@ workspace = true
 name = "quiver"
 path = "src/main.rs"
 
+# Arrow apps run in a separate WebView process so the GPUI main thread never has to host tao/wry
+# (macOS requires the main thread for both) and the main binary links no GTK/WebKit on Linux.
+[[bin]]
+name = "quiver-arrow-window"
+path = "src/bin/arrow_window/main.rs"
+required-features = ["arrow-window"]
+
 [features]
+default = ["arrow-window"]
+arrow-window = ["dep:wry", "dep:tao"]
 # Debug-only control bridge. Never enabled in release builds (CI checks the artifact).
-e2e-bridge = []
+e2e-bridge = ["quiver-ui/inspect", "dep:quiver-e2e"]
 
 [dependencies]
 anyhow.workspace = true
+base64 = "0.22"
 gpui.workspace = true
-quiver-ui.workspace = true
+quiver-arrow-host.workspace = true
 quiver-state.workspace = true
+quiver-ui.workspace = true
+quiver-e2e = { workspace = true, optional = true }
+serde_json.workspace = true
+tao = { version = "0.34", optional = true }
+wry = { version = "0.53", optional = true }

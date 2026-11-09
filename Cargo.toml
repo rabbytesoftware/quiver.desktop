@@ -68,6 +68,7 @@ quiver-release = { path = "crates/quiver-release" }
 quiver-arrow-host = { path = "crates/quiver-arrow-host" }
 quiver-platform = { path = "crates/quiver-platform" }
 quiver-ui = { path = "crates/quiver-ui" }
+quiver-e2e = { path = "crates/quiver-e2e" }
 
 [patch.crates-io]
 # gpui 0.2.2 pulls xattr 0.2.3, which fails on current libc (ENOATTR). See docs/decision-log.md.
