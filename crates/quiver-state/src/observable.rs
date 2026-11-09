@@ -13,7 +13,10 @@ pub struct Store<T> {
 
 impl<T> Clone for Store<T> {
     fn clone(&self) -> Self {
-        Self { value: Arc::clone(&self.value), revision: Arc::clone(&self.revision) }
+        Self {
+            value: Arc::clone(&self.value),
+            revision: Arc::clone(&self.revision),
+        }
     }
 }
 
@@ -26,7 +29,10 @@ impl<T: Default> Default for Store<T> {
 impl<T> Store<T> {
     pub fn new(value: T) -> Self {
         let (tx, _rx) = watch::channel(0);
-        Self { value: Arc::new(RwLock::new(value)), revision: Arc::new(tx) }
+        Self {
+            value: Arc::new(RwLock::new(value)),
+            revision: Arc::new(tx),
+        }
     }
 
     /// Reads through a closure, so no lock guard escapes.

@@ -22,7 +22,11 @@ pub fn should_announce(kind: Option<ConnectionKind>) -> bool {
 }
 
 pub fn active_connection_kind(snapshot: &ConnectionsSnapshot) -> Option<ConnectionKind> {
-    snapshot.connections.iter().find(|c| c.id == snapshot.active_id).map(|c| c.kind)
+    snapshot
+        .connections
+        .iter()
+        .find(|c| c.id == snapshot.active_id)
+        .map(|c| c.kind)
 }
 
 /// The announce a `ready` (or an adopted core) triggers, gated on the active connection being local.
@@ -63,11 +67,23 @@ mod tests {
 
     #[test]
     fn the_kind_comes_from_the_active_connection_not_the_first_one() {
-        let snapshot = ConnectionsSnapshot { connections: vec![local_connection(), remote("r1")], active_id: "r1".into() };
-        assert_eq!(active_connection_kind(&snapshot), Some(ConnectionKind::Remote));
-        let local = ConnectionsSnapshot { active_id: "local".into(), ..snapshot.clone() };
+        let snapshot = ConnectionsSnapshot {
+            connections: vec![local_connection(), remote("r1")],
+            active_id: "r1".into(),
+        };
+        assert_eq!(
+            active_connection_kind(&snapshot),
+            Some(ConnectionKind::Remote)
+        );
+        let local = ConnectionsSnapshot {
+            active_id: "local".into(),
+            ..snapshot.clone()
+        };
         assert_eq!(active_connection_kind(&local), Some(ConnectionKind::Local));
-        let unknown = ConnectionsSnapshot { active_id: "gone".into(), ..snapshot };
+        let unknown = ConnectionsSnapshot {
+            active_id: "gone".into(),
+            ..snapshot
+        };
         assert_eq!(active_connection_kind(&unknown), None);
     }
 }

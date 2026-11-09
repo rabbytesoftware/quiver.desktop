@@ -65,7 +65,13 @@ mod tests {
 
     #[test]
     fn route_carries_the_version_when_there_is_one() {
-        assert_eq!(collection_arrow_route(&member(Some("v3.1.0"))), "github.com/rabbyte/ark@v3.1.0");
-        assert_eq!(collection_arrow_route(&member(None)), "github.com/rabbyte/ark");
+        assert_eq!(
+            collection_arrow_route(&member(Some("v3.1.0"))),
+            "github.com/rabbyte/ark@v3.1.0"
+        );
+        assert_eq!(
+            collection_arrow_route(&member(None)),
+            "github.com/rabbyte/ark"
+        );
     }
 }

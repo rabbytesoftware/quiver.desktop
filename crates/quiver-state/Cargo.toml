@@ -9,7 +9,6 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-quiver-core-client.workspace = true
 async-trait.workspace = true
 futures-util.workspace = true
 indexmap = { workspace = true, features = ["serde"] }

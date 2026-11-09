@@ -49,8 +49,14 @@ mod tests {
 
     #[test]
     fn polls_every_three_seconds_while_refreshing_and_not_once_idle() {
-        let refreshing = Home { shelves: vec![], refreshing: true };
-        assert_eq!(refetch_interval(Some(&refreshing)), Some(Duration::from_secs(3)));
+        let refreshing = Home {
+            shelves: vec![],
+            refreshing: true,
+        };
+        assert_eq!(
+            refetch_interval(Some(&refreshing)),
+            Some(Duration::from_secs(3))
+        );
         assert_eq!(refetch_interval(Some(&Home::default())), None);
         assert_eq!(refetch_interval(None), None);
     }

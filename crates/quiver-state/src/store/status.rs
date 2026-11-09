@@ -9,7 +9,9 @@ pub struct StatusStore {
 
 impl Default for StatusStore {
     fn default() -> Self {
-        Self { store: Store::new(ConnectionStatus::Starting) }
+        Self {
+            store: Store::new(ConnectionStatus::Starting),
+        }
     }
 }
 

@@ -11,4 +11,6 @@ pub use search::{SearchJob, SearchPhase, SearchState, SearchStore};
 pub use status::StatusStore;
 
 #[cfg(test)]
+mod arrows_tests;
+#[cfg(test)]
 mod search_pass_tests;

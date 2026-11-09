@@ -60,7 +60,10 @@ mod tests {
         assert_eq!(arrow_detail_key(ns), vec!["arrow", ns]);
         assert_eq!(arrow_channels_key(ns), vec!["arrow", ns, "channels"]);
         assert_eq!(arrow_readme_key(ns), vec!["arrow", ns, "readme"]);
-        assert_eq!(arrow_dependencies_key(ns), vec!["arrow", ns, "dependencies"]);
+        assert_eq!(
+            arrow_dependencies_key(ns),
+            vec!["arrow", ns, "dependencies"]
+        );
         assert_eq!(arrow_dependents_key(ns), vec!["arrow", ns, "dependents"]);
         assert!(arrow_channels_key(ns).starts_with(&arrow_detail_prefix()));
         assert!(collection_key("c").starts_with(&collection_prefix()));

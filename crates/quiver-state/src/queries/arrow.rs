@@ -6,8 +6,8 @@ use crate::core_api::{CoreApi, CoreApiExt};
 use crate::domain::{ArrowChannel, ArrowDependency, ArrowDetail};
 use crate::dto::arrow::{to_arrow_detail, ArrowDetailDto};
 use crate::dto::manifest::{
-    to_arrow_channels, to_arrow_dependencies, ArrowDependenciesDto, ArrowDependentsDto, ArrowManifestDto,
-    ArrowReadmeDto, ChannelListDto,
+    to_arrow_channels, to_arrow_dependencies, ArrowDependenciesDto, ArrowDependentsDto,
+    ArrowManifestDto, ArrowReadmeDto, ChannelListDto,
 };
 use crate::namespace::{bare_namespace, namespace_segment};
 use crate::Result;
@@ -31,22 +31,36 @@ fn or_on_not_found<T>(result: Result<T>, fallback: T) -> Result<T> {
 /// detail fetch. Read at the identity: two selectors of one repository can sit on manifests with
 /// different prose.
 pub async fn fetch_readme(api: &dyn CoreApi, namespace: &str) -> Result<Option<String>> {
-    let dto = api.get::<ArrowReadmeDto>(&format!("/v0/arrow/{}/readme", namespace_segment(namespace))).await;
+    let dto = api
+        .get::<ArrowReadmeDto>(&format!(
+            "/v0/arrow/{}/readme",
+            namespace_segment(namespace)
+        ))
+        .await;
     or_on_not_found(dto.map(|d| Some(d.readme)), None)
 }
 
 /// `GET /v0/arrow/:ns/channels` -- what the repository publishes, not a property of any one row, so
 /// it takes the bare namespace. 404 means the arrow doesn't resolve (or has no channels).
 pub async fn fetch_channels(api: &dyn CoreApi, namespace: &str) -> Result<Vec<ArrowChannel>> {
-    let path = format!("/v0/arrow/{}/channels", namespace_segment(bare_namespace(namespace)));
-    let dto = api.get::<ChannelListDto>(&path).await.map(to_arrow_channels);
+    let path = format!(
+        "/v0/arrow/{}/channels",
+        namespace_segment(bare_namespace(namespace))
+    );
+    let dto = api
+        .get::<ChannelListDto>(&path)
+        .await
+        .map(to_arrow_channels);
     or_on_not_found(dto, vec![])
 }
 
 /// `GET /v0/arrow/:ns/dependencies` -- unlike readme/manifest this takes the full `namespace@ref`:
 /// the resolved plan is version-specific. 404 means the arrow doesn't resolve, not "no
 /// dependencies" (that is an empty array on a 200); an empty list is a fine fallback for this page.
-pub async fn fetch_dependencies(api: &dyn CoreApi, namespace: &str) -> Result<Vec<ArrowDependency>> {
+pub async fn fetch_dependencies(
+    api: &dyn CoreApi,
+    namespace: &str,
+) -> Result<Vec<ArrowDependency>> {
     let path = format!("/v0/arrow/{}/dependencies", namespace_segment(namespace));
     let dto = api
         .get::<ArrowDependenciesDto>(&path)
@@ -59,7 +73,10 @@ pub async fn fetch_dependencies(api: &dyn CoreApi, namespace: &str) -> Result<Ve
 /// namespace@ref is passed for consistency with `/dependencies`.
 pub async fn fetch_dependents(api: &dyn CoreApi, namespace: &str) -> Result<Vec<String>> {
     let path = format!("/v0/arrow/{}/dependents", namespace_segment(namespace));
-    let dto = api.get::<ArrowDependentsDto>(&path).await.map(|d| d.dependents.unwrap_or_default());
+    let dto = api
+        .get::<ArrowDependentsDto>(&path)
+        .await
+        .map(|d| d.dependents.unwrap_or_default());
     or_on_not_found(dto, vec![])
 }
 
@@ -80,8 +97,18 @@ pub async fn fetch_dependents(api: &dyn CoreApi, namespace: &str) -> Result<Vec<
 pub async fn fetch_arrow_detail(api: &dyn CoreApi, namespace: &str) -> Result<ArrowDetail> {
     let base = format!("/v0/arrow/{}", namespace_segment(namespace));
     let manifest_path = format!("{base}/manifest");
-    let (detail, manifest) = tokio::join!(api.get::<ArrowDetailDto>(&base), api.get::<ArrowManifestDto>(&manifest_path));
-    Ok(to_arrow_detail(detail?, manifest?, vec![], None, vec![], vec![]))
+    let (detail, manifest) = tokio::join!(
+        api.get::<ArrowDetailDto>(&base),
+        api.get::<ArrowManifestDto>(&manifest_path)
+    );
+    Ok(to_arrow_detail(
+        detail?,
+        manifest?,
+        vec![],
+        None,
+        vec![],
+        vec![],
+    ))
 }
 
 #[cfg(test)]
@@ -117,15 +144,29 @@ mod tests {
         let api = api();
         routes_for_detail(&api);
         let d = fetch_arrow_detail(&api, NS).await.unwrap();
-        assert_eq!(api.calls().len(), 2, "never readme/channels/dependencies/dependents");
-        assert!(d.channels.is_empty() && d.readme.is_none() && d.dependencies.is_empty() && d.dependents.is_empty());
+        assert_eq!(
+            api.calls().len(),
+            2,
+            "never readme/channels/dependencies/dependents"
+        );
+        assert!(
+            d.channels.is_empty()
+                && d.readme.is_none()
+                && d.dependencies.is_empty()
+                && d.dependents.is_empty()
+        );
     }
 
     #[tokio::test]
     async fn detail_fails_when_the_manifest_fails() {
         let api = api();
         routes_for_detail(&api);
-        api.route_error(Method::Get, &format!("/v0/arrow/{SEG}/manifest"), 500, "boom");
+        api.route_error(
+            Method::Get,
+            &format!("/v0/arrow/{SEG}/manifest"),
+            500,
+            "boom",
+        );
         assert!(fetch_arrow_detail(&api, NS).await.is_err());
     }
 
@@ -138,14 +179,24 @@ mod tests {
             json!({"channels": [{"name": "stable", "kind": "ordered", "latest": "v2", "count": 1, "members": ["v2"]}]}),
         );
         let channels = fetch_channels(&api, NS).await.unwrap();
-        assert_eq!((channels[0].kind, channels[0].latest.as_str()), (ChannelKind::Ordered, "v2"));
+        assert_eq!(
+            (channels[0].kind, channels[0].latest.as_str()),
+            (ChannelKind::Ordered, "v2")
+        );
     }
 
     #[tokio::test]
     async fn readme_reads_the_identity_and_returns_the_prose() {
         let api = api();
-        api.route(Method::Get, &format!("/v0/arrow/{SEG}/readme"), json!({"namespace": NS, "readme": "# Hi"}));
-        assert_eq!(fetch_readme(&api, NS).await.unwrap().as_deref(), Some("# Hi"));
+        api.route(
+            Method::Get,
+            &format!("/v0/arrow/{SEG}/readme"),
+            json!({"namespace": NS, "readme": "# Hi"}),
+        );
+        assert_eq!(
+            fetch_readme(&api, NS).await.unwrap().as_deref(),
+            Some("# Hi")
+        );
     }
 
     #[tokio::test]
@@ -157,13 +208,20 @@ mod tests {
             json!({"namespace": NS, "dependencies": [{"namespace": "java@21", "type": "tool"}]}),
         );
         let deps = fetch_dependencies(&api, NS).await.unwrap();
-        assert_eq!((deps[0].namespace.as_str(), deps[0].dep_type), ("java@21", DependencyType::Tool));
+        assert_eq!(
+            (deps[0].namespace.as_str(), deps[0].dep_type),
+            ("java@21", DependencyType::Tool)
+        );
     }
 
     #[tokio::test]
     async fn dependents_read_the_full_namespace() {
         let api = api();
-        api.route(Method::Get, &format!("/v0/arrow/{SEG}/dependents"), json!({"namespace": NS, "dependents": ["a@1"]}));
+        api.route(
+            Method::Get,
+            &format!("/v0/arrow/{SEG}/dependents"),
+            json!({"namespace": NS, "dependents": ["a@1"]}),
+        );
         assert_eq!(fetch_dependents(&api, NS).await.unwrap(), vec!["a@1"]);
     }
 
@@ -177,9 +235,19 @@ mod tests {
 
         let broken = FakeCoreApi::new();
         for suffix in ["readme", "dependencies", "dependents"] {
-            broken.route_error(Method::Get, &format!("/v0/arrow/{SEG}/{suffix}"), 500, "boom");
+            broken.route_error(
+                Method::Get,
+                &format!("/v0/arrow/{SEG}/{suffix}"),
+                500,
+                "boom",
+            );
         }
-        broken.route_error(Method::Get, "/v0/arrow/github.com%2Frabbyte%2Fminecraft/channels", 500, "boom");
+        broken.route_error(
+            Method::Get,
+            "/v0/arrow/github.com%2Frabbyte%2Fminecraft/channels",
+            500,
+            "boom",
+        );
         assert!(fetch_readme(&broken, NS).await.is_err());
         assert!(fetch_channels(&broken, NS).await.is_err());
         assert!(fetch_dependencies(&broken, NS).await.is_err());

@@ -83,7 +83,10 @@ impl Rig {
             arrows: self.arrows.clone(),
             status: self.status.clone(),
             queries: with_queries.then(|| self.queries.clone()),
-            announce: Arc::new(Hook { announced: self.announced_tx.clone(), park }),
+            announce: Arc::new(Hook {
+                announced: self.announced_tx.clone(),
+                park,
+            }),
         })
         .await
     }
@@ -119,7 +122,11 @@ async fn wait_dropped(handle: &FakeStreamHandle) {
     }
 }
 
-fn runtime_frame(state: &str, active_run: serde_json::Value, last_return: serde_json::Value) -> serde_json::Value {
+fn runtime_frame(
+    state: &str,
+    active_run: serde_json::Value,
+    last_return: serde_json::Value,
+) -> serde_json::Value {
     json!({"namespace": "a@v1", "state": state, "active_run": active_run, "last_return": last_return})
 }
 
@@ -128,7 +135,11 @@ async fn ready_starts_the_streams_seeds_the_catalog_and_the_initial_runtime_stat
     let rig = rig();
     let _l = rig.ready().await;
     let entry = rig.arrows.entry("a@v1").unwrap();
-    assert_eq!((entry.version.as_str(), entry.state), ("1", ArrowState::Ready), "seeded from versions[].state");
+    assert_eq!(
+        (entry.version.as_str(), entry.state),
+        ("1", ArrowState::Ready),
+        "seeded from versions[].state"
+    );
     assert_eq!(rig.api.calls_to(Method::Get, LIST), 1);
     rig.api.wait_stream("/v0/runtime", 0).await;
     rig.api.wait_stream("/v0/arrow", 0).await;
@@ -150,7 +161,11 @@ async fn does_not_report_ready_before_the_runtime_stream_is_subscribed() {
 async fn adopts_an_already_running_core_at_boot_and_announces_once() {
     let mut rig = rig();
     let _l = rig.setup(None, true).await;
-    assert_eq!(rig.status.status(), ConnectionStatus::Ready, "setup returns once the adoption settled");
+    assert_eq!(
+        rig.status.status(),
+        ConnectionStatus::Ready,
+        "setup returns once the adoption settled"
+    );
     rig.api.wait_stream("/v0/runtime", 0).await;
     rig.announced.recv().await.unwrap();
     assert!(rig.announced.try_recv().is_err());
@@ -199,7 +214,10 @@ async fn announces_on_a_local_connection_but_never_on_a_remote_one() {
         url: Some("http://h:7070".into()),
         api_version: "v0".into(),
     };
-    rig.backend.set_connections(ConnectionsSnapshot { connections: vec![local_connection(), remote], active_id: "r1".into() });
+    rig.backend.set_connections(ConnectionsSnapshot {
+        connections: vec![local_connection(), remote],
+        active_id: "r1".into(),
+    });
     rig.backend.emit_status(ConnectionStatus::Starting);
     rig.backend.emit_status(ConnectionStatus::Ready);
     rig.wait_status(ConnectionStatus::Ready).await;
@@ -207,7 +225,10 @@ async fn announces_on_a_local_connection_but_never_on_a_remote_one() {
     for _ in 0..20 {
         tokio::task::yield_now().await;
     }
-    assert!(rig.announced.try_recv().is_err(), "a remote daemon is never announced to");
+    assert!(
+        rig.announced.try_recv().is_err(),
+        "a remote daemon is never announced to"
+    );
 }
 
 #[tokio::test]
@@ -221,7 +242,10 @@ async fn announces_again_on_every_fresh_ready_and_not_while_starting_or_disconne
     for _ in 0..20 {
         tokio::task::yield_now().await;
     }
-    assert!(rig.announced.try_recv().is_err(), "neither starting nor disconnected announce");
+    assert!(
+        rig.announced.try_recv().is_err(),
+        "neither starting nor disconnected announce"
+    );
     rig.backend.emit_status(ConnectionStatus::Ready);
     rig.announced.recv().await.unwrap();
 }
@@ -245,8 +269,16 @@ async fn applies_runtime_frames_ignores_unknown_namespaces_and_the_reconnect_sen
     runtime.send_json(json!({"reconnected": true}));
     runtime.send_json(json!({"not": "a runtime frame"}));
     runtime.send_json(runtime_frame("running", json!(null), json!(null)));
-    rig.wait_arrows(|a| a.entry("a@v1").is_some_and(|e| e.state == ArrowState::Running)).await;
-    assert_eq!(rig.arrows.entries().len(), 1, "no entry for a runtime frame naming an unknown namespace");
+    rig.wait_arrows(|a| {
+        a.entry("a@v1")
+            .is_some_and(|e| e.state == ArrowState::Running)
+    })
+    .await;
+    assert_eq!(
+        rig.arrows.entries().len(),
+        1,
+        "no entry for a runtime frame naming an unknown namespace"
+    );
 }
 
 #[tokio::test]
@@ -254,27 +286,59 @@ async fn a_successful_update_run_ending_re_reads_the_catalog() {
     let rig = rig();
     let _l = rig.ready().await;
     let runtime = rig.api.wait_stream("/v0/runtime", 0).await;
-    runtime.send_json(runtime_frame("updating", json!({"method": "_update", "variables": {}, "steps": []}), json!(null)));
-    rig.wait_arrows(|a| a.entry("a@v1").is_some_and(|e| e.active_run.is_some())).await;
+    runtime.send_json(runtime_frame(
+        "updating",
+        json!({"method": "_update", "variables": {}, "steps": []}),
+        json!(null),
+    ));
+    rig.wait_arrows(|a| a.entry("a@v1").is_some_and(|e| e.active_run.is_some()))
+        .await;
     let before = rig.arrows.store().revision();
-    runtime.send_json(runtime_frame("ready", json!(null), json!({"method": "_update", "outcome": "success"})));
+    runtime.send_json(runtime_frame(
+        "ready",
+        json!(null),
+        json!({"method": "_update", "outcome": "success"}),
+    ));
     let mut rx = rig.arrows.store().subscribe();
     while rig.api.calls_to(Method::Get, LIST) < 2 {
         rx.changed().await.unwrap();
     }
     assert!(rig.arrows.store().revision() > before);
-    assert_eq!(rig.arrows.entry("a@v1").unwrap().last_return.unwrap().outcome, Outcome::Success);
+    assert_eq!(
+        rig.arrows
+            .entry("a@v1")
+            .unwrap()
+            .last_return
+            .unwrap()
+            .outcome,
+        Outcome::Success
+    );
 }
 
 #[test]
 fn only_a_successful_update_outcome_counts() {
     use crate::domain::LastReturn;
-    let lr = |method: &str, outcome| Some(LastReturn { method: method.into(), outcome });
-    assert!(super::streams::is_successful_update(lr("update", Outcome::Success).as_ref()));
-    assert!(super::streams::is_successful_update(lr("_update", Outcome::Success).as_ref()));
-    assert!(!super::streams::is_successful_update(lr("update", Outcome::Failed).as_ref()));
-    assert!(!super::streams::is_successful_update(lr("update", Outcome::Cancelled).as_ref()));
-    assert!(!super::streams::is_successful_update(lr("install", Outcome::Success).as_ref()));
+    let lr = |method: &str, outcome| {
+        Some(LastReturn {
+            method: method.into(),
+            outcome,
+        })
+    };
+    assert!(super::streams::is_successful_update(
+        lr("update", Outcome::Success).as_ref()
+    ));
+    assert!(super::streams::is_successful_update(
+        lr("_update", Outcome::Success).as_ref()
+    ));
+    assert!(!super::streams::is_successful_update(
+        lr("update", Outcome::Failed).as_ref()
+    ));
+    assert!(!super::streams::is_successful_update(
+        lr("update", Outcome::Cancelled).as_ref()
+    ));
+    assert!(!super::streams::is_successful_update(
+        lr("install", Outcome::Success).as_ref()
+    ));
     assert!(!super::streams::is_successful_update(None));
 }
 
@@ -305,7 +369,10 @@ async fn a_ready_superseded_by_starting_while_connections_were_in_flight_is_drop
         async move {
             p.notify_one();
             r.notified().await;
-            Ok(ConnectionsSnapshot { connections: vec![local_connection()], active_id: "local".into() })
+            Ok(ConnectionsSnapshot {
+                connections: vec![local_connection()],
+                active_id: "local".into(),
+            })
         }
     });
     rig.backend.emit_status(ConnectionStatus::Ready);
@@ -318,7 +385,11 @@ async fn a_ready_superseded_by_starting_while_connections_were_in_flight_is_drop
         tokio::task::yield_now().await;
     }
     assert_eq!(rig.status.status(), ConnectionStatus::Starting);
-    assert_eq!(rig.api.open_count("/v0/runtime"), 1, "only the boot adoption's stream was ever opened");
+    assert_eq!(
+        rig.api.open_count("/v0/runtime"),
+        1,
+        "only the boot adoption's stream was ever opened"
+    );
 }
 
 #[tokio::test]
@@ -334,7 +405,10 @@ async fn a_disconnected_status_only_updates_the_status() {
 async fn re_reads_open_details_and_collections_when_core_refreshes_a_manifest() {
     let rig = rig();
     let _l = rig.ready().await;
-    let refreshed = rig.api.wait_stream("/v0/arrow?user_installed=false", 0).await;
+    let refreshed = rig
+        .api
+        .wait_stream("/v0/arrow?user_installed=false", 0)
+        .await;
     refreshed.send_json(json!({"event": "upserted", "namespace": "other@1"}));
     let mut rx = rig.queries.subscribe();
     while rig.queries.epoch(&collection_key("c")) == 0 {
@@ -369,18 +443,25 @@ async fn a_failed_seed_marks_the_catalog_errored() {
     let rig = rig();
     rig.api.route_error(Method::Get, LIST, 500, "boom");
     let _l = rig.setup(None, true).await;
-    rig.wait_arrows(|a| a.catalog() == crate::store::CatalogStatus::Error).await;
+    rig.wait_arrows(|a| a.catalog() == crate::store::CatalogStatus::Error)
+        .await;
 }
 
 #[tokio::test]
 async fn wipes_the_cache_when_the_stored_version_differs_before_anything_starts() {
     let rig = rig();
     rig.kv.set(CACHE_VERSION_KEY, "ancient").unwrap();
-    rig.cache.upsert(crate::persistence::entity_cache::tests::rec("local", "stale@1"));
+    rig.cache
+        .upsert(crate::persistence::entity_cache::tests::rec(
+            "local", "stale@1",
+        ));
     rig.api.set_reachable(false);
     let _l = rig.setup(None, true).await;
     assert!(rig.cache.arrows_for("local").is_empty());
-    assert_eq!(rig.kv.get(CACHE_VERSION_KEY).unwrap().as_deref(), Some(QUIVER_CACHE_VERSION));
+    assert_eq!(
+        rig.kv.get(CACHE_VERSION_KEY).unwrap().as_deref(),
+        Some(QUIVER_CACHE_VERSION)
+    );
 }
 
 #[tokio::test]

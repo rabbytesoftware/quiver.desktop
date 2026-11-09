@@ -51,7 +51,10 @@ mod tests {
         let cache = seeded();
         maybe_wipe_on_version_change(&cache, kv.as_ref());
         assert!(cache.arrows_for("local").is_empty());
-        assert_eq!(kv.get(CACHE_VERSION_KEY).unwrap().as_deref(), Some(QUIVER_CACHE_VERSION));
+        assert_eq!(
+            kv.get(CACHE_VERSION_KEY).unwrap().as_deref(),
+            Some(QUIVER_CACHE_VERSION)
+        );
     }
 
     #[test]

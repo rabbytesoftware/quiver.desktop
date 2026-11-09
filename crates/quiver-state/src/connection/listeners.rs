@@ -17,7 +17,10 @@ impl Drop for ConnectionListeners {
 
 /// Subscribes to connection changes, then seeds the store from the current list so it does not
 /// wait for an event. A failed seed is logged and leaves the subscription in place.
-pub async fn setup_connection_listeners(backend: Arc<dyn Backend>, store: ConnectionStore) -> ConnectionListeners {
+pub async fn setup_connection_listeners(
+    backend: Arc<dyn Backend>,
+    store: ConnectionStore,
+) -> ConnectionListeners {
     let mut changes = backend.on_connections_changed();
     let forward = store.clone();
     let task = tokio::spawn(async move {
@@ -55,16 +58,25 @@ mod tests {
         let mut rx = store.store().subscribe();
         let _l = setup_connection_listeners(backend.clone(), store.clone()).await;
         rx.borrow_and_update();
-        backend.emit_connections(ConnectionsSnapshot { connections: vec![remote()], active_id: "c1".into() });
+        backend.emit_connections(ConnectionsSnapshot {
+            connections: vec![remote()],
+            active_id: "c1".into(),
+        });
         rx.changed().await.unwrap();
         let s = store.snapshot();
-        assert_eq!((s.connections, s.active_id.as_str()), (vec![remote()], "c1"));
+        assert_eq!(
+            (s.connections, s.active_id.as_str()),
+            (vec![remote()], "c1")
+        );
     }
 
     #[tokio::test]
     async fn seeds_the_store_from_the_current_list_without_waiting_for_an_event() {
         let backend = Arc::new(FakeBackend::new());
-        backend.set_connections(ConnectionsSnapshot { connections: vec![local_connection()], active_id: "local".into() });
+        backend.set_connections(ConnectionsSnapshot {
+            connections: vec![local_connection()],
+            active_id: "local".into(),
+        });
         let store = ConnectionStore::default();
         let _l = setup_connection_listeners(backend, store.clone()).await;
         assert_eq!(store.snapshot().connections, vec![local_connection()]);
@@ -78,7 +90,10 @@ mod tests {
         let mut rx = store.store().subscribe();
         let _l = setup_connection_listeners(backend.clone(), store.clone()).await;
         assert!(store.snapshot().connections.is_empty());
-        backend.emit_connections(ConnectionsSnapshot { connections: vec![remote()], active_id: "c1".into() });
+        backend.emit_connections(ConnectionsSnapshot {
+            connections: vec![remote()],
+            active_id: "c1".into(),
+        });
         rx.changed().await.unwrap();
         assert_eq!(store.snapshot().active_id, "c1");
     }

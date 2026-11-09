@@ -23,7 +23,10 @@ pub struct ApiError {
 
 impl ApiError {
     pub fn new(message: impl Into<String>, status: u16) -> Self {
-        Self { message: message.into(), status }
+        Self {
+            message: message.into(),
+            status,
+        }
     }
 
     /// A failure before any HTTP answer (connect refused, transport gone).
@@ -108,10 +111,19 @@ pub trait CoreApi: Send + Sync {
 #[async_trait]
 pub trait CoreApiExt: CoreApi {
     async fn get_json(&self, path: &str) -> Result<Value, ApiError> {
-        Ok(self.request(Method::Get, path, None).await?.data.unwrap_or(Value::Null))
+        Ok(self
+            .request(Method::Get, path, None)
+            .await?
+            .data
+            .unwrap_or(Value::Null))
     }
 
-    async fn send(&self, method: Method, path: &str, body: Option<Value>) -> Result<Option<Value>, ApiError> {
+    async fn send(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<Value>,
+    ) -> Result<Option<Value>, ApiError> {
         Ok(self.request(method, path, body).await?.data)
     }
 

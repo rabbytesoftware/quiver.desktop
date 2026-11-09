@@ -45,7 +45,9 @@ mod tests {
         let u = parse(json!({"namespace": "a@1", "state": "ready"}));
         assert_eq!((u.namespace.as_str(), u.state), ("a@1", ArrowState::Ready));
         assert!(u.active_run.is_none() && u.last_return.is_none());
-        let u = parse(json!({"namespace": "a@1", "state": "ready", "active_run": null, "last_return": null}));
+        let u = parse(
+            json!({"namespace": "a@1", "state": "ready", "active_run": null, "last_return": null}),
+        );
         assert!(u.active_run.is_none() && u.last_return.is_none());
     }
 
@@ -70,9 +72,13 @@ mod tests {
                 .surface
         };
         let s = run(json!({"mode": "listen", "path": "/", "ready": true})).unwrap();
-        assert_eq!((s.mode, s.path.as_str(), s.ready), (SurfaceMode::Listen, "/", true));
+        assert_eq!(
+            (s.mode, s.path.as_str(), s.ready),
+            (SurfaceMode::Listen, "/", true)
+        );
         assert!(run(json!(null)).is_none());
-        let no_surface = parse(json!({"namespace": "a@1", "state": "running", "active_run": {"method": "m"}}));
+        let no_surface =
+            parse(json!({"namespace": "a@1", "state": "running", "active_run": {"method": "m"}}));
         assert!(no_surface.active_run.unwrap().surface.is_none());
     }
 }

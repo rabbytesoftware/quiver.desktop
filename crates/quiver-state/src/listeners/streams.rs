@@ -8,9 +8,13 @@ use super::announce::{announce_if_local, SelfAnnounceHook};
 use crate::connection::Backend;
 use crate::core_api::{CoreApi, CoreApiExt};
 use crate::domain::{ConnectionStatus, LastReturn, Outcome, RuntimeUpdate};
-use crate::dto::arrow::{to_arrow_catalog_records, to_initial_runtime_updates, ArrowListResponseItemDto};
+use crate::dto::arrow::{
+    to_arrow_catalog_records, to_initial_runtime_updates, ArrowListResponseItemDto,
+};
 use crate::dto::runtime::{to_runtime_update, RuntimeUpdateDto};
-use crate::persistence::entity_stream::{subscribe_arrow_stream, ArrowStream, Reseeder, SubscribeArrowStreamOptions};
+use crate::persistence::entity_stream::{
+    subscribe_arrow_stream, ArrowStream, Reseeder, SubscribeArrowStreamOptions,
+};
 use crate::persistence::version::maybe_wipe_on_version_change;
 use crate::persistence::{EntityCache, KeyValueStore};
 use crate::queries::keys::{arrow_detail_prefix, collection_prefix};
@@ -39,7 +43,9 @@ pub struct ListenerDeps {
 }
 
 pub(super) fn is_successful_update(last_return: Option<&LastReturn>) -> bool {
-    last_return.is_some_and(|r| r.outcome == Outcome::Success && r.method.strip_prefix('_').unwrap_or(&r.method) == "update")
+    last_return.is_some_and(|r| {
+        r.outcome == Outcome::Success && r.method.strip_prefix('_').unwrap_or(&r.method) == "update"
+    })
 }
 
 /// Everything one connection's streams hold open. Dropping it closes them.
@@ -95,7 +101,11 @@ impl Drop for PendingGuard<'_> {
 pub async fn setup_listeners(deps: ListenerDeps) -> Listeners {
     maybe_wipe_on_version_change(&deps.cache, deps.key_value.as_ref());
     let mut statuses = deps.backend.on_core_status();
-    let inner = Arc::new(Inner { deps, generation: Arc::new(AtomicU64::new(0)), lifecycle: Mutex::default() });
+    let inner = Arc::new(Inner {
+        deps,
+        generation: Arc::new(AtomicU64::new(0)),
+        lifecycle: Mutex::default(),
+    });
     let looping = inner.clone();
     let task = tokio::spawn(async move {
         while let Some(status) = statuses.recv().await {
@@ -108,7 +118,9 @@ pub async fn setup_listeners(deps: ListenerDeps) -> Listeners {
 
 impl Inner {
     fn lifecycle(&self) -> std::sync::MutexGuard<'_, Lifecycle> {
-        self.lifecycle.lock().unwrap_or_else(PoisonError::into_inner)
+        self.lifecycle
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     fn generation(&self) -> u64 {
@@ -122,7 +134,10 @@ impl Inner {
     }
 
     fn spawn_announce(&self) {
-        tokio::spawn(announce_if_local(self.deps.backend.clone(), self.deps.announce.clone()));
+        tokio::spawn(announce_if_local(
+            self.deps.backend.clone(),
+            self.deps.announce.clone(),
+        ));
     }
 
     /// The synchronous half of a status event, so events are handled in the order they arrive;
@@ -183,7 +198,10 @@ impl Inner {
         }
         {
             let lifecycle = self.lifecycle();
-            if self.generation() != generation || lifecycle.start_pending > 0 || lifecycle.streams.is_some() {
+            if self.generation() != generation
+                || lifecycle.start_pending > 0
+                || lifecycle.streams.is_some()
+            {
                 return;
             }
         }
@@ -203,27 +221,42 @@ impl Inner {
         let reseeder: Arc<Mutex<Option<Reseeder>>> = Arc::default();
 
         let seed = {
-            let (api, pending, connection_id) = (deps.api.clone(), pending_initial.clone(), connection_id.to_string());
+            let (api, pending, connection_id) = (
+                deps.api.clone(),
+                pending_initial.clone(),
+                connection_id.to_string(),
+            );
             Arc::new(move || {
-                let (api, pending, connection_id) = (api.clone(), pending.clone(), connection_id.clone());
+                let (api, pending, connection_id) =
+                    (api.clone(), pending.clone(), connection_id.clone());
                 Box::pin(async move {
-                    let items = api.get::<Vec<ArrowListResponseItemDto>>("/v0/arrow?user_installed=true").await?;
-                    *pending.lock().unwrap_or_else(PoisonError::into_inner) = to_initial_runtime_updates(&items);
+                    let items = api
+                        .get::<Vec<ArrowListResponseItemDto>>("/v0/arrow?user_installed=true")
+                        .await?;
+                    *pending.lock().unwrap_or_else(PoisonError::into_inner) =
+                        to_initial_runtime_updates(&items);
                     Ok(to_arrow_catalog_records(&items, &connection_id))
                 }) as futures_util::future::BoxFuture<'static, _>
             })
         };
         let on_change = {
-            let (cache, arrows, generation, pending, connection_id) =
-                (deps.cache.clone(), deps.arrows.clone(), self.generation.clone(), pending_initial.clone(), connection_id.to_string());
+            let (cache, arrows, generation, pending, connection_id) = (
+                deps.cache.clone(),
+                deps.arrows.clone(),
+                self.generation.clone(),
+                pending_initial.clone(),
+                connection_id.to_string(),
+            );
             Arc::new(move || {
                 let records = cache.arrows_for(&connection_id);
                 if generation.load(Ordering::SeqCst) != stream_generation {
                     return;
                 }
                 arrows.set_catalog(&records);
-                let batch = std::mem::take(&mut *pending.lock().unwrap_or_else(PoisonError::into_inner));
-                let visible: std::collections::HashSet<&str> = records.iter().map(|r| r.namespace.as_str()).collect();
+                let batch =
+                    std::mem::take(&mut *pending.lock().unwrap_or_else(PoisonError::into_inner));
+                let visible: std::collections::HashSet<&str> =
+                    records.iter().map(|r| r.namespace.as_str()).collect();
                 for update in batch {
                     if visible.contains(update.namespace.as_str()) {
                         arrows.seed_initial_state(update);
@@ -242,7 +275,11 @@ impl Inner {
         let on_unversioned_upsert = {
             let (reseeder, queries) = (reseeder.clone(), deps.queries.clone());
             Arc::new(move |_: &str| {
-                if let Some(r) = reseeder.lock().unwrap_or_else(PoisonError::into_inner).as_ref() {
+                if let Some(r) = reseeder
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .as_ref()
+                {
                     r.reseed();
                 }
                 // An update's commit runs after its run has ended, so the detail the run-end
@@ -278,8 +315,14 @@ impl Inner {
         });
 
         let arrows = deps.arrows.clone();
-        let runtime = deps.ws.subscribe(RUNTIME_ENDPOINT, move |data| on_runtime_frame(&arrows, data));
-        self.lifecycle().streams = Some(Streams { _arrow: arrow_stream, _runtime: runtime, _refresh: refresh });
+        let runtime = deps.ws.subscribe(RUNTIME_ENDPOINT, move |data| {
+            on_runtime_frame(&arrows, data)
+        });
+        self.lifecycle().streams = Some(Streams {
+            _arrow: arrow_stream,
+            _runtime: runtime,
+            _refresh: refresh,
+        });
     }
 }
 
@@ -294,8 +337,12 @@ fn on_runtime_frame(arrows: &ArrowStore, data: &Value) {
             return;
         }
     };
-    let was_running = arrows.entry(&update.namespace).is_some_and(|e| e.active_run.is_some());
-    let finished_update = was_running && update.active_run.is_none() && is_successful_update(update.last_return.as_ref());
+    let was_running = arrows
+        .entry(&update.namespace)
+        .is_some_and(|e| e.active_run.is_some());
+    let finished_update = was_running
+        && update.active_run.is_none()
+        && is_successful_update(update.last_return.as_ref());
     arrows.apply_runtime_update(update);
     // A successful update moves the row's resolved ref, which only the catalog read carries;
     // whatever page is open, the sidebar follows.

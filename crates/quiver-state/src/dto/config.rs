@@ -29,10 +29,17 @@ pub fn flatten_config(section: &Map<String, Value>) -> Vec<ConfigRow> {
 
 fn flatten_into(section: &Map<String, Value>, prefix: &str, rows: &mut Vec<ConfigRow>) {
     for (name, value) in section {
-        let key = if prefix.is_empty() { name.clone() } else { format!("{prefix}.{name}") };
+        let key = if prefix.is_empty() {
+            name.clone()
+        } else {
+            format!("{prefix}.{name}")
+        };
         match value {
             Value::Object(inner) if !inner.is_empty() => flatten_into(inner, &key, rows),
-            _ => rows.push(ConfigRow { key, value: value.clone() }),
+            _ => rows.push(ConfigRow {
+                key,
+                value: value.clone(),
+            }),
         }
     }
 }
@@ -69,7 +76,10 @@ pub fn format_config_value(value: &Value) -> String {
 pub fn to_config_display_rows(section: &Map<String, Value>) -> Vec<ConfigDisplayRow> {
     flatten_config(section)
         .into_iter()
-        .map(|ConfigRow { key, value }| ConfigDisplayRow { key, value: format_config_value(&value) })
+        .map(|ConfigRow { key, value }| ConfigDisplayRow {
+            key,
+            value: format_config_value(&value),
+        })
         .collect()
 }
 
@@ -80,7 +90,10 @@ mod tests {
     use super::*;
 
     fn rows(value: Value) -> Vec<(String, Value)> {
-        flatten_config(value.as_object().unwrap()).into_iter().map(|r| (r.key, r.value)).collect()
+        flatten_config(value.as_object().unwrap())
+            .into_iter()
+            .map(|r| (r.key, r.value))
+            .collect()
     }
 
     fn pair(k: &str, v: Value) -> (String, Value) {
@@ -91,7 +104,10 @@ mod tests {
     fn keeps_a_flat_section_in_wire_order() {
         assert_eq!(
             rows(json!({"per_provider_limit": 25, "provider_timeout": "10s"})),
-            vec![pair("per_provider_limit", json!(25)), pair("provider_timeout", json!("10s"))]
+            vec![
+                pair("per_provider_limit", json!(25)),
+                pair("provider_timeout", json!("10s"))
+            ]
         );
     }
 
@@ -113,12 +129,21 @@ mod tests {
 
     #[test]
     fn keeps_arrays_null_and_empty_objects_as_leaves() {
-        assert_eq!(rows(json!({"hosts": ["a", "b"]})), vec![pair("hosts", json!(["a", "b"]))]);
+        assert_eq!(
+            rows(json!({"hosts": ["a", "b"]})),
+            vec![pair("hosts", json!(["a", "b"]))]
+        );
         assert_eq!(
             rows(json!({"unmarked": {"min_stars": null}, "channel": null})),
-            vec![pair("unmarked.min_stars", Value::Null), pair("channel", Value::Null)]
+            vec![
+                pair("unmarked.min_stars", Value::Null),
+                pair("channel", Value::Null)
+            ]
         );
-        assert_eq!(rows(json!({"unmarked": {}})), vec![pair("unmarked", json!({}))]);
+        assert_eq!(
+            rows(json!({"unmarked": {}})),
+            vec![pair("unmarked", json!({}))]
+        );
         assert!(rows(json!({})).is_empty());
     }
 
@@ -149,7 +174,10 @@ mod tests {
             "unmarked": {"min_stars": 50, "probe_limit": 10}, "auto_retry": {"enabled": true, "retries": 3}
         });
         let rows = to_config_display_rows(section.as_object().unwrap());
-        let flat: Vec<_> = rows.iter().map(|r| (r.key.as_str(), r.value.as_str())).collect();
+        let flat: Vec<_> = rows
+            .iter()
+            .map(|r| (r.key.as_str(), r.value.as_str()))
+            .collect();
         assert_eq!(
             flat,
             vec![

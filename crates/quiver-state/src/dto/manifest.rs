@@ -6,8 +6,8 @@ use indexmap::IndexMap;
 use serde::Deserialize;
 
 use crate::domain::{
-    ArrowChannel, ArrowCredit, ArrowDependency, ArrowLifecycle, ArrowMethod, ArrowPort, ArrowRequirement,
-    ArrowState, ArrowStepDefinition, ArrowTarget, ArrowVariable, DependencyType,
+    ArrowChannel, ArrowCredit, ArrowDependency, ArrowLifecycle, ArrowMethod, ArrowPort,
+    ArrowRequirement, ArrowState, ArrowStepDefinition, ArrowTarget, ArrowVariable, DependencyType,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -132,7 +132,11 @@ pub struct ArrowDependentsDto {
 pub fn to_arrow_dependencies(dtos: Vec<ArrowDependencyDto>) -> Vec<ArrowDependency> {
     dtos.into_iter()
         .map(|d| ArrowDependency {
-            dep_type: if d.dep_type == "service" { DependencyType::Service } else { DependencyType::Tool },
+            dep_type: if d.dep_type == "service" {
+                DependencyType::Service
+            } else {
+                DependencyType::Tool
+            },
             namespace: d.namespace,
         })
         .collect()

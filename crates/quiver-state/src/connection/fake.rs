@@ -32,10 +32,15 @@ impl Default for FakeBackend {
 
 impl FakeBackend {
     pub fn new() -> Self {
-        let snapshot = ConnectionsSnapshot { connections: vec![local_connection()], active_id: "local".into() };
+        let snapshot = ConnectionsSnapshot {
+            connections: vec![local_connection()],
+            active_id: "local".into(),
+        };
         let fake = Self {
             inner: Mutex::new(Inner {
-                get_connections: Arc::new(|| Box::pin(async { Err(Error::Backend("unset".into())) })),
+                get_connections: Arc::new(|| {
+                    Box::pin(async { Err(Error::Backend("unset".into())) })
+                }),
                 status: vec![],
                 changed: vec![],
                 calls: vec![],
@@ -74,7 +79,9 @@ impl FakeBackend {
     }
 
     pub fn emit_connections(&self, snapshot: ConnectionsSnapshot) {
-        self.lock().changed.retain(|tx| tx.send(snapshot.clone()).is_ok());
+        self.lock()
+            .changed
+            .retain(|tx| tx.send(snapshot.clone()).is_ok());
     }
 
     pub fn calls(&self) -> Vec<String> {
@@ -82,7 +89,11 @@ impl FakeBackend {
     }
 
     pub fn call_count(&self, name: &str) -> usize {
-        self.lock().calls.iter().filter(|c| c.as_str() == name).count()
+        self.lock()
+            .calls
+            .iter()
+            .filter(|c| c.as_str() == name)
+            .count()
     }
 
     fn record(&self, call: String) {

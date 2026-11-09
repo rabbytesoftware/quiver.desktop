@@ -67,7 +67,10 @@ fn non_empty(value: Option<String>) -> Option<String> {
 /// the same rule the sidebar's namespace rows use.
 pub fn to_collection_arrow(dto: CollectionArrowDto) -> CollectionArrow {
     let parts = split_namespace(&dto.namespace);
-    let (namespace, version) = (parts.head.to_string(), (!parts.tail.is_empty()).then(|| parts.tail[1..].to_string()));
+    let (namespace, version) = (
+        parts.head.to_string(),
+        (!parts.tail.is_empty()).then(|| parts.tail[1..].to_string()),
+    );
     let media = dto.media.unwrap_or_default();
     CollectionArrow {
         namespace,
@@ -105,7 +108,10 @@ pub fn to_collection_detail(dto: CollectionDetailDto) -> CollectionDetail {
         item,
         url: dto.url,
         maintainers: dto.maintainers.unwrap_or_default(),
-        media: CollectionMedia { icon: media.icon, banner: media.banner },
+        media: CollectionMedia {
+            icon: media.icon,
+            banner: media.banner,
+        },
         arrows: dto.arrows.into_iter().map(to_collection_arrow).collect(),
     }
 }
@@ -122,15 +128,21 @@ mod tests {
 
     #[test]
     fn splits_the_version_out_of_a_versioned_namespace() {
-        let a = arrow(json!({"namespace": "github.com/r/mc@v1.21.4", "resolved": true, "name": "MC"}));
-        assert_eq!((a.namespace.as_str(), a.version.as_deref()), ("github.com/r/mc", Some("v1.21.4")));
+        let a =
+            arrow(json!({"namespace": "github.com/r/mc@v1.21.4", "resolved": true, "name": "MC"}));
+        assert_eq!(
+            (a.namespace.as_str(), a.version.as_deref()),
+            ("github.com/r/mc", Some("v1.21.4"))
+        );
         let bare = arrow(json!({"namespace": "github.com/r/mc", "resolved": true}));
         assert_eq!(bare.version, None);
     }
 
     #[test]
     fn carries_member_media_and_drops_empty_ones() {
-        let a = arrow(json!({"namespace": "n@1", "resolved": true, "media": {"icon": "i.png", "banner": ""}}));
+        let a = arrow(
+            json!({"namespace": "n@1", "resolved": true, "media": {"icon": "i.png", "banner": ""}}),
+        );
         assert_eq!((a.icon.as_deref(), a.banner), (Some("i.png"), None));
         let a = arrow(json!({"namespace": "n@1", "resolved": false}));
         assert!(!a.resolved && a.name.is_none() && a.description.is_none() && a.icon.is_none());
@@ -139,9 +151,15 @@ mod tests {
     #[test]
     fn list_item_defaults_description_and_tags() {
         let i = to_collection_list_item(
-            serde_json::from_value(json!({"namespace": "n", "name": "N", "arrow_count": 3, "followed": true})).unwrap(),
+            serde_json::from_value(
+                json!({"namespace": "n", "name": "N", "arrow_count": 3, "followed": true}),
+            )
+            .unwrap(),
         );
-        assert_eq!((i.description.as_str(), i.arrow_count, i.followed), ("", 3, true));
+        assert_eq!(
+            (i.description.as_str(), i.arrow_count, i.followed),
+            ("", 3, true)
+        );
         assert!(i.tags.is_empty());
     }
 
@@ -156,8 +174,13 @@ mod tests {
         );
         assert_eq!(d.item.arrow_count, 2);
         assert_eq!(d.media, CollectionMedia::default());
-        assert_eq!((d.url.as_deref(), d.maintainers), (Some("https://x"), vec!["a".to_string()]));
-        let bare = to_collection_detail(serde_json::from_value(json!({"namespace": "n", "name": "N"})).unwrap());
+        assert_eq!(
+            (d.url.as_deref(), d.maintainers),
+            (Some("https://x"), vec!["a".to_string()])
+        );
+        let bare = to_collection_detail(
+            serde_json::from_value(json!({"namespace": "n", "name": "N"})).unwrap(),
+        );
         assert!(bare.maintainers.is_empty() && bare.url.is_none());
     }
 }

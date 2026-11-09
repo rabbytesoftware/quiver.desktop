@@ -9,7 +9,10 @@ pub struct ConnectionState {
 
 impl Default for ConnectionState {
     fn default() -> Self {
-        Self { connections: vec![], active_id: LOCAL_CONNECTION_ID.into() }
+        Self {
+            connections: vec![],
+            active_id: LOCAL_CONNECTION_ID.into(),
+        }
     }
 }
 
@@ -28,7 +31,10 @@ impl ConnectionStore {
     }
 
     pub fn set_from_event(&self, connections: Vec<ConnectionConfig>, active_id: &str) {
-        self.store.set(ConnectionState { connections, active_id: active_id.to_string() });
+        self.store.set(ConnectionState {
+            connections,
+            active_id: active_id.to_string(),
+        });
     }
 }
 
@@ -59,7 +65,10 @@ mod tests {
         let store = ConnectionStore::default();
         store.set_from_event(vec![remote()], "conn-1");
         let s = store.snapshot();
-        assert_eq!((s.connections, s.active_id.as_str()), (vec![remote()], "conn-1"));
+        assert_eq!(
+            (s.connections, s.active_id.as_str()),
+            (vec![remote()], "conn-1")
+        );
     }
 
     #[test]

@@ -118,8 +118,14 @@ pub struct ArrowTarget {
 
 /// The target whose platform matches this machine, or the first target when none matches
 /// (e.g. a package with no host-specific build).
-pub fn target_for_platform<'a>(targets: &'a [ArrowTarget], platform: &str) -> Option<&'a ArrowTarget> {
-    targets.iter().find(|t| t.platform == platform).or_else(|| targets.first())
+pub fn target_for_platform<'a>(
+    targets: &'a [ArrowTarget],
+    platform: &str,
+) -> Option<&'a ArrowTarget> {
+    targets
+        .iter()
+        .find(|t| t.platform == platform)
+        .or_else(|| targets.first())
 }
 
 /// Whether this arrow genuinely publishes a build for `platform` -- an exact match, no fallback.
@@ -137,7 +143,11 @@ mod tests {
     fn target(platform: &str) -> ArrowTarget {
         ArrowTarget {
             platform: platform.into(),
-            requirement: ArrowRequirement { cpu_cores: 1.0, memory_gb: 1.0, disk_gb: 1.0 },
+            requirement: ArrowRequirement {
+                cpu_cores: 1.0,
+                memory_gb: 1.0,
+                disk_gb: 1.0,
+            },
             lifecycle: ArrowLifecycle::default(),
             methods: vec![],
         }
@@ -153,7 +163,10 @@ mod tests {
     fn unsupported_without_match_even_though_lookup_falls_back() {
         let targets = [target("linux/amd64"), target("windows/amd64")];
         assert!(!is_platform_supported(&targets, "darwin/arm64"));
-        assert_eq!(target_for_platform(&targets, "darwin/arm64"), Some(&targets[0]));
+        assert_eq!(
+            target_for_platform(&targets, "darwin/arm64"),
+            Some(&targets[0])
+        );
     }
 
     #[test]
@@ -164,7 +177,10 @@ mod tests {
 
     #[test]
     fn single_universal_target_that_matches() {
-        assert!(is_platform_supported(&[target("linux/amd64")], "linux/amd64"));
+        assert!(is_platform_supported(
+            &[target("linux/amd64")],
+            "linux/amd64"
+        ));
     }
 
     #[test]
@@ -174,9 +190,12 @@ mod tests {
             "elevated": false, "timeout": "5s"
         });
         let step: ArrowStepDefinition = serde_json::from_value(json.clone()).unwrap();
-        assert!(matches!(&step, ArrowStepDefinition::Run { command: Overridable::PerPlatform(m), .. } if m.len() == 2));
+        assert!(
+            matches!(&step, ArrowStepDefinition::Run { command: Overridable::PerPlatform(m), .. } if m.len() == 2)
+        );
         assert_eq!(serde_json::to_value(&step).unwrap(), json);
-        let dep: ArrowStepDefinition = serde_json::from_value(serde_json::json!({"type":"dependencies","title":"d"})).unwrap();
+        let dep: ArrowStepDefinition =
+            serde_json::from_value(serde_json::json!({"type":"dependencies","title":"d"})).unwrap();
         assert!(matches!(dep, ArrowStepDefinition::Dependencies { .. }));
     }
 }

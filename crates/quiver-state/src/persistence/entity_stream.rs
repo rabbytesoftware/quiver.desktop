@@ -16,21 +16,29 @@ use crate::transport::ws_manager::{is_reconnect_sentinel, Subscription, WsManage
 
 const ARROW_ENDPOINT: &str = "/v0/arrow";
 
-pub type SeedFn = Arc<dyn Fn() -> BoxFuture<'static, crate::Result<Vec<ArrowCatalogRecord>>> + Send + Sync>;
+pub type ChangeFn = Arc<dyn Fn() + Send + Sync>;
+pub type SeedErrorFn = Arc<dyn Fn(&crate::Error) + Send + Sync>;
+pub type UpsertFn = Arc<dyn Fn(&str) + Send + Sync>;
+
+pub type SeedFn =
+    Arc<dyn Fn() -> BoxFuture<'static, crate::Result<Vec<ArrowCatalogRecord>>> + Send + Sync>;
 
 pub struct SubscribeArrowStreamOptions {
     pub connection_id: String,
     pub seed: SeedFn,
-    pub on_change: Option<Arc<dyn Fn() + Send + Sync>>,
-    pub on_seed_error: Option<Arc<dyn Fn(&crate::Error) + Send + Sync>>,
+    pub on_change: Option<ChangeFn>,
+    pub on_seed_error: Option<SeedErrorFn>,
     /// Called with the namespace of an upsert frame that carries no version -- a row just
     /// registered, or one an update or adoption advanced in place. quiver.core's frames never carry
     /// the resolved ref, so only a re-read of the catalog can supply it.
-    pub on_unversioned_upsert: Option<Arc<dyn Fn(&str) + Send + Sync>>,
+    pub on_unversioned_upsert: Option<UpsertFn>,
 }
 
 enum Cmd {
-    Seed { generation: u64, done: oneshot::Sender<()> },
+    Seed {
+        generation: u64,
+        done: oneshot::Sender<()>,
+    },
     Frame(Value),
     Stop,
 }
@@ -86,7 +94,10 @@ pub fn subscribe_arrow_stream(
     drop(inner.run_seed());
     let for_frames = inner.clone();
     let subscription = ws.subscribe(ARROW_ENDPOINT, move |data| for_frames.on_data(data));
-    ArrowStream { inner, subscription: Mutex::new(Some(subscription)) }
+    ArrowStream {
+        inner,
+        subscription: Mutex::new(Some(subscription)),
+    }
 }
 
 /// A handle that can ask for a re-read without keeping the stream alive.
@@ -113,7 +124,10 @@ impl ArrowStream {
     pub fn dispose(&self) {
         self.inner.disposed.store(true, Ordering::SeqCst);
         let _ = self.inner.tx.send(Cmd::Stop);
-        self.subscription.lock().unwrap_or_else(PoisonError::into_inner).take();
+        self.subscription
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
     }
 }
 
@@ -190,7 +204,9 @@ impl Inner {
 
     fn apply_frame(&self, frame: &Value) {
         let connection_id = &self.opts.connection_id;
-        let Some(namespace) = text(frame, "namespace") else { return };
+        let Some(namespace) = text(frame, "namespace") else {
+            return;
+        };
         if frame.get("event").and_then(Value::as_str) == Some("removed") {
             self.cache.remove(connection_id, &namespace);
             return;
@@ -203,7 +219,10 @@ impl Inner {
         // never carries a confidence.
         let cached = self.cache.arrow(connection_id, &namespace);
         let frame_version = text(frame, "version");
-        let version = frame_version.clone().or_else(|| cached.as_ref().map(|c| c.version.clone())).unwrap_or_default();
+        let version = frame_version
+            .clone()
+            .or_else(|| cached.as_ref().map(|c| c.version.clone()))
+            .unwrap_or_default();
         let user_installed = frame.get("user_installed").and_then(Value::as_bool);
         if frame_version.is_none() && user_installed != Some(false) {
             let ask = {
@@ -221,18 +240,29 @@ impl Inner {
             }
         }
         let origin = match text(frame, "origin") {
-            None => cached.as_ref().and_then(|c| c.origin).unwrap_or(ArrowOrigin::Declared),
+            None => cached
+                .as_ref()
+                .and_then(|c| c.origin)
+                .unwrap_or(ArrowOrigin::Declared),
             Some(wire) => parse_arrow_origin(Some(&wire)),
         };
         let confidence = if origin == ArrowOrigin::Declared {
             None
         } else {
-            match frame.pointer("/inference/confidence").and_then(Value::as_str) {
+            match frame
+                .pointer("/inference/confidence")
+                .and_then(Value::as_str)
+            {
                 None => cached.as_ref().and_then(|c| c.confidence),
                 Some(wire) => parse_inference_confidence(Some(wire)),
             }
         };
-        let media = |key: &str| frame.pointer(&format!("/media/{key}")).and_then(Value::as_str).map(str::to_string);
+        let media = |key: &str| {
+            frame
+                .pointer(&format!("/media/{key}"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        };
         self.cache.upsert(ArrowCatalogRecord {
             connection_id: connection_id.clone(),
             namespace,
@@ -241,12 +271,17 @@ impl Inner {
             tags: frame
                 .get("tags")
                 .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(|t| t.as_str().map(str::to_string)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|t| t.as_str().map(str::to_string))
+                        .collect()
+                })
                 .unwrap_or_default(),
             icon: media("icon").or_else(|| text(frame, "icon")),
             banner: media("banner").or_else(|| text(frame, "banner")),
             version,
-            last_used_at: text(frame, "last_used_at").or_else(|| cached.and_then(|c| c.last_used_at)),
+            last_used_at: text(frame, "last_used_at")
+                .or_else(|| cached.and_then(|c| c.last_used_at)),
             origin: Some(origin),
             confidence,
         });

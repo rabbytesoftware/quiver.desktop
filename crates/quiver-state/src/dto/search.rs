@@ -4,8 +4,8 @@
 use serde::Deserialize;
 
 use crate::domain::{
-    parse_arrow_origin, parse_inference_confidence, DiscoveryProvider, DiscoverySummary, SearchEntry,
-    SearchProvenance,
+    parse_arrow_origin, parse_inference_confidence, DiscoveryProvider, DiscoverySummary,
+    SearchEntry, SearchProvenance,
 };
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -157,7 +157,9 @@ mod tests {
             "namespace": "github.com/a/one", "name": "one", "description": "d", "tags": ["t"],
             "versions": ["v1"], "compatible_os": ["linux/amd64"], "installed": false, "known": true, "stars": 3
         });
-        base.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        base.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
         to_search_entry(serde_json::from_value(base).unwrap())
     }
 
@@ -172,13 +174,19 @@ mod tests {
         let e = entry(json!({"installed": false, "known": true}));
         assert_eq!(e.provenance, None);
         assert!(!e.installed && e.known);
-        assert_eq!(entry(json!({"provenance": "collection"})).provenance, Some(SearchProvenance::Collection));
+        assert_eq!(
+            entry(json!({"provenance": "collection"})).provenance,
+            Some(SearchProvenance::Collection)
+        );
     }
 
     #[test]
     fn defaults_absent_media_source_lists_and_stars() {
         let e = to_search_entry(
-            serde_json::from_value(json!({"namespace": "n", "name": "n", "installed": true, "known": true})).unwrap(),
+            serde_json::from_value(
+                json!({"namespace": "n", "name": "n", "installed": true, "known": true}),
+            )
+            .unwrap(),
         );
         assert_eq!((e.icon, e.banner, e.source), (None, None, None));
         assert!(e.tags.is_empty() && e.versions.is_empty() && e.compatible_os.is_empty());
@@ -188,10 +196,19 @@ mod tests {
     #[test]
     fn carries_origin_and_confidence_and_reads_unknown_origin_as_declared() {
         let e = entry(json!({"origin": "inferred", "confidence": "low"}));
-        assert_eq!((e.origin, e.confidence), (Some(ArrowOrigin::Inferred), Some(InferenceConfidence::Low)));
+        assert_eq!(
+            (e.origin, e.confidence),
+            (Some(ArrowOrigin::Inferred), Some(InferenceConfidence::Low))
+        );
         let e = entry(json!({}));
-        assert_eq!((e.origin, e.confidence), (Some(ArrowOrigin::Declared), None));
-        assert_eq!(entry(json!({"origin": "weird"})).origin, Some(ArrowOrigin::Declared));
+        assert_eq!(
+            (e.origin, e.confidence),
+            (Some(ArrowOrigin::Declared), None)
+        );
+        assert_eq!(
+            entry(json!({"origin": "weird"})).origin,
+            Some(ArrowOrigin::Declared)
+        );
     }
 
     #[test]
@@ -207,10 +224,19 @@ mod tests {
             .unwrap(),
         );
         assert_eq!((s.found, s.verified, s.skipped), (7, 5, 2));
-        assert_eq!((s.providers[0].reason.clone(), s.providers[0].retry_after), (None, None));
-        assert_eq!((s.providers[1].reason.as_deref(), s.providers[1].retry_after), (Some("rate limited"), Some(30)));
+        assert_eq!(
+            (s.providers[0].reason.clone(), s.providers[0].retry_after),
+            (None, None)
+        );
+        assert_eq!(
+            (s.providers[1].reason.as_deref(), s.providers[1].retry_after),
+            (Some("rate limited"), Some(30))
+        );
         let none = to_discovery_summary(
-            serde_json::from_value(json!({"job_id": "j", "query": "q", "found": 0, "verified": 0, "skipped": 0})).unwrap(),
+            serde_json::from_value(
+                json!({"job_id": "j", "query": "q", "found": 0, "verified": 0, "skipped": 0}),
+            )
+            .unwrap(),
         );
         assert!(none.providers.is_empty());
     }

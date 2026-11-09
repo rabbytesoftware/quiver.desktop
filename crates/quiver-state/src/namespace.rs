@@ -13,7 +13,10 @@ pub struct NamespaceParts<'a> {
 /// or a `*` glob, so everything after the first `@` is the selector, whole.
 pub fn split_namespace(ns: &str) -> NamespaceParts<'_> {
     match ns.find('@') {
-        Some(at) => NamespaceParts { head: &ns[..at], tail: &ns[at..] },
+        Some(at) => NamespaceParts {
+            head: &ns[..at],
+            tail: &ns[at..],
+        },
         None => NamespaceParts { head: ns, tail: "" },
     }
 }
@@ -41,9 +44,18 @@ pub fn encode_uri_component(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     for byte in input.bytes() {
         match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')' => {
-                out.push(byte as char)
-            }
+            b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'_'
+            | b'.'
+            | b'!'
+            | b'~'
+            | b'*'
+            | b'\''
+            | b'('
+            | b')' => out.push(byte as char),
             _ => out.push_str(&format!("%{byte:02X}")),
         }
     }
@@ -71,8 +83,20 @@ mod tests {
 
     #[test]
     fn splits_at_the_first_at() {
-        assert_eq!(split_namespace("a/b@feat/x@y"), NamespaceParts { head: "a/b", tail: "@feat/x@y" });
-        assert_eq!(split_namespace("a/b"), NamespaceParts { head: "a/b", tail: "" });
+        assert_eq!(
+            split_namespace("a/b@feat/x@y"),
+            NamespaceParts {
+                head: "a/b",
+                tail: "@feat/x@y"
+            }
+        );
+        assert_eq!(
+            split_namespace("a/b"),
+            NamespaceParts {
+                head: "a/b",
+                tail: ""
+            }
+        );
     }
 
     #[test]
@@ -85,9 +109,18 @@ mod tests {
 
     #[test]
     fn segment_encodes_slashes_and_at_but_keeps_glob() {
-        assert_eq!(namespace_segment("github.com/x/y@beta"), "github.com%2Fx%2Fy%40beta");
-        assert_eq!(namespace_segment("github.com/x/y@v1.*"), "github.com%2Fx%2Fy%40v1.*");
-        assert_eq!(namespace_segment("github.com/x/y@feat/x"), "github.com%2Fx%2Fy%40feat%2Fx");
+        assert_eq!(
+            namespace_segment("github.com/x/y@beta"),
+            "github.com%2Fx%2Fy%40beta"
+        );
+        assert_eq!(
+            namespace_segment("github.com/x/y@v1.*"),
+            "github.com%2Fx%2Fy%40v1.*"
+        );
+        assert_eq!(
+            namespace_segment("github.com/x/y@feat/x"),
+            "github.com%2Fx%2Fy%40feat%2Fx"
+        );
     }
 
     #[test]

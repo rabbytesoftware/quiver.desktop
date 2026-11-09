@@ -19,7 +19,10 @@ pub struct EntityCache {
 
 impl EntityCache {
     pub fn in_memory() -> Self {
-        Self { rows: Mutex::default(), persistence: None }
+        Self {
+            rows: Mutex::default(),
+            persistence: None,
+        }
     }
 
     /// Loads whatever snapshot is readable; an unreadable or corrupt one reads as empty.
@@ -33,7 +36,10 @@ impl EntityCache {
             .into_iter()
             .map(|r| ((r.connection_id.clone(), r.namespace.clone()), r))
             .collect();
-        Self { rows: Mutex::new(rows), persistence: Some(store) }
+        Self {
+            rows: Mutex::new(rows),
+            persistence: Some(store),
+        }
     }
 
     fn mutate(&self, f: impl FnOnce(&mut BTreeMap<Key, ArrowCatalogRecord>)) {
@@ -51,18 +57,25 @@ impl EntityCache {
 
     pub fn upsert(&self, record: ArrowCatalogRecord) {
         self.mutate(|rows| {
-            rows.insert((record.connection_id.clone(), record.namespace.clone()), record);
+            rows.insert(
+                (record.connection_id.clone(), record.namespace.clone()),
+                record,
+            );
         });
     }
 
     pub fn arrows_for(&self, connection_id: &str) -> Vec<ArrowCatalogRecord> {
         let rows = self.rows.lock().unwrap_or_else(PoisonError::into_inner);
-        rows.values().filter(|r| r.connection_id == connection_id).cloned().collect()
+        rows.values()
+            .filter(|r| r.connection_id == connection_id)
+            .cloned()
+            .collect()
     }
 
     pub fn arrow(&self, connection_id: &str, namespace: &str) -> Option<ArrowCatalogRecord> {
         let rows = self.rows.lock().unwrap_or_else(PoisonError::into_inner);
-        rows.get(&(connection_id.to_string(), namespace.to_string())).cloned()
+        rows.get(&(connection_id.to_string(), namespace.to_string()))
+            .cloned()
     }
 
     pub fn remove(&self, connection_id: &str, namespace: &str) {
@@ -140,7 +153,10 @@ pub(crate) mod tests {
     fn reads_one_record_by_connection_and_identity() {
         let cache = EntityCache::in_memory();
         cache.upsert(rec("local", "a@stable"));
-        assert_eq!(cache.arrow("local", "a@stable").map(|r| r.version), Some("1".into()));
+        assert_eq!(
+            cache.arrow("local", "a@stable").map(|r| r.version),
+            Some("1".into())
+        );
         assert!(cache.arrow("remote-1", "a@stable").is_none());
     }
 
@@ -158,8 +174,15 @@ pub(crate) mod tests {
     fn the_snapshot_survives_a_restart() {
         let kv = Arc::new(InMemoryKeyValueStore::new());
         EntityCache::with_persistence(kv.clone()).upsert(rec("local", "a@1"));
-        assert_eq!(EntityCache::with_persistence(kv.clone()).arrows_for("local").len(), 1);
+        assert_eq!(
+            EntityCache::with_persistence(kv.clone())
+                .arrows_for("local")
+                .len(),
+            1
+        );
         kv.set(SNAPSHOT_KEY, "{corrupt").unwrap();
-        assert!(EntityCache::with_persistence(kv).arrows_for("local").is_empty());
+        assert!(EntityCache::with_persistence(kv)
+            .arrows_for("local")
+            .is_empty());
     }
 }

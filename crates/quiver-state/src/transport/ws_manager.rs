@@ -94,16 +94,31 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 
 impl WsManager {
     pub fn new(api: Arc<dyn CoreApi>) -> Self {
-        Self { api, channels: Arc::default() }
+        Self {
+            api,
+            channels: Arc::default(),
+        }
     }
 
-    pub fn subscribe(&self, endpoint: &str, callback: impl Fn(&Value) + Send + Sync + 'static) -> Subscription {
+    pub fn subscribe(
+        &self,
+        endpoint: &str,
+        callback: impl Fn(&Value) + Send + Sync + 'static,
+    ) -> Subscription {
         let mut channels = lock(&self.channels);
         let channel = channels.entry(endpoint.to_string()).or_insert_with(|| {
             let subscribers: Arc<Mutex<Subscribers>> = Arc::default();
             let (cancel, cancelled) = watch::channel(false);
-            tokio::spawn(run_channel(self.api.clone(), endpoint.to_string(), subscribers.clone(), cancelled));
-            Channel { subscribers, cancel }
+            tokio::spawn(run_channel(
+                self.api.clone(),
+                endpoint.to_string(),
+                subscribers.clone(),
+                cancelled,
+            ));
+            Channel {
+                subscribers,
+                cancel,
+            }
         });
         let subscribers = channel.subscribers.clone();
         let id = {
@@ -113,12 +128,22 @@ impl WsManager {
             subs.list.push((id, Arc::new(callback)));
             id
         };
-        Subscription { channels: self.channels.clone(), endpoint: endpoint.to_string(), subscribers, id, done: false }
+        Subscription {
+            channels: self.channels.clone(),
+            endpoint: endpoint.to_string(),
+            subscribers,
+            id,
+            done: false,
+        }
     }
 }
 
 fn dispatch(subscribers: &Mutex<Subscribers>, data: &Value) {
-    let callbacks: Vec<Callback> = lock(subscribers).list.iter().map(|(_, cb)| cb.clone()).collect();
+    let callbacks: Vec<Callback> = lock(subscribers)
+        .list
+        .iter()
+        .map(|(_, cb)| cb.clone())
+        .collect();
     for cb in callbacks {
         cb(data);
     }
@@ -168,7 +193,9 @@ async fn run_channel(
             dispatch(&subscribers, &reconnect_sentinel());
         }
         first = false;
-        let Some(stream) = stream.as_mut() else { continue };
+        let Some(stream) = stream.as_mut() else {
+            continue;
+        };
         loop {
             let event = tokio::select! {
                 e = stream.next() => e,
@@ -176,7 +203,8 @@ async fn run_channel(
             };
             match event {
                 StreamEvent::Message(text) => {
-                    let parsed = serde_json::from_str::<Value>(&text).unwrap_or(Value::String(text));
+                    let parsed =
+                        serde_json::from_str::<Value>(&text).unwrap_or(Value::String(text));
                     dispatch(&subscribers, &parsed);
                 }
                 StreamEvent::Closed(_) => break,
@@ -195,7 +223,10 @@ mod tests {
     use super::*;
     use crate::core_api::FakeCoreApi;
 
-    fn collector() -> (impl Fn(&Value) + Send + Sync + 'static, mpsc::UnboundedReceiver<Value>) {
+    fn collector() -> (
+        impl Fn(&Value) + Send + Sync + 'static,
+        mpsc::UnboundedReceiver<Value>,
+    ) {
         let (tx, rx) = mpsc::unbounded_channel();
         (move |v: &Value| drop(tx.send(v.clone())), rx)
     }
@@ -208,7 +239,9 @@ mod tests {
         let (cb2, mut rx2) = collector();
         let _s1 = ws.subscribe("/v0/arrow", cb1);
         let _s2 = ws.subscribe("/v0/arrow", cb2);
-        api.wait_stream("/v0/arrow", 0).await.send_text(r#"{"a":1}"#);
+        api.wait_stream("/v0/arrow", 0)
+            .await
+            .send_text(r#"{"a":1}"#);
         assert_eq!(rx1.recv().await.unwrap(), json!({"a":1}));
         assert_eq!(rx2.recv().await.unwrap(), json!({"a":1}));
         assert_eq!(api.open_count("/v0/arrow"), 1);

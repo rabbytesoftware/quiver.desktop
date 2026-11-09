@@ -10,7 +10,8 @@ use tokio::sync::{mpsc, Notify};
 use super::{ApiError, ApiResult, CloseInfo, CoreApi, CoreStream, Method, StreamEvent};
 
 type Reply = Result<ApiResult<Option<Value>>, ApiError>;
-type Responder = Arc<dyn Fn(Option<Value>) -> Pin<Box<dyn Future<Output = Reply> + Send>> + Send + Sync>;
+type Responder =
+    Arc<dyn Fn(Option<Value>) -> Pin<Box<dyn Future<Output = Reply> + Send>> + Send + Sync>;
 
 /// One recorded call.
 #[derive(Debug, Clone, PartialEq)]
@@ -36,7 +37,10 @@ impl FakeStreamHandle {
     }
 
     pub fn close(&self, info: Option<(u16, &str)>) {
-        let info = info.map(|(code, reason)| CloseInfo { code, reason: reason.into() });
+        let info = info.map(|(code, reason)| CloseInfo {
+            code,
+            reason: reason.into(),
+        });
         let _ = self.tx.send(StreamEvent::Closed(info));
     }
 
@@ -111,7 +115,9 @@ impl FakeCoreApi {
         Fut: Future<Output = Reply> + Send + 'static,
     {
         let responder: Responder = Arc::new(move |body| Box::pin(f(body)));
-        self.lock().routes.insert((method, path.to_string()), responder);
+        self.lock()
+            .routes
+            .insert((method, path.to_string()), responder);
     }
 
     pub fn set_reachable(&self, reachable: bool) {
@@ -128,12 +134,20 @@ impl FakeCoreApi {
     }
 
     pub fn calls_to(&self, method: Method, path: &str) -> usize {
-        self.lock().calls.iter().filter(|c| c.method == method && c.path == path).count()
+        self.lock()
+            .calls
+            .iter()
+            .filter(|c| c.method == method && c.path == path)
+            .count()
     }
 
     /// How many streams were opened on `path` so far.
     pub fn open_count(&self, path: &str) -> usize {
-        self.lock().streams.iter().filter(|(p, _)| p == path).count()
+        self.lock()
+            .streams
+            .iter()
+            .filter(|(p, _)| p == path)
+            .count()
     }
 
     /// Waits (on a signal, never a timer) until the `index`th stream of `path` has been opened.
@@ -148,7 +162,12 @@ impl FakeCoreApi {
     }
 
     pub fn stream(&self, path: &str, index: usize) -> Option<FakeStreamHandle> {
-        self.lock().streams.iter().filter(|(p, _)| p == path).nth(index).map(|(_, h)| h.clone())
+        self.lock()
+            .streams
+            .iter()
+            .filter(|(p, _)| p == path)
+            .nth(index)
+            .map(|(_, h)| h.clone())
     }
 }
 
@@ -157,7 +176,11 @@ impl CoreApi for FakeCoreApi {
     async fn request(&self, method: Method, path: &str, body: Option<Value>) -> Reply {
         let responder = {
             let mut inner = self.lock();
-            inner.calls.push(Call { method, path: path.to_string(), body: body.clone() });
+            inner.calls.push(Call {
+                method,
+                path: path.to_string(),
+                body: body.clone(),
+            });
             inner.routes.get(&(method, path.to_string())).cloned()
         };
         match responder {
@@ -173,13 +196,17 @@ impl CoreApi for FakeCoreApi {
             if let Some(n) = inner.failing_opens.get_mut(path) {
                 if *n > 0 {
                     *n -= 1;
-                    inner.streams.push((path.to_string(), FakeStreamHandle { tx }));
+                    inner
+                        .streams
+                        .push((path.to_string(), FakeStreamHandle { tx }));
                     drop(inner);
                     self.opened.notify_waiters();
                     return Err(ApiError::transport("connection refused"));
                 }
             }
-            inner.streams.push((path.to_string(), FakeStreamHandle { tx }));
+            inner
+                .streams
+                .push((path.to_string(), FakeStreamHandle { tx }));
         }
         self.opened.notify_waiters();
         Ok(Box::new(FakeStream { rx }))
@@ -199,7 +226,10 @@ mod tests {
     async fn routes_answer_and_calls_are_logged() {
         let api = FakeCoreApi::new();
         api.route(Method::Get, "/v0/x", serde_json::json!({"a": 1}));
-        assert_eq!(api.get_json("/v0/x").await.unwrap(), serde_json::json!({"a": 1}));
+        assert_eq!(
+            api.get_json("/v0/x").await.unwrap(),
+            serde_json::json!({"a": 1})
+        );
         assert_eq!(api.get_json("/v0/missing").await.unwrap_err().status, 404);
         assert_eq!(api.calls().len(), 2);
     }
@@ -214,7 +244,10 @@ mod tests {
         assert_eq!(stream.next().await, StreamEvent::Message("hi".into()));
         assert_eq!(
             stream.next().await,
-            StreamEvent::Closed(Some(CloseInfo { code: 1000, reason: "completed".into() }))
+            StreamEvent::Closed(Some(CloseInfo {
+                code: 1000,
+                reason: "completed".into()
+            }))
         );
     }
 }

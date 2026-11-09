@@ -22,11 +22,19 @@ impl InMemoryKeyValueStore {
 
 impl KeyValueStore for InMemoryKeyValueStore {
     fn get(&self, key: &str) -> Result<Option<String>, String> {
-        Ok(self.map.lock().unwrap_or_else(PoisonError::into_inner).get(key).cloned())
+        Ok(self
+            .map
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(key)
+            .cloned())
     }
 
     fn set(&self, key: &str, value: &str) -> Result<(), String> {
-        self.map.lock().unwrap_or_else(PoisonError::into_inner).insert(key.into(), value.into());
+        self.map
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(key.into(), value.into());
         Ok(())
     }
 }

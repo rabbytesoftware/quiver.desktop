@@ -67,7 +67,11 @@ pub struct SearchController {
 }
 
 impl SearchController {
-    pub fn new(api: Arc<dyn CoreApi>, store: SearchStore, platform_source: Arc<dyn PlatformSource>) -> Self {
+    pub fn new(
+        api: Arc<dyn CoreApi>,
+        store: SearchStore,
+        platform_source: Arc<dyn PlatformSource>,
+    ) -> Self {
         Self {
             shared: Arc::new(Shared {
                 api,
@@ -179,7 +183,9 @@ impl Shared {
     }
 
     async fn platform(&self) -> &str {
-        self.platform.get_or_init(|| self.platform_source.platform()).await
+        self.platform
+            .get_or_init(|| self.platform_source.platform())
+            .await
     }
 
     /// Sorting and narrowing (spec 9.6) act on the answer the client is holding, so the answer has
@@ -188,7 +194,10 @@ impl Shared {
     /// machine plus one pass.
     async fn local_path(&self) -> String {
         let os = encode_uri_component(self.platform().await);
-        format!("/v0/search?q={}&limit={SEARCH_LIMIT}&os={os}", encode_uri_component(&self.query()))
+        format!(
+            "/v0/search?q={}&limit={SEARCH_LIMIT}&os={os}",
+            encode_uri_component(&self.query())
+        )
     }
 
     async fn run_local(self: Arc<Self>, generation: u64) {
@@ -201,7 +210,9 @@ impl Shared {
             return;
         }
         match result {
-            Ok(dtos) => self.store.set_local(dtos.into_iter().map(to_search_entry).collect()),
+            Ok(dtos) => self
+                .store
+                .set_local(dtos.into_iter().map(to_search_entry).collect()),
             Err(_) => self.store.set_local_error(),
         }
     }
@@ -214,7 +225,9 @@ impl Shared {
             return;
         }
         match result {
-            Ok(dtos) => self.store.settle(dtos.into_iter().map(to_search_entry).collect()),
+            Ok(dtos) => self
+                .store
+                .settle(dtos.into_iter().map(to_search_entry).collect()),
             Err(_) => self.store.settle_failed(),
         }
     }
@@ -243,7 +256,14 @@ impl Shared {
         if is_blank(&query) {
             return;
         }
-        let started = self.api.request(Method::Post, "/v0/search/discover", Some(json!({ "q": query }))).await;
+        let started = self
+            .api
+            .request(
+                Method::Post,
+                "/v0/search/discover",
+                Some(json!({ "q": query })),
+            )
+            .await;
         let started = started
             .ok()
             .and_then(|r| r.data)
@@ -252,7 +272,10 @@ impl Shared {
         if !self.is_current(generation) {
             return;
         }
-        self.store.begin_pass(SearchJob { id: started.job_id.clone(), expires_at: started.expires_at });
+        self.store.begin_pass(SearchJob {
+            id: started.job_id.clone(),
+            expires_at: started.expires_at,
+        });
 
         let path = format!("/v0/search/discover/{}", started.job_id);
         let os = encode_uri_component(self.platform().await);
@@ -267,11 +290,22 @@ impl Shared {
         let id = c.next_socket;
         c.next_socket += 1;
         let shared = self.clone();
-        let handle = tokio::spawn(async move { shared.run_socket(generation, id, path, os, reconnects).await });
+        let handle = tokio::spawn(async move {
+            shared
+                .run_socket(generation, id, path, os, reconnects)
+                .await
+        });
         c.socket = Some((id, handle.abort_handle()));
     }
 
-    async fn run_socket(self: Arc<Self>, generation: u64, id: u64, path: String, os: String, reconnects: u32) {
+    async fn run_socket(
+        self: Arc<Self>,
+        generation: u64,
+        id: u64,
+        path: String,
+        os: String,
+        reconnects: u32,
+    ) {
         let mut close = None;
         match self.api.open_stream(&format!("{path}?os={os}")).await {
             Err(_) => {}
@@ -293,7 +327,8 @@ impl Shared {
                 }
             },
         }
-        self.on_close(generation, id, path, os, reconnects, close).await;
+        self.on_close(generation, id, path, os, reconnects, close)
+            .await;
     }
 
     async fn on_close(
@@ -315,7 +350,10 @@ impl Shared {
             let mut c = self.ctl();
             if !c.is_current(generation) || c.socket.as_ref().map(|(i, _)| *i) != Some(id) {
                 Next::Ignore
-            } else if info.as_ref().is_some_and(|i| i.code == 1000 && i.reason == "completed") {
+            } else if info
+                .as_ref()
+                .is_some_and(|i| i.code == 1000 && i.reason == "completed")
+            {
                 // The close frame is the end of the stream; the job summary is readable from then on.
                 c.socket = None;
                 if let Some(h) = c.safety.take() {

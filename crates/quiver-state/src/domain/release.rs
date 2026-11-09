@@ -81,20 +81,30 @@ mod tests {
     #[test]
     fn own_component_matches_bare_and_with_ref() {
         assert!(is_quiver_own_component(QUIVER_DESKTOP_NAMESPACE));
-        assert!(is_quiver_own_component(&format!("{QUIVER_DESKTOP_NAMESPACE}@stable-1.0")));
+        assert!(is_quiver_own_component(&format!(
+            "{QUIVER_DESKTOP_NAMESPACE}@stable-1.0"
+        )));
         assert!(is_quiver_own_component(QUIVER_CORE_NAMESPACE));
-        assert!(is_quiver_own_component(&format!("{QUIVER_CORE_NAMESPACE}@v1.0.0")));
+        assert!(is_quiver_own_component(&format!(
+            "{QUIVER_CORE_NAMESPACE}@v1.0.0"
+        )));
     }
 
     #[test]
     fn own_component_rejects_unrelated_and_substring_matches() {
-        assert!(!is_quiver_own_component("github.com/rabbyte/minecraft@v1.21.4"));
-        assert!(!is_quiver_own_component("github.com/rabbytesoftware/quiver.core-extra"));
+        assert!(!is_quiver_own_component(
+            "github.com/rabbyte/minecraft@v1.21.4"
+        ));
+        assert!(!is_quiver_own_component(
+            "github.com/rabbytesoftware/quiver.core-extra"
+        ));
     }
 
     #[test]
     fn release_error_guard() {
-        assert!(is_release_resolve_error(&serde_json::json!({"kind":"offline","detail":"x"})));
+        assert!(is_release_resolve_error(
+            &serde_json::json!({"kind":"offline","detail":"x"})
+        ));
         assert!(!is_release_resolve_error(&serde_json::json!({"kind":5})));
         assert!(!is_release_resolve_error(&serde_json::json!(null)));
     }

@@ -4,8 +4,8 @@ use super::manifest::{to_arrow_dependencies, to_targets, ArrowDependencyDto, Arr
 use super::runtime::{to_active_run, ActiveRunDto};
 use super::search::MediaDto;
 use crate::domain::{
-    parse_arrow_origin, parse_inference_confidence, parse_selector_kind, ArrowChannel, ArrowDetail, ArrowMedia,
-    ArrowState, AvailableVersion, LastReturnDetail, RuntimeUpdate,
+    parse_arrow_origin, parse_inference_confidence, parse_selector_kind, ArrowChannel, ArrowDetail,
+    ArrowMedia, ArrowState, AvailableVersion, LastReturnDetail, RuntimeUpdate,
 };
 use crate::namespace::selector_of;
 use crate::persistence::ArrowCatalogRecord;
@@ -105,7 +105,10 @@ pub struct ArrowDetailDto {
     pub inference: Option<InferenceDto>,
 }
 
-pub fn to_arrow_catalog_records(items: &[ArrowListResponseItemDto], connection_id: &str) -> Vec<ArrowCatalogRecord> {
+pub fn to_arrow_catalog_records(
+    items: &[ArrowListResponseItemDto],
+    connection_id: &str,
+) -> Vec<ArrowCatalogRecord> {
     items
         .iter()
         .flat_map(|arrow| {
@@ -115,8 +118,16 @@ pub fn to_arrow_catalog_records(items: &[ArrowListResponseItemDto], connection_i
                 name: arrow.name.clone(),
                 description: arrow.description.clone(),
                 tags: arrow.tags.clone().unwrap_or_default(),
-                icon: arrow.media.as_ref().and_then(|m| m.icon.clone()).filter(|s| !s.is_empty()),
-                banner: arrow.media.as_ref().and_then(|m| m.banner.clone()).filter(|s| !s.is_empty()),
+                icon: arrow
+                    .media
+                    .as_ref()
+                    .and_then(|m| m.icon.clone())
+                    .filter(|s| !s.is_empty()),
+                banner: arrow
+                    .media
+                    .as_ref()
+                    .and_then(|m| m.banner.clone())
+                    .filter(|s| !s.is_empty()),
                 version: v.resolved_ref.clone().unwrap_or_default(),
                 last_used_at: v.last_used_at.clone(),
                 origin: Some(parse_arrow_origin(arrow.origin.as_deref())),
@@ -165,7 +176,10 @@ pub fn to_arrow_detail(
         license: detail.license.or(meta.license).unwrap_or_default(),
         url: meta.url.unwrap_or_default(),
         tags: detail.tags.unwrap_or_default(),
-        media: ArrowMedia { icon: media.icon, banner: media.banner },
+        media: ArrowMedia {
+            icon: media.icon,
+            banner: media.banner,
+        },
         maintainers: meta.maintainers.unwrap_or_default(),
         credits: meta.credits.unwrap_or_default(),
         netbridge: content.netbridge.unwrap_or_default(),

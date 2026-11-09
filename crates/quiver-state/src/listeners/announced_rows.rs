@@ -20,15 +20,25 @@ impl AnnouncedRows {
     pub fn open(store: Arc<dyn KeyValueStore>, active_id: &str) -> Self {
         let key = format!("{KEY_PREFIX}{active_id}");
         let identities = read(store.as_ref(), &key);
-        Self { key, store, identities: Mutex::new(identities) }
+        Self {
+            key,
+            store,
+            identities: Mutex::new(identities),
+        }
     }
 
     pub fn list(&self) -> Vec<String> {
-        self.identities.lock().unwrap_or_else(PoisonError::into_inner).clone()
+        self.identities
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     pub fn add(&self, identity: &str) {
-        let mut ids = self.identities.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut ids = self
+            .identities
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         if !ids.iter().any(|known| known == identity) {
             ids.push(identity.to_string());
             self.write(&ids);
@@ -36,7 +46,10 @@ impl AnnouncedRows {
     }
 
     pub fn drop_identity(&self, identity: &str) {
-        let mut ids = self.identities.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut ids = self
+            .identities
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         ids.retain(|known| known != identity);
         self.write(&ids);
     }
@@ -52,9 +65,14 @@ impl AnnouncedRows {
 }
 
 fn read(store: &dyn KeyValueStore, key: &str) -> Vec<String> {
-    let Ok(Some(raw)) = store.get(key) else { return vec![] };
+    let Ok(Some(raw)) = store.get(key) else {
+        return vec![];
+    };
     match serde_json::from_str::<serde_json::Value>(&raw) {
-        Ok(serde_json::Value::Array(items)) => items.into_iter().filter_map(|i| i.as_str().map(str::to_string)).collect(),
+        Ok(serde_json::Value::Array(items)) => items
+            .into_iter()
+            .filter_map(|i| i.as_str().map(str::to_string))
+            .collect(),
         _ => vec![],
     }
 }
@@ -73,7 +91,10 @@ mod tests {
         rows.add("ns@beta");
         assert_eq!(rows.list(), vec!["ns@stable", "ns@beta"]);
         rows.drop_identity("ns@stable");
-        assert_eq!(AnnouncedRows::open(kv.clone(), "local").list(), vec!["ns@beta"]);
+        assert_eq!(
+            AnnouncedRows::open(kv.clone(), "local").list(),
+            vec!["ns@beta"]
+        );
         assert!(AnnouncedRows::open(kv, "remote-1").list().is_empty());
     }
 
@@ -82,8 +103,12 @@ mod tests {
         let kv = Arc::new(InMemoryKeyValueStore::new());
         kv.set("quiver:self-announced:local", "{nope").unwrap();
         assert!(AnnouncedRows::open(kv.clone(), "local").list().is_empty());
-        kv.set("quiver:self-announced:local", r#"["a", 3, null, "b"]"#).unwrap();
-        assert_eq!(AnnouncedRows::open(kv.clone(), "local").list(), vec!["a", "b"]);
+        kv.set("quiver:self-announced:local", r#"["a", 3, null, "b"]"#)
+            .unwrap();
+        assert_eq!(
+            AnnouncedRows::open(kv.clone(), "local").list(),
+            vec!["a", "b"]
+        );
         kv.set("quiver:self-announced:local", r#"{"a":1}"#).unwrap();
         assert!(AnnouncedRows::open(kv, "local").list().is_empty());
     }

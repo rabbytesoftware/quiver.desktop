@@ -186,9 +186,18 @@ mod tests {
 
     #[test]
     fn confidence_drops_unknown() {
-        assert_eq!(parse_inference_confidence(Some("high")), Some(InferenceConfidence::High));
-        assert_eq!(parse_inference_confidence(Some("medium")), Some(InferenceConfidence::Medium));
-        assert_eq!(parse_inference_confidence(Some("low")), Some(InferenceConfidence::Low));
+        assert_eq!(
+            parse_inference_confidence(Some("high")),
+            Some(InferenceConfidence::High)
+        );
+        assert_eq!(
+            parse_inference_confidence(Some("medium")),
+            Some(InferenceConfidence::Medium)
+        );
+        assert_eq!(
+            parse_inference_confidence(Some("low")),
+            Some(InferenceConfidence::Low)
+        );
         for wire in [None, Some(""), Some("certain")] {
             assert_eq!(parse_inference_confidence(wire), None);
         }

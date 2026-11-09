@@ -13,7 +13,10 @@ pub enum Error {
 
 impl Error {
     pub(crate) fn decode(what: &'static str, err: serde_json::Error) -> Self {
-        Error::Decode { what, message: err.to_string() }
+        Error::Decode {
+            what,
+            message: err.to_string(),
+        }
     }
 
     /// Whether this is an API 404.

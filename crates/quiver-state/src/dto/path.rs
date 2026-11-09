@@ -58,7 +58,11 @@ mod tests {
 
     #[test]
     fn reads_a_missing_files_list_as_empty() {
-        assert!(to_path_status(dto(serde_json::json!({"bin_dir": "/b", "files": null}))).files.is_empty());
+        assert!(
+            to_path_status(dto(serde_json::json!({"bin_dir": "/b", "files": null})))
+                .files
+                .is_empty()
+        );
     }
 
     #[test]

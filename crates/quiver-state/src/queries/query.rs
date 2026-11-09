@@ -13,7 +13,11 @@ pub struct QueryState<T> {
 
 impl<T> Default for QueryState<T> {
     fn default() -> Self {
-        Self { data: None, error: None, loading: false }
+        Self {
+            data: None,
+            error: None,
+            loading: false,
+        }
     }
 }
 
@@ -23,13 +27,17 @@ pub struct Query<T> {
 
 impl<T> Clone for Query<T> {
     fn clone(&self) -> Self {
-        Self { state: self.state.clone() }
+        Self {
+            state: self.state.clone(),
+        }
     }
 }
 
 impl<T> Default for Query<T> {
     fn default() -> Self {
-        Self { state: Store::default() }
+        Self {
+            state: Store::default(),
+        }
     }
 }
 
@@ -71,9 +79,19 @@ mod tests {
     async fn publishes_data_then_keeps_it_through_a_failing_refetch() {
         let q: Query<u32> = Query::default();
         q.run(async { Ok(1) }).await;
-        assert_eq!(q.snapshot(), QueryState { data: Some(1), error: None, loading: false });
+        assert_eq!(
+            q.snapshot(),
+            QueryState {
+                data: Some(1),
+                error: None,
+                loading: false
+            }
+        );
         q.run(async { Err(Error::Backend("boom".into())) }).await;
         let s = q.snapshot();
-        assert_eq!((s.data, s.error.as_deref(), s.loading), (Some(1), Some("backend: boom"), false));
+        assert_eq!(
+            (s.data, s.error.as_deref(), s.loading),
+            (Some(1), Some("backend: boom"), false)
+        );
     }
 }

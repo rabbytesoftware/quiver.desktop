@@ -37,7 +37,11 @@ fn result(namespace: &str) -> serde_json::Value {
 fn rig() -> Rig {
     let api = FakeCoreApi::new();
     api.route(Method::Get, LANE_A, json!([result("github.com/a/local")]));
-    api.route(Method::Post, DISCOVER, json!({"job_id": "job-1", "query": "server", "expires_at": "2026-08-18T00:00:30Z"}));
+    api.route(
+        Method::Post,
+        DISCOVER,
+        json!({"job_id": "job-1", "query": "server", "expires_at": "2026-08-18T00:00:30Z"}),
+    );
     api.route(
         Method::Get,
         JOB,
@@ -45,7 +49,11 @@ fn rig() -> Rig {
     );
     let store = SearchStore::default();
     let controller = SearchController::new(Arc::new(api.clone()), store.clone(), Arc::new(Linux));
-    Rig { api, store, controller }
+    Rig {
+        api,
+        store,
+        controller,
+    }
 }
 
 impl Rig {
@@ -104,7 +112,11 @@ async fn a_pass_starts_after_the_idle_delay_and_not_before() {
 #[tokio::test(start_paused = true)]
 async fn retyping_re_arms_the_timer_so_a_pass_never_fires_mid_typing() {
     let rig = rig();
-    rig.api.route(Method::Get, "/v0/search?q=serve&limit=100&os=linux%2Famd64", json!([]));
+    rig.api.route(
+        Method::Get,
+        "/v0/search?q=serve&limit=100&os=linux%2Famd64",
+        json!([]),
+    );
     rig.controller.set_query("serve", true);
     tokio::time::sleep(IDLE_BEFORE_PASS - Duration::from_millis(100)).await;
     rig.controller.set_query("server", true);
@@ -121,7 +133,11 @@ async fn submit_fires_immediately_and_clears_the_timer() {
     rig.controller.submit();
     rig.wait_phase(SearchPhase::Discovering).await;
     tokio::time::sleep(IDLE_BEFORE_PASS * 2).await;
-    assert_eq!(rig.api.calls_to(Method::Post, DISCOVER), 1, "the idle timer was cleared by submit");
+    assert_eq!(
+        rig.api.calls_to(Method::Post, DISCOVER),
+        1,
+        "the idle timer was cleared by submit"
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -130,14 +146,26 @@ async fn streams_results_then_settles_on_the_close_frame_reading_the_summary_onc
     let stream = rig.start_pass().await;
     stream.send_json(result("github.com/a/probed"));
     rig.wait_for(|s| s.streamed.len() == 1).await;
-    assert_eq!(rig.api.calls_to(Method::Get, JOB), 0, "the job is never polled while the stream is open");
+    assert_eq!(
+        rig.api.calls_to(Method::Get, JOB),
+        0,
+        "the job is never polled while the stream is open"
+    );
     stream.close(Some((1000, "completed")));
     rig.wait_phase(SearchPhase::Settled).await;
     let snap = rig.store.snapshot();
-    assert_eq!(snap.summary.map(|s| s.verified), Some(1), "the summary survives the settle");
+    assert_eq!(
+        snap.summary.map(|s| s.verified),
+        Some(1),
+        "the summary survives the settle"
+    );
     assert_eq!(snap.streamed.len(), 1);
     assert_eq!(rig.api.calls_to(Method::Get, JOB), 1);
-    assert_eq!(rig.api.calls_to(Method::Get, LANE_A), 2, "initial Lane A plus the re-query");
+    assert_eq!(
+        rig.api.calls_to(Method::Get, LANE_A),
+        2,
+        "initial Lane A plus the re-query"
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -183,7 +211,10 @@ async fn fails_the_pass_when_the_second_stream_breaks_too_keeping_what_it_has() 
     second.close(Some((1006, "")));
     rig.wait_for(|s| s.pass_failed).await;
     let snap = rig.store.snapshot();
-    assert_eq!((snap.phase, snap.streamed.len()), (SearchPhase::Settling, 1));
+    assert_eq!(
+        (snap.phase, snap.streamed.len()),
+        (SearchPhase::Settling, 1)
+    );
     assert_eq!(rig.api.open_count(STREAM), 2);
 }
 
@@ -216,15 +247,26 @@ async fn a_pass_that_completed_inside_the_safety_window_is_not_failed() {
 async fn a_new_query_cancels_the_in_flight_pass_and_clears_its_results() {
     let rig = rig();
     let stream = rig.start_pass().await;
-    rig.api.route(Method::Get, "/v0/search?q=other&limit=100&os=linux%2Famd64", json!([]));
+    rig.api.route(
+        Method::Get,
+        "/v0/search?q=other&limit=100&os=linux%2Famd64",
+        json!([]),
+    );
     rig.controller.set_query("other", false);
     rig.wait_phase(SearchPhase::Local).await;
     assert!(stream.is_dropped() || rig.api.open_count(STREAM) == 1);
     stream.send_json(result("github.com/a/late"));
     tokio::time::sleep(IDLE_BEFORE_PASS * 2).await;
     let snap = rig.store.snapshot();
-    assert!(snap.streamed.is_empty(), "a frame from the replaced pass is dropped");
-    assert_eq!(rig.api.calls_to(Method::Post, DISCOVER), 1, "restoring (discover=false) starts no new pass");
+    assert!(
+        snap.streamed.is_empty(),
+        "a frame from the replaced pass is dropped"
+    );
+    assert_eq!(
+        rig.api.calls_to(Method::Post, DISCOVER),
+        1,
+        "restoring (discover=false) starts no new pass"
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -260,7 +302,10 @@ async fn dispose_drops_a_lane_a_answer_that_lands_after_it() {
         let gate = gate.clone();
         async move {
             gate.notified().await;
-            Ok(crate::core_api::ApiResult { status: 200, data: Some(json!([])) })
+            Ok(crate::core_api::ApiResult {
+                status: 200,
+                data: Some(json!([])),
+            })
         }
     });
     rig.controller.set_query("server", false);

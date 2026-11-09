@@ -133,7 +133,9 @@ impl SearchStore {
     /// query), and dropping the streamed copy here would lose the arrow when it is not.
     pub fn receive(&self, entry: SearchEntry) {
         self.store.update(|s| {
-            if s.phase != SearchPhase::Discovering || s.streamed.iter().any(|e| e.namespace == entry.namespace) {
+            if s.phase != SearchPhase::Discovering
+                || s.streamed.iter().any(|e| e.namespace == entry.namespace)
+            {
                 return;
             }
             s.streamed.push(entry);
@@ -167,7 +169,8 @@ impl SearchStore {
     }
 
     pub fn request_submit(&self, query: &str) {
-        self.store.update(|s| s.submit_query = Some(query.to_string()));
+        self.store
+            .update(|s| s.submit_query = Some(query.to_string()));
     }
 
     pub fn clear_submit(&self) {
@@ -175,7 +178,8 @@ impl SearchStore {
     }
 
     pub fn request_restore(&self, query: &str) {
-        self.store.update(|s| s.restore_query = Some(query.to_string()));
+        self.store
+            .update(|s| s.restore_query = Some(query.to_string()));
     }
 
     pub fn clear_restore(&self) {
@@ -223,19 +227,38 @@ pub(crate) mod tests {
     }
 
     fn held(namespace: &str) -> SearchEntry {
-        SearchEntry { installed: true, known: true, ..entry(namespace) }
+        SearchEntry {
+            installed: true,
+            known: true,
+            ..entry(namespace)
+        }
     }
 
     fn job() -> SearchJob {
-        SearchJob { id: "job-1".into(), expires_at: "2026-08-18T00:00:30.000Z".into() }
+        SearchJob {
+            id: "job-1".into(),
+            expires_at: "2026-08-18T00:00:30.000Z".into(),
+        }
     }
 
     fn summary(found: u32, verified: u32) -> DiscoverySummary {
-        DiscoverySummary { job_id: "job-1".into(), query: "q".into(), found, verified, skipped: 0, providers: vec![] }
+        DiscoverySummary {
+            job_id: "job-1".into(),
+            query: "q".into(),
+            found,
+            verified,
+            skipped: 0,
+            providers: vec![],
+        }
     }
 
     fn streamed(store: &SearchStore) -> Vec<String> {
-        store.snapshot().streamed.into_iter().map(|e| e.namespace).collect()
+        store
+            .snapshot()
+            .streamed
+            .into_iter()
+            .map(|e| e.namespace)
+            .collect()
     }
 
     #[test]
@@ -267,13 +290,19 @@ pub(crate) mod tests {
     #[test]
     fn receive_appends_in_arrival_order_dedups_and_leaves_local_untouched() {
         let s = SearchStore::default();
-        s.set_local(vec![SearchEntry { provenance: Some(crate::domain::SearchProvenance::Installed), ..held("github.com/a/one") }]);
+        s.set_local(vec![SearchEntry {
+            provenance: Some(crate::domain::SearchProvenance::Installed),
+            ..held("github.com/a/one")
+        }]);
         s.begin_pass(job());
         s.receive(entry("github.com/a/one"));
         s.receive(entry("github.com/a/two"));
         s.receive(entry("github.com/a/two"));
         assert_eq!(streamed(&s), vec!["github.com/a/one", "github.com/a/two"]);
-        assert_eq!(s.snapshot().local[0].provenance, Some(crate::domain::SearchProvenance::Installed));
+        assert_eq!(
+            s.snapshot().local[0].provenance,
+            Some(crate::domain::SearchProvenance::Installed)
+        );
     }
 
     #[test]
@@ -292,8 +321,14 @@ pub(crate) mod tests {
         s.receive(entry("github.com/a/fletcher-1"));
         s.receive(entry("github.com/a/fletcher-2"));
         s.end_pass(summary(2, 0));
-        s.settle(vec![held("github.com/a/base"), entry("github.com/a/fletcher-1")]);
-        assert_eq!(streamed(&s), vec!["github.com/a/fletcher-1", "github.com/a/fletcher-2"]);
+        s.settle(vec![
+            held("github.com/a/base"),
+            entry("github.com/a/fletcher-1"),
+        ]);
+        assert_eq!(
+            streamed(&s),
+            vec!["github.com/a/fletcher-1", "github.com/a/fletcher-2"]
+        );
         assert_eq!(s.snapshot().local.len(), 2);
         assert_eq!(s.phase(), SearchPhase::Settled);
     }
@@ -307,7 +342,10 @@ pub(crate) mod tests {
         s.end_pass(summary(1, 1));
         s.settle_failed();
         let snap = s.snapshot();
-        assert_eq!((snap.phase, snap.streamed.len(), snap.local.len()), (SearchPhase::Settling, 1, 1));
+        assert_eq!(
+            (snap.phase, snap.streamed.len(), snap.local.len()),
+            (SearchPhase::Settling, 1, 1)
+        );
         assert!(snap.pass_failed);
     }
 
@@ -340,7 +378,12 @@ pub(crate) mod tests {
         s.receive(entry("github.com/a/two"));
         s.set_query("other");
         let snap = s.snapshot();
-        assert!(snap.local.is_empty() && snap.streamed.is_empty() && snap.job.is_none() && snap.summary.is_none());
+        assert!(
+            snap.local.is_empty()
+                && snap.streamed.is_empty()
+                && snap.job.is_none()
+                && snap.summary.is_none()
+        );
         assert_eq!(snap.query, "other");
         s.set_local(vec![]);
         s.set_query("");
@@ -349,7 +392,11 @@ pub(crate) mod tests {
 
     #[test]
     fn a_late_lane_a_answer_or_failure_keeps_the_pass_phase() {
-        for phase in [SearchPhase::Discovering, SearchPhase::Settling, SearchPhase::Settled] {
+        for phase in [
+            SearchPhase::Discovering,
+            SearchPhase::Settling,
+            SearchPhase::Settled,
+        ] {
             let s = SearchStore::default();
             s.store().update(|st| st.phase = phase);
             s.set_local(vec![]);
@@ -367,7 +414,10 @@ pub(crate) mod tests {
         s.request_restore("q");
         s.clear();
         let snap = s.snapshot();
-        assert_eq!((snap.query.as_str(), snap.submit_query.as_deref()), ("", Some("q")));
+        assert_eq!(
+            (snap.query.as_str(), snap.submit_query.as_deref()),
+            ("", Some("q"))
+        );
         s.reset();
         let snap = s.snapshot();
         assert!(snap.submit_query.is_none() && snap.restore_query.is_none());

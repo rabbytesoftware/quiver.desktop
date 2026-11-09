@@ -44,15 +44,30 @@ impl Mutations {
         Self { api, queries }
     }
 
-    async fn runtime_request(&self, namespace: &str, method: &str, variables: &Variables) -> Result<ApiResult<Option<serde_json::Value>>> {
+    async fn runtime_request(
+        &self,
+        namespace: &str,
+        method: &str,
+        variables: &Variables,
+    ) -> Result<ApiResult<Option<serde_json::Value>>> {
         let path = format!("/v0/runtime/{}/{method}", namespace_segment(namespace));
-        Ok(self.api.request(Method::Post, &path, Some(json!({ "variables": variables }))).await?)
+        Ok(self
+            .api
+            .request(Method::Post, &path, Some(json!({ "variables": variables })))
+            .await?)
     }
 
     /// The plain request behind every lifecycle mutation, for callers that cannot hold state (a
     /// context menu on a list row).
-    pub async fn runtime_method(&self, namespace: &str, method: &str, variables: &Variables) -> Result<()> {
-        self.runtime_request(namespace, method, variables).await.map(drop)
+    pub async fn runtime_method(
+        &self,
+        namespace: &str,
+        method: &str,
+        variables: &Variables,
+    ) -> Result<()> {
+        self.runtime_request(namespace, method, variables)
+            .await
+            .map(drop)
     }
 
     pub async fn install(&self, namespace: &str, variables: &Variables) -> Result<()> {
@@ -69,7 +84,11 @@ impl Mutations {
 
     pub async fn update(&self, namespace: &str, variables: &Variables) -> Result<UpdateOutcome> {
         let result = self.runtime_request(namespace, "update", variables).await?;
-        Ok(if result.status == 202 { UpdateOutcome::Started } else { UpdateOutcome::Current })
+        Ok(if result.status == 202 {
+            UpdateOutcome::Started
+        } else {
+            UpdateOutcome::Current
+        })
     }
 
     /// The one universal "go" action -- `Target.Lifecycle.Execute`, always this exact call, never a
@@ -80,7 +99,12 @@ impl Mutations {
     }
 
     /// A manifest-declared custom method (`backup`, `rcon`, ...).
-    pub async fn execute(&self, namespace: &str, method: &str, variables: &Variables) -> Result<()> {
+    pub async fn execute(
+        &self,
+        namespace: &str,
+        method: &str,
+        variables: &Variables,
+    ) -> Result<()> {
         self.runtime_method(namespace, method, variables).await
     }
 
@@ -89,12 +113,20 @@ impl Mutations {
     /// afterwards. A refless namespace is registered under the repository's default channel.
     pub async fn register_arrow(&self, namespace: &str) -> Result<()> {
         let path = format!("/v0/arrow/{}", namespace_segment(namespace));
-        self.api.send(Method::Post, &path, None).await.map(drop).map_err(Into::into)
+        self.api
+            .send(Method::Post, &path, None)
+            .await
+            .map(drop)
+            .map_err(Into::into)
     }
 
     pub async fn remove_arrow(&self, namespace: &str) -> Result<()> {
         let path = format!("/v0/arrow/{}", namespace_segment(namespace));
-        self.api.send(Method::Delete, &path, None).await.map(drop).map_err(Into::into)
+        self.api
+            .send(Method::Delete, &path, None)
+            .await
+            .map(drop)
+            .map_err(Into::into)
     }
 
     /// `PATCH /v0/arrow/:ns`, no body: re-checks the row's selector against its repository and
@@ -102,15 +134,19 @@ impl Mutations {
     pub async fn recheck_arrow(&self, namespace: &str) -> Result<RecheckResult> {
         let path = format!("/v0/arrow/{}", namespace_segment(namespace));
         let data = self.api.send(Method::Patch, &path, None).await?;
-        Ok(data.and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default())
+        Ok(data
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default())
     }
 
     pub async fn follow_collection(&self, namespace: &str) -> Result<()> {
-        self.set_collection_followed(Method::Post, true, namespace).await
+        self.set_collection_followed(Method::Post, true, namespace)
+            .await
     }
 
     pub async fn unfollow_collection(&self, namespace: &str) -> Result<()> {
-        self.set_collection_followed(Method::Delete, false, namespace).await
+        self.set_collection_followed(Method::Delete, false, namespace)
+            .await
     }
 
     /// Follow and unfollow are the same request shape either way the boolean goes: optimistic flip
@@ -118,7 +154,12 @@ impl Mutations {
     /// invalidates rather than trusts the optimistic value forever -- it's the only way this ever
     /// finds out the request landed on a `followed` quiver.core computed differently (a second
     /// tab, a server-side no-op).
-    async fn set_collection_followed(&self, method: Method, followed: bool, namespace: &str) -> Result<()> {
+    async fn set_collection_followed(
+        &self,
+        method: Method,
+        followed: bool,
+        namespace: &str,
+    ) -> Result<()> {
         let key = collection_key(namespace);
         let previous: Option<CollectionDetail> = self.queries.get_data(&key);
         if let Some(prev) = &previous {
@@ -154,7 +195,10 @@ mod tests {
     }
 
     fn vars(pairs: &[(&str, &str)]) -> Variables {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 
     #[tokio::test]
@@ -163,7 +207,12 @@ mod tests {
         let ns = "github.com/rabbyte/minecraft@v1.21.4";
         let seg = "github.com%2Frabbyte%2Fminecraft%40v1.21.4";
         for verb in ["install", "uninstall", "stop", "execute", "backup"] {
-            api.route_status(Method::Post, &format!("/v0/runtime/{seg}/{verb}"), 202, None);
+            api.route_status(
+                Method::Post,
+                &format!("/v0/runtime/{seg}/{verb}"),
+                202,
+                None,
+            );
         }
         m.install(ns, &vars(&[("K", "v")])).await.unwrap();
         m.uninstall(ns, &Variables::new()).await.unwrap();
@@ -173,7 +222,11 @@ mod tests {
         let calls = api.calls();
         assert_eq!(calls[0].path, format!("/v0/runtime/{seg}/install"));
         assert_eq!(calls[0].body, Some(json!({"variables": {"K": "v"}})));
-        assert_eq!(calls[1].body, Some(json!({"variables": {}})), "variables default to an empty object");
+        assert_eq!(
+            calls[1].body,
+            Some(json!({"variables": {}})),
+            "variables default to an empty object"
+        );
         assert_eq!(calls[3].path, format!("/v0/runtime/{seg}/execute"));
         assert_eq!(calls[4].path, format!("/v0/runtime/{seg}/backup"));
         assert!(calls.iter().all(|c| c.method == Method::Post));
@@ -183,16 +236,31 @@ mod tests {
     async fn update_tells_a_started_202_from_a_nothing_newer_200() {
         let (api, _q, m) = setup();
         api.route_status(Method::Post, "/v0/runtime/a/update", 202, None);
-        assert_eq!(m.update("a", &Variables::new()).await.unwrap(), UpdateOutcome::Started);
+        assert_eq!(
+            m.update("a", &Variables::new()).await.unwrap(),
+            UpdateOutcome::Started
+        );
         api.route_status(Method::Post, "/v0/runtime/a/update", 200, None);
-        assert_eq!(m.update("a", &Variables::new()).await.unwrap(), UpdateOutcome::Current);
+        assert_eq!(
+            m.update("a", &Variables::new()).await.unwrap(),
+            UpdateOutcome::Current
+        );
     }
 
     #[tokio::test]
     async fn register_remove_and_recheck_address_the_identity_as_one_path_segment() {
         let (api, _q, m) = setup();
-        for ns in ["github.com/x/y@beta", "github.com/x/y@feat/x", "github.com/x/y@v1.*"] {
-            api.route_status(Method::Post, &format!("/v0/arrow/{}", namespace_segment(ns)), 200, None);
+        for ns in [
+            "github.com/x/y@beta",
+            "github.com/x/y@feat/x",
+            "github.com/x/y@v1.*",
+        ] {
+            api.route_status(
+                Method::Post,
+                &format!("/v0/arrow/{}", namespace_segment(ns)),
+                200,
+                None,
+            );
             m.register_arrow(ns).await.unwrap();
         }
         let paths: Vec<_> = api.calls().into_iter().map(|c| c.path).collect();
@@ -204,12 +272,32 @@ mod tests {
                 "/v0/arrow/github.com%2Fx%2Fy%40v1.*"
             ]
         );
-        assert!(api.calls().iter().all(|c| c.body.is_none()), "the selector lives in the path");
+        assert!(
+            api.calls().iter().all(|c| c.body.is_none()),
+            "the selector lives in the path"
+        );
 
-        api.route_status(Method::Delete, "/v0/arrow/github.com%2Fx%2Fy%40v1", 204, None);
+        api.route_status(
+            Method::Delete,
+            "/v0/arrow/github.com%2Fx%2Fy%40v1",
+            204,
+            None,
+        );
         m.remove_arrow("github.com/x/y@v1").await.unwrap();
-        api.route(Method::Patch, "/v0/arrow/n", json!({"available": {"ref": "v2", "commit": "c"}}));
-        assert_eq!(m.recheck_arrow("n").await.unwrap().available.unwrap().reference, "v2");
+        api.route(
+            Method::Patch,
+            "/v0/arrow/n",
+            json!({"available": {"ref": "v2", "commit": "c"}}),
+        );
+        assert_eq!(
+            m.recheck_arrow("n")
+                .await
+                .unwrap()
+                .available
+                .unwrap()
+                .reference,
+            "v2"
+        );
         api.route_status(Method::Patch, "/v0/arrow/n", 200, None);
         assert!(m.recheck_arrow("n").await.unwrap().available.is_none());
     }
@@ -240,8 +328,17 @@ mod tests {
         api.route_status(Method::Post, FOLLOW, 204, None);
         q.set_data(&collection_key(NS), &detail(false));
         m.follow_collection(NS).await.unwrap();
-        assert_eq!(q.get_data::<CollectionDetail>(&collection_key(NS)).unwrap().item.followed, true);
-        assert_eq!(q.epoch(&collection_key(NS)), 1, "neither endpoint returns a body to reconcile against");
+        assert!(
+            q.get_data::<CollectionDetail>(&collection_key(NS))
+                .unwrap()
+                .item
+                .followed
+        );
+        assert_eq!(
+            q.epoch(&collection_key(NS)),
+            1,
+            "neither endpoint returns a body to reconcile against"
+        );
     }
 
     #[tokio::test]
@@ -250,8 +347,15 @@ mod tests {
         let observed = Arc::new(std::sync::Mutex::new(None));
         let (sink, probe) = (observed.clone(), q.clone());
         api.route_fn(Method::Post, FOLLOW, move |_| {
-            *sink.lock().unwrap() = probe.get_data::<CollectionDetail>(&collection_key(NS)).map(|d| d.item.followed);
-            async { Ok(ApiResult { status: 204, data: None }) }
+            *sink.lock().unwrap() = probe
+                .get_data::<CollectionDetail>(&collection_key(NS))
+                .map(|d| d.item.followed);
+            async {
+                Ok(ApiResult {
+                    status: 204,
+                    data: None,
+                })
+            }
         });
         q.set_data(&collection_key(NS), &detail(false));
         m.follow_collection(NS).await.unwrap();
@@ -264,7 +368,12 @@ mod tests {
         api.route_status(Method::Delete, FOLLOW, 204, None);
         q.set_data(&collection_key(NS), &detail(true));
         m.unfollow_collection(NS).await.unwrap();
-        assert!(!q.get_data::<CollectionDetail>(&collection_key(NS)).unwrap().item.followed);
+        assert!(
+            !q.get_data::<CollectionDetail>(&collection_key(NS))
+                .unwrap()
+                .item
+                .followed
+        );
     }
 
     #[tokio::test]
@@ -273,7 +382,12 @@ mod tests {
         api.route_error(Method::Post, FOLLOW, 500, "boom");
         q.set_data(&collection_key(NS), &detail(false));
         assert!(m.follow_collection(NS).await.is_err());
-        assert!(!q.get_data::<CollectionDetail>(&collection_key(NS)).unwrap().item.followed);
+        assert!(
+            !q.get_data::<CollectionDetail>(&collection_key(NS))
+                .unwrap()
+                .item
+                .followed
+        );
         assert_eq!(q.epoch(&collection_key(NS)), 1);
     }
 

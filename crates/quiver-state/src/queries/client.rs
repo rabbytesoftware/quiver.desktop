@@ -41,7 +41,11 @@ impl QueryClient {
 
     /// How many invalidations have covered `key` so far; it changes exactly when a re-read is due.
     pub fn epoch(&self, key: &[String]) -> usize {
-        self.lock().invalidations.iter().filter(|p| key.starts_with(p)).count()
+        self.lock()
+            .invalidations
+            .iter()
+            .filter(|p| key.starts_with(p))
+            .count()
     }
 
     pub fn subscribe(&self) -> tokio::sync::watch::Receiver<u64> {
