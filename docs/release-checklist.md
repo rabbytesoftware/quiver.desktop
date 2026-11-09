@@ -1,37 +1,23 @@
 # Release checklist
 
-This is the manual checklist for shipping a `quiver.desktop` release that
-bundles a new `quiver.core` sidecar. It exists because the one part of this
-pipeline that genuinely cannot be automated — macOS notarization and Windows
-code-signing plus the interactive UAC elevation prompt a real Windows install
-requires — needs real signing credentials and, on Windows, a human physically
-confirming a native OS dialog. Neither CI nor the `tauri-driver` E2E harness
-(`e2e/`) can drive that headlessly: `tauri-driver`'s WebDriver session
-controls the app's own WebView, not OS-native modal dialogs outside it.
+Manual checklist for shipping a native (GPUI) `quiver.desktop` release that bundles a quiver.core sidecar. What
+cannot be automated is called out as such: macOS notarization needs Apple credentials, Windows code signing needs
+a certificate, and the update-from-the-previous-release check needs a person (or the box scenario) to watch the
+real app replace itself. Everything else has an xtask subcommand or a Makefile target: use it, do not hand-run the
+equivalent commands.
 
-Everything else in this list either has a script/Makefile target of its own
-(follow it, don't hand-run the equivalent commands) or is a real, currently
-manual gap — called out honestly as such rather than described with invented
-specifics.
-
-Run every step in order. Do not skip ahead because an earlier step "probably"
-passed.
+Run every step in order.
 
 ## 0. Prerequisites
 
-- Push access to both `rabbytesoftware/quiver.core` and
-  `rabbytesoftware/quiver.desktop`, and merge rights on `master`/`develop` as
-  the branch policy requires.
-- `gh` CLI authenticated (`gh auth status`) — both `scripts/resolve-core-version.mjs`
-  and `make fetch-sidecar`/`make pr-checks` shell out to it.
-- A macOS machine with Xcode command-line tools, for the notarization steps.
-  A Windows machine (or VM) for the code-signing and interactive-install
-  steps — the elevation prompt in step 4 cannot be confirmed remotely from a
-  Mac or Linux box.
-- A Linux machine (or the `E2E (pre-release)` GitHub Actions job) for step 5 —
-  `tauri-driver` has no macOS backend (see `e2e/README.md`'s "Platform
-  support" section); this is a property of `tauri-driver` itself, not this
-  repo.
+- Push access to `rabbytesoftware/quiver.core` and `rabbytesoftware/quiver.desktop`, merge rights on
+  `master`/`develop`.
+- `gh` authenticated (`gh auth status`): `cargo xtask resolve-core-version`, `extract-core-version` and
+  `fetch-sidecar` shell out to it.
+- A Mac with Xcode command-line tools for the notarization check; a Windows machine for the signing and install
+  checks; Docker (or the `E2E (pre-release)` job) for the box.
+- The pipeline that builds a release is `.github/workflows/release-native.yml` (see step 3 for how the three
+  branch-driven workflows reach it).
 
 ## 1. Cut a `stable-*` tag on quiver.core and confirm its release + checksum are published
 
@@ -69,329 +55,185 @@ passed.
    catches a corrupted upload before any Desktop build or self-update fetch
    ever depends on it.
 
+
 ## 2. Confirm quiver.desktop's stable channel resolves to the intended tag
 
-`quiver.desktop`'s `package.json` maps each build channel to the
-quiver.core channel it tracks — `"quiver": { "coreChannels": { "stable":
-"stable", "beta": "beta", "nightly": "nightly" } }` — never a pinned
-version. `scripts/resolve-core-version.mjs` resolves a channel name against
-`quiver.core`'s real published releases on that channel (via
-`gh release list --repo rabbytesoftware/quiver.core`), always picking the
-highest one currently published. There is no compatibility range to update
-any more — a stable release always bundles whatever quiver.core currently
-calls its newest stable release; this checklist's later steps (E2E, manual
-smoke tests) are what catch an incompatible combination, not config.
+`installer/core-channels.json` maps each build channel to the quiver.core channel it tracks (`stable`, `beta`,
+`nightly`), never a pinned version. `cargo xtask resolve-core-version <channel>` resolves the channel against
+quiver.core's published releases (`gh release list`), picking the highest tag with quiver.core's own ranking
+(calendar `26.5.1` and date `2026-09-27.1` series, beta counts, the rolling `nightly-latest`); its tests encode
+the ranking. A stable release always bundles whatever quiver.core currently calls newest stable; the smoke tests
+below catch an incompatible combination, not configuration.
 
-1. Confirm resolution using the real Makefile invocation — `make fetch-sidecar`
-   (the same target the dev loop and CI both use to pull the sidecar) prints
-   what it resolved to:
-   ```bash
-   rm -f core-version.local   # make sure no local dev pin (see Makefile) is masking the real channel resolution
-   make fetch-sidecar
-   ```
-   Expect a line like `📥 Fetching quiver.core sidecar (stable-26.5.1) for <target-triple>...`
-   followed by `✅ Sidecar ready: src-tauri/binaries/quiver-<target-triple>`.
-   Confirm the resolved tag matches the one just cut in step 1 — if
-   quiver.core has more than one `stable-*` release and the newest isn't the
-   one intended for this desktop release, that is a real sequencing problem
-   to resolve before continuing, not something to route around locally.
-2. `make pr-checks`'s own "Step 1/6: CORE_VERSION Validation" performs the
-   same resolution plus a remote existence check
-   (`gh release view "$RESOLVED_VERSION" ...`) — this already runs in CI on
-   every PR, so a merged `quiver.desktop` PR has implicitly re-confirmed this;
-   step 1 above is the pre-release-specific confirmation against the tag just
-   cut.
+```bash
+rm -f core-version.local                 # a local pin would mask the real resolution
+cargo xtask resolve-core-version stable   # prints the tag, e.g. stable-26.5.1
+make fetch-sidecar                        # downloads it to target/sidecar/<triple>/quiver[.exe]
+```
+
+The printed tag must be the one cut in step 1. If quiver.core has several `stable-*` releases and the newest is
+not the one intended, that is a sequencing problem to fix before continuing. A hotfix does not resolve a channel:
+it pins to what the latest stable desktop release recorded (`cargo xtask extract-core-version stable-<tag>`
+reads its "Built against quiver.core `...`" line).
 
 ### How each build files its own catalog row
 
-On every connection the app announces itself to the daemon
-(`src/lib/core-store/listeners/self-announce.ts`). The row it files is a
-catalog identity `github.com/rabbytesoftware/quiver.desktop@<channel>`,
-chosen from what the release pipeline baked into the build:
+On every connection to the LOCAL daemon the app announces itself (`quiver-core-client::self_announce`). The row is
+`github.com/rabbytesoftware/quiver.desktop@<channel>`, chosen from what the pipeline compiled into the build
+(`crates/quiver-release/build.rs`, `crates/quiver-app/src/services/release_vars.rs`):
 
-| Workflow | `release-channel` (baked as `VITE_QUIVER_BUILD_CHANNEL`) | `release-tag` (stamped by `src-tauri/build.rs`) | Row | Declares the running build (`/adopt`) |
+| Workflow input | `release-channel` (env `QUIVER_DESKTOP_BUILD_CHANNEL`) | `release-tag` (env `QUIVER_DESKTOP_RELEASE_TAG`) | Row | Declares the running build (`/adopt`) |
 |---|---|---|---|---|
-| `stable-release.yml` | `stable` | the `stable-*` tag | `@stable` | yes |
-| `prerelease.yml`, `beta/*` | `beta` | none | `@beta` | no |
-| `prerelease.yml`, `hotfix/*` | `hotfix` | none | `@hotfix` | no |
-| `nightly.yml` | `nightly-rolling` | none | `@nightly-rolling` | no |
-| PR, local or e2e build | none | none | the repository's default channel (the first `/channels` lists) | no |
+| stable | `stable` | the `stable-*` tag | `@stable` | yes |
+| beta | `beta` | none | `@beta` | no |
+| hotfix | `hotfix` | none | `@hotfix` | no |
+| nightly | `nightly-rolling` | none | `@nightly-rolling` | no |
+| PR, local or e2e build | none | none | the repository's default channel | no |
 
-A channel the repository does not publish yet falls back to the default one.
-The app records the rows it registered itself, per connection, and removes
-only those when a build of another channel takes over (a nightly user moving
-to a stable build loses `@nightly-rolling`). A row the user added, such as a
-pin of one release, is never removed.
+`build-label` (`QUIVER_DESKTOP_STAMP_LABEL`) is display only. A channel the repository does not publish yet falls
+back to the default one. **Known limit: only stable builds declare what is running**; a beta, hotfix or nightly
+build's row resolves to whatever its channel pointed at when first registered, so its first version check can
+offer (or miss) a build that does not match the installed one.
 
-**Known limit: only stable builds declare what is running.** A beta, hotfix
-or nightly build's row resolves to whatever its channel pointed at when the
-row was first registered, not to the running build, so the first version
-check can offer (or miss) a build that does not match the one installed.
-Beta and hotfix builds could declare their tag once `build.rs` accepts
-`beta-*`/`hotfix-*` tags and `prerelease.yml` passes `release-tag`. A
-nightly build cannot: `nightly-rolling` is a pointer channel, and quiver.core's
-`/adopt` admits a pointer channel's ref only at the commit it points at now,
-so declaring an older nightly needs a quiver.core change (adopting by commit)
-first.
+## 3. Build the release bundles
 
-## 3. macOS notarization
+Release bundles come from `.github/workflows/release-native.yml` (`workflow_dispatch`, or `workflow_call` from
+`stable-release.yml` / `prerelease.yml` / `nightly.yml` once the lead's cleanup points them at it). Its `build`
+job runs `.github/actions/build-native` on ubuntu, macos-14 and windows: fetch the sidecar, `cargo build
+--release -p quiver-app` (never `--features e2e-bridge`), `cargo xtask package`, then
+`cargo xtask check-release-artifact` on the binaries. Its `publish` job runs `cargo xtask checksums` and
+`cargo xtask check-release-assets` (below) before `gh release create`.
 
-Unlike Windows (step 4), macOS signing here is **not** a from-scratch
-manual process — `scripts/build-macos-dmg.sh` (invoked by
-`.github/actions/build-tauri`'s macOS build step, which
-`.github/workflows/stable-release.yml`'s `build` job runs on `macos-26`) is
-already wired to sign, hardened-runtime-enable, notarize, and staple the
-universal DMG automatically via Tauri's own bundler, *if* six Apple secrets
-are present in the environment: `APPLE_CERTIFICATE`,
-`APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`,
-`APPLE_PASSWORD`, `APPLE_TEAM_ID`. The script's own comment is explicit:
-"Signing + notarization are OPT-IN and driven entirely by environment
-variables" — when they're unset (as they currently are, since this effort has
-never configured them), it builds an ad-hoc/unsigned DMG instead, silently.
-So the real manual work here is (a) a one-time setup of those secrets if they
-aren't already configured, and (b) verifying, for *this* release, that
-signing actually engaged rather than silently falling back to unsigned.
+To build the same bundle locally: `make package` (macOS builds the universal dmg and needs both sidecars).
+Outputs land in `target/bundle/`:
 
-1. In GitHub → `quiver.desktop` repo → Settings → Secrets and variables →
-   Actions, confirm all six secrets above are present. If this is the first
-   time setting this up:
-   - Obtain a **Developer ID Application** certificate from an active Apple
-     Developer Program account (whoever holds Rabbyte Software's membership —
-     this repo has no existing record of one), export it as a base64-encoded
-     `.p12` for `APPLE_CERTIFICATE`, and set `APPLE_CERTIFICATE_PASSWORD` to
-     its export password.
-   - Set `APPLE_SIGNING_IDENTITY` to the exact identity string, e.g.
-     `"Developer ID Application: <Org Name> (<Team ID>)"` — its presence is
-     literally the switch `build-macos-dmg.sh` checks to decide signed vs.
-     ad-hoc.
-   - Set `APPLE_ID` / `APPLE_PASSWORD` (an **app-specific** password for that
-     Apple ID, not its login password) / `APPLE_TEAM_ID` for notarization —
-     if these three are left unset, the script's own comment notes Tauri
-     signs but skips notarization, which is not sufficient for this step.
-   - `src-tauri/Entitlements.plist` already exists in the repo and is wired
-     in via `entitlements: "Entitlements.plist"` once signing is on — no
-     separate entitlements setup is needed.
-2. Merge the `quiver.desktop` release PR (`beta/<series>`/`hotfix/<name>` →
-   `master`, same convention as step 1) so `stable-release.yml`'s macOS build
-   job runs with those secrets in scope, producing
-   `src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg` already
-   signed, notarized, and stapled by the time the job uploads
-   `macos-artifacts`.
-   - To reproduce or debug the same build locally on a Mac instead: export
-     the six variables above, then run `bash scripts/build-macos-dmg.sh`
-     directly (it resolves paths relative to itself, so it can be run from
-     the repo root).
-3. Don't trust the job log alone — verify the artifact itself. Download
-   `macos-artifacts` from the run (or use the local build's output) and run:
-   ```bash
-   xcrun stapler validate Quiver_*.dmg
-   spctl -a -vvv -t install /Volumes/Quiver/Quiver.app   # after mounting the DMG
-   ```
-   `spctl` must report `accepted` and `source=Notarized Developer ID`. Test
-   this on a Mac that has never seen a build of this app before, or with
-   Gatekeeper's cache cleared — a machine that already ran an unsigned build
-   of the same app can give a false pass from its local cache.
-4. If `spctl` reports anything else (`rejected`, or `source=Unnotarized
-   Developer ID`), the secrets in step 1 are missing or wrong — re-check them
-   before re-running the release build, since `build-macos-dmg.sh` fails open
-   to an unsigned build rather than erroring loudly.
+| OS | Asset (what `quiver-release` selects by suffix) | Also |
+|---|---|---|
+| Linux | `Quiver_<v>_amd64.AppImage` | `quiver-desktop_<v>_amd64.deb`; a `.tar.gz` only if `appimagetool` is missing (not usable by the updater) |
+| macOS | `Quiver_<v>_universal.dmg` containing `Quiver.app` | |
+| Windows | `Quiver_<v>_x64-setup.exe` (NSIS, per-user, `%LOCALAPPDATA%\Quiver`) | |
 
-## 4. Windows code-signing and the interactive elevation prompt
+Every bundle installs `quiverdesktop[.exe]`, `quiver-arrow-window[.exe]` and the quiver.core sidecar as
+`quiver[.exe]` next to each other (decision-log: "Installed binary names"). `<v>` is the numeric bundle
+version (`0.1.0`), which does not track the git tag: the updater picks assets by suffix and architecture alias.
 
-Unlike macOS, there is genuinely no signing infrastructure for Windows
-anywhere in this repo — no `certificateThumbprint`, `digestAlgorithm`, or
-`signCommand` under `bundle.windows` in `tauri.conf.json` (verified), and
-`.github/actions/build-tauri`'s Windows step
-(`cargo tauri build --bundles msi,nsis --config '{"bundle":{"macOS":{"files":{}}}}'`,
-run on `windows-latest` by `stable-release.yml`'s `build` job) has no
-counterpart to `scripts/build-macos-dmg.sh` — it produces
-`src-tauri/target/release/bundle/{msi,nsis}/*` completely unsigned, uploaded
-as-is under the `windows-artifacts` artifact. The steps below are standard
-Authenticode signing steps applied by hand after that CI build — obtain the
-actual code-signing certificate from wherever Rabbyte Software's real process
-for that lives before this step is meaningful; there's nothing in this repo
-to point to instead.
+`cargo xtask check-release-assets release/ --arrow ARROW.md` is the pre-publish gate: one asset for each of
+`.AppImage`, `.dmg`, `-setup.exe`; a `checksums.txt` (sha256sum format, written by `cargo xtask checksums`) that
+lists each; and an `ARROW.md` that still declares `QUIVER_RELEASE_ASSET_URL` and `QUIVER_RELEASE_CHECKSUM`.
+`ARROW.md` is not uploaded: quiver.core reads it from the repository at the announced ref.
 
-1. Obtain a code-signing certificate (OV or EV) from a CA, as a `.pfx`/`.p12`
-   or installed in the Windows certificate store.
-2. Download the unsigned `windows-artifacts` from the same
-   `stable-release.yml` run that step 3 already triggered by merging the
-   release PR (its `build` job runs the Linux, macOS, *and* Windows builds
-   in parallel), or build locally on Windows with `make build-app`. Either
-   way you get `src-tauri/target/release/bundle/nsis/Quiver_*-setup.exe`
-   and/or `bundle/msi/*.msi`.
-3. Sign it with `signtool` by hand — there is no `bundle.windows.signCommand`/
-   `certificateThumbprint` config in this repo to wire it through Tauri
-   directly, so this step is a manual post-build pass:
-   ```powershell
-   signtool sign /fd SHA256 /f <path-to-cert>.pfx /p <cert-password> `
-     /tr http://timestamp.digicert.com /td SHA256 `
-     src-tauri\target\release\bundle\nsis\Quiver_*-setup.exe
-   signtool verify /pa src-tauri\target\release\bundle\nsis\Quiver_*-setup.exe
-   ```
-   `signtool verify` must report success before continuing.
-4. **Interactive elevation check — cannot be automated.** On a real Windows
-   machine (not a headless CI runner), double-click the signed installer.
-   Windows will show a native UAC "Do you want to allow this app to make
-   changes to your device?" dialog naming the signed publisher. A human must
-   click **Yes**; `tauri-driver`'s WebDriver session only controls the app's
-   own WebView content once it starts, not this OS-native dialog, so this is
-   the one step in the whole pipeline that has no scripted substitute.
-   Confirm:
-   - The publisher name in the UAC dialog matches the certificate from step 1
-     (not "Unknown Publisher" — a sign that the signature didn't take).
-   - The app launches after install and reaches the normal UI (confirms the
-     signed binary itself runs, not just that signing succeeded).
+## 4. macOS signing and notarization
 
-## 5. Run the E2E harness against the release build
+`cargo xtask package macos` signs, hardened-runtime-enables, notarizes and staples when the Apple secrets are
+present, and otherwise ad-hoc signs and says so in the log (it fails open to an unsigned DMG, so verify):
 
-Run the `tauri-driver` harness (`e2e/`, `.github/workflows/e2e.yml`) against
-the actual release-shaped build before shipping. It runs automatically on
-every `stable-*` tag push, or on demand via `workflow_dispatch`; it can also
-be run locally on Linux (`e2e/README.md`'s "Running locally" section) for a
-faster pre-tag check.
+- `APPLE_CERTIFICATE` (base64 `.p12`, imported by the `build-native` action into a temporary keychain),
+  `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY` ("Developer ID Application: Name (TEAMID)", the switch
+  that turns signing on), `APPLE_ID`, `APPLE_PASSWORD` (app-specific), `APPLE_TEAM_ID`. With the identity but not
+  the last three it signs and skips notarization, which is not enough for this step.
+- Entitlements are `installer/macos/Entitlements.plist` (JIT and unsigned executable memory: needed by the
+  WKWebView of the arrow-app helper, which is signed with the same entitlements).
 
-1. `.github/workflows/e2e.yml` lives in **`quiver.desktop`** and triggers on
-   a `stable-*` tag push **in that repo** — the tag `quiver.desktop`'s own
-   `stable-release.yml` already cut as part of merging the release PR in
-   steps 3–4 above. That merge is the trigger; no separate action is needed
-   unless re-running on demand, in which case use
-   `gh workflow run e2e.yml --repo rabbytesoftware/quiver.desktop`.
-2. Read the job's own logs, not just its checkmark. **This job currently runs
-   with `continue-on-error: true`**, for three real, currently-unmet
-   preconditions documented directly in `.github/workflows/e2e.yml`'s own
-   comment:
-   - `bootstrap.spec.ts` needs `quiver.desktop`'s own `ARROW.md` reachable at
-     a ref `quiver.core` can resolve on the published repo. Which ref
-     `announceSelf` asks for depends on how the build under test was made,
-     and both answers clear on the normal merge path: a build cut from a
-     `stable-*` tag carries that tag (baked in by `src-tauri/build.rs`) and
-     announces `<ns>@<tag>`, which resolves because pushing that tag is what
-     triggered the run; any other build announces the namespace **refless**,
-     which core reads as "the latest `stable-*` release, else the default
-     branch". So for a real release this is satisfied by the tag cut in
-     steps 3–4, and it is only unmet when the harness is run by
-     `workflow_dispatch` from a branch that has not merged yet. (Before this
-     was fixed, the announce carried `@0.1.0` — `tauri.conf.json`'s
-     `version` — and demanded a git ref literally named `0.1.0`, which this
-     repo's `stable-<series>[.patch]` tagging never creates; that 404 was
-     permanent, not pending.)
-   - `self-update-while-running.spec.ts` needs a fixture arrow a *production*
-     daemon can actually resolve (`QUIVER_E2E_FIXTURE_NS`) — no such fixture
-     exists yet, only the Go integration suite's in-process stub resolver.
-   - `generic-outdated-badge.spec.ts` structurally cannot show drift in this
-     job's own environment: `make fetch-sidecar` always fetches the
-     *highest* matching stable release, so the app under test in this job is
-     always exactly current — there is nothing to be outdated against. This
-     is a gap in the CI job's own setup, not in the mechanism itself, which
-     this effort already confirmed working end-to-end by running the
-     scenario manually against a genuinely stale build; step 6 below is that
-     same manual check, done again for this specific release, precisely
-     because CI cannot provide it.
-3. What a green run *does* prove automatically, once each precondition above
-   is actually met for a given release: the self-installed Core bootstrap,
-   the self-arrow registration, and (with `QUIVER_E2E_FIXTURE_NS` set) that a
-   supervised process really survives Core's real self-update handover.
-4. Because of the gaps above, a passing (or `continue-on-error`-masked
-   failing) CI run is **not sufficient by itself** to ship on. Open the run's
-   uploaded logs (`e2e-logs` artifact on failure, or the step output directly)
-   and manually confirm which of the three scenarios actually ran to
-   completion versus failed on a known precondition — do not treat a red run
-   as "expected, ignore it" without reading which failure it actually was.
-   Any failure *other than* the three listed above is a real regression and
-   blocks the release.
-5. While you have run logs open, confirm the **`Stable Release`** run (not
-   this one) actually stamped the artifacts you are about to ship. In each of
-   its three `Build (<os>)` jobs, the `Validate the release tag, when one was
-   given` step must print:
-   ```
-   ✅ stamping this build as <stable-tag>
-   ```
-   If it printed `ℹ️  no release-tag given` instead, the tag never reached
-   `src-tauri/build.rs`, and the shipped app will announce its own arrow
-   refless: it still registers and still works, but its catalog row tracks the
-   latest published release rather than the build the user installed, so it
-   will show an "update available" badge (above a no-op Update action, since
-   `ARROW.md` declares no `update` lifecycle) as soon as anything newer lands.
-   That is a degraded release, not a broken one — decide deliberately whether
-   to re-run the build with the tag wired through rather than discovering it
-   from user reports later.
+Verify the artifact, not the log, on a Mac that never saw this app:
 
-## 6. Manual smoke test — a stale desktop actually gets told it's outdated
+```bash
+xcrun stapler validate Quiver_*.dmg
+hdiutil attach Quiver_*.dmg && spctl -a -vvv -t install /Volumes/Quiver/Quiver.app
+lipo -info /Volumes/Quiver/Quiver.app/Contents/MacOS/quiverdesktop   # x86_64 arm64
+```
 
-This is the scenario `generic-outdated-badge.spec.ts` proves in principle but
-cannot exercise for real in the CI job's own environment (step 5 above), and
-the one this effort's Task 4.2 fixed and Task 5.1 re-confirmed working
-end-to-end.
+`spctl` must say `accepted` and `source=Notarized Developer ID`. **Untested from the development container**: the
+macOS path (`lipo`, `hdiutil`, `codesign`, `notarytool`) has never run; the first CI run is its first test.
 
-1. Take (or build) a `quiver.desktop` install whose self-installed
-   `quiver.core` is pinned to an **older** `stable-*` tag than the one just
-   published in step 1 — e.g. a build from before this release, or one built
-   by pinning `core-version.local` (gitignored local dev override — see
-   `core-version.local.example` and the Makefile's `fetch-sidecar` target)
-   to an older `stable-*` tag and running `make fetch-sidecar` to fetch that
-   specific version instead of resolving the current channel.
-2. Launch it and let it reach the normal UI (`waitForAppReady` in the E2E
-   harness is the same condition to wait for by eye: the app window is up and
-   the sidebar/library have loaded).
-3. Open the **Library** page (not the sidebar arrow list — `ArrowRow` in the
-   sidebar draws no status badge at all; the badge lives on `ArrowTile`,
-   consumed by Home, Library, and the collection grids — see
-   `src/features/sidebar/components/arrows/`).
-4. Wait for quiver.core's periodic version check (it checks every installed
-   row within a minute of the daemon starting, then every
-   `arrows.version_check_interval`, 6h by default), or open the quiver.core
-   self-arrow's detail page to run the same check at once (throttled by
-   `version_check_ttl`) against the now newer remote tag.
-5. Return to the Library grid and confirm the quiver.core tile shows a badge
-   with the text **"Update available"** (`arrow.state.outdated` in
-   `src/lib/i18n/locales/en.ts`) and a single up-arrow icon — the exact same
-   `data-slot="badge"` element any other outdated arrow's tile gets. There
-   must be no self-arrow-specific UI: the bespoke `core://update_status` pipe
-   was deliberately removed in Task 4.1/4.2 in favor of this generic path.
-6. If the badge doesn't appear, don't assume the mechanism is broken before
-   checking the mundane cause first: `version_check_ttl` throttling meaning
-   the drift check hasn't re-run yet, or the remote genuinely not yet
-   reflecting the new tag (propagation delay right after step 1's publish).
+## 5. Windows installer and code signing
 
-## 7. Manual smoke test — a running supervised process survives a real self-update
+`cargo xtask package windows` compiles `installer/windows/quiver.nsi` with `makensis` (installer hooks reused from
+the Tauri build: `windows-installer-hooks.nsh` installs the VC++ runtime when missing; `QUIVER_VCREDIST_PATH`
+must point at `vc_redist.x64.exe`, which the action downloads and checks for a Microsoft signature). The
+installer is per-user and has no elevation of its own; **a UAC prompt appears only when the VC++ runtime is
+missing** (the `runas` step). There is still no Authenticode signing in the pipeline:
 
-This is what `self-update-while-running.spec.ts` proves through the real app
-and daemon (not the simulated restart quiver.core's own
-`tests/integration/selfupdate/selfupdate_test.go` uses, which is explicit
-that it never performs the real OS-level handover). Repeat it by hand against
-the actual release build as a final confirmation.
+```powershell
+signtool sign /fd SHA256 /f <cert>.pfx /p <password> /tr http://timestamp.digicert.com /td SHA256 Quiver_*-setup.exe
+signtool verify /pa Quiver_*-setup.exe
+```
 
-1. Using a `quiver.desktop` build against the **new** release (from step 1),
-   install and start some arrow whose runtime quiver.core supervises as a
-   long-running process (anything that reaches `running` state and stays
-   there — e.g. any arrow with a long-lived `execute` lifecycle).
-2. Note its PID by querying `GET /v0/runtime/<ns>` on quiver.core's own API
-   (the app talks to this same endpoint over the local Unix socket / named
-   pipe), which reports the supervised process's recorded PID.
-3. Trigger quiver.core's own self-update: install/update its self-arrow to a
-   newer version (the same lifecycle `selfarrow`/`internal/core/selfupdate`
-   drive — `Trigger.Fire` records the new binary and requests the normal
-   graceful shutdown; `Trigger.Relaunch` then hands over via `syscall.Exec`
-   on unix or a detached respawn on Windows, per
-   `internal/core/selfupdate/selfupdate_unix.go` /
-   `selfupdate_windows.go`).
-4. After the handover completes and quiver.core is back up (same process
-   image on unix, a new PID on Windows — by design, see the comment on
-   `handOver` in `selfupdate_windows.go`), re-check the *supervised arrow's*
-   PID from step 2. It must be **unchanged** and the process must still be
-   responsive (still `running`, not `absent`/crashed) — proving quiver.core's
-   own self-update handover did not kill or orphan the process it supervises.
-5. If the PID changed or the process died, this is a release blocker — the
-   crash-recovery/handover guarantee this whole effort is built on has
-   regressed for real, not a harness artifact.
+(then re-run `cargo xtask checksums` on the folder: signing changes the hash). Manual checks on a clean Windows:
 
-## 8. Ship
+- Run the installer, then `Quiver_*-setup.exe /S` over it (the silent switch `ARROW.md` uses to update); the app
+  lives at `%LOCALAPPDATA%\Quiver\quiverdesktop.exe`; `%LOCALAPPDATA%\Quiver\uninstall.exe /S` removes it.
+- On a machine without the VC++ runtime a UAC prompt appears and names the publisher (not "Unknown Publisher" once
+  signed); no human can click it in CI.
+- The app launches and reaches the Home view.
 
-Only once every step above is confirmed — release assets and checksums
-verified (1), the desktop build resolves the intended core tag (2), the
-macOS build is signed and notarized and the Windows build is signed (3, 4),
-the E2E harness has been run and its real output read rather than assumed
-(5), and both manual smoke tests pass against the actual release artifacts
-(6, 7) — publish the signed `quiver.desktop` release (notarized macOS
-`.dmg`, signed Windows installer) through the normal distribution channel.
+**Untested from the development container**: the NSIS script and the whole Windows path.
+
+## 6. Run the E2E box against the release-shaped build
+
+`make test-e2e-box` (CI: `E2E (pre-release)` on every `stable-*` tag, `native-e2e-box` on PRs) builds the app with
+the bridge feature, builds real quiver.core versions and runs the Rust scenarios (`docs/e2e.md`). Read the
+logs in `docker/e2e/results/native/`, not just the checkmark: `SUMMARY.txt` lists each test and `PASS`/`FAIL`.
+The box tests a bridge-enabled build of the same source, not the release binary: the release binary is covered
+by `check-release-artifact` plus step 7.
+
+## 7. Update from the previous release
+
+The updater path (the app asks quiver.core to run `ARROW.md`'s update lifecycle with the asset URL and checksum the
+app resolved) has two halves.
+
+**Automated, file level**: `cargo xtask verify-update --from <previous Quiver_*.AppImage> --to <new Quiver_*.AppImage>`
+(Linux; also takes the `.tar.gz` fallback, minus the placement check). It unpacks both, asserts the expected
+layout (`quiverdesktop`, `quiver-arrow-window`, sidecar `quiver`), asserts neither carries the e2e bridge, that
+the two builds differ, and replays `ARROW.md`'s Linux update step in a scratch `XDG_DATA_HOME` (replace
+`Quiver/Quiver.AppImage`, keep it executable) checking the result is byte-for-byte the new bundle. It does NOT
+run the app. It is runnable in the box or in CI after downloading the previous release's asset:
+
+```bash
+gh release download <previous-stable-tag> --repo rabbytesoftware/quiver.desktop --pattern '*.AppImage' --dir prev
+cargo xtask verify-update --from prev/Quiver_*.AppImage --to target/bundle/Quiver_*.AppImage
+```
+
+**Not automated, do by hand** (the in-app half; the box scenario `self-update-while-running` and the desktop
+update test cover it with stand-in releases and fake builds, never with the real previous release):
+
+1. Install the PREVIOUS published release the way a user does (DMG, setup.exe, AppImage), launch it, note its
+   Settings/About build label.
+2. Publish the new release as a prerelease on a scratch tag if it is not yet public, or point a test machine's
+   upstream at it.
+3. In the app open Quiver's own tile (Library), press Update. Expected: the app resolves the asset (the page
+   digest, else `checksums.txt`; with neither it refuses before touching anything), quiver.core downloads and
+   verifies it, stops the app, runs the installer/replaces the AppImage, and `ARROW.md`'s start step relaunches it.
+4. After relaunch: About/Settings shows the new label, the Library shows the same installed arrows (nothing was
+   lost), the sidecar is the newer-or-same quiver.core, and the previous process is gone (`pgrep quiverdesktop`
+   shows one).
+5. Repeat once on each OS, and once from the oldest release you still support.
+
+## 8. Manual smoke test: a stale desktop gets told it is outdated
+
+1. Take an install whose self-installed quiver.core is older than the one just published (pin
+   `core-version.local` to an older `stable-*`, `make fetch-sidecar`, `make dev`).
+2. Launch it to the normal UI, open Library.
+3. Wait for quiver.core's periodic version check (within a minute of daemon start, then every
+   `arrows.version_check_interval`, 6h), or open the quiver.core self-arrow's detail page to trigger it
+   (throttled by `version_check_ttl`).
+4. The quiver.core tile must show the "Update available" badge, the same one any outdated arrow gets. There is no
+   self-arrow-specific UI.
+5. No badge: first rule out `version_check_ttl` throttling and propagation delay after step 1's publish.
+
+## 9. Manual smoke test: a supervised process survives a real self-update
+
+1. With a build of the new release, install and start an arrow whose runtime quiver.core supervises as a
+   long-running process.
+2. Note its PID from `GET /v0/runtime/<ns>`.
+3. Trigger quiver.core's own self-update (update its self-arrow to a newer version).
+4. Once quiver.core is back (same process image on unix, a new PID on Windows by design) re-read the PID: it must
+   be unchanged and the process still `running`. A changed PID or dead process is a release blocker.
+
+## 10. Ship
+
+Only when every step is confirmed: release assets and checksums verified (1), the desktop build bundles the
+intended core tag (2), `check-release-assets` and `check-release-artifact` pass (3), the macOS build is
+notarized (4), the Windows installer is signed and installs/updates silently (5), the box was run and its output
+read (6), the update from the previous release was verified by `verify-update` and by hand (7), and the smoke
+tests pass (8, 9): publish the release (draft first if signing artifacts were re-done by hand, after
+re-running `cargo xtask checksums`).
