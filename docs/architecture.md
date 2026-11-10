@@ -50,8 +50,8 @@ search, settings, shell, sidebar.
 
 ## Arrow apps
 
-Arrow apps render in a separate OS window served by the `quiver-arrow-window` helper (tao + wry), so the
-GPUI binary links no GTK/WebKit and no main-thread is shared. See `docs/decision-log.md`.
+Arrow apps render in a wry child webview embedded over the main window's pane body
+(`quiver-app/src/services/arrow_windows/embedded`). See `docs/decision-log.md`.
 
 ## E2E
 

@@ -50,7 +50,7 @@ Run it: `scripts/perf-box.sh cargo xtask perf build` then `... cargo xtask perf 
 | Idle frames (/s) | n/a | 0.03 | n/a |
 | quiver.core idle CPU / wake-ups | 1.5 % / 357 | 1.9 % / 416 | 1.6 % / 410 |
 | Binary: app | 23.3 MB | 34.4 MB (LTO off, not shipped) | 8.8 MB (+ system WebKitGTK, not counted) |
-| Binary: arrow-window helper / core sidecar | 0.77 MB / 56.5 MB | 1.18 MB / 56.5 MB | none / 56.5 MB |
+| Binary: core sidecar | 56.5 MB | 56.5 MB | 56.5 MB |
 
 Reading it honestly:
 

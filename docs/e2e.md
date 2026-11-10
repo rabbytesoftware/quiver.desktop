@@ -32,9 +32,9 @@ docker compose -f docker/e2e/docker-compose.yml up --build                      
 
 1. `build.sh` builds four stamped quiver.core versions from `QUIVER_CORE_DEV_PATH` (`stable-26.5.90`..`93`,
    `-ldflags` stamps as the release workflows do), then the app with `--features e2e-bridge` (release profile,
-   LTO off, stamped `QUIVER_DESKTOP_RELEASE_TAG=stable-1.0`) and the `quiver-arrow-window` helper, then the
+   LTO off, stamped `QUIVER_DESKTOP_RELEASE_TAG=stable-1.0`) then the
    scenarios test binary.
-2. Lays the app out as an installed bundle: `quiverdesktop`, `quiver-arrow-window`, and the oldest quiver.core as
+2. Lays the app out as an installed bundle: `quiverdesktop` and the oldest quiver.core as
    the sidecar `quiver`.
 3. Stands up the local GitHub stand-in (`fixtures/upstream-up.sh`): `github.com` resolves to it inside the box.
 4. For every test in `cargo test -p quiver-e2e --test scenarios -- --list`: kills leftovers, wipes

@@ -35,7 +35,7 @@ one intentional deviation.
 | # | Behaviour | Native home | Status | Evidence |
 |---|---|---|---|---|
 | A1 | `arrow-app` scheme, host allow-list, CSP, script injection | arrow-host | done | arrow-host unit tests (scheme, hosts, csp, inject); e2e `arrow_apps` |
-| A2 | WebSocket relay path built from registered host | arrow-host | partial | `WsRelay` implemented and unit-tested; the helper IPC carries no WebSocket frames yet, so the relay is not reachable from the window (see decision log) |
+| A2 | WebSocket relay path built from registered host | arrow-host | done | `WsSession` + `WsRelay` unit tests; the shim reaches the host through `window.ipc` and the embedded page (decision log); not exercised end to end against a real WS app |
 | A3 | 4-app cap, keep-alive, Reload, Stop, Details | arrow-host + app | done | arrow-host registry tests; e2e `arrow_apps` (4-app cap, Reload, Stop: PASS) |
 | A4 | Sandbox/isolation (no daemon base leaked, header stripping) | arrow-host | partial | arrow-host handler tests; e2e checks daemon-side isolation and header stripping; in-page DOM claims (sandbox attr, Tauri globals) cannot be observed from the bridge |
 ## Console, menus, platform

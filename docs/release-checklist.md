@@ -119,7 +119,7 @@ Outputs land in `target/bundle/`:
 | macOS | `Quiver_<v>_universal.dmg` containing `Quiver.app` | |
 | Windows | `Quiver_<v>_x64-setup.exe` (NSIS, per-user, `%LOCALAPPDATA%\Quiver`) | |
 
-Every bundle installs `quiverdesktop[.exe]`, `quiver-arrow-window[.exe]` and the quiver.core sidecar as
+Every bundle installs `quiverdesktop[.exe]` and the quiver.core sidecar as
 `quiver[.exe]` next to each other (decision-log: "Installed binary names"). `<v>` is the numeric bundle
 version (`0.1.0`), which does not track the git tag: the updater picks assets by suffix and architecture alias.
 
@@ -189,7 +189,7 @@ app resolved) has two halves.
 
 **Automated, file level**: `cargo xtask verify-update --from <previous Quiver_*.AppImage> --to <new Quiver_*.AppImage>`
 (Linux; also takes the `.tar.gz` fallback, minus the placement check). It unpacks both, asserts the expected
-layout (`quiverdesktop`, `quiver-arrow-window`, sidecar `quiver`), asserts neither carries the e2e bridge, that
+layout (`quiverdesktop`, sidecar `quiver`), asserts neither carries the e2e bridge, that
 the two builds differ, and replays `ARROW.md`'s Linux update step in a scratch `XDG_DATA_HOME` (replace
 `Quiver/Quiver.AppImage`, keep it executable) checking the result is byte-for-byte the new bundle. It does NOT
 run the app. It is runnable in the box or in CI after downloading the previous release's asset:

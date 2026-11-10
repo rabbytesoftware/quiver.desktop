@@ -28,23 +28,32 @@ remote daemon is registered into too. The native app gates it on the local sidec
 `gpui-component` 0.9.1 (latest) depends on `gpui-pre 0.3.12`, a different fork that was not spiked.
 0.5.1 depends on `gpui 0.2.2`, the version proven to render in the container, so both are pinned with `=`.
 
-## 2026-11-09 — Arrow apps: separate WebView process (`quiver-arrow-window`)
+## 2026-11-10 — Arrow apps: child webview embedded in the main window (supersedes the separate-process decision)
 
-- `gpui-component`'s `webview` feature (wry child view) and `gpui-wry` draw a native child view over the
-  window; on Linux wry needs GTK (GPUI is not GTK), and on macOS tao/wry need the main thread GPUI owns.
-  An embedded child view is therefore not viable on all three platforms.
-- **Decision: every arrow app opens in its own native window**, hosted by a small helper binary
-  `quiver-arrow-window` (tao + wry), one process per open arrow app, speaking JSON lines on stdin/stdout
-  (`quiver_arrow_host::{HostToWindow, WindowToHost}`). The helper registers the `arrow-app` custom protocol
-  and forwards each request to the GPUI host, which answers through `quiver-arrow-host` (CSP, host
-  allow-list, shim injection, ws scoping: unchanged rules). The helper holds no daemon credentials.
-  The GPUI binary links no GTK/WebKit; the helper does.
-- Same header and Stop behaviour: the header (name, status, Reload, Details, Stop) lives in the GPUI app's
-  "Arrow app" pane; Stop/Reload send `Close`/`Reload` to the helper. The window closes with its host
-  (stdin EOF => close), so no orphaned windows.
-- **Verified on Linux/amd64**: `scripts/arrow-window-spike.sh` serves a page through the IPC and renders it
-  (`docker/native/evidence/arrow-window-spike.png`). macOS and Windows: not run here (compile-only via CI).
-- Limit: the arrow app is a separate OS window, not embedded in the main window's pane as in the Tauri app.
+An earlier slice put every arrow app in its own OS window (helper binary `quiver-arrow-window`). That was a
+regression against the design ("Arrow app — AFTER": the app's page fills the pane under the Quiver header), so
+it was removed. Arrow apps now render in a wry **child webview** placed over the pane body of the main window.
+
+- `quiver-app/src/services/arrow_windows/embedded/`: `EmbeddedPages` implements `HelperLauncher`, so the
+  supervisor (`ArrowWindows`: 4-app cap, eviction, reload, stop, prune) and its channel protocol
+  (`HostToWindow`/`WindowToHost`) are unchanged; only the far end of the channel is now an in-process webview.
+  `quiver-arrow-host` rules (CSP, host allow-list, shim injection, ws scoping) are untouched.
+- Placement: the pane body reports its rectangle from a gpui `canvas` prepaint to `ArrowWindows::set_bounds`
+  (deduplicated); `Visible` shows/hides pages, so only the visible app's page is on screen.
+- **Linux**: wry's X11 backend needs GTK and an Xlib parent. GPUI's `X11Window::window_handle()` is
+  `unimplemented!()`, so the main window's XID is found with x11-dl (the biggest window of this process via
+  `_NET_WM_PID`), lazily on the page thread (resolving it during window creation left the first frame
+  unpainted). A dedicated `quiver-gtk` thread runs `gtk::init` + `gtk::main`; jobs reach it through a glib channel
+  (deprecated API, `#[allow(deprecated)]` with a comment). On a Wayland session `display::prefer_x11()` drops
+  `WAYLAND_DISPLAY` when `DISPLAY` is set so the app runs through XWayland (a child X window cannot live in a
+  Wayland surface).
+- **macOS / Windows**: webviews are created on the UI thread from a GPUI foreground task (`thread_ui.rs`) with the
+  window's own handle. **Written but never compiled-and-run on those OSes.**
+- Overlay limit: a native view paints above GPUI's pixels, so the page hides (`set_covered`) while the header's
+  actions menu is open. Dialogs live on the arrow's own page, not over the pane, so they are not affected.
+- WebSocket relay (parity A2): `WsSession` (quiver-arrow-host) handles `ws-open/send/close` from the shim; the shim
+  talks through `window.ipc.postMessage`, the host answers with `evaluate_script("__arrowShimReceive(..)")`.
+- GPUI links GTK/WebKit on Linux again (the earlier "no GTK in the GPUI binary" benefit is gone).
 
 ## 2026-11-09 — Build facts found while porting
 
@@ -63,8 +72,7 @@ The updater and installer contracts are text in the shipped `ARROW.md`, not code
 `taskkill /IM quiverdesktop.exe`, the Linux/Windows/macOS detect commands, `%LOCALAPPDATA%\Quiver\uninstall.exe`
 and the sidecar lookup (`quiver[.exe]` next to the running executable, `quiver-core-client`
 `LocalConfig::bundled_next_to_current_exe`). So `cargo xtask package` installs the GPUI app as
-`quiverdesktop[.exe]`, the quiver.core sidecar as `quiver[.exe]` and the arrow helper as
-`quiver-arrow-window[.exe]`, all in one directory, whatever the cargo bin is called. Consequence for dev:
+`quiverdesktop[.exe]` and the quiver.core sidecar as `quiver[.exe]`, both in one directory, whatever the cargo bin is called. Consequence for dev:
 the cargo bin `quiver` of `quiver-app` cannot have the sidecar copied beside it under the same name, so the
 `[[bin]]` should be renamed `quiverdesktop` (then `make dev` drops the sidecar into `target/debug/quiver`).
 Asset names stay selectable by `quiver-release`: `Quiver_<v>_<arch>.AppImage`, `Quiver_<v>_universal.dmg`,
@@ -90,6 +98,6 @@ Asset names stay selectable by `quiver-release`: `Quiver_<v>_<arch>.AppImage`, `
   stdio pipes open; otherwise quiver.core's `kill(pid, 0)` liveness probe sees a zombie for the full 90 s swap timeout.
 - **After a reconnect the runtime overlay is dropped before the re-read** (`ArrowStore::forget_live_state`): the old React
   store kept it, which was invisible there but left "updating"/"running" stale after a Core swap natively.
-- **Installed names** follow `ARROW.md` and the sidecar lookup: `quiverdesktop[.exe]`, `quiver-arrow-window[.exe]` and the
+- **Installed names** follow `ARROW.md` and the sidecar lookup: `quiverdesktop[.exe]` and the
   quiver.core sidecar as `quiver[.exe]`.
 - **Removal of the Tauri tree** is its own commit; the old sources are reachable in git history (`git show b599652^:src-tauri/...`).
