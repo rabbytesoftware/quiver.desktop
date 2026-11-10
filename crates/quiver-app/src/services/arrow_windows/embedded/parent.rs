@@ -11,6 +11,7 @@ use raw_window_handle::{HandleError, HasWindowHandle, RawWindowHandle, WindowHan
 pub struct ParentHandle(Arc<Source>);
 
 enum Source {
+    #[cfg(not(target_os = "linux"))]
     Fixed(RawWindowHandle),
     /// Linux: GPUI's X11 windows cannot report their handle (it panics), so the window is found among this
     /// process's X windows (see [`super::x11_lookup`]) the first time a page needs it, on the page thread:
@@ -39,6 +40,7 @@ impl ParentHandle {
 
     fn raw(&self) -> Option<RawWindowHandle> {
         match &*self.0 {
+            #[cfg(not(target_os = "linux"))]
             Source::Fixed(raw) => Some(*raw),
             #[cfg(target_os = "linux")]
             Source::ThisProcess(found) => *found.get_or_init(|| {
