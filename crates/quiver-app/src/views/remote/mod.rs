@@ -68,13 +68,15 @@ impl Render for RemoteView {
                 ScrollArea::new("remote.scroll")
                     .fade_color(p.background)
                     .child(
-                        div()
-                            .px(px(40.))
-                            .pl(px(24.))
-                            .pt(px(24.))
-                            .pb(px(32.))
-                            .child(parts::header(self, cx))
-                            .child(div().mt(px(4.)).child(body)),
+                        div().w_full().flex().justify_center().child(
+                            div()
+                                .w_full()
+                                .max_w(px(720.))
+                                .px(px(24.))
+                                .py(px(24.))
+                                .child(parts::header(self, cx))
+                                .child(body),
+                        ),
                     ),
             )
             .child(parts::toasts(self, cx))

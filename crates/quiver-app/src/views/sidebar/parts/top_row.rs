@@ -5,13 +5,14 @@ use gpui::{div, px, Context, FontWeight, IntoElement};
 use quiver_state::console::build_info::{
     compact_for_width, describe_core, describe_desktop, format_build, DesktopStamp, FormatOptions,
 };
+use quiver_state::domain::ConnectionStatus;
 use quiver_state::shell::rail_owns_controls;
 use quiver_theme::FontFamily;
 use quiver_ui::inspect::{probe, Kind};
 use quiver_ui::{icon, ActiveQuiver, Glyph};
 
 use super::super::Sidebar;
-use crate::model::AppModel;
+use crate::model::{AppModel, Route};
 
 fn nav_button(
     id: &'static str,
@@ -26,7 +27,7 @@ fn nav_button(
     let color = if enabled {
         p.muted_foreground
     } else {
-        p.foreground_subtle.opacity(0.6)
+        p.muted_foreground.opacity(0.3)
     };
     div()
         .id(id)
@@ -35,11 +36,12 @@ fn nav_button(
         .flex()
         .items_center()
         .justify_center()
-        .size(px(28.))
-        .rounded(px(6.))
+        .size(px(24.))
+        .m(px(2.))
+        .rounded(px(4.))
         .when(enabled, |d| {
             d.cursor_pointer()
-                .hover(|s| s.bg(p.accent))
+                .hover(|s| s.bg(p.sidebar_element_hover))
                 .on_click(move |_, _, cx| app.update(cx, |m, cx| on_click(m, cx)))
         })
         .child(icon(glyph, 16., color))
@@ -78,65 +80,108 @@ pub fn top_row(
     let (can_back, can_forward) = (app.history.can_go_back(), app.history.can_go_forward());
     let reserve = rail_owns_controls(cfg!(target_os = "macos"), app.shell.sidebar_side);
     let mono = FontFamily::Mono.family();
+    let connections = app.services.connections.snapshot();
+    let status = app.services.status.status();
+    let switcher = (connections.connections.len() > 1).then(|| {
+        let name = connections
+            .connections
+            .iter()
+            .find(|c| c.id == connections.active_id)
+            .map_or_else(
+                || app.t(quiver_state::i18n::en::nav::REMOTE),
+                |c| c.name.clone(),
+            );
+        let dot = div().flex_none().size(px(6.)).rounded_full();
+        let dot = match status {
+            ConnectionStatus::Ready => dot.bg(p.foreground),
+            ConnectionStatus::Starting => dot.bg(p.foreground_subtle),
+            ConnectionStatus::Disconnected => dot.border_1().border_color(p.destructive),
+        };
+        let app_entity = sidebar.app.clone();
+        div()
+            .id("sidebar-connection")
+            .relative()
+            .flex()
+            .flex_none()
+            .items_center()
+            .gap(px(6.))
+            .mr(px(4.))
+            .h(px(24.))
+            .px(px(6.))
+            .rounded_full()
+            .cursor_pointer()
+            .text_size(px(11.5))
+            .font_weight(FontWeight::MEDIUM)
+            .hover(|s| s.bg(p.sidebar_element_hover))
+            .on_click(move |_, _, cx| {
+                app_entity.update(cx, |m, cx| m.navigate(Route::Remote, cx));
+            })
+            .child(dot)
+            .child(div().max_w(px(74.)).truncate().child(name.clone()))
+            .child(probe("sidebar.connection", Kind::Text, name, true, ""))
+    });
     let line = |label: &'static str, value: String| {
         div()
             .flex()
-            .gap(px(5.))
-            .child(div().text_color(p.foreground_subtle).child(label))
-            .child(div().text_color(p.sidebar_foreground).child(value))
+            .gap(px(8.))
+            .whitespace_nowrap()
+            .child(div().w(px(26.)).flex_none().opacity(0.7).child(label))
+            .child(div().min_w_0().truncate().child(value))
     };
     div()
         .flex_none()
         .flex()
         .items_center()
-        .gap(px(4.))
         .h(px(34.))
         .px(px(6.))
         .when(reserve, |d| d.pl(px(64.)))
-        .when(shown, |d| {
-            d.child(
-                div()
-                    .id("sidebar-build")
-                    .relative()
-                    .pl(px(4.))
-                    .cursor_pointer()
-                    .on_click({
-                        let app = sidebar.app.clone();
-                        move |_, _, cx| {
-                            app.update(cx, |m, cx| {
-                                let open = !m.console_open;
-                                m.set_console_open(open, cx);
-                            })
-                        }
-                    })
-                    .font_family(mono)
-                    .text_size(px(8.5))
-                    .line_height(px(10.))
-                    .when_some(core_line, |d, core| d.child(line("core", core)))
-                    .child(line("app", app_line))
-                    .child(probe(
-                        "sidebar.build",
-                        Kind::Button,
-                        "Build",
-                        true,
-                        build_text,
-                    )),
-            )
-        })
         .child(
             div()
-                .relative()
+                .flex_1()
+                .min_w_0()
                 .flex()
                 .items_center()
-                .gap(px(5.))
-                .ml(px(4.))
-                .text_size(px(12.))
-                .font_weight(FontWeight::MEDIUM)
-                .child(div().size(px(6.)).rounded_full().bg(p.primary))
-                .child("Local")
-                .child(probe("sidebar.connection", Kind::Text, "Local", true, "")),
+                .when(shown, |d| {
+                    d.child(
+                        div()
+                            .id("sidebar-build")
+                            .relative()
+                            .flex()
+                            .flex_col()
+                            .justify_center()
+                            .h(px(28.))
+                            .max_w_full()
+                            .min_w_0()
+                            .px(px(6.))
+                            .rounded(px(6.))
+                            .cursor_pointer()
+                            .text_color(p.muted_foreground)
+                            .hover(|s| s.bg(p.sidebar_element_hover).text_color(p.foreground))
+                            .on_click({
+                                let app = sidebar.app.clone();
+                                move |_, _, cx| {
+                                    app.update(cx, |m, cx| {
+                                        let open = !m.console_open;
+                                        m.set_console_open(open, cx);
+                                    })
+                                }
+                            })
+                            .font_family(mono)
+                            .text_size(px(10.))
+                            .line_height(px(12.))
+                            .when_some(core_line, |d, core| d.child(line("core", core)))
+                            .child(line("app", app_line))
+                            .child(probe(
+                                "sidebar.build",
+                                Kind::Button,
+                                "Build",
+                                true,
+                                build_text,
+                            )),
+                    )
+                }),
         )
-        .child(div().flex_1())
+        .children(switcher)
         .child(nav_button(
             "sidebar-back",
             "sidebar.back",

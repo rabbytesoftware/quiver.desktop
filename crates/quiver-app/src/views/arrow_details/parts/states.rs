@@ -1,13 +1,11 @@
 //! What the page shows before it has an arrow: the loading skeleton, a failed read, and 404.
 
 use gpui::prelude::*;
-use gpui::{div, px, Context, FontWeight, IntoElement};
-use quiver_state::i18n::en::{app, arrow, nav};
-use quiver_state::queries::keys::arrow_detail_prefix;
+use gpui::{div, px, Context, IntoElement};
+use quiver_state::i18n::en::arrow;
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::{ActiveQuiver, Button, ButtonVariant};
+use quiver_ui::ActiveQuiver;
 
-use crate::model::Route;
 use crate::views::arrow_details::ArrowDetailsView;
 
 pub fn skeleton(cx: &mut Context<ArrowDetailsView>) -> impl IntoElement {
@@ -52,34 +50,17 @@ pub fn skeleton(cx: &mut Context<ArrowDetailsView>) -> impl IntoElement {
 fn notice(
     id: &'static str,
     title: String,
-    body: String,
-    action: Button,
+    detail: String,
     cx: &Context<ArrowDetailsView>,
 ) -> impl IntoElement {
     let p = cx.quiver().palette;
-    let reported = body.clone();
     div()
         .relative()
-        .flex()
-        .flex_col()
-        .items_center()
-        .gap(px(8.))
-        .py(px(120.))
-        .child(
-            div()
-                .text_size(px(18.))
-                .font_weight(FontWeight::SEMIBOLD)
-                .child(title),
-        )
-        .child(
-            div()
-                .max_w(px(420.))
-                .text_size(px(13.))
-                .text_color(p.muted_foreground)
-                .child(body),
-        )
-        .child(div().mt(px(8.)).child(action))
-        .child(probe(id, Kind::Other, id, true, reported))
+        .p(px(24.))
+        .text_size(px(14.))
+        .text_color(p.muted_foreground)
+        .child(title)
+        .child(probe(id, Kind::Other, id, true, detail))
 }
 
 /// The daemon could not be read, or answered with an error.
@@ -87,16 +68,9 @@ pub fn load_error(
     view: &mut ArrowDetailsView,
     cx: &mut Context<ArrowDetailsView>,
 ) -> impl IntoElement {
-    let model = view.app.read(cx);
-    let (title, retry) = (model.t(arrow::ERROR), model.t(app::CRASH_RETRY));
+    let title = view.app.read(cx).t(arrow::ERROR);
     let body = view.load.read(|l| l.error.clone()).unwrap_or_default();
-    let queries = model.services.queries.clone();
-    let action = Button::new("arrow.error.retry")
-        .variant(ButtonVariant::Outline)
-        .label(retry.clone())
-        .child(probe("arrow.error.retry", Kind::Button, retry, true, ""))
-        .on_click(move |_, _, _| queries.invalidate(&arrow_detail_prefix()));
-    notice("arrow.error", title, body, action, cx)
+    notice("arrow.error", title, body, cx)
 }
 
 /// The daemon (or the library) has no arrow at this namespace.
@@ -104,13 +78,6 @@ pub fn not_found(
     view: &mut ArrowDetailsView,
     cx: &mut Context<ArrowDetailsView>,
 ) -> impl IntoElement {
-    let model = view.app.read(cx);
-    let (title, home) = (model.t(arrow::ERROR), model.t(nav::HOME));
-    let app = view.app.clone();
-    let action = Button::new("arrow.not-found.home")
-        .variant(ButtonVariant::Outline)
-        .label(home.clone())
-        .child(probe("arrow.not-found.home", Kind::Button, home, true, ""))
-        .on_click(move |_, _, cx| app.update(cx, |m, cx| m.navigate(Route::Home, cx)));
-    notice("arrow.not-found", title, view.namespace.clone(), action, cx)
+    let title = view.app.read(cx).t(arrow::ERROR);
+    notice("arrow.not-found", title, view.namespace.clone(), cx)
 }

@@ -79,7 +79,7 @@ impl CollectionView {
 impl Render for CollectionView {
     fn render(
         &mut self,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let p = cx.quiver().palette;
@@ -109,7 +109,7 @@ impl Render for CollectionView {
                                 .child("Arrows"),
                         )
                         .child(div().h(px(1.)).bg(p.border))
-                        .child(parts::members(self, detail, cx)),
+                        .child(parts::members(self, detail, window, cx)),
                 )
                 .into_any_element(),
         };

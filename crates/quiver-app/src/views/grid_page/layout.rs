@@ -1,9 +1,12 @@
 use gpui::prelude::*;
-use gpui::{div, px, AnyElement, ElementId, Hsla, IntoElement};
+use gpui::{div, px, AnyElement, App, ElementId, Entity, Hsla, IntoElement, Window};
+use quiver_state::search::tile_width;
 use quiver_ui::ScrollArea;
 
+use crate::model::AppModel;
+
 pub const GRID_GAP_X: f32 = 12.;
-pub const GRID_GAP_Y: f32 = 19.;
+pub const GRID_GAP_Y: f32 = 18.;
 
 /// The scrolling page body: 24 px at the left, 40 at the right, as on Home.
 pub fn page(
@@ -29,4 +32,16 @@ pub fn tile_grid(tiles: impl IntoIterator<Item = AnyElement>) -> gpui::Div {
         .gap_x(px(GRID_GAP_X))
         .gap_y(px(GRID_GAP_Y))
         .children(tiles)
+}
+
+/// The tile width the old `columnRule(total)` gives in the space left of the sidebar.
+pub fn grid_tile_width(
+    app: &Entity<AppModel>,
+    window: &Window,
+    total: usize,
+    cx: &App,
+) -> f32 {
+    let sidebar = app.read(cx).shell.sidebar_width as f32;
+    let available = f32::from(window.viewport_size().width) - sidebar - 24. - 40.;
+    tile_width(total, available)
 }

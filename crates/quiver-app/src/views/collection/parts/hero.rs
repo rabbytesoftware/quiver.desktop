@@ -88,7 +88,7 @@ pub fn hero(
 ) -> impl IntoElement {
     let p = cx.quiver().palette;
     let model = build_hero(detail, view.follow_pending);
-    let hue = f32::from(hue_for(&detail.item.namespace)) / 360.;
+    let hue = f32::from(hue_for(&detail.item.namespace) % 360) / 360.;
     let count = view
         .app
         .read(cx)
@@ -190,15 +190,11 @@ pub fn hero(
                 .flex()
                 .child(follow_button(view, &model, cx)),
         );
-    // The banner's image is not decoded by the tile art either; both draw the tint of the hue.
-    let banner = detail.media.banner.is_some().then(|| {
-        div()
-            .flex_none()
-            .w(px(440.))
-            .h(px(218.))
-            .rounded(px(12.))
-            .bg(hsla(hue, 0.55, 0.24, 1.))
-    });
+    let banner = detail
+        .media
+        .banner
+        .is_some()
+        .then(|| quiver_ui::banner_block(hue_for(&detail.item.namespace), 440.).h(px(218.)));
     div()
         .flex()
         .justify_between()

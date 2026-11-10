@@ -8,25 +8,60 @@ use quiver_ui::{icon_with_stroke, Glyph};
 const BANNER_W: f32 = 440.0;
 pub(super) const HEIGHT: f32 = 218.0;
 
+#[derive(Clone, Copy)]
+pub(super) struct Art {
+    pub hue: u16,
+    pub lift: f32,
+}
+
+impl Art {
+    /// The demo world's stand-in art: a hue quantised to 24 steps and a two-level lift of the namespace's hash.
+    pub fn mock(namespace: &str) -> Self {
+        let mut hash: u32 = 5381;
+        for byte in namespace.bytes() {
+            hash = hash.wrapping_mul(33) ^ u32::from(byte);
+        }
+        hash = (hash ^ (hash >> 16)).wrapping_mul(0x7feb_352d);
+        hash = (hash ^ (hash >> 15)).wrapping_mul(0x846c_a68b);
+        hash ^= hash >> 16;
+        Self {
+            hue: (hash % 24) as u16 * 15,
+            lift: ((hash >> 8) % 2) as f32 * 9.0,
+        }
+    }
+
+    pub fn hashed(namespace: &str) -> Self {
+        Self {
+            hue: quiver_state::tile::hue_for(namespace),
+            lift: 0.0,
+        }
+    }
+}
+
 fn hue(
-    h: u16,
+    art: Art,
     s: f32,
     l: f32,
 ) -> gpui::Hsla {
-    hsla(f32::from(h % 360) / 360.0, s, l, 1.0)
+    hsla(
+        f32::from(art.hue % 360) / 360.0,
+        s,
+        (l + art.lift) / 100.0,
+        1.0,
+    )
 }
 
-pub(super) fn banner_art(h: u16) -> impl IntoElement {
+pub(super) fn banner_art(h: Art) -> impl IntoElement {
     let w = BANNER_W;
-    let period = w * 0.08;
-    let stripes = (1..12).map(move |i| {
+    let period = w * 0.1;
+    let stripes = (1..11).map(move |i| {
         div()
             .absolute()
             .top_0()
             .bottom_0()
-            .left(px(period * i as f32 - w * 0.002))
-            .w(px(w * 0.002))
-            .bg(white().opacity(0.07))
+            .left(px(period * i as f32 - w / 1200.0))
+            .w(px(w / 600.0))
+            .bg(hue(h, 0.40, 24.0))
     });
     div()
         .relative()
@@ -35,16 +70,16 @@ pub(super) fn banner_art(h: u16) -> impl IntoElement {
         .h(px(HEIGHT))
         .overflow_hidden()
         .rounded(px(12.))
-        .bg(hue(h, 0.55, 0.24))
+        .bg(hue(h, 0.40, 17.0))
         .children(stripes)
         .child(
             div()
                 .absolute()
                 .rounded_full()
-                .size(px(w * 0.5))
-                .right(px(-w * 0.04))
-                .top(px(-w * 0.2))
-                .bg(hue(h, 0.55, 0.32)),
+                .size(px(w * 520.0 / 1200.0))
+                .left(px(w * 700.0 / 1200.0))
+                .top(px(w * -140.0 / 1200.0))
+                .bg(hue(h, 0.46, 23.0)),
         )
         .child(
             div()
@@ -56,7 +91,7 @@ pub(super) fn banner_art(h: u16) -> impl IntoElement {
         .child(probe("arrow.banner", Kind::Other, "banner", true, ""))
 }
 
-pub(super) fn app_icon(h: u16) -> impl IntoElement {
+pub(super) fn app_icon(h: Art) -> impl IntoElement {
     div()
         .flex_none()
         .size(px(44.))
@@ -66,8 +101,8 @@ pub(super) fn app_icon(h: u16) -> impl IntoElement {
         .justify_center()
         .bg(linear_gradient(
             180.,
-            linear_color_stop(hue(h, 0.48, 0.50), 0.),
-            linear_color_stop(hue(h, 0.52, 0.33), 1.),
+            linear_color_stop(hue(h, 0.52, 38.0), 0.),
+            linear_color_stop(hue(h, 0.48, 30.0), 1.),
         ))
         .child(icon_with_stroke(Glyph::Mark, 27., white(), 1.9))
 }

@@ -11,7 +11,7 @@ use quiver_state::settings::{build_engine_model, EngineModel};
 use quiver_ui::inspect::Kind;
 use quiver_ui::{ActiveQuiver, ButtonVariant, Switch};
 
-use super::rows::{probed, reset_button, row, section, small_button};
+use super::rows::{probed, reset_button, row, row_with_reset, section, small_button};
 use crate::model::build_indicator;
 use crate::views::settings::SettingsView;
 
@@ -54,8 +54,9 @@ fn build_section(
             },
         )
     };
-    let mut indicator = vec![toggle];
-    indicator.extend(reset_button(
+    let indicator = vec![toggle];
+    let indicator_reset = reset_button(
+        &p,
         "settings.indicator.reset",
         m.t(keys::ROW_RESET)
             .replace("{setting}", &m.t(keys::GENERAL_BUILD_INDICATOR)),
@@ -71,7 +72,7 @@ fn build_section(
                 })
             }
         },
-    ));
+    );
     let open = small_button(
         "settings.console.open",
         m.t(keys::GENERAL_BUILD_OPEN_CONSOLE),
@@ -88,12 +89,13 @@ fn build_section(
         },
     );
     vec![
-        row(
+        row_with_reset(
             &p,
             "settings.indicator",
             m.t(keys::GENERAL_BUILD_INDICATOR),
             Some(m.t(keys::GENERAL_BUILD_INDICATOR_DESCRIPTION).into()),
             indicator,
+            Some(indicator_reset),
         ),
         row(
             &p,
@@ -133,20 +135,22 @@ fn catalog_section(
             })
         }
     });
-    let mut controls = vec![toggle];
-    controls.extend(reset_button(
+    let controls = vec![toggle];
+    let controls_reset = reset_button(
+        &p,
         "settings.own-components.reset",
         m.t(keys::ROW_RESET)
             .replace("{setting}", &m.t(keys::GENERAL_LIBRARY_LABEL)),
         !shown,
         set(true),
-    ));
-    vec![row(
+    );
+    vec![row_with_reset(
         &p,
         "settings.own-components",
         m.t(keys::GENERAL_LIBRARY_LABEL),
         Some(m.t(keys::GENERAL_LIBRARY_DESCRIPTION).into()),
         controls,
+        Some(controls_reset),
     )]
 }
 
@@ -174,20 +178,22 @@ fn auto_register_row(
             move |on, _, cx| this.update(cx, |v, cx| v.patch(auto_register_patch(on), cx)),
         )
     };
-    let mut controls = vec![toggle];
-    controls.extend(reset_button(
+    let controls = vec![toggle];
+    let controls_reset = reset_button(
+        &p,
         "settings.autoregister.reset",
         m.t(keys::ROW_RESET)
             .replace("{setting}", &m.t(keys::ENGINE_AUTO_REGISTER_LABEL)),
         model.auto_register.can_reset,
         move |_, cx| this.update(cx, |v, cx| v.patch(auto_register_reset_patch(), cx)),
-    ));
-    row(
+    );
+    row_with_reset(
         &p,
         "settings.autoregister",
         m.t(keys::ENGINE_AUTO_REGISTER_LABEL),
         Some(description.into()),
         controls,
+        Some(controls_reset),
     )
 }
 

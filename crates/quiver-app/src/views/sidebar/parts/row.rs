@@ -8,10 +8,12 @@ use gpui::{
 use quiver_state::arrow_details::{RunState, StatusGlyph as StateGlyph};
 use quiver_state::domain::ArrowEntry;
 use quiver_state::namespace::bare_namespace;
-use quiver_state::tile::hue_for;
 use quiver_theme::FontFamily;
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::{ActiveQuiver, GlyphKind, StatusGlyph};
+
+use quiver_ui::{
+    icon_with_stroke, inner_highlight, shadow_xs, ActiveQuiver, Glyph, GlyphKind, StatusGlyph,
+};
 
 use super::super::Sidebar;
 use crate::model::Route;
@@ -36,6 +38,19 @@ fn glyph_name(kind: GlyphKind) -> &'static str {
     }
 }
 
+fn mock_palette(namespace: &str) -> (f32, f32) {
+    let mut hash: u32 = 5381;
+    for unit in namespace.encode_utf16() {
+        hash = hash.wrapping_mul(33) ^ u32::from(unit);
+    }
+    hash = (hash ^ (hash >> 16)).wrapping_mul(0x7feb_352d);
+    hash = (hash ^ (hash >> 15)).wrapping_mul(0x846c_a68b);
+    hash ^= hash >> 16;
+    let hue = f32::from((hash % 24) as u8) * 15.0 / 360.0;
+    let lift = f32::from(((hash >> 8) % 2) as u8) * 0.09;
+    (hue, lift)
+}
+
 pub fn arrow_row(
     sidebar: &mut Sidebar,
     entry: ArrowEntry,
@@ -44,7 +59,7 @@ pub fn arrow_row(
 ) -> impl IntoElement {
     let p = cx.quiver().palette;
     let namespace = bare_namespace(&entry.namespace).to_owned();
-    let hue = f32::from(hue_for(&namespace)) / 360.0;
+    let (hue, lift) = mock_palette(&entry.namespace);
     let glyph = glyph_kind(StateGlyph::for_state(
         RunState::from(entry.state),
         true,
@@ -68,29 +83,30 @@ pub fn arrow_row(
     let (app, ns_click, ns_menu) = (sidebar.app.clone(), namespace.clone(), namespace.clone());
     let menu_state = cx.entity();
     let probe_id = format!("sidebar.row.{namespace}");
-    // Every row is 40px tall in the list (34 + 6 gap) so the list can be uniform; the selected row's
-    // extra line fits inside its own 35px.
-    div().h(px(40.)).child(
+    div().h(px(40.)).py(px(2.)).child(
         div()
             .id(SharedString::from(format!("sidebar-row-{namespace}")))
             .relative()
             .flex()
             .items_center()
-            .gap(px(7.))
-            .pl(px(7.))
-            .pr(px(9.))
+            .gap(px(6.))
+            .h(px(36.))
+            .px(px(6.))
             .rounded(px(8.))
+            .border_1()
+            .border_color(if active {
+                p.primary
+            } else {
+                gpui::transparent_black()
+            })
             .text_color(fg)
             .cursor_pointer()
             .when(active, |d| {
-                d.min_h(px(35.)).bg(p.primary).shadow(vec![gpui::BoxShadow {
-                    color: white().opacity(0.16),
-                    offset: gpui::point(px(0.), px(0.)),
-                    blur_radius: px(0.),
-                    spread_radius: px(0.),
-                }])
+                d.bg(p.primary)
+                    .shadow(shadow_xs(gpui::black().opacity(0.10)))
+                    .child(inner_highlight(8., p.selected_edge))
             })
-            .when(!active, |d| d.h(px(34.)).hover(|s| s.bg(p.sidebar_accent)))
+            .when(!active, |d| d.hover(|s| s.bg(p.accent)))
             .on_click(move |_, _, cx| {
                 let namespace = ns_click.clone();
                 let route = Route::Arrow { namespace };
@@ -107,11 +123,21 @@ pub fn arrow_row(
                 div()
                     .flex_none()
                     .size(px(20.))
-                    .rounded(px(5.))
+                    .rounded(px(4.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .overflow_hidden()
                     .bg(linear_gradient(
                         180.,
-                        linear_color_stop(hsla(hue, 0.48, 0.50, 1.), 0.),
-                        linear_color_stop(hsla(hue, 0.52, 0.35, 1.), 1.),
+                        linear_color_stop(hsla(hue, 0.52, 0.38 + lift, 1.), 0.5),
+                        linear_color_stop(hsla(hue, 0.48, 0.30 + lift, 1.), 0.5),
+                    ))
+                    .child(icon_with_stroke(
+                        Glyph::ArrowIcon,
+                        20.,
+                        white().opacity(0.92),
+                        1.6,
                     )),
             )
             .child(
@@ -123,8 +149,8 @@ pub fn arrow_row(
                     .justify_center()
                     .child(
                         div()
-                            .text_size(px(14.))
-                            .line_height(px(17.))
+                            .text_size(px(13.))
+                            .line_height(px(16.))
                             .font_weight(FontWeight::MEDIUM)
                             .truncate()
                             .child(entry.name.clone()),
@@ -135,9 +161,9 @@ pub fn arrow_row(
                                 .flex()
                                 .min_w_0()
                                 .font_family(mono)
-                                .text_size(px(9.5))
-                                .line_height(px(12.))
-                                .text_color(p.primary_foreground.opacity(0.65))
+                                .text_size(px(10.5))
+                                .line_height(px(13.))
+                                .text_color(p.primary_foreground.opacity(0.6))
                                 .child(div().min_w_0().truncate().child(namespace.clone()))
                                 .child(div().flex_none().child(format!("@{}", entry.version))),
                         )

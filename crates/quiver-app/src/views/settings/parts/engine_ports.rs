@@ -9,7 +9,7 @@ use quiver_ui::inspect::Kind;
 use quiver_ui::{ActiveQuiver, NumberField};
 use serde_json::json;
 
-use super::rows::{probed, reset_button, row};
+use super::rows::{probed, reset_button, row_with_reset};
 use crate::views::settings::SettingsView;
 
 pub(super) fn ports_row(
@@ -49,7 +49,7 @@ pub(super) fn ports_row(
         None => m.t(keys::ENGINE_PORTS_DESCRIPTION).into(),
     };
     let this_reset = this.clone();
-    let mut controls = vec![
+    let controls = vec![
         probed(
             field(
                 "settings-port-start",
@@ -73,21 +73,24 @@ pub(super) fn ports_row(
             format!("value={}", model.ports.end.unwrap_or_default()),
         ),
     ];
-    controls.extend(reset_button(
+    let controls_reset = reset_button(
+        &p,
         "settings.engine.ports.reset",
-        m.t(keys::ROW_RESET).replace("{setting}", &m.t(keys::ENGINE_PORTS_LABEL)),
+        m.t(keys::ROW_RESET)
+            .replace("{setting}", &m.t(keys::ENGINE_PORTS_LABEL)),
         model.ports.can_reset,
         move |_, cx| {
             this_reset.update(cx, |v, cx| {
                 v.patch(json!({"netbridge": {"ephemeral_port_start": null, "ephemeral_port_end": null}}), cx)
             })
         },
-    ));
-    row(
+    );
+    row_with_reset(
         &p,
         "settings.engine.ports",
         m.t(keys::ENGINE_PORTS_LABEL),
         Some(description),
         controls,
+        Some(controls_reset),
     )
 }

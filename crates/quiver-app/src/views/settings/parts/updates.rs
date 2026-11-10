@@ -6,8 +6,8 @@ use gpui::prelude::*;
 use gpui::{div, px, AnyElement, Context};
 use quiver_state::arrow_details::invoke::ActionFailure;
 use quiver_state::arrow_details::RunState;
-use quiver_state::domain::{QUIVER_CORE_NAMESPACE, QUIVER_DESKTOP_NAMESPACE};
-use quiver_state::i18n::en::{arrow, screens, settings as keys};
+use quiver_state::domain::QUIVER_CORE_NAMESPACE;
+use quiver_state::i18n::en::{arrow, settings as keys};
 use quiver_state::namespace::bare_namespace;
 use quiver_state::queries::mutations::{Mutations, UpdateOutcome, Variables};
 use quiver_state::settings::core_update::{build_core_update, CoreUpdateInput, CoreUpdateNote};
@@ -31,21 +31,18 @@ pub struct UpdateCard {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Which {
     Core,
-    Desktop,
 }
 
 impl Which {
     fn namespace(self) -> &'static str {
         match self {
             Self::Core => QUIVER_CORE_NAMESPACE,
-            Self::Desktop => QUIVER_DESKTOP_NAMESPACE,
         }
     }
 
     fn id(self) -> &'static str {
         match self {
             Self::Core => "settings.core",
-            Self::Desktop => "settings.desktop",
         }
     }
 }
@@ -57,7 +54,6 @@ impl SettingsView {
     ) -> &mut UpdateCard {
         match which {
             Which::Core => &mut self.core,
-            Which::Desktop => &mut self.desktop,
         }
     }
 
@@ -166,7 +162,6 @@ pub fn update_rows(
     let t = |key| app.t(key);
     let card = match which {
         Which::Core => &view.core,
-        Which::Desktop => &view.desktop,
     };
     let resolved = entry
         .as_ref()
@@ -188,7 +183,6 @@ pub fn update_rows(
         CoreUpdateNote::Failure(message) => Some(message.clone()),
         CoreUpdateNote::Restarts => Some(match which {
             Which::Core => t(keys::ENGINE_SELF_UPDATE_RESTARTS),
-            Which::Desktop => t(screens::SETTINGS_DESKTOP_RESTARTS),
         }),
         CoreUpdateNote::FailedRun(detail) => detail.clone(),
         CoreUpdateNote::None => None,

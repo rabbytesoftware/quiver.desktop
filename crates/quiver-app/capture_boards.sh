@@ -4,7 +4,7 @@
 # One app launch per screen: QUIVER_DEMO_ROUTE / QUIVER_DEMO_THEME pick the screen (see demo/route.rs).
 set -uo pipefail
 MODE=${1:-both}
-OUT=docker/native/evidence
+OUT=${OUT:-docker/native/evidence}
 MC=github.com/rabbyte/minecraft
 # name|route|actions (capture.sh syntax)
 SCREENS=(

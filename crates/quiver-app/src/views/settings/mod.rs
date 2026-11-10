@@ -25,7 +25,6 @@ pub struct SettingsView {
     /// quiver.core's release channels; `None` until the fetch answered, `Err` when it failed.
     pub(super) channels: Option<Result<Vec<ArrowChannel>, ActionFailure>>,
     pub(super) core: UpdateCard,
-    pub(super) desktop: UpdateCard,
     loaded: bool,
 }
 
@@ -44,7 +43,6 @@ impl SettingsView {
             path: PathStore::default(),
             channels: None,
             core: UpdateCard::default(),
-            desktop: UpdateCard::default(),
             loaded: false,
         };
         view.ensure_loaded(cx);
@@ -72,11 +70,42 @@ impl SettingsView {
         }
         self.loaded = true;
         if self.app.read(cx).demo {
+            self.seed_demo();
             return;
         }
         self.load_engine(cx);
         self.load_channels(cx);
         self.load_path(cx);
+    }
+}
+
+impl SettingsView {
+    fn seed_demo(&mut self) {
+        use quiver_state::settings::{ConfigView, PathStatus};
+        let config = |disk: bool| {
+            serde_json::json!({
+                "netbridge": {"ephemeral_port_start": 49152, "ephemeral_port_end": 65535},
+                "logger": {"enabled": disk, "level": "info"},
+                "arrows": {"self_update_channel": "", "auto_register": false},
+            })
+        };
+        self.engine.loaded(Ok(ConfigView {
+            running: config(true),
+            configured: config(true),
+            defaults: config(true),
+            restart_required: Vec::new(),
+            corrected: Vec::new(),
+        }));
+        self.channels = Some(Err(ActionFailure {
+            status: None,
+            message: String::new(),
+        }));
+        self.path.loaded(Ok(PathStatus {
+            bin_dir: "/home/mock/.quiver/bin".into(),
+            on_path: false,
+            configured: false,
+            files: vec!["/home/mock/.zshrc".into(), "/home/mock/.bashrc".into()],
+        }));
     }
 }
 
@@ -104,14 +133,7 @@ impl Render for SettingsView {
                 div().relative().flex_1().min_h_0().child(
                     ScrollArea::new("settings.scroll")
                         .fade_color(p.background)
-                        .child(
-                            div()
-                                .pl(px(24.))
-                                .pr(px(40.))
-                                .pt(px(27.))
-                                .pb(px(32.))
-                                .child(body),
-                        ),
+                        .child(div().p(px(16.)).child(body)),
                 ),
             )
             .child(screen_probe("settings"))

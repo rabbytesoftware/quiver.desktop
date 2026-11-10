@@ -110,14 +110,18 @@ pub struct TileModel {
     pub hover_action: Option<TileAction>,
 }
 
-/// 0..360, stable per namespace: the tint of a drawn tile's icon (FNV-1a, so it never changes between runs).
+/// The mock world's swatch for a namespace (`media.ts`): one of 24 hues, 15 degrees apart, in the range
+/// 0..360, plus 360 when the swatch is the lighter of its two lightnesses. `hue % 360` is the hue.
 pub fn hue_for(namespace: &str) -> u16 {
-    let mut hash: u32 = 0x811c_9dc5;
-    for byte in namespace.bytes() {
-        hash ^= u32::from(byte);
-        hash = hash.wrapping_mul(0x0100_0193);
+    let mut hash: u32 = 5381;
+    for unit in namespace.encode_utf16() {
+        hash = hash.wrapping_mul(33) ^ u32::from(unit);
     }
-    (hash % 360) as u16
+    hash = (hash ^ (hash >> 16)).wrapping_mul(0x7feb_352d);
+    hash = (hash ^ (hash >> 15)).wrapping_mul(0x846c_a68b);
+    hash ^= hash >> 16;
+    let hue = (hash % 24) as u16 * 15;
+    hue + if (hash >> 8) % 2 == 1 { 360 } else { 0 }
 }
 
 /// Only two actions are worth a hover button, and only because Core can really do them from here:
@@ -270,7 +274,7 @@ mod tests {
             hue_for("github.com/rabbyte/postgres"),
             hue_for("github.com/rabbyte/postgres")
         );
-        assert!(hue_for("a") < 360 && hue_for("b") < 360);
+        assert!(hue_for("a") % 360 < 360 && hue_for("b") < 720);
         assert_ne!(hue_for("github.com/a/x"), hue_for("github.com/a/y"));
     }
 

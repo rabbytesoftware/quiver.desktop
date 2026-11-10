@@ -69,7 +69,9 @@ fn unresolved(
             div()
                 .h(px(TileSize::Compact.width() / 2.))
                 .rounded(px(12.))
-                .bg(p.muted.opacity(0.5))
+                .border_1()
+                .border_dashed()
+                .border_color(p.border)
                 .flex()
                 .flex_col()
                 .justify_center()
@@ -101,8 +103,11 @@ fn unresolved(
 pub fn members(
     view: &CollectionView,
     detail: &CollectionDetail,
+    window: &gpui::Window,
     cx: &mut Context<CollectionView>,
 ) -> impl IntoElement {
+    let width =
+        crate::views::grid_page::grid_tile_width(&view.app, window, detail.arrows.len(), cx);
     let library: Vec<String> = view
         .app
         .read(cx)
@@ -121,7 +126,7 @@ pub fn members(
                 tile(
                     "collection",
                     &input(&member, held),
-                    TileSize::Compact,
+                    TileSize::Custom(width),
                     &view.app,
                     cx,
                 )

@@ -30,21 +30,21 @@ fn game_servers() -> CollectionListItem {
         GAME_SERVERS,
         "Game Servers",
         "Everything needed to host a weekend with friends.",
-        &["game", "server"],
+        &["gaming", "self-hosted"],
         4,
     )
 }
 
 fn followed() -> Vec<CollectionListItem> {
     vec![
-        item(
-            "github.com/sparkdev/dev-toolbox",
-            "Dev Toolbox",
-            "Version managers, runners and pooling for a developer machine.",
-            &["developer-tools"],
-            3,
-        ),
         game_servers(),
+        item(
+            "github.com/rabbyte/monitoring-stack",
+            "Monitoring Stack",
+            "A minimal metrics and caching layer for other arrows to lean on.",
+            &["ops", "monitoring"],
+            2,
+        ),
     ]
 }
 
@@ -79,24 +79,24 @@ pub fn seed_detail(
         .unwrap_or_else(game_servers);
     let arrows = vec![
         member(
-            "github.com/rabbyte/valheim",
-            Some("v0.218.15"),
-            Some("Valheim Server"),
-            "Valheim dedicated server.",
+            "github.com/rabbyte/minecraft",
+            Some("v1.21.4"),
+            Some("Minecraft Server"),
+            "Vanilla Minecraft dedicated server with automatic world backups.",
         ),
         member(
-            "github.com/northwind/rust-server",
-            Some("v2.1.0"),
-            Some("Rust Server"),
-            "Rust dedicated server with wipe scheduling and Oxide mod support.",
-        ),
-        member(
-            "github.com/aetherforge/terraria-tshock",
+            "github.com/rabbyte/terraria",
             Some("v1.4.4.9"),
             Some("Terraria Server"),
-            "Dedicated Terraria server with world autosave and a TShock plugin loader.",
+            "tModLoader-compatible Terraria dedicated server.",
         ),
-        member("github.com/rabbyte/valheim-plus", Some("v1.0.0"), None, ""),
+        member(
+            "github.com/rabbyte/factorio",
+            Some("v2.0.28"),
+            Some("Factorio Headless"),
+            "Headless Factorio server for co-op games.",
+        ),
+        member("github.com/rabbyte/ark-survival", Some("v3.1.0"), None, ""),
     ];
     let detail = CollectionDetail {
         url: Some(format!("https://{}", item.namespace)),

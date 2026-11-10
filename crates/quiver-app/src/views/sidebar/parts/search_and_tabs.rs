@@ -6,7 +6,7 @@ use gpui::{div, px, Context, FontWeight, IntoElement};
 use quiver_state::settings::SettingsTab;
 use quiver_state::sidebar::{active_destination, Destination, DESTINATIONS};
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::{icon, tooltip, ActiveQuiver, Glyph, SearchInput};
+use quiver_ui::{icon, inner_highlight, shadow_xs, tooltip, ActiveQuiver, Glyph, SearchInput};
 
 use super::super::Sidebar;
 use crate::model::Route;
@@ -59,8 +59,9 @@ pub fn search_and_tabs(
             .flex()
             .items_center()
             .justify_center()
-            .gap(px(7.))
-            .rounded(px(8.))
+            .gap(px(4.))
+            .h(px(32.))
+            .rounded(px(6.))
             .flex_basis(px(0.))
             .flex_grow()
             .flex_shrink()
@@ -69,7 +70,7 @@ pub fn search_and_tabs(
             .on_click(move |_, _, cx| {
                 app.update(cx, |m, cx| m.navigate(route(destination), cx));
             })
-            .child(icon(glyph(destination), 16., color))
+            .child(icon(glyph(destination), 14., color))
             .child(probe(
                 tab_id(destination),
                 Kind::Tab,
@@ -78,18 +79,22 @@ pub fn search_and_tabs(
                 if is_active { "selected" } else { "" },
             ));
         if is_active {
-            tab = tab.bg(p.primary).shadow(quiver_ui_shadow()).child(
-                div()
-                    .text_size(px(13.))
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(label),
-            );
-            tab.style().flex_grow = Some(2.4);
+            tab = tab
+                .flex_none()
+                .px(px(12.))
+                .bg(p.primary)
+                .shadow(shadow_xs(gpui::black().opacity(0.10)))
+                .child(inner_highlight(6., p.selected_edge))
+                .child(
+                    div()
+                        .text_size(px(14.))
+                        .font_weight(FontWeight::MEDIUM)
+                        .child(label),
+                );
         } else {
             tab = tab
                 .tooltip(tooltip(label))
-                .hover(|s| s.bg(p.background.opacity(0.5)));
-            tab.style().flex_grow = Some(1.0);
+                .hover(|s| s.text_color(p.muted_foreground));
         }
         tab
     });
@@ -108,18 +113,10 @@ pub fn search_and_tabs(
         .child(
             div()
                 .flex()
-                .h(px(36.))
+                .gap(px(2.))
+                .p(px(2.))
                 .rounded(px(8.))
-                .bg(p.border)
+                .bg(p.sidebar_element_idle)
                 .children(tabs),
         )
-}
-
-fn quiver_ui_shadow() -> Vec<gpui::BoxShadow> {
-    vec![gpui::BoxShadow {
-        color: gpui::black().opacity(0.15),
-        offset: gpui::point(px(0.), px(1.)),
-        blur_radius: px(2.),
-        spread_radius: px(0.),
-    }]
 }

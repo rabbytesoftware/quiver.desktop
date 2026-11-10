@@ -4,7 +4,7 @@
 # Each argument is name[:action...] (actions separated by ':'): scroll=<px>, click=<x>,<y>, hover=<x>,<y>, key=<xdotool key>.
 # PNGs (1200x800, the window's client area) land in docker/native/evidence/<name>.png
 set -euo pipefail
-OUT=docker/native/evidence
+OUT=${OUT:-docker/native/evidence}
 BIN=${QUIVER_BIN:-/work/target/debug/quiver}
 mkdir -p "$OUT"
 Xvfb :1 -screen 0 1600x1000x24 >/dev/null 2>&1 &
@@ -39,3 +39,7 @@ for spec in "$@"; do
 done
 kill "$pid" 2>/dev/null || true
 tail -5 /tmp/quiver-demo.log || true
+pkill -x quiver 2>/dev/null || true
+pkill -x openbox 2>/dev/null || true
+pkill -x Xvfb 2>/dev/null || true
+sleep 1

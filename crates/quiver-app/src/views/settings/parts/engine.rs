@@ -10,7 +10,7 @@ use quiver_ui::{ActiveQuiver, ButtonVariant, Select, SelectOption, Switch};
 use serde_json::json;
 
 use super::notices::{banner, failure};
-use super::rows::{probed, reset_button, row, section, small_button};
+use super::rows::{probed, reset_button, row, row_with_reset, section, small_button};
 use super::updates::{update_rows, Which};
 use crate::views::settings::SettingsView;
 
@@ -39,7 +39,7 @@ fn logs(
     let this = cx.entity();
     let m = view.app.read(cx);
     let disk_this = this.clone();
-    let mut disk = vec![probed(
+    let disk = vec![probed(
         Switch::new("settings-logs-disk")
             .checked(model.logs.disk_enabled)
             .on_change({
@@ -58,7 +58,8 @@ fn logs(
         }
         .into(),
     )];
-    disk.extend(reset_button(
+    let disk_reset = reset_button(
+        &p,
         "settings.engine.logs-disk.reset",
         m.t(keys::ROW_RESET)
             .replace("{setting}", &m.t(keys::ENGINE_LOGS_DISK)),
@@ -68,10 +69,10 @@ fn logs(
                 v.patch(json!({"logger": {"enabled": null}}), cx)
             })
         },
-    ));
+    );
     let level = model.logs.level;
     let level_this = this.clone();
-    let mut level_controls = vec![probed(
+    let level_controls = vec![probed(
         div().w(px(120.)).child(
             Select::new("settings-logs-level")
                 .options(level_options(view, cx))
@@ -89,13 +90,14 @@ fn logs(
         m.t(keys::ENGINE_LOGS_LEVEL).into(),
         format!("value={}", level.as_str()),
     )];
-    level_controls.extend(reset_button(
+    let level_reset = reset_button(
+        &p,
         "settings.engine.logs-level.reset",
         m.t(keys::ROW_RESET)
             .replace("{setting}", &m.t(keys::ENGINE_LOGS_LEVEL)),
         model.logs.level_can_reset,
         move |_, cx| level_this.update(cx, |v, cx| v.patch(json!({"logger": {"level": null}}), cx)),
-    ));
+    );
     let level_description: SharedString = model
         .logs
         .level_problem
@@ -103,19 +105,21 @@ fn logs(
         .unwrap_or_else(|| m.t(keys::ENGINE_LOGS_LEVEL_DESCRIPTION))
         .into();
     vec![
-        row(
+        row_with_reset(
             &p,
             "settings.engine.logs-disk",
             m.t(keys::ENGINE_LOGS_DISK),
             Some(m.t(keys::ENGINE_LOGS_DISK_DESCRIPTION).into()),
             disk,
+            Some(disk_reset),
         ),
-        row(
+        row_with_reset(
             &p,
             "settings.engine.logs-level",
             m.t(keys::ENGINE_LOGS_LEVEL),
             Some(level_description),
             level_controls,
+            Some(level_reset),
         ),
     ]
 }
@@ -167,7 +171,7 @@ fn channel_row(
                 .collect();
             let current = model.self_update.channel.clone();
             let reset_this = this.clone();
-            let mut controls = vec![probed(
+            let controls = vec![probed(
                 div().w(px(150.)).child(
                     Select::new("settings-channel")
                         .options(options)
@@ -185,7 +189,8 @@ fn channel_row(
                 label.clone().into(),
                 format!("value={}", current.unwrap_or_default()),
             )];
-            controls.extend(reset_button(
+            let controls_reset = reset_button(
+                &p,
                 "settings.engine.channel.reset",
                 m.t(keys::ROW_RESET).replace("{setting}", &label),
                 model.self_update.can_reset,
@@ -194,18 +199,19 @@ fn channel_row(
                         v.patch(json!({"arrows": {"self_update_channel": null}}), cx)
                     })
                 },
-            ));
+            );
             let description = model
                 .self_update
                 .problem
                 .clone()
                 .unwrap_or_else(|| m.t(keys::ENGINE_SELF_UPDATE_CHANNEL_DESCRIPTION));
-            row(
+            row_with_reset(
                 &p,
                 "settings.engine.channel",
                 label,
                 Some(description.into()),
                 controls,
+                Some(controls_reset),
             )
         }
     }
@@ -268,11 +274,12 @@ pub fn engine(
         .flex()
         .flex_col()
         .children(notices)
-        .child(
-            div()
-                .mb(px(0.))
-                .children(vec![super::engine_ports::ports_row(view, &model, cx)]),
-        )
+        .child(section(
+            &p,
+            "",
+            true,
+            vec![super::engine_ports::ports_row(view, &model, cx)],
+        ))
         .child(section(&p, logs_title, false, logs(view, &model, cx)))
         .child(section(&p, updates_title, false, updates))
         .child(section(&p, path_title, false, command_line))

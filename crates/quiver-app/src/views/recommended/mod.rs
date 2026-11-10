@@ -13,7 +13,7 @@ use quiver_ui::{ActiveQuiver, TileSize};
 use crate::bridge::observe_store;
 use crate::model::AppModel;
 use crate::views::grid_page::{
-    chip, error_state, load_more, notice, page, page_header, skeleton, tile_grid,
+    chip, error_state, grid_tile_width, load_more, notice, page, page_header, skeleton, tile_grid,
 };
 use crate::views::screen_probe;
 use crate::views::tiles::{discovered_input, tile};
@@ -53,7 +53,7 @@ impl RecommendedView {
 impl Render for RecommendedView {
     fn render(
         &mut self,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let p = cx.quiver().palette;
@@ -102,9 +102,10 @@ impl Render for RecommendedView {
                     move |this: &mut Self, cx| this.select(Some(value.clone()), cx),
                 ));
             }
+            let width = grid_tile_width(&app, window, model.arrows.len(), cx);
             let tiles = model.arrows.iter().map(|entry| {
                 let input = discovered_input(entry, BadgePolicy::ActivityOnly);
-                tile("recommended", &input, TileSize::Compact, &app, cx).into_any_element()
+                tile("recommended", &input, TileSize::Custom(width), &app, cx).into_any_element()
             });
             div()
                 .child(chips)
@@ -154,11 +155,7 @@ mod tests {
         let model = app.read_with(cx, |m, _| {
             build_recommended(m.home.snapshot().data.as_ref(), Some("game"), 1)
         });
-        assert_eq!(
-            model.arrows.len(),
-            3,
-            "the demo shelf has three game arrows"
-        );
+        assert_eq!(model.arrows.len(), 5, "the demo shelf has five game arrows");
         assert!(!model.can_load_more);
     }
 }

@@ -1,7 +1,7 @@
 //! Demo data for Remote, the Arrow-app pane and the console: two saved connections, a running app whose
 //! page answers, and a few console lines.
 
-use quiver_state::console::{NewEntry, Note, Stream, Support, Tone};
+use quiver_state::console::{CoreVersions, NewEntry, Note, Stream, Support, Tone};
 use quiver_state::domain::{
     local_connection, ActiveRun, ArrowState, ArrowSurface, ConnectionConfig, ConnectionKind,
     ConnectionStatus, RuntimeUpdate, SurfaceMode,
@@ -36,6 +36,12 @@ pub fn seed(model: &AppModel) {
         "local",
     );
     model.services.status.set_status(ConnectionStatus::Ready);
+    model.core_versions.set(Some(CoreVersions {
+        version: "nightly".into(),
+        channel: "nightly".into(),
+        built_at: "2026-10-11T09:30:00Z".into(),
+        ..CoreVersions::default()
+    }));
     model.services.arrows.apply_runtime_update(RuntimeUpdate {
         namespace: APP_NAMESPACE.into(),
         state: ArrowState::Running,

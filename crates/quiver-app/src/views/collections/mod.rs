@@ -17,7 +17,7 @@ use quiver_ui::{ActiveQuiver, TileSize};
 use crate::bridge::observe_store;
 use crate::model::{AppModel, Route};
 use crate::views::grid_page::{
-    error_state, notice, page, page_header, skeleton, start_feed, tile_grid, Feed,
+    error_state, grid_tile_width, notice, page, page_header, skeleton, start_feed, tile_grid, Feed,
 };
 use crate::views::screen_probe;
 use crate::views::tiles::tile;
@@ -62,7 +62,7 @@ impl CollectionsView {
 impl Render for CollectionsView {
     fn render(
         &mut self,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let p = cx.quiver().palette;
@@ -89,6 +89,7 @@ impl Render for CollectionsView {
             let (title, body) = (a.t(home::EMPTY_TITLE), a.t(home::EMPTY_DESCRIPTION));
             notice("collections.empty", title, body, None, cx).into_any_element()
         } else {
+            let width = grid_tile_width(&app, window, items.len(), cx);
             let tiles = items.iter().map(|item| {
                 // The list payload names no members, so how many are already in the library is
                 // unknown here and the badge says the count only.
@@ -97,7 +98,7 @@ impl Render for CollectionsView {
                 let input = TileInput::from_collection_item(item, label);
                 let go = app.clone();
                 let id = item.namespace.clone();
-                tile("collections", &input, TileSize::Compact, &app, cx)
+                tile("collections", &input, TileSize::Custom(width), &app, cx)
                     .on_click(move |_, _, cx| {
                         let route = Route::Collection { id: id.clone() };
                         go.update(cx, |m, cx| m.navigate(route, cx));
@@ -136,6 +137,6 @@ mod tests {
                 .map(|c| c.name)
                 .collect()
         });
-        assert_eq!(names, ["Dev Toolbox", "Game Servers"]);
+        assert_eq!(names, ["Game Servers", "Monitoring Stack"]);
     }
 }

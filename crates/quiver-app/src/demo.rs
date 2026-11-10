@@ -43,6 +43,7 @@ struct Row {
     description: &'static str,
     used: Option<&'static str>,
     banner: bool,
+    tags: &'static [&'static str],
 }
 
 const fn row(
@@ -61,6 +62,20 @@ const fn row(
         description,
         used,
         banner: false,
+        tags: tags_of(slug),
+    }
+}
+
+const fn tags_of(slug: &str) -> &'static [&'static str] {
+    match slug.as_bytes() {
+        b"minecraft" => &["game", "server", "java"],
+        b"valheim" | b"factorio" | b"terraria" => &["game", "server"],
+        b"pixelmon-assets" => &["assets", "package"],
+        b"postgres" | b"redis" => &["database", "service"],
+        b"caddy" | b"nats" => &["network", "service"],
+        b"grafana" => &["observability", "service"],
+        b"syncthing" => &["storage", "service"],
+        _ => &["media", "service"],
     }
 }
 
@@ -115,7 +130,7 @@ fn library() -> Vec<Row> {
             "nats",
             "v2.10.24",
             Draining,
-            "Message broker. Draining connections before it stops.",
+            "Message broker. Draining connections before shutdown.",
             None,
         ),
         row(
@@ -123,7 +138,7 @@ fn library() -> Vec<Row> {
             "pixelmon-assets",
             "v9.2.1",
             Ready,
-            "Texture and model assets. A package with nothing to run.",
+            "Texture and model assets. A package — there is nothing to run.",
             None,
         ),
         row(
@@ -131,7 +146,7 @@ fn library() -> Vec<Row> {
             "plex",
             "v1.41.3",
             Removed,
-            "Removed from disk; the entry survives so it can be reinstalled.",
+            "Removed from disk; the entry survives until the catalog prunes it.",
             None,
         ),
         row(
@@ -163,7 +178,7 @@ fn library() -> Vec<Row> {
             "terraria",
             "v1.4.4.9",
             Outdated,
-            "Dedicated Terraria server.",
+            "tModLoader-compatible Terraria dedicated server.",
             None,
         ),
         row(
@@ -171,7 +186,7 @@ fn library() -> Vec<Row> {
             "valheim",
             "v0.218.15",
             Ready,
-            "Valheim dedicated server.",
+            "Dedicated Valheim server. Linux only — no macOS build is published upstream.",
             None,
         ),
     ]
@@ -241,11 +256,7 @@ pub fn seed(model: &AppModel) {
             namespace: format!("github.com/rabbyte/{}", r.slug),
             name: r.name.into(),
             description: r.description.into(),
-            tags: if r.banner {
-                vec!["game".into(), "server".into(), "java".into()]
-            } else {
-                vec![]
-            },
+            tags: r.tags.iter().map(|t| (*t).into()).collect(),
             icon: None,
             banner: r.banner.then(|| "demo".into()),
             version: r.version.into(),
@@ -291,7 +302,7 @@ pub fn seed(model: &AppModel) {
         arrows: vec![
             popular(
                 "aetherforge",
-                "terraria-tshock",
+                "terraria-server",
                 "Terraria Server",
                 "Dedicated Terraria server with world autosave and a TShock plugin loader.",
                 &["game", "server"],
@@ -308,7 +319,28 @@ pub fn seed(model: &AppModel) {
                 "factorio-headless",
                 "Factorio Headless",
                 "Headless Factorio server with automatic save rotation.",
-                &["game"],
+                &["game", "server", "headless"],
+            ),
+            popular(
+                "quietharbor",
+                "valheim-plus-server",
+                "Valheim Plus Server",
+                "Valheim dedicated server bundled with the ValheimPlus configuration mod.",
+                &["game", "server"],
+            ),
+            popular(
+                "pearline",
+                "satisfactory-server",
+                "Satisfactory Server",
+                "Satisfactory dedicated server with blueprint sync.",
+                &["game", "server"],
+            ),
+            popular(
+                "dormant",
+                "abandoned-server",
+                "Abandoned Server",
+                "Advertised by the topic, but its manifest no longer parses.",
+                &["server"],
             ),
             popular(
                 "sparkdev",

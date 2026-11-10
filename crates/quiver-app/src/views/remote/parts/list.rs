@@ -5,7 +5,7 @@ use gpui::{div, px, Context, FontWeight, IntoElement};
 use quiver_state::i18n::en::{remote, screens};
 use quiver_state::remote::ConnectionRowView;
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::{ActiveQuiver, Button, ButtonVariant, Spinner};
+use quiver_ui::{ActiveQuiver, Button, ButtonVariant, Frame, FramePanel, Spinner};
 
 use super::add_modal::open_add;
 use super::row::connection_row;
@@ -30,25 +30,26 @@ pub fn header(
         .items_end()
         .justify_between()
         .gap(px(16.))
-        .pb(px(14.))
+        .mb(px(16.))
+        .pb(px(10.))
         .border_b_1()
         .border_color(p.border)
         .child(
             div()
                 .flex()
                 .flex_col()
-                .gap(px(4.))
                 .child(
                     div()
-                        .text_size(px(24.))
+                        .text_size(px(20.))
                         .line_height(px(28.))
                         .font_weight(FontWeight::SEMIBOLD)
                         .child(title),
                 )
                 .child(
                     div()
+                        .mt(px(4.))
                         .text_size(px(12.5))
-                        .text_color(p.foreground_subtle)
+                        .text_color(p.muted_foreground)
                         .child(subtitle),
                 ),
         )
@@ -122,9 +123,16 @@ pub fn rows(
     cx: &mut Context<RemoteView>,
 ) -> impl IntoElement {
     let last = rows.len().saturating_sub(1);
-    div().flex().flex_col().children(
-        rows.iter()
-            .enumerate()
-            .map(|(i, row)| connection_row(view, row, i == last, cx)),
+    let items: Vec<_> = rows
+        .iter()
+        .enumerate()
+        .map(|(i, row)| connection_row(view, row, i == last, cx))
+        .collect();
+    Frame::new().child(
+        FramePanel::new()
+            .py(px(8.))
+            .flex()
+            .flex_col()
+            .children(items),
     )
 }

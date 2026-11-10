@@ -10,18 +10,24 @@ fn notice(
     destructive: bool,
 ) -> impl IntoElement {
     div()
-        .mb(px(16.))
-        .px(px(12.))
+        .mx(px(4.))
+        .mb(px(12.))
+        .px(px(10.))
         .py(px(8.))
-        .rounded(px(8.))
+        .rounded(px(6.))
         .border_1()
         .border_color(if destructive {
             p.destructive.opacity(0.4)
         } else {
             p.border
         })
-        .bg(p.muted)
-        .text_size(px(12.5))
+        .bg(if destructive {
+            p.destructive.opacity(0.1)
+        } else {
+            p.muted.opacity(0.45)
+        })
+        .text_size(px(12.))
+        .line_height(px(19.5))
         .text_color(if destructive {
             p.destructive
         } else {

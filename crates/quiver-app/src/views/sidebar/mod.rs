@@ -40,6 +40,7 @@ impl Sidebar {
         let services = app.read(cx).services.clone();
         observe_store(cx, services.arrows.store());
         observe_store(cx, services.status.store());
+        observe_store(cx, services.connections.store());
         let core_versions = app.read(cx).core_versions.clone();
         observe_store(cx, &core_versions);
         let subscriptions = vec![

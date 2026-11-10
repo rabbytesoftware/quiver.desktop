@@ -92,7 +92,6 @@ pub fn arrow_list(
         .flex()
         .flex_col()
         .px(px(6.))
-        .pt(px(6.))
         .child(body)
         .child(probe("sidebar.list", Kind::Other, "Arrows", true, ""))
 }

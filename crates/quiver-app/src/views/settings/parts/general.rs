@@ -42,7 +42,6 @@ pub fn general(
 ) -> impl IntoElement {
     let p = cx.quiver().palette;
     let app = view.app.clone();
-    let desktop_rows = super::updates::update_rows(view, super::updates::Which::Desktop, cx);
     let m = app.read(cx);
     let t = |key| m.t(key);
     let (theme, side) = (m.theme, m.shell.sidebar_side);
@@ -83,7 +82,7 @@ pub fn general(
                 "theme",
                 themes,
                 theme.as_stored(),
-                144.,
+                132.,
                 t(keys::GENERAL_THEME_LABEL).into(),
                 {
                     let app = app.clone();
@@ -103,7 +102,7 @@ pub fn general(
                 "sidebar",
                 sides,
                 side.as_stored(),
-                144.,
+                132.,
                 t(keys::GENERAL_SIDEBAR_LABEL).into(),
                 {
                     let app = app.clone();
@@ -135,38 +134,6 @@ pub fn general(
             },
         )],
     )];
-    let info = m.services.release.build_info();
-    let core = m.core_versions.read(|v| v.clone());
-    let value = |text: String| {
-        div()
-            .font_family(quiver_theme::FontFamily::Mono.family())
-            .text_size(px(12.5))
-            .text_color(p.foreground)
-            .child(text)
-            .into_any_element()
-    };
-    let mut about = vec![
-        row(
-            &p,
-            "settings.about.app",
-            t(screens::SETTINGS_ABOUT_APP),
-            None,
-            vec![value(
-                info.tag
-                    .clone()
-                    .or(info.stamp.label.clone())
-                    .unwrap_or_else(|| "dev".into()),
-            )],
-        ),
-        row(
-            &p,
-            "settings.about.core",
-            t(screens::SETTINGS_ABOUT_CORE),
-            None,
-            vec![value(core.map_or_else(|| "—".into(), |c| c.version))],
-        ),
-    ];
-    about.extend(desktop_rows);
     div()
         .flex()
         .flex_col()
@@ -185,11 +152,12 @@ pub fn general(
         .when(cfg!(debug_assertions), |d| {
             d.child(
                 div()
-                    .mt(px(20.))
+                    .px(px(8.))
+                    .pt(px(20.))
                     .text_size(px(12.))
+                    .line_height(px(19.5))
                     .text_color(p.muted_foreground)
                     .child(t(screens::SETTINGS_DEVELOPER_POINTER)),
             )
         })
-        .child(section(&p, t(screens::SETTINGS_ABOUT_TITLE), false, about))
 }

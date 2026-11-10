@@ -61,6 +61,8 @@ palette!(
     sidebar_accent,
     sidebar_accent_foreground,
     sidebar_border,
+    sidebar_element_idle,
+    sidebar_element_hover,
 );
 
 /// The global theme: the mode and its resolved palette.

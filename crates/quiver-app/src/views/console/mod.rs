@@ -16,7 +16,7 @@ use quiver_ui::{ActiveQuiver, InputState};
 use crate::bridge::observe_store;
 use crate::model::AppModel;
 
-pub const DOCK_HEIGHT: f32 = 264.;
+pub const DOCK_HEIGHT: f32 = 420.;
 
 pub struct ConsoleDock {
     pub(super) app: Entity<AppModel>,
@@ -134,19 +134,24 @@ impl Render for ConsoleDock {
             return div().into_any_element();
         }
         let p = cx.quiver().palette;
+        let tokens = quiver_theme::Tokens::for_mode(cx.quiver().mode);
+        let colors = parts::Colors::of(&tokens);
         self.follow_tail();
+        let height = (window.viewport_size().height * 0.7).min(px(DOCK_HEIGHT));
         div()
             .id("console")
-            .relative()
-            .flex_none()
+            .absolute()
+            .top_0()
+            .left_0()
+            .right_0()
+            .h(height)
             .flex()
             .flex_col()
-            .h(px(DOCK_HEIGHT))
-            .border_t_1()
+            .border_b_1()
             .border_color(p.border)
-            .bg(p.background)
+            .bg(colors.surface)
+            .text_color(colors.foreground)
             .on_key_down(cx.listener(Self::key_down))
-            .child(parts::header(self, cx))
             .child(parts::log(self, cx))
             .child(parts::prompt(self, window, cx))
             .child(crate::views::screen_probe("console"))

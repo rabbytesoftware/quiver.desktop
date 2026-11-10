@@ -15,6 +15,6 @@ pub mod testing;
 pub use chips::chip;
 pub use feed::{start_feed, Feed};
 pub use header::{back_link, page_header};
-pub use layout::{page, tile_grid, GRID_GAP_X, GRID_GAP_Y};
+pub use layout::{grid_tile_width, page, tile_grid, GRID_GAP_X, GRID_GAP_Y};
 pub use load_more::load_more;
 pub use states::{error_state, notice, skeleton};

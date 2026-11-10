@@ -241,25 +241,49 @@ fn minecraft(entry: &ArrowEntry) -> ArrowDetail {
         vec![target("linux/amd64", standard_lifecycle(), methods)],
     );
     d.readme = Some(readme_from_environment().unwrap_or_else(|| MINECRAFT_README.into()));
+    let mut max_players = variable(
+        "MAX_PLAYERS",
+        "Maximum concurrent players",
+        VariableType::Number,
+        "20",
+    );
+    max_players.min = Some(1.0);
+    max_players.max = Some(200.0);
+    let mut difficulty = variable(
+        "DIFFICULTY",
+        "World difficulty",
+        VariableType::Select,
+        "normal",
+    );
+    difficulty.values = Some(
+        ["peaceful", "easy", "normal", "hard"]
+            .map(String::from)
+            .to_vec(),
+    );
+    let mut rcon = variable(
+        "RCON_PASSWORD",
+        "Password for remote console access",
+        VariableType::String,
+        "",
+    );
+    rcon.default = None;
+    rcon.sensitive = Some(true);
     d.variables = vec![
         variable(
-            "PORT",
-            "Port the server listens on.",
-            VariableType::Number,
-            "7777",
-        ),
-        variable(
             "MOTD",
-            "Message shown in the server list.",
+            "Message shown in the server list",
             VariableType::String,
             "A Quiver server",
         ),
+        max_players,
+        difficulty,
         variable(
-            "HARDCORE",
-            "Permanent death.",
+            "ONLINE_MODE",
+            "Verify players against Mojang auth",
             VariableType::Boolean,
-            "false",
+            "true",
         ),
+        rcon,
     ];
     d
 }
@@ -291,8 +315,7 @@ fn terraria(entry: &ArrowEntry) -> ArrowDetail {
         entry,
         vec![
             target("linux/amd64", lifecycle.clone(), vec![]),
-            target("windows/amd64", lifecycle.clone(), vec![]),
-            target("darwin/arm64", lifecycle, vec![]),
+            target("windows/amd64", lifecycle, vec![]),
         ],
     );
     d.tags = vec!["game".into(), "server".into()];

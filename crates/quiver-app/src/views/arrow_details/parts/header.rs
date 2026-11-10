@@ -6,13 +6,12 @@ use gpui::{div, px, Context, FontWeight, IntoElement};
 use quiver_state::arrow_details::header::VersionControl;
 use quiver_state::arrow_details::StatusGlyph as StateGlyph;
 use quiver_state::i18n::en::arrow;
-use quiver_state::tile::hue_for;
 use quiver_theme::FontFamily;
 use quiver_ui::inspect::{probe, Kind};
 use quiver_ui::{ActiveQuiver, Badge, BadgeVariant, GlyphKind, StatusGlyph};
 
 use super::action_row::action_row;
-use super::banner::{app_icon, banner_art, HEIGHT};
+use super::banner::{app_icon, banner_art, Art, HEIGHT};
 use super::icons::{pict, Pict};
 use super::popovers::popovers;
 use crate::views::arrow_details::page::Page;
@@ -91,7 +90,12 @@ pub fn header(
     let model = view.app.read(cx);
     let tr = model.translator;
     let h = &page.header;
-    let hue_value = hue_for(quiver_state::namespace::bare_namespace(&h.namespace));
+    let bare = quiver_state::namespace::bare_namespace(&h.namespace);
+    let hue_value = if model.demo {
+        Art::mock(bare)
+    } else {
+        Art::hashed(bare)
+    };
     let status_label = tr.t(h.status.label);
     let platform = h.platform_badge.as_ref().map(|b| b.text(&tr));
     let problem = h.problem.as_ref().map(|_| tr.t(arrow::PROBLEM_LABEL));

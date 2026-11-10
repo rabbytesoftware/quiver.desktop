@@ -49,8 +49,32 @@ pub(crate) fn art_children(
     }
 }
 
+fn lift(h: u16) -> f32 {
+    if h >= 360 {
+        0.09
+    } else {
+        0.0
+    }
+}
+
 pub(crate) fn banner_background(h: u16) -> gpui::Hsla {
-    hue(h, 0.55, 0.24)
+    hue(h, 0.40, 0.17 + lift(h))
+}
+
+/// The banner as a free-standing block (a collection header), `w` wide and half as tall.
+pub fn banner_block(
+    h: u16,
+    w: f32,
+) -> gpui::Div {
+    div()
+        .relative()
+        .overflow_hidden()
+        .rounded(px(12.))
+        .w(px(w))
+        .h(px(w / 2.0))
+        .flex_none()
+        .bg(banner_background(h))
+        .children(banner(h, w))
 }
 
 fn banner(
@@ -58,8 +82,8 @@ fn banner(
     w: f32,
 ) -> Vec<gpui::AnyElement> {
     let mut out = Vec::new();
-    let period = w * 0.08;
-    let mut x = period - w * 0.002;
+    let period = w * 0.1;
+    let mut x = 0.0;
     while x < w {
         out.push(
             div()
@@ -67,8 +91,8 @@ fn banner(
                 .top_0()
                 .bottom_0()
                 .left(px(x))
-                .w(px((w * 0.002).max(1.0)))
-                .bg(white().opacity(0.07))
+                .w(px((w * 0.00167).max(1.0)))
+                .bg(hue(h, 0.40, 0.24 + lift(h)))
                 .into_any_element(),
         );
         x += period;
@@ -77,18 +101,18 @@ fn banner(
         div()
             .absolute()
             .rounded_full()
-            .size(px(w * 0.5))
-            .right(px(-w * 0.04))
-            .top(px(-w * 0.2))
-            .bg(hue(h, 0.55, 0.32))
+            .size(px(w * 0.4333))
+            .left(px(w * 0.5833))
+            .top(px(-w * 0.1167))
+            .bg(hue(h, 0.46, 0.23 + lift(h)))
             .into_any_element(),
     );
-    let glyph = w * 0.32;
+    let glyph = w * 0.4267;
     out.push(
         div()
             .absolute()
-            .left(px(w * 0.5 - glyph / 2.0))
-            .top(px(w * 0.25 - glyph / 2.0))
+            .left(px(w * 0.2867))
+            .top(px(w * 0.0733))
             .child(icon_with_stroke(Glyph::Mark, glyph, white(), 1.6))
             .into_any_element(),
     );
@@ -108,12 +132,12 @@ fn drawn(
     let icon = w * 0.105;
     let letter = div()
         .absolute()
-        .right(px(-w * 0.005))
-        .bottom(px(-w * 0.125))
+        .right(px(-w * 0.015))
+        .bottom(px(-w * 0.17))
         .text_size(px(w * 0.58))
         .line_height(px(w * 0.58))
         .font_weight(FontWeight::EXTRA_BOLD)
-        .text_color(p.border)
+        .text_color(p.foreground.opacity(0.048))
         .child(initial.clone());
     let mark = div()
         .absolute()
@@ -126,8 +150,8 @@ fn drawn(
         .justify_center()
         .bg(linear_gradient(
             180.,
-            linear_color_stop(hue(h, 0.48, 0.50), 0.),
-            linear_color_stop(hue(h, 0.52, 0.33), 1.),
+            linear_color_stop(hue(h, 0.52, 0.38 + lift(h)), 0.),
+            linear_color_stop(hue(h, 0.48, 0.30 + lift(h)), 1.),
         ))
         .child(icon_with_stroke(Glyph::Mark, icon * 0.6, white(), 1.9));
     let title = div()
@@ -139,21 +163,21 @@ fn drawn(
         .flex_col()
         .child(
             div()
-                .text_size(px(w * 0.0845))
-                .line_height(px(w * 0.0845 * 1.1))
+                .text_size(px(w * 0.086))
+                .line_height(px(w * 0.086 * 1.15))
                 .font_weight(FontWeight::SEMIBOLD)
-                .text_color(p.foreground)
+                .text_color(p.foreground.opacity(0.88))
                 .truncate()
                 .child(name.clone()),
         )
         .child(
             div()
-                .mt(px(w * 0.012))
+                .mt(px(w * 0.013))
                 .min_h(px(w * 0.05))
                 .font_family(FontFamily::Mono.family())
                 .text_size(px(w * 0.0405))
                 .line_height(px(w * 0.0405 * 1.2))
-                .text_color(p.muted_foreground)
+                .text_color(p.foreground.opacity(0.33))
                 .truncate()
                 .child(publisher.to_uppercase()),
         );

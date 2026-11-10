@@ -12,7 +12,9 @@ use quiver_ui::{ActiveQuiver, Button, ButtonVariant, TileSize};
 
 use crate::bridge::observe_store;
 use crate::model::{AppModel, Route};
-use crate::views::grid_page::{chip, notice, page, page_header, skeleton, tile_grid};
+use crate::views::grid_page::{
+    chip, grid_tile_width, notice, page, page_header, skeleton, tile_grid,
+};
 use crate::views::screen_probe;
 use crate::views::tiles::{library_input, tile};
 
@@ -46,7 +48,7 @@ fn filter_key(filter: LibraryFilter) -> &'static str {
 impl Render for LibraryView {
     fn render(
         &mut self,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let p = cx.quiver().palette;
@@ -132,11 +134,12 @@ impl Render for LibraryView {
                 notice("library.filtered-empty", nothing, String::new(), None, cx)
                     .into_any_element()
             } else {
+                let width = grid_tile_width(&app, window, model.shown.len(), cx);
                 let tiles = model.shown.iter().map(|entry| {
                     tile(
                         "library",
                         &library_input(entry),
-                        TileSize::Compact,
+                        TileSize::Custom(width),
                         &app,
                         cx,
                     )

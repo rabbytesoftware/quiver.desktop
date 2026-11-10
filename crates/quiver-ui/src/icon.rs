@@ -24,6 +24,8 @@ pub enum Glyph {
     Ellipsis,
     /// The Quiver arrow mark (an up chevron over a dot), as on the tile art.
     Mark,
+    /// The same mark with the proportions of the arrow icon (a 512 box: chevron 144..368, dot at 392).
+    ArrowIcon,
 }
 
 /// Points of a circle in the 24x24 view box.
@@ -118,6 +120,10 @@ fn strokes(glyph: Glyph) -> Vec<Vec<(f32, f32)>> {
             circle(5.0, 12.0, 0.7),
             circle(12.0, 12.0, 0.7),
             circle(19.0, 12.0, 0.7),
+        ],
+        Glyph::ArrowIcon => vec![
+            vec![(6.75, 17.25), (12.0, 7.125), (17.25, 17.25)],
+            circle(12.0, 18.375, 0.8),
         ],
         Glyph::Mark => vec![
             vec![(5.5, 15.2), (12.0, 4.5), (18.5, 15.2)],
