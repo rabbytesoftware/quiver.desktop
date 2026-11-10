@@ -19,6 +19,8 @@ async fn starting_clears_the_projection_and_closes_both_streams() {
 async fn a_ready_superseded_by_starting_while_connections_were_in_flight_is_dropped() {
     let rig = rig();
     let _l = rig.setup(None, true).await;
+    // The boot adoption opens its stream on a spawned task: wait for it, so the test does not race it.
+    rig.api.wait_stream("/v0/runtime", 0).await;
     rig.backend.emit_status(ConnectionStatus::Starting);
     rig.wait_status(ConnectionStatus::Starting).await;
     let parked = Arc::new(Notify::new());
