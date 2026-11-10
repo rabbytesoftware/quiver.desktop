@@ -203,6 +203,33 @@ fn popular(
     }
 }
 
+/// `QUIVER_DEMO_ARROWS=<n>`: n extra generated library arrows (sidebar and Library tiles) for scroll and
+/// long-list measurements (`cargo xtask perf`); any n > 0 also turns every demo arrow Ready (no spinners). Unset: none.
+fn generated_count() -> usize {
+    std::env::var("QUIVER_DEMO_ARROWS")
+        .ok()
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(0)
+}
+
+fn generated_records(count: usize) -> Vec<ArrowCatalogRecord> {
+    (0..count)
+        .map(|i| ArrowCatalogRecord {
+            connection_id: "local".into(),
+            namespace: format!("github.com/generated/arrow-{i:05}"),
+            name: format!("Generated Arrow {i:05}"),
+            description: format!("Generated library entry number {i} for list measurements."),
+            tags: vec![],
+            icon: None,
+            banner: None,
+            version: "v1.0.0".into(),
+            last_used_at: None,
+            origin: None,
+            confidence: None,
+        })
+        .collect()
+}
+
 /// Fills the arrow store and the home query.
 pub fn seed(model: &AppModel) {
     screens::seed(model);
@@ -227,11 +254,32 @@ pub fn seed(model: &AppModel) {
             confidence: None,
         })
         .collect();
-    model.services.arrows.set_catalog(&records);
+    // A long-list measurement must not include spinners: every busy arrow animates at the display rate.
+    let calm = generated_count() > 0;
+    let generated = generated_records(generated_count());
+    let mut catalog = records.clone();
+    catalog.extend(generated.iter().cloned());
+    model.services.arrows.set_catalog(&catalog);
+    for record in &generated {
+        model.services.arrows.seed_initial_state(RuntimeUpdate {
+            namespace: record.namespace.clone(),
+            state: ArrowState::Ready,
+            active_run: None,
+            last_return: None,
+        });
+    }
     for (r, record) in rows.iter().zip(&records) {
         model.services.arrows.seed_initial_state(RuntimeUpdate {
             namespace: record.namespace.clone(),
-            state: r.state,
+            state: if calm { ArrowState::Ready } else { r.state },
+            active_run: None,
+            last_return: None,
+        });
+    }
+    if calm {
+        model.services.arrows.apply_runtime_update(RuntimeUpdate {
+            namespace: screens::APP_NAMESPACE.into(),
+            state: ArrowState::Ready,
             active_run: None,
             last_return: None,
         });

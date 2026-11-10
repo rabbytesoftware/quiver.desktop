@@ -1,0 +1,362 @@
+{
+  "variant": "tauri",
+  "demo": false,
+  "runs": [
+    {
+      "variant": "tauri",
+      "window_mapped_ms": 144.4,
+      "first_painted_ms": 1229.5,
+      "core_socket_ms": 254.1,
+      "home_ms": 1229.5,
+      "processes": {
+        "1207": "quiverdesktop",
+        "1230": "WebKitWebProces",
+        "1222": "WebKitNetworkPr"
+      },
+      "rss_mb": 296.9,
+      "pss_mb": 197.2,
+      "main_process_rss_mb": 102.9,
+      "core_rss_mb": 108.9,
+      "idle_cpu_percent": 17.167,
+      "idle_wakeups_per_s": 858.36,
+      "idle_top_threads": [
+        {
+          "thread": "ReceiveQueue",
+          "cpu_percent": 1.6,
+          "switches_per_s": 380.43
+        },
+        {
+          "thread": "WebKitWebProces",
+          "cpu_percent": 11.433,
+          "switches_per_s": 213.77
+        },
+        {
+          "thread": "quiverdesktop",
+          "cpu_percent": 3.867,
+          "switches_per_s": 196.93
+        },
+        {
+          "thread": "VBlankMonitor",
+          "cpu_percent": 0.167,
+          "switches_per_s": 62.73
+        },
+        {
+          "thread": "tokio-rt-worker",
+          "cpu_percent": 0.033,
+          "switches_per_s": 3.23
+        },
+        {
+          "thread": "JITWorker",
+          "cpu_percent": 0.067,
+          "switches_per_s": 0.83
+        }
+      ],
+      "core_idle_cpu_percent": 2.067,
+      "core_idle_wakeups_per_s": 533.77,
+      "idle_window_s": 30.0
+    },
+    {
+      "variant": "tauri",
+      "window_mapped_ms": 69.5,
+      "first_painted_ms": 1078.7,
+      "core_socket_ms": 163.3,
+      "home_ms": 1078.7,
+      "processes": {
+        "1316": "quiverdesktop",
+        "1338": "WebKitWebProces",
+        "1331": "WebKitNetworkPr"
+      },
+      "rss_mb": 299.6,
+      "pss_mb": 192.8,
+      "main_process_rss_mb": 105.9,
+      "core_rss_mb": 103.8,
+      "idle_cpu_percent": 17.133,
+      "idle_wakeups_per_s": 843.3,
+      "idle_top_threads": [
+        {
+          "thread": "ReceiveQueue",
+          "cpu_percent": 1.6,
+          "switches_per_s": 380.37
+        },
+        {
+          "thread": "WebKitWebProces",
+          "cpu_percent": 11.433,
+          "switches_per_s": 202.93
+        },
+        {
+          "thread": "quiverdesktop",
+          "cpu_percent": 3.867,
+          "switches_per_s": 192.93
+        },
+        {
+          "thread": "VBlankMonitor",
+          "cpu_percent": 0.167,
+          "switches_per_s": 62.97
+        },
+        {
+          "thread": "tokio-rt-worker",
+          "cpu_percent": 0.033,
+          "switches_per_s": 2.97
+        },
+        {
+          "thread": "JITWorker",
+          "cpu_percent": 0.033,
+          "switches_per_s": 0.77
+        }
+      ],
+      "core_idle_cpu_percent": 1.8,
+      "core_idle_wakeups_per_s": 441.57,
+      "idle_window_s": 30.0
+    },
+    {
+      "variant": "tauri",
+      "window_mapped_ms": 69.5,
+      "first_painted_ms": 605.0,
+      "core_socket_ms": 130.8,
+      "home_ms": 605.0,
+      "processes": {
+        "1422": "quiverdesktop",
+        "1444": "WebKitWebProces",
+        "1437": "WebKitNetworkPr"
+      },
+      "rss_mb": 300.0,
+      "pss_mb": 193.2,
+      "main_process_rss_mb": 106.4,
+      "core_rss_mb": 105.0,
+      "idle_cpu_percent": 16.9,
+      "idle_wakeups_per_s": 847.1,
+      "idle_top_threads": [
+        {
+          "thread": "ReceiveQueue",
+          "cpu_percent": 1.567,
+          "switches_per_s": 381.87
+        },
+        {
+          "thread": "WebKitWebProces",
+          "cpu_percent": 11.3,
+          "switches_per_s": 205.37
+        },
+        {
+          "thread": "quiverdesktop",
+          "cpu_percent": 3.833,
+          "switches_per_s": 192.87
+        },
+        {
+          "thread": "VBlankMonitor",
+          "cpu_percent": 0.167,
+          "switches_per_s": 62.87
+        },
+        {
+          "thread": "tokio-rt-worker",
+          "cpu_percent": 0.0,
+          "switches_per_s": 3.0
+        },
+        {
+          "thread": "JITWorker",
+          "cpu_percent": 0.033,
+          "switches_per_s": 0.77
+        }
+      ],
+      "core_idle_cpu_percent": 1.633,
+      "core_idle_wakeups_per_s": 410.33,
+      "idle_window_s": 30.0
+    },
+    {
+      "variant": "tauri",
+      "window_mapped_ms": 68.0,
+      "first_painted_ms": 1052.5,
+      "core_socket_ms": 149.1,
+      "home_ms": 1052.5,
+      "processes": {
+        "1516": "quiverdesktop",
+        "1538": "WebKitWebProces",
+        "1531": "WebKitNetworkPr"
+      },
+      "rss_mb": 297.3,
+      "pss_mb": 190.6,
+      "main_process_rss_mb": 106.2,
+      "core_rss_mb": 139.6,
+      "idle_cpu_percent": 16.967,
+      "idle_wakeups_per_s": 844.36,
+      "idle_top_threads": [
+        {
+          "thread": "ReceiveQueue",
+          "cpu_percent": 1.6,
+          "switches_per_s": 380.17
+        },
+        {
+          "thread": "WebKitWebProces",
+          "cpu_percent": 11.267,
+          "switches_per_s": 203.13
+        },
+        {
+          "thread": "quiverdesktop",
+          "cpu_percent": 3.833,
+          "switches_per_s": 194.27
+        },
+        {
+          "thread": "VBlankMonitor",
+          "cpu_percent": 0.167,
+          "switches_per_s": 62.53
+        },
+        {
+          "thread": "tokio-rt-worker",
+          "cpu_percent": 0.0,
+          "switches_per_s": 3.07
+        },
+        {
+          "thread": "JITWorker",
+          "cpu_percent": 0.1,
+          "switches_per_s": 0.77
+        }
+      ],
+      "core_idle_cpu_percent": 1.4,
+      "core_idle_wakeups_per_s": 331.03,
+      "idle_window_s": 30.0
+    },
+    {
+      "variant": "tauri",
+      "window_mapped_ms": 70.1,
+      "first_painted_ms": 1067.0,
+      "core_socket_ms": 145.0,
+      "home_ms": 1067.0,
+      "processes": {
+        "1621": "quiverdesktop",
+        "1643": "WebKitWebProces",
+        "1636": "WebKitNetworkPr"
+      },
+      "rss_mb": 300.9,
+      "pss_mb": 194.1,
+      "main_process_rss_mb": 106.5,
+      "core_rss_mb": 113.5,
+      "idle_cpu_percent": 17.0,
+      "idle_wakeups_per_s": 845.96,
+      "idle_top_threads": [
+        {
+          "thread": "ReceiveQueue",
+          "cpu_percent": 1.633,
+          "switches_per_s": 379.33
+        },
+        {
+          "thread": "WebKitWebProces",
+          "cpu_percent": 11.367,
+          "switches_per_s": 205.33
+        },
+        {
+          "thread": "quiverdesktop",
+          "cpu_percent": 3.8,
+          "switches_per_s": 194.77
+        },
+        {
+          "thread": "VBlankMonitor",
+          "cpu_percent": 0.167,
+          "switches_per_s": 62.47
+        },
+        {
+          "thread": "tokio-rt-worker",
+          "cpu_percent": 0.0,
+          "switches_per_s": 3.03
+        },
+        {
+          "thread": "JITWorker",
+          "cpu_percent": 0.033,
+          "switches_per_s": 0.67
+        }
+      ],
+      "core_idle_cpu_percent": 1.433,
+      "core_idle_wakeups_per_s": 354.33,
+      "idle_window_s": 30.0
+    }
+  ],
+  "summary": {
+    "window_mapped_ms": {
+      "median": 69.5,
+      "min": 68.0,
+      "max": 144.4,
+      "n": 5
+    },
+    "first_painted_ms": {
+      "median": 1067.0,
+      "min": 605.0,
+      "max": 1229.5,
+      "n": 5
+    },
+    "core_socket_ms": {
+      "median": 149.1,
+      "min": 130.8,
+      "max": 254.1,
+      "n": 5
+    },
+    "home_ms": {
+      "median": 1067.0,
+      "min": 605.0,
+      "max": 1229.5,
+      "n": 5
+    },
+    "rss_mb": {
+      "median": 299.6,
+      "min": 296.9,
+      "max": 300.9,
+      "n": 5
+    },
+    "pss_mb": {
+      "median": 193.2,
+      "min": 190.6,
+      "max": 197.2,
+      "n": 5
+    },
+    "main_process_rss_mb": {
+      "median": 106.2,
+      "min": 102.9,
+      "max": 106.5,
+      "n": 5
+    },
+    "core_rss_mb": {
+      "median": 108.9,
+      "min": 103.8,
+      "max": 139.6,
+      "n": 5
+    },
+    "idle_cpu_percent": {
+      "median": 17.0,
+      "min": 16.9,
+      "max": 17.17,
+      "n": 5
+    },
+    "idle_wakeups_per_s": {
+      "median": 845.96,
+      "min": 843.3,
+      "max": 858.36,
+      "n": 5
+    },
+    "core_idle_cpu_percent": {
+      "median": 1.63,
+      "min": 1.4,
+      "max": 2.07,
+      "n": 5
+    },
+    "core_idle_wakeups_per_s": {
+      "median": 410.33,
+      "min": 331.03,
+      "max": 533.77,
+      "n": 5
+    },
+    "idle_window_s": {
+      "median": 30.0,
+      "min": 30.0,
+      "max": 30.0,
+      "n": 5
+    }
+  },
+  "binary_sizes": {
+    "quiverdesktop_mb": 8.78,
+    "quiver_mb": 56.53
+  },
+  "cpus": 4,
+  "loadavg_at_end": [
+    0.89404296875,
+    0.90625,
+    2.2666015625
+  ],
+  "env_note": "Xvfb + openbox, software rendering (lavapipe/llvmpipe), shared container: see docs/performance.md"
+}

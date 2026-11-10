@@ -10,6 +10,7 @@ mod gh;
 mod layout;
 mod package;
 mod package_layout;
+mod perf;
 mod release_artifact;
 mod release_assets;
 mod sidecar;
@@ -20,7 +21,7 @@ mod verify_update;
 use anyhow::{bail, Context, Result};
 
 const TASKS: &str = "gate, check-deps, check-layout, resolve-core-version <channel>, extract-core-version <tag>, \
-fetch-sidecar, package [macos|windows|linux], check-release-artifact <path>..., check-release-assets <dir>, checksums <dir>, verify-update, compare-boards --shots <dir> --boards <dir>";
+fetch-sidecar, package [macos|windows|linux], check-release-artifact <path>..., check-release-assets <dir>, checksums <dir>, verify-update, perf <build|startup|scroll|all>, compare-boards --shots <dir> --boards <dir>";
 
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
@@ -56,6 +57,7 @@ fn main() -> Result<()> {
         Some("check-release-assets") => release_assets::run(rest),
         Some("checksums") => checksums::run(rest),
         Some("compare-boards") => compare_boards::run(rest),
+        Some("perf") => perf::run(rest),
         Some("verify-update") => verify_update::run(rest),
         Some(other) => bail!("unknown task `{other}`; try: {TASKS}"),
         None => bail!("usage: cargo xtask <{TASKS}>"),

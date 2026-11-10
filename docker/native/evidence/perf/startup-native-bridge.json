@@ -1,0 +1,419 @@
+{
+  "variant": "native-bridge",
+  "demo": false,
+  "runs": [
+    {
+      "variant": "native-bridge",
+      "window_mapped_ms": 128.9,
+      "first_painted_ms": 1154.1,
+      "bridge_connected_ms": 1178.3,
+      "first_frame_signal_ms": 1178.5,
+      "first_frame_signal_ms_waited_ms": 0.2,
+      "core_ready_signal_ms": 1607.0,
+      "core_ready_signal_ms_waited_ms": 428.5,
+      "home_ms": 1607.3,
+      "core_socket_ms": 23.0,
+      "processes": {
+        "861": "quiverdesktop"
+      },
+      "rss_mb": 138.2,
+      "pss_mb": 124.2,
+      "main_process_rss_mb": 138.2,
+      "core_rss_mb": 134.2,
+      "idle_cpu_percent": 1.133,
+      "idle_wakeups_per_s": 85.87,
+      "idle_top_threads": [
+        {
+          "thread": "quiverdesktop",
+          "cpu_percent": 0.367,
+          "switches_per_s": 64.0
+        },
+        {
+          "thread": "quiver-runtime",
+          "cpu_percent": 0.067,
+          "switches_per_s": 11.77
+        },
+        {
+          "thread": "llvmpipe-1",
+          "cpu_percent": 0.167,
+          "switches_per_s": 3.43
+        },
+        {
+          "thread": "blocking-1",
+          "cpu_percent": 0.0,
+          "switches_per_s": 2.0
+        },
+        {
+          "thread": "llvmpipe-0",
+          "cpu_percent": 0.2,
+          "switches_per_s": 1.6
+        },
+        {
+          "thread": "llvmpipe-3",
+          "cpu_percent": 0.167,
+          "switches_per_s": 1.57
+        }
+      ],
+      "core_idle_cpu_percent": 2.467,
+      "core_idle_wakeups_per_s": 518.03,
+      "idle_frames_per_s": 0.03,
+      "idle_window_s": 30.0
+    },
+    {
+      "variant": "native-bridge",
+      "window_mapped_ms": 130.6,
+      "first_painted_ms": 1194.9,
+      "bridge_connected_ms": 1216.5,
+      "first_frame_signal_ms": 1219.4,
+      "first_frame_signal_ms_waited_ms": 2.9,
+      "core_ready_signal_ms": 2404.6,
+      "core_ready_signal_ms_waited_ms": 1185.2,
+      "home_ms": 2405.1,
+      "core_socket_ms": 24.6,
+      "processes": {
+        "927": "quiverdesktop"
+      },
+      "rss_mb": 136.3,
+      "pss_mb": 122.3,
+      "main_process_rss_mb": 136.3,
+      "core_rss_mb": 101.6,
+      "idle_cpu_percent": 0.4,
+      "idle_wakeups_per_s": 76.13,
+      "idle_top_threads": [
+        {
+          "thread": "quiverdesktop",
+          "cpu_percent": 0.333,
+          "switches_per_s": 62.77
+        },
+        {
+          "thread": "quiver-runtime",
+          "cpu_percent": 0.067,
+          "switches_per_s": 11.37
+        },
+        {
+          "thread": "blocking-1",
+          "cpu_percent": 0.0,
+          "switches_per_s": 2.0
+        },
+        {
+          "thread": "Worker-0",
+          "cpu_percent": 0.0,
+          "switches_per_s": 0.0
+        },
+        {
+          "thread": "Worker-1",
+          "cpu_percent": 0.0,
+          "switches_per_s": 0.0
+        },
+        {
+          "thread": "Worker-2",
+          "cpu_percent": 0.0,
+          "switches_per_s": 0.0
+        }
+      ],
+      "core_idle_cpu_percent": 1.9,
+      "core_idle_wakeups_per_s": 451.17,
+      "idle_frames_per_s": 0.0,
+      "idle_window_s": 30.0
+    },
+    {
+      "variant": "native-bridge",
+      "window_mapped_ms": 120.0,
+      "first_painted_ms": 1159.6,
+      "bridge_connected_ms": 1185.1,
+      "first_frame_signal_ms": 1185.3,
+      "first_frame_signal_ms_waited_ms": 0.2,
+      "core_ready_signal_ms": 1787.1,
+      "core_ready_signal_ms_waited_ms": 601.7,
+      "home_ms": 1787.4,
+      "core_socket_ms": 20.8,
+      "processes": {
+        "993": "quiverdesktop"
+      },
+      "rss_mb": 138.4,
+      "pss_mb": 124.5,
+      "main_process_rss_mb": 138.4,
+      "core_rss_mb": 111.6,
+      "idle_cpu_percent": 1.1,
+      "idle_wakeups_per_s": 85.9,
+      "idle_top_threads": [
+        {
+          "thread": "quiverdesktop",
+          "cpu_percent": 0.4,
+          "switches_per_s": 64.37
+        },
+        {
+          "thread": "quiver-runtime",
+          "cpu_percent": 0.033,
+          "switches_per_s": 11.27
+        },
+        {
+          "thread": "llvmpipe-1",
+          "cpu_percent": 0.167,
+          "switches_per_s": 3.47
+        },
+        {
+          "thread": "blocking-1",
+          "cpu_percent": 0.0,
+          "switches_per_s": 2.0
+        },
+        {
+          "thread": "llvmpipe-2",
+          "cpu_percent": 0.167,
+          "switches_per_s": 1.7
+        },
+        {
+          "thread": "llvmpipe-0",
+          "cpu_percent": 0.167,
+          "switches_per_s": 1.53
+        }
+      ],
+      "core_idle_cpu_percent": 1.633,
+      "core_idle_wakeups_per_s": 376.47,
+      "idle_frames_per_s": 0.03,
+      "idle_window_s": 30.0
+    },
+    {
+      "variant": "native-bridge",
+      "window_mapped_ms": 126.7,
+      "first_painted_ms": 1170.7,
+      "bridge_connected_ms": 1202.0,
+      "first_frame_signal_ms": 1202.3,
+      "first_frame_signal_ms_waited_ms": 0.3,
+      "core_ready_signal_ms": 1532.2,
+      "core_ready_signal_ms_waited_ms": 329.9,
+      "home_ms": 1532.6,
+      "core_socket_ms": 21.1,
+      "processes": {
+        "1060": "quiverdesktop"
+      },
+      "rss_mb": 136.8,
+      "pss_mb": 122.8,
+      "main_process_rss_mb": 136.8,
+      "core_rss_mb": 133.9,
+      "idle_cpu_percent": 1.067,
+      "idle_wakeups_per_s": 84.6,
+      "idle_top_threads": [
+        {
+          "thread": "quiverdesktop",
+          "cpu_percent": 0.367,
+          "switches_per_s": 63.83
+        },
+        {
+          "thread": "quiver-runtime",
+          "cpu_percent": 0.033,
+          "switches_per_s": 11.5
+        },
+        {
+          "thread": "llvmpipe-0",
+          "cpu_percent": 0.167,
+          "switches_per_s": 2.43
+        },
+        {
+          "thread": "blocking-1",
+          "cpu_percent": 0.0,
+          "switches_per_s": 2.0
+        },
+        {
+          "thread": "llvmpipe-3",
+          "cpu_percent": 0.167,
+          "switches_per_s": 1.7
+        },
+        {
+          "thread": "llvmpipe-2",
+          "cpu_percent": 0.167,
+          "switches_per_s": 1.63
+        }
+      ],
+      "core_idle_cpu_percent": 1.867,
+      "core_idle_wakeups_per_s": 415.57,
+      "idle_frames_per_s": 0.03,
+      "idle_window_s": 30.0
+    },
+    {
+      "variant": "native-bridge",
+      "window_mapped_ms": 119.1,
+      "first_painted_ms": 1234.7,
+      "bridge_connected_ms": 1261.8,
+      "first_frame_signal_ms": 1262.0,
+      "first_frame_signal_ms_waited_ms": 0.3,
+      "core_ready_signal_ms": 1997.9,
+      "core_ready_signal_ms_waited_ms": 735.9,
+      "home_ms": 1998.2,
+      "core_socket_ms": 22.0,
+      "processes": {
+        "1127": "quiverdesktop"
+      },
+      "rss_mb": 136.7,
+      "pss_mb": 122.8,
+      "main_process_rss_mb": 136.7,
+      "core_rss_mb": 116.4,
+      "idle_cpu_percent": 1.067,
+      "idle_wakeups_per_s": 84.43,
+      "idle_top_threads": [
+        {
+          "thread": "quiverdesktop",
+          "cpu_percent": 0.333,
+          "switches_per_s": 63.97
+        },
+        {
+          "thread": "quiver-runtime",
+          "cpu_percent": 0.067,
+          "switches_per_s": 11.43
+        },
+        {
+          "thread": "llvmpipe-1",
+          "cpu_percent": 0.167,
+          "switches_per_s": 2.03
+        },
+        {
+          "thread": "blocking-1",
+          "cpu_percent": 0.0,
+          "switches_per_s": 2.0
+        },
+        {
+          "thread": "llvmpipe-0",
+          "cpu_percent": 0.167,
+          "switches_per_s": 1.83
+        },
+        {
+          "thread": "llvmpipe-2",
+          "cpu_percent": 0.167,
+          "switches_per_s": 1.7
+        }
+      ],
+      "core_idle_cpu_percent": 1.433,
+      "core_idle_wakeups_per_s": 334.87,
+      "idle_frames_per_s": 0.03,
+      "idle_window_s": 30.0
+    }
+  ],
+  "summary": {
+    "window_mapped_ms": {
+      "median": 126.7,
+      "min": 119.1,
+      "max": 130.6,
+      "n": 5
+    },
+    "first_painted_ms": {
+      "median": 1170.7,
+      "min": 1154.1,
+      "max": 1234.7,
+      "n": 5
+    },
+    "bridge_connected_ms": {
+      "median": 1202.0,
+      "min": 1178.3,
+      "max": 1261.8,
+      "n": 5
+    },
+    "first_frame_signal_ms": {
+      "median": 1202.3,
+      "min": 1178.5,
+      "max": 1262.0,
+      "n": 5
+    },
+    "first_frame_signal_ms_waited_ms": {
+      "median": 0.3,
+      "min": 0.2,
+      "max": 2.9,
+      "n": 5
+    },
+    "core_ready_signal_ms": {
+      "median": 1787.1,
+      "min": 1532.2,
+      "max": 2404.6,
+      "n": 5
+    },
+    "core_ready_signal_ms_waited_ms": {
+      "median": 601.7,
+      "min": 329.9,
+      "max": 1185.2,
+      "n": 5
+    },
+    "home_ms": {
+      "median": 1787.4,
+      "min": 1532.6,
+      "max": 2405.1,
+      "n": 5
+    },
+    "core_socket_ms": {
+      "median": 22.0,
+      "min": 20.8,
+      "max": 24.6,
+      "n": 5
+    },
+    "rss_mb": {
+      "median": 136.8,
+      "min": 136.3,
+      "max": 138.4,
+      "n": 5
+    },
+    "pss_mb": {
+      "median": 122.8,
+      "min": 122.3,
+      "max": 124.5,
+      "n": 5
+    },
+    "main_process_rss_mb": {
+      "median": 136.8,
+      "min": 136.3,
+      "max": 138.4,
+      "n": 5
+    },
+    "core_rss_mb": {
+      "median": 116.4,
+      "min": 101.6,
+      "max": 134.2,
+      "n": 5
+    },
+    "idle_cpu_percent": {
+      "median": 1.07,
+      "min": 0.4,
+      "max": 1.13,
+      "n": 5
+    },
+    "idle_wakeups_per_s": {
+      "median": 84.6,
+      "min": 76.13,
+      "max": 85.9,
+      "n": 5
+    },
+    "core_idle_cpu_percent": {
+      "median": 1.87,
+      "min": 1.43,
+      "max": 2.47,
+      "n": 5
+    },
+    "core_idle_wakeups_per_s": {
+      "median": 415.57,
+      "min": 334.87,
+      "max": 518.03,
+      "n": 5
+    },
+    "idle_frames_per_s": {
+      "median": 0.03,
+      "min": 0.0,
+      "max": 0.03,
+      "n": 5
+    },
+    "idle_window_s": {
+      "median": 30.0,
+      "min": 30.0,
+      "max": 30.0,
+      "n": 5
+    }
+  },
+  "binary_sizes": {
+    "quiverdesktop_mb": 34.44,
+    "quiver-arrow-window_mb": 1.18,
+    "quiver_mb": 56.53
+  },
+  "cpus": 4,
+  "loadavg_at_end": [
+    0.529296875,
+    0.8876953125,
+    2.607421875
+  ],
+  "env_note": "Xvfb + openbox, software rendering (lavapipe/llvmpipe), shared container: see docs/performance.md"
+}

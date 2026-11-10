@@ -42,9 +42,20 @@ impl<T> Store<T> {
 
     /// Mutates and notifies subscribers.
     pub fn update<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
-        let out = f(&mut self.value.write().unwrap_or_else(PoisonError::into_inner));
-        self.revision.send_modify(|r| *r += 1);
+        let out = self.update_quiet(f);
+        self.notify();
         out
+    }
+
+    /// Mutates WITHOUT notifying: for a caller that decides afterwards, with [`Store::notify`], whether anything
+    /// observable changed (a poll that returns what the views already show must not repaint the window).
+    pub fn update_quiet<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
+        f(&mut self.value.write().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    /// Wakes subscribers without touching the value.
+    pub fn notify(&self) {
+        self.revision.send_modify(|r| *r += 1);
     }
 
     /// Replaces the value and notifies subscribers.

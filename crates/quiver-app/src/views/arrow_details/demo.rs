@@ -14,6 +14,21 @@ use quiver_state::namespace::bare_namespace;
 
 const MINECRAFT_README: &str = "# About Minecraft Server\n\nA vanilla Minecraft dedicated server with automatic world backups, packaged as a Quiver arrow.\n\n## Getting started\n\nStart the arrow, then connect to your machine’s address on the port listed under Network. Worlds are stored in the arrow’s data folder and backed up on every stop.\n\n## Backups\n\nRun the backup method from Methods at any time. Restoring is a manual copy for now.\n";
 
+/// `QUIVER_DEMO_README_KB=<kb>`: the Minecraft README replaced by about that many KB of mixed Markdown (headings,
+/// paragraphs, lists, code, a table), to measure rendering of a huge README.
+fn readme_from_environment() -> Option<String> {
+    let kb: usize = std::env::var("QUIVER_DEMO_README_KB").ok()?.parse().ok()?;
+    let mut out = String::from("# Huge README\n\n");
+    let mut n = 0;
+    while out.len() < kb * 1024 {
+        n += 1;
+        out.push_str(&format!(
+            "## Section {n}\n\nParagraph with **bold**, *italic*, `code` and a [link](https://example.test/{n}). Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n\n- first item of {n}\n- second item of {n}\n- third item of {n}\n\n```sh\nquiver arrow run section-{n}\n```\n\n| key | value |\n| --- | --- |\n| section | {n} |\n\n"
+        ));
+    }
+    Some(out)
+}
+
 fn run(title: &str, command: &str) -> ArrowStepDefinition {
     ArrowStepDefinition::Run {
         base: StepBase {
@@ -201,7 +216,7 @@ fn minecraft(entry: &ArrowEntry) -> ArrowDetail {
         entry,
         vec![target("linux/amd64", standard_lifecycle(), methods)],
     );
-    d.readme = Some(MINECRAFT_README.into());
+    d.readme = Some(readme_from_environment().unwrap_or_else(|| MINECRAFT_README.into()));
     d.variables = vec![
         variable(
             "PORT",

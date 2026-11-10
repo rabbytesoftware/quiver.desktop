@@ -1,0 +1,28 @@
+{
+  "scenario": "library",
+  "arrows": 2000,
+  "readme_kb": null,
+  "ready_ms": 1524.3,
+  "idle_frames_per_s_before": 0.0,
+  "single_notch_latency": {
+    "steps": 60,
+    "median_ms": 525.4,
+    "p90_ms": 556.1,
+    "max_ms": 573.6
+  },
+  "burst_fast": {
+    "wheel_clicks": 180,
+    "frames": 3,
+    "elapsed_ms": 1663.3,
+    "input_ms": 1491.1,
+    "ms_per_frame": 554.45
+  },
+  "burst_slow": {
+    "wheel_clicks": 60,
+    "frames": 6,
+    "elapsed_ms": 2782.3,
+    "input_ms": 2425.5,
+    "ms_per_frame": 463.72
+  },
+  "note": "software rendering (lavapipe) in a shared container: relative numbers only, see docs/performance.md"
+}
