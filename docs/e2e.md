@@ -98,7 +98,7 @@ Source of truth: `crates/quiver-e2e/src/protocol.rs` and `server.rs`.
 | `ui.key` | `{keys}` | presses a chord: `enter`, `cmd-k`, `ctrl-shift-p` |
 | `ui.scroll` | `{id, dx, dy}` | logical pixels |
 | `wait.signal` | `{signal, timeout_ms}` | waits for a named, latched app signal. Never a sleep; error `-32001` on timeout |
-| `wait.node` | `{id? , prefix?, label_contains?, state_contains?, y_lt?, y_gt?, present, timeout_ms}` | waits for an element matching the filter to appear (or, with `present: false`, for none to match); returns the node |
+| `wait.node` | `{id? , prefix?, label_contains?, state_contains?, y_lt?, y_gt?, enabled?, present, timeout_ms}` | waits for an element matching the filter to appear (or, with `present: false`, for none to match); returns the node |
 | `state.dump` | | JSON snapshot of the app state |
 | `logs.recent` | `{n}` | last `n` log lines |
 | `window.screenshot` | | `{png_base64}` |

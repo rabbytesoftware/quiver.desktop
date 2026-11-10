@@ -66,6 +66,9 @@ struct Inner {
     reseed: Mutex<Reseed>,
     asked: Mutex<Asked>,
     tx: mpsc::UnboundedSender<Cmd>,
+    /// The runtime the stream was opened on. `reseed` is called from the UI thread, which is not a
+    /// runtime thread, so it must not reach for the ambient one.
+    runtime: tokio::runtime::Handle,
 }
 
 /// Dropping it disposes the stream; `reseed` re-reads the whole catalog the way a reconnect does,
@@ -89,6 +92,7 @@ pub fn subscribe_arrow_stream(
         reseed: Mutex::default(),
         asked: Mutex::default(),
         tx,
+        runtime: tokio::runtime::Handle::current(),
     });
     tokio::spawn(worker(inner.clone(), rx));
     drop(inner.run_seed());
@@ -179,7 +183,7 @@ impl Inner {
             state.pending = true;
         }
         let this = self.clone();
-        tokio::spawn(async move {
+        self.runtime.spawn(async move {
             loop {
                 let _ = this.run_seed().await;
                 let mut state = this.reseed.lock().unwrap_or_else(PoisonError::into_inner);

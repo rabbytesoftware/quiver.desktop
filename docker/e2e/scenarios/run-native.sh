@@ -161,6 +161,26 @@ export QUIVER_E2E_TCP_PORT=40299
 # The helper the app spawns for arrow apps sits next to the app binary already (APP_DIR above).
 export CARGO_TARGET_DIR="$CARGO_TARGET"
 
+# A desktop session has a Secret Service (the OS keyring the app keeps remote pairing tokens in: pairing with a
+# remote fails without one, "Secret Service: no result found"). The box's bare Xvfb has none, so give the app's
+# environment a session bus and an unlocked default keyring, the way a logged-in desktop would. The default
+# collection is a plain-text (unencrypted) `login` keyring written ahead of time: creating one through the
+# Secret Service API asks for a password in a GUI prompt, which nobody is there to answer.
+start_secret_service() {
+	command -v gnome-keyring-daemon >/dev/null || return 0
+	mkdir -p "$HOME/.local/share/keyrings"
+	printf '[keyring]\ndisplay-name=Login\nctime=0\nmtime=0\nlock-on-idle=false\nlock-after=false\n' \
+		>"$HOME/.local/share/keyrings/login.keyring"
+	printf login >"$HOME/.local/share/keyrings/default"
+	if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+		eval "$(dbus-launch --sh-syntax)"
+		export DBUS_SESSION_BUS_ADDRESS
+	fi
+	eval "$(printf '' | gnome-keyring-daemon --unlock --components=secrets 2>/dev/null)"
+	export GNOME_KEYRING_CONTROL SSH_AUTH_SOCK
+}
+start_secret_service
+
 declare -a PASSED=() FAILED=()
 
 # Arrow processes a killed daemon leaves behind: the arrow-apps fixtures and the supervised fixture's sleep.

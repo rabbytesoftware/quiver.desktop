@@ -173,6 +173,9 @@ struct NodeFilter {
     /// Only nodes painted above / below this window y (`y_lt`, `y_gt`): how a scroll is observed.
     y_lt: Option<f32>,
     y_gt: Option<f32>,
+    /// `enabled: true` keeps only nodes that accept input: a button whose form state has not caught up with
+    /// the typing yet is painted disabled.
+    enabled: Option<bool>,
 }
 
 impl NodeFilter {
@@ -185,6 +188,7 @@ impl NodeFilter {
             state_contains: text("state_contains"),
             y_lt: p["y_lt"].as_f64().map(|v| v as f32),
             y_gt: p["y_gt"].as_f64().map(|v| v as f32),
+            enabled: p["enabled"].as_bool(),
         }
     }
 
@@ -204,6 +208,7 @@ impl NodeFilter {
                 .is_none_or(|t| n.state.contains(t.as_str()))
             && self.y_lt.is_none_or(|y| n.y < y)
             && self.y_gt.is_none_or(|y| n.y > y)
+            && self.enabled.is_none_or(|e| n.enabled == e)
     }
 }
 

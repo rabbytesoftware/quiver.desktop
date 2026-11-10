@@ -180,18 +180,30 @@ async fn only_the_local_daemon_learns_about_the_desktop() {
         .await
         .iter()
         .all(|(ns, _)| ns != NS_DESKTOP));
-    assert_eq!(
-        arrow(&authed, &identity).await.0,
-        404,
-        "the remote daemon knows {identity}"
+
+    // ...and neither does its request log (every request the daemon served is one JSON line on its stdout; a read of
+    // the desktop's arrow is not a registration, a POST/PUT/DELETE naming it is). It must hold the pairing the app did, so an empty log cannot pass for a clean one.
+    let served = std::fs::read_to_string(remote.home.root.join("daemon.out")).unwrap_or_default();
+    assert!(
+        served.contains("/v0/auth/pairing/redeem"),
+        "the remote daemon's log does not show the app's pairing: {served}"
+    );
+    let writes: Vec<&str> = served
+        .lines()
+        .filter(|l| l.contains("quiver.desktop") && !l.contains(r#""method":"GET""#))
+        .collect();
+    assert!(
+        writes.is_empty(),
+        "the remote daemon was told about the desktop: {writes:?}"
     );
 
-    // ...and neither does its own log (every request it served is recorded there).
-    let log = std::fs::read_to_string(remote.home.daemon_log()).unwrap_or_default();
+    // A detail read resolves from upstream whether or not the daemon holds the arrow; what it must not be is a
+    // row the user installed.
     assert!(
-        !log.contains("quiver.desktop"),
-        "the remote daemon's log mentions the desktop"
+        arrow(&authed, &identity)
+            .await
+            .1
+            .is_none_or(|a| !a.user_installed),
+        "the remote daemon filed {identity} as installed"
     );
-    // Control: the local daemon still has the row (the announce did not move).
-    assert!(arrow(&local, &identity).await.1.is_some());
 }

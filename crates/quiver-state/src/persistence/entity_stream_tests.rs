@@ -369,3 +369,28 @@ async fn ignores_invalid_frames_and_stops_after_dispose() {
     assert_eq!(rig.cache.arrows_for("local").len(), 1);
     assert!(rig.changed.try_recv().is_err());
 }
+
+/// The UI asks for a re-read from its own thread, which is not a runtime thread: the stream must
+/// spawn on the runtime it was opened on, not on the ambient one (which does not exist there).
+#[tokio::test]
+async fn a_reseed_requested_from_a_thread_outside_the_runtime_still_runs() {
+    let mut rig = rig();
+    let reads = Arc::new(AtomicUsize::new(0));
+    let counted = reads.clone();
+    let seed: SeedFn = Arc::new(move || {
+        counted.fetch_add(1, Ordering::SeqCst);
+        Box::pin(async { Ok(vec![]) })
+    });
+    let (stream, _live) = rig.ready(seed).await;
+    let reseeder = stream.reseeder();
+    let stream = std::thread::spawn(move || {
+        stream.reseed();
+        reseeder.reseed();
+        stream
+    })
+    .join()
+    .unwrap();
+    rig.changed.recv().await.unwrap();
+    assert!(reads.load(Ordering::SeqCst) >= 2);
+    drop(stream);
+}

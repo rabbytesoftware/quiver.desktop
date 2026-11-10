@@ -36,7 +36,10 @@ pub async fn add(backend: &dyn Backend, submission: &AddSubmission) -> Connectio
         .await
     {
         Ok(_) => ConnectionOutcome::Added,
-        Err(_) => ConnectionOutcome::AddFailed,
+        Err(err) => {
+            log::warn!("remote: adding {} failed: {err}", submission.url);
+            ConnectionOutcome::AddFailed
+        }
     }
 }
 

@@ -11,6 +11,11 @@ use crate::window::open_main_window;
 /// Runs the app until the main window closes. `seed` fills the stores after the model exists
 /// (`--demo` uses it); a real run passes `None`.
 pub fn run(services: Arc<AppServices>, demo: bool, seed: Option<fn(&AppModel)>) {
+    // Defence in depth: the UI thread is not a runtime thread, so a bare `tokio::spawn` reached from
+    // a view would panic with "no reactor running". The call sites pass handles explicitly; this
+    // keeps one forgotten site from taking the app down.
+    let _runtime = services.handle().clone();
+    let _in_runtime = _runtime.enter();
     Application::new().run(move |cx| {
         crate::fonts::load(cx);
         crate::menu::install(cx);

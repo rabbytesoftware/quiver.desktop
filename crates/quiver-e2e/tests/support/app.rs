@@ -103,7 +103,9 @@ impl App {
     }
 
     pub async fn click(&mut self, id: &str) {
-        self.node(id).await;
+        // Enabled, not just painted: a button waits on form state that follows the typing by a frame.
+        self.matching(serde_json::json!({"id": id, "enabled": true}))
+            .await;
         if let Err(e) = self.bridge.click(id).await {
             self.fail(&format!("click {id}: {e}")).await;
         }
