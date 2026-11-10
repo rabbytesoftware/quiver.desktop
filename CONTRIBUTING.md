@@ -1,91 +1,38 @@
 # Contributing to Quiver Desktop
 
-Conventions for the frontend. The gates at the bottom are what CI enforces.
+The app is a Cargo workspace. [docs/architecture.md](docs/architecture.md) has the crate graph; this page is
+the working agreement. `make gate` is what CI enforces.
 
-## Feature layout
+## Where code goes
 
-Everything a feature owns lives under `src/features/<name>/`, split by what the
-code _is_ rather than piled into `components/`:
+- **A decision** (what a status means, which buttons show, when an update is offered) lives in
+  `crates/quiver-state/src/<feature>/` as plain Rust with unit tests. Views call it.
+- **A view** lives in `crates/quiver-app/src/views/<feature>/` (`mod.rs` plus `parts/`). It reads state, renders and
+  sends an action; it holds no business logic. How to write one: `crates/quiver-app/src/views/README.md`.
+- **A reusable widget** lives in `crates/quiver-ui/src/<component>.rs`, one file per component, named after its
+  Coss UI counterpart, and is added to the gallery (`cargo run -p quiver-ui --example gallery`).
+- **Colours, radii, sizes** come from `quiver-theme` tokens. Never hard-code a colour in a view.
+- **Talking to quiver.core, secrets, settings, paths** live in `quiver-core-client` / `quiver-platform`.
+  Arrow-app rules live in `quiver-arrow-host`.
 
-```
-src/features/<name>/
-  api/          calls to quiver.core, one file per surface   (engine-api.ts)
-  components/   React components; sub-folder once a cluster forms
-  hooks/        use-*.ts — React-bound, one concern each
-  lib/          pure logic, no React, no store                (narrow.ts, geometry.ts)
-  stores/       Zustand stores, named for the feature         (shell-store.ts)
-  styles/       CSS a component imports                       (card.css)
-  index.ts      the feature's public surface
-```
+## Rules the gate checks
 
-Only create the folders a feature actually needs. `search` has no `api/` or
-`stores/` because both live in `src/lib/core-store/` — see **Where state lives**.
+- Dependencies point one way. Nothing below `quiver-ui` imports `gpui` (`cargo xtask check-deps`).
+- Files under 300 lines, 500 is a hard limit; no `utils`/`helpers`/`common`/`misc` modules (`cargo xtask check-layout`).
+- `cargo fmt --check`, `cargo clippy -D warnings` with `unwrap_used` and `expect_used` denied.
+- One `thiserror` error enum per library crate; `anyhow` only in `quiver-app` and `xtask`.
+- `cargo deny`, `cargo audit`, `cargo machete`.
+- Tests sit next to the code (`#[cfg(test)]`); integration tests in each crate's `tests/`.
+  No sleeps: wait on a signal.
 
-### When to nest inside `components/`
+## End-to-end tests
 
-Nest when a cluster has its own vocabulary, not to hit a file count:
+Every interactive element and screen has a stable id (`<screen>.<element>`). The debug-only `e2e-bridge`
+feature serves them over JSON-RPC, and `quiver-mcp` exposes them to an agent. See [docs/e2e.md](docs/e2e.md).
+`make test-e2e-box` runs the scenarios in the Linux container against a real quiver.core. The bridge is never
+compiled into release artifacts (`cargo xtask check-release-artifact`).
 
-```
-search/components/card/      the tile: arrow-card, card-skeleton
-search/components/results/   the screen: results-screen, result-grid, results-header, …
-search/components/           standalone surfaces: search-bar, search-inspector
-```
+## Commits
 
-A component that stands alone stays flat. Mixing nested and flat is fine.
-
-## Imports
-
-- Same folder: relative — `./arrow-card`.
-- Anything else, including another folder of the same feature: the alias —
-  `@/features/search/lib/narrow`, never `../../lib/narrow`.
-
-Relative paths that climb out of a folder break the moment a file moves, and
-this layout exists because files moved. The alias resolves to `src/`, so a path
-that has to reach outside `src/` (the repo-root `index.html`, for one) is the
-single case that stays relative — say so in a comment where it happens.
-
-## Tests
-
-Tests sit **next to what they test**: `lib/narrow.ts` → `lib/narrow.test.ts`.
-
-This is a deliberate departure from crowbar, which mirrors everything into
-`src/__tests__/`. Both work; what does not work is half of each, and every
-existing test in this repo — `src/lib/**` included — is co-located.
-
-A test that spans several units is the feature's integration test and stays at
-the feature root (`shell.test.tsx`, `settings.test.tsx`). A test named for the
-feature but exercising one component is not that — name it for the component and
-put it beside it.
-
-## Naming
-
-Files are kebab-case; the exported component stays PascalCase.
-
-```tsx
-// file: arrow-card.tsx
-export function ArrowCard() { … }
-```
-
-Store files carry the feature name (`shell-store.ts`, not `store.ts`) so an open
-editor tab says which store it is. Same for `api/` (`engine-api.ts`).
-
-## Where state lives
-
-- Server state and the search pass controller live in `src/lib/core-store/`.
-  Rust owns the sidecar, the WebSocket, and HTTP; TypeScript owns the store.
-  A feature reads it — it does not re-home it under `features/<name>/stores/`.
-- `features/<name>/stores/` is for state that belongs to that feature's UI
-  (sidebar width, which settings tab is open, theme preference).
-
-## Vendored UI
-
-`src/components/ui/**` is vendored from CossUI/shadcn registries. It is held out
-of `knip` and out of `react-doctor`'s `only-export-components` on purpose, so a
-registry file can be dropped in without a reformat. Prune what does not apply
-(variants pointing at tokens this theme lacks) and leave a comment saying why.
-
-## Gates
-
-`npm test`, `npx tsc --noEmit`, `npx eslint src`, `npx prettier --check src`,
-`npm run doctor`, `npm run test:coverage`. CI runs all of them; `doctor` blocks
-on warnings and coverage holds a 95% floor on every metric, branches included.
+Small, focused, imperative (`feat(state): ...`, `fix(app): ...`). Decisions that deviate from the structure
+rules go in `docs/decision-log.md`.
