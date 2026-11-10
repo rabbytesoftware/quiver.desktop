@@ -40,7 +40,7 @@ fn linux() -> Result<Vec<u8>, String> {
         .output()
         .map_err(|e| format!("ImageMagick `import` is required for screenshots: {e}"))?;
     if out.status.success() && !out.stdout.is_empty() {
-        Ok(out.stdout)
+        Ok(super::screenshot_pages::with_pages(&target, out.stdout))
     } else {
         Err(String::from_utf8_lossy(&out.stderr).into_owned())
     }

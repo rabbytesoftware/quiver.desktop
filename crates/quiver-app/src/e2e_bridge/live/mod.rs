@@ -7,6 +7,8 @@ mod input;
 mod logs;
 mod os_mouse;
 mod screenshot;
+#[cfg(target_os = "linux")]
+mod screenshot_pages;
 
 use gpui::{AnyWindowHandle, App};
 use quiver_e2e::server::{serve, BridgeHandles};

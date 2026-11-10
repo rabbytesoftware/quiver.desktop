@@ -48,7 +48,7 @@ impl Pages {
         let waiting = pending.clone();
         let shim_events = events.clone();
         let view = WebViewBuilder::new()
-            .with_visible(false)
+            .with_visible(true)
             .with_bounds(rect(PageBounds {
                 x: 0.0,
                 y: 0.0,
