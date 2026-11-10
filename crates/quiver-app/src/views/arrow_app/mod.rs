@@ -1,8 +1,10 @@
-//! The Arrow-app route (`ArrowAppAfter`). The header the Tauri app drew over the iframe -- name, status,
-//! Reload, Details, the actions menu and Stop -- and, under it, the app's page: a webview embedded in the
-//! main window over the pane body (docs/decision-log.md). It drives `services.arrow_windows`: showing the
-//! page when the surface answers, hiding it when the pane is left, closing it on Stop, and telling the
-//! user when the 4-app cap closed another.
+//! What the arrow page shows while the arrow has an interface (`ArrowAppAfter`). The header the Tauri app
+//! drew over the iframe -- name, status, Reload, Details, the actions menu and Stop -- and, under it, the
+//! app's page: a webview embedded in the main window over the pane body (docs/decision-log.md). Details
+//! opens the arrow's own page in a dialog over the app, as in Tauri; the page stays alive but steps aside
+//! while any dialog or menu is open, because a native view paints above GPUI. It drives
+//! `services.arrow_windows`: showing the page when the surface answers, hiding it when the pane is left,
+//! closing it on Stop, and telling the user when the 4-app cap closed another.
 
 mod parts;
 
@@ -14,10 +16,12 @@ use quiver_state::i18n::en::screens;
 use quiver_state::i18n::Params;
 use quiver_state::namespace::bare_namespace;
 use quiver_ui::ActiveQuiver;
+use quiver_ui::Dialog;
 
 use crate::bridge::spawn_action;
-use crate::model::{AppModel, Route};
+use crate::model::AppModel;
 use crate::services::WindowEvent;
+use crate::views::arrow_details::ArrowDetailsView;
 use crate::views::screen_probe;
 
 pub struct ArrowAppView {
@@ -25,12 +29,19 @@ pub struct ArrowAppView {
     pub(super) namespace: String,
     /// The last thing worth telling the user (an eviction, a window that would not open).
     pub(super) notice: Option<String>,
+    details: Entity<ArrowDetailsView>,
+    pub(super) details_open: bool,
     services: std::sync::Arc<crate::services::AppServices>,
     _watchers: Vec<Task<()>>,
 }
 
 impl ArrowAppView {
-    pub fn new(app: Entity<AppModel>, namespace: String, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        namespace: String,
+        details: Entity<ArrowDetailsView>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let services = app.read(cx).services.clone();
         // The route carries the bare namespace; the store, the windows and the daemon calls are keyed by the
         // catalog identity (`ns@selector`).
@@ -63,6 +74,8 @@ impl ArrowAppView {
             app,
             namespace,
             notice: None,
+            details,
+            details_open: false,
             services,
             _watchers: vec![store_task, window_task],
         };
@@ -109,10 +122,8 @@ impl ArrowAppView {
             .as_ref()
             .and_then(|a| a.active_run.as_ref())
             .and_then(|r| r.surface.as_ref());
-        if surface.is_none() && entry.is_some() {
-            let namespace = bare_namespace(&self.namespace).to_owned();
-            self.app
-                .update(cx, |m, cx| m.replace(Route::Arrow { namespace }, cx));
+        if surface.is_none() {
+            cx.notify();
             return;
         }
         let ready = surface.is_some_and(|s| s.ready);
@@ -123,6 +134,33 @@ impl ArrowAppView {
             HostStep::Keep => {}
         }
         cx.notify();
+    }
+
+    /// The arrow's own page over the app (Tauri's Details dialog). The app's page steps aside meanwhile.
+    pub(super) fn open_details(&mut self, cx: &mut Context<Self>) {
+        self.details_open = true;
+        self.services.arrow_windows.set_covered(true);
+        cx.notify();
+    }
+
+    pub(super) fn close_details(&mut self, cx: &mut Context<Self>) {
+        self.details_open = false;
+        self.services.arrow_windows.set_covered(false);
+        cx.notify();
+    }
+
+    /// Reload remounts the page; when the page is gone (evicted, or it never opened) it opens it again.
+    pub(super) fn reload(&mut self, cx: &mut Context<Self>) {
+        if self
+            .services
+            .arrow_windows
+            .open_apps()
+            .contains(&self.namespace)
+        {
+            self.services.arrow_windows.reload(&self.namespace);
+            return;
+        }
+        self.show_window(cx);
     }
 
     pub(super) fn show_window(&mut self, cx: &mut Context<Self>) {
@@ -159,6 +197,7 @@ impl Drop for ArrowAppView {
     /// Leaving the pane hides the window; it stays alive so the app keeps its state. Only when this
     /// pane's app is the visible one: the next pane may already have shown its own.
     fn drop(&mut self) {
+        self.services.arrow_windows.set_covered(false);
         if self.services.arrow_windows.visible().as_deref() == Some(self.namespace.as_str()) {
             self.services.arrow_windows.hide();
         }
@@ -166,8 +205,10 @@ impl Drop for ArrowAppView {
 }
 
 impl Render for ArrowAppView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = cx.quiver().palette;
+        let this = cx.entity();
+        let height = f32::from(window.viewport_size().height) * 0.9;
         div()
             .id("arrow-app")
             .relative()
@@ -177,6 +218,20 @@ impl Render for ArrowAppView {
             .bg(p.background)
             .child(parts::header(self, cx))
             .child(parts::body(self, cx))
+            .child(
+                Dialog::new("arrow-app-details-dialog")
+                    .open(self.details_open)
+                    .width(1024.)
+                    .show_close(false)
+                    .on_dismiss(move |_, cx| this.update(cx, |v, cx| v.close_details(cx)))
+                    .child(
+                        div()
+                            .w_full()
+                            .h(gpui::px(height))
+                            .overflow_hidden()
+                            .child(self.details.clone()),
+                    ),
+            )
             .child(screen_probe("arrow-app"))
     }
 }

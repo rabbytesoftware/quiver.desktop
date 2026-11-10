@@ -3,6 +3,7 @@
 
 pub mod arrow_app;
 pub mod arrow_details;
+pub mod arrow_page;
 pub mod collection;
 pub mod collections;
 pub mod console;

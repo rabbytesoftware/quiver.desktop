@@ -45,11 +45,6 @@ pub fn arrow_row(
     let p = cx.quiver().palette;
     let namespace = bare_namespace(&entry.namespace).to_owned();
     let hue = f32::from(hue_for(&namespace)) / 360.0;
-    // A running arrow with an open interface is its app pane (docs/arrow-apps.md), not its details.
-    let has_surface = entry
-        .active_run
-        .as_ref()
-        .is_some_and(|r| r.surface.is_some());
     let glyph = glyph_kind(StateGlyph::for_state(
         RunState::from(entry.state),
         true,
@@ -98,11 +93,7 @@ pub fn arrow_row(
             .when(!active, |d| d.h(px(34.)).hover(|s| s.bg(p.sidebar_accent)))
             .on_click(move |_, _, cx| {
                 let namespace = ns_click.clone();
-                let route = if has_surface {
-                    Route::ArrowApp { namespace }
-                } else {
-                    Route::Arrow { namespace }
-                };
+                let route = Route::Arrow { namespace };
                 app.update(cx, |m, cx| m.navigate(route, cx));
             })
             .on_mouse_down(MouseButton::Right, move |e, _, cx| {

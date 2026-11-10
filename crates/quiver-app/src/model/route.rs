@@ -19,9 +19,6 @@ pub enum Route {
     Arrow {
         namespace: String,
     },
-    ArrowApp {
-        namespace: String,
-    },
     Remote,
     Settings {
         tab: SettingsTab,
@@ -39,7 +36,6 @@ impl Route {
             Self::Collections => "/collections".into(),
             Self::Collection { id } => format!("/collections/{id}"),
             Self::Arrow { namespace } => format!("/arrow/{namespace}"),
-            Self::ArrowApp { namespace } => format!("/arrow-app/{namespace}"),
             Self::Remote => "/remote".into(),
             Self::Settings {
                 tab: SettingsTab::General,
@@ -63,7 +59,6 @@ impl Route {
             Self::Collections => "collections",
             Self::Collection { .. } => "collection",
             Self::Arrow { .. } => "arrow",
-            Self::ArrowApp { .. } => "arrow-app",
             Self::Remote => "remote",
             Self::Settings { .. } => "settings",
         }
@@ -72,7 +67,7 @@ impl Route {
     /// The arrow whose page this is, for the sidebar's selected row.
     pub fn arrow_namespace(&self) -> Option<&str> {
         match self {
-            Self::Arrow { namespace } | Self::ArrowApp { namespace } => Some(namespace),
+            Self::Arrow { namespace } => Some(namespace),
             _ => None,
         }
     }

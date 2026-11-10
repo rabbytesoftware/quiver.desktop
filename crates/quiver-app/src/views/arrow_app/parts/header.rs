@@ -4,7 +4,6 @@ use gpui::prelude::*;
 use gpui::{div, hsla, linear_color_stop, linear_gradient, px, Context, FontWeight, IntoElement};
 use quiver_state::arrow_app::{build_pane_header, PaneMenuItem};
 use quiver_state::i18n::en::arrowapp;
-use quiver_state::namespace::bare_namespace;
 use quiver_state::queries::mutations::{Mutations, Variables};
 use quiver_theme::FontFamily;
 use quiver_ui::inspect::{probe, Kind};
@@ -13,7 +12,6 @@ use quiver_ui::{
 };
 
 use crate::bridge::spawn_detached;
-use crate::model::Route;
 use crate::views::arrow_app::ArrowAppView;
 
 fn hue(namespace: &str) -> f32 {
@@ -37,17 +35,12 @@ fn menu(
         .on_open_change(move |open, _, _| windows.set_covered(open));
     for item in items {
         let label = view.app.read(cx).t(item.label());
-        let (app, namespace) = (view.app.clone(), view.namespace.clone());
-        // Settings, Methods and Uninstall ask for input: they live on the arrow's own page.
+        let this = cx.entity();
+        // Settings, Methods and Uninstall ask for input: they live on the arrow's own page, in the dialog.
         menu = menu.item(
             MenuItem::new(label)
                 .destructive(item.destructive())
-                .on_select(move |_, cx| {
-                    let route = Route::Arrow {
-                        namespace: bare_namespace(&namespace).to_owned(),
-                    };
-                    app.update(cx, |m, cx| m.navigate(route, cx));
-                }),
+                .on_select(move |_, cx| this.update(cx, |v, cx| v.open_details(cx))),
         );
     }
     div()
@@ -105,7 +98,7 @@ pub fn header(view: &mut ArrowAppView, cx: &mut Context<ArrowAppView>) -> impl I
 
     let (app, ns) = (view.app.clone(), view.namespace.clone());
     let reload_btn = {
-        let (app, ns) = (app.clone(), ns.clone());
+        let this = cx.entity();
         action(
             "arrow-app-reload",
             "arrow-app.reload",
@@ -113,13 +106,11 @@ pub fn header(view: &mut ArrowAppView, cx: &mut Context<ArrowAppView>) -> impl I
             ButtonVariant::Ghost,
             None,
             cx,
-            move |_, cx| {
-                app.read(cx).services.arrow_windows.reload(&ns);
-            },
+            move |_, cx| this.update(cx, |v, cx| v.reload(cx)),
         )
     };
     let details_btn = {
-        let (app, ns) = (app.clone(), ns.clone());
+        let this = cx.entity();
         action(
             "arrow-app-details",
             "arrow-app.details",
@@ -127,12 +118,7 @@ pub fn header(view: &mut ArrowAppView, cx: &mut Context<ArrowAppView>) -> impl I
             ButtonVariant::Outline,
             None,
             cx,
-            move |_, cx| {
-                let route = Route::Arrow {
-                    namespace: bare_namespace(&ns).to_owned(),
-                };
-                app.update(cx, |m, cx| m.navigate(route, cx));
-            },
+            move |_, cx| this.update(cx, |v, cx| v.open_details(cx)),
         )
     };
     let stop_btn = {

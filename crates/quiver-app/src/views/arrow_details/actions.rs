@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use gpui::{AppContext as _, Context};
-use quiver_state::arrow_details::actions::launch_label;
 use quiver_state::arrow_details::invoke::{
     needs_platform_check, needs_release, ActionFailure, UpdateOutcome as Outcome, UP_TO_DATE_MS,
 };
@@ -21,7 +20,7 @@ use quiver_state::queries::mutations::{Mutations, UpdateOutcome, Variables};
 
 use super::ArrowDetailsView;
 use crate::bridge::spawn_action;
-use crate::model::{open_modal, Route};
+use crate::model::open_modal;
 use crate::services::{resolve_release_variables, ReleaseSource};
 
 /// What the call to Core needs, owned so it can run on the runtime.
@@ -160,29 +159,13 @@ impl ArrowDetailsView {
             available_ref: detail.available.as_ref().map(|a| a.reference.clone()),
         };
         let handle = model.handle().clone();
-        let opens_app = kind == ArrowActionKind::Execute && self.opens_app(&detail);
-        let namespace = self.namespace.clone();
         cx.notify();
         spawn_action(cx, &handle, perform(job), move |this, done, cx| {
-            this.settle(kind, done, opens_app.then_some(namespace), cx);
+            this.settle(kind, done, cx);
         });
     }
 
-    fn opens_app(&self, detail: &quiver_state::domain::ArrowDetail) -> bool {
-        let facts = quiver_state::arrow_details::facts_from_detail(
-            detail,
-            &quiver_platform::platform_key(),
-        );
-        launch_label(facts.lifecycle.as_ref()) == quiver_state::i18n::en::arrow::ACTION_OPEN
-    }
-
-    fn settle(
-        &mut self,
-        kind: ArrowActionKind,
-        done: Done,
-        open_app: Option<String>,
-        cx: &mut Context<Self>,
-    ) {
+    fn settle(&mut self, kind: ArrowActionKind, done: Done, cx: &mut Context<Self>) {
         let services = self.app.read(cx).services.clone();
         match done {
             Done::Ok(update) => {
@@ -195,9 +178,6 @@ impl ArrowDetailsView {
                 }
                 if update == Some(Outcome::Current) {
                     self.expire_up_to_date_later(cx);
-                }
-                if let Some(namespace) = open_app {
-                    crate::model::navigate(cx, Route::ArrowApp { namespace });
                 }
             }
             Done::Release(failure) => {
@@ -243,19 +223,6 @@ impl ArrowDetailsView {
         let Some(detail) = self.merged(cx) else {
             return;
         };
-        // docs/arrow-apps.md: while the run has an interface the arrow's page is the app pane.
-        let has_surface = detail
-            .active_run
-            .as_ref()
-            .is_some_and(|r| r.surface.is_some());
-        if has_surface && !self.surface_seen && !self.app.read(cx).demo {
-            self.surface_seen = true;
-            let namespace = self.namespace.clone();
-            self.app
-                .update(cx, |m, cx| m.replace(Route::ArrowApp { namespace }, cx));
-            return;
-        }
-        self.surface_seen = has_surface;
         if !self
             .invoke
             .restart_ready_for_execute(RunState::from(detail.state))

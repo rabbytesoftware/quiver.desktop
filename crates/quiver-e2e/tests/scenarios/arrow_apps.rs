@@ -74,6 +74,21 @@ async fn a_late_binding_app_is_isolated_and_its_window_opens_only_when_ready() {
     wait_embedded(&mut app, 1).await;
     app.shot("echo-open").await;
 
+    // Details opens the arrow's own page in a dialog over the app, as in Tauri (docs/arrow-apps.md). The page
+    // stays alive but steps aside while the dialog is open, and is back when it closes.
+    app.click("arrow-app.details").await;
+    app.node("screen.arrow").await;
+    wait_embedded(&mut app, 0).await;
+    assert_eq!(
+        open_apps(&mut app).await,
+        vec![echo.clone()],
+        "the dialog must not close the app"
+    );
+    app.shot("echo-details-dialog").await;
+    app.bridge.key("escape").await.expect("press escape");
+    app.gone("screen.arrow").await;
+    wait_embedded(&mut app, 1).await;
+
     // The window's first page load went through the host's handler: 200, HTML, the CSP, nothing sensitive sent.
     let loaded = until(&mut app, "the page was requested", |d| {
         d["protocol"]

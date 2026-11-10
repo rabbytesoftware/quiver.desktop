@@ -25,7 +25,7 @@ pub fn parse(spec: &str) -> Option<Route> {
         "arrow" => Route::Arrow {
             namespace: arrow_target(rest).0.into(),
         },
-        "arrow-app" => Route::ArrowApp {
+        "arrow-app" => Route::Arrow {
             namespace: super::screens::APP_NAMESPACE.into(),
         },
         _ => return None,

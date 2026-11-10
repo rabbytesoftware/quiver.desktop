@@ -9,7 +9,7 @@ use quiver_arrow_host::PageBounds;
 use quiver_state::arrow_app::hosting::{pane_body, PaneBody};
 use quiver_state::i18n::en::{arrowapp, screens};
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::{ActiveQuiver, Button, ButtonVariant, Spinner};
+use quiver_ui::{ActiveQuiver, Spinner};
 
 use crate::views::arrow_app::ArrowAppView;
 
@@ -38,8 +38,6 @@ pub fn body(view: &mut ArrowAppView, cx: &mut Context<ArrowAppView>) -> impl Int
         PaneBody::Open => name,
         PaneBody::Closed => m.t(screens::ARROWAPP_WINDOW_CLOSED),
     };
-    let open_label = m.t(screens::ARROWAPP_OPEN_WINDOW);
-    let this = cx.entity();
     let (reporter, namespace) = (windows.clone(), view.namespace.clone());
     div()
         .relative()
@@ -79,23 +77,6 @@ pub fn body(view: &mut ArrowAppView, cx: &mut Context<ArrowAppView>) -> impl Int
                 .text_color(p.foreground)
                 .child(title),
         )
-        .when(state == PaneBody::Closed, |d| {
-            d.child(
-                div().relative().child(
-                    Button::new("arrow-app-open-window")
-                        .variant(ButtonVariant::Outline)
-                        .label(open_label.clone())
-                        .on_click(move |_, _, cx| this.update(cx, |v, cx| v.show_window(cx)))
-                        .child(probe(
-                            "arrow-app.open-window",
-                            Kind::Button,
-                            open_label,
-                            true,
-                            "",
-                        )),
-                ),
-            )
-        })
         .children(view.notice.clone().map(|n| {
             div()
                 .relative()
