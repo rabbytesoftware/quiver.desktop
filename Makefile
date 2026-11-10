@@ -28,7 +28,7 @@ help:
 	@echo "  make test               - cargo test --workspace"
 	@echo "  make fmt                - cargo fmt --all"
 	@echo "  make clippy             - cargo clippy --workspace --all-targets -D warnings"
-	@echo "  make gate               - the whole PR gate: fmt, clippy, test, deny, audit, machete, check-deps, check-layout"
+	@echo "  make gate               - the whole PR gate: fmt, clippy (+ e2e-bridge feature), test, deny, audit, machete, check-deps, check-layout"
 	@echo "  make fetch-sidecar      - download the quiver.core release binary for this platform into target/sidecar/"
 	@echo "                            (core-version.local pins an exact tag; otherwise the newest stable)"
 	@echo "  make package            - build a release and assemble the bundle for this OS in target/bundle/"

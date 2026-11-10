@@ -1,12 +1,12 @@
 name: Release (native)
 
-# Builds, packages and (optionally) publishes the native GPUI app for every channel. It is the successor of the
-# build + publish halves of nightly.yml / prerelease.yml / stable-release.yml, which keep their branch triggers
-# and tag derivation until the lead's cleanup: after it, those three call this workflow with
+# The shared build + publish pipeline of every channel. nightly.yml, prerelease.yml and stable-release.yml
+# keep their own triggers and tag derivation and call this workflow:
 #   uses: ./.github/workflows/release-native.yml
-#   with: { channel: ..., tag: ..., core_version: ... }
-# (or are folded into it). Until then it is run by hand (workflow_dispatch) to validate the whole path with
-# `publish: false`, which uploads the bundles as workflow artifacts and creates no release.
+#   with: { channel: ..., tag: ..., ... }
+#   secrets: inherit
+# It can also be run by hand (workflow_dispatch); with `publish: false` it uploads the bundles as workflow
+# artifacts and creates no release, which validates the whole path.
 #
 # WHAT THE UPDATER NEEDS FROM A RELEASE (crates/quiver-release, ARROW.md at the repo root):
 #  * exactly the asset suffixes it selects on: *.AppImage (linux), *.dmg (macOS), *-setup.exe (windows). The
@@ -18,13 +18,17 @@ name: Release (native)
 #  * ARROW.md is NOT uploaded: quiver.core reads it from the repository at the announced ref (the tag). The
 #    check only proves it still declares QUIVER_RELEASE_ASSET_URL / QUIVER_RELEASE_CHECKSUM.
 #
-# SECRETS THIS WORKFLOW READS (none can be verified from the development container; same names the Tauri
-# workflows used, all optional: unset => ad-hoc signed, un-notarized DMG, exactly as before):
+# SECRETS THIS WORKFLOW READS (none can be verified from the development container, all optional: unset =>
+# ad-hoc signed, un-notarized DMG):
 #   APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
 #   APPLE_ID, APPLE_PASSWORD (app-specific), APPLE_TEAM_ID.
 # GITHUB_TOKEN needs contents: write (publish) and read access to rabbytesoftware/quiver.core releases.
 # UNTESTED here: the macOS and Windows jobs and the AppImage tooling. Windows installers are not Authenticode
-# signed (the Tauri build was not either).
+# signed.
+#
+# CORE VERSION: `core_version` wins when given; a hotfix (channel hotfix, or `pin_core_to_stable`) keeps the
+# quiver.core its latest stable release recorded so it never drifts; otherwise the channel of
+# installer/core-channels.json is resolved against quiver.core's releases.
 on:
   workflow_dispatch:
     inputs:
@@ -48,12 +52,20 @@ on:
         required: false
         default: false
         type: boolean
+      pin_core_to_stable:
+        description: 'Bundle the quiver.core the latest stable release recorded (a hotfix promoted to stable)'
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       channel: { required: true, type: string }
       tag: { required: true, type: string }
       core_version: { required: false, type: string, default: '' }
       publish: { required: false, type: boolean, default: true }
+      pin_core_to_stable: { required: false, type: boolean, default: false }
+      # Create and push the (stable) git tag once the quiver.core release is known to exist, before building.
+      create_tag: { required: false, type: boolean, default: false }
     secrets:
       APPLE_CERTIFICATE: { required: false }
       APPLE_CERTIFICATE_PASSWORD: { required: false }
@@ -73,6 +85,8 @@ jobs:
   prepare:
     name: Resolve quiver.core
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       core_version: ${{ steps.version.outputs.CORE_VERSION }}
       stable_tag: ${{ steps.stamp.outputs.STABLE_TAG }}
@@ -91,10 +105,12 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         CHANNEL: ${{ inputs.channel }}
         REQUESTED: ${{ inputs.core_version }}
+        PIN_TO_STABLE: ${{ inputs.pin_core_to_stable }}
       run: |
+        git fetch --tags
         if [ -n "$REQUESTED" ]; then
           CORE_VERSION="$REQUESTED"
-        elif [ "$CHANNEL" = "hotfix" ]; then
+        elif [ "$CHANNEL" = "hotfix" ] || [ "$PIN_TO_STABLE" = "true" ]; then
           # A hotfix keeps the quiver.core its latest stable release recorded: it must never drift.
           LATEST_STABLE=$(git tag -l "stable-*" | sort -V | tail -1)
           test -n "$LATEST_STABLE" || { echo "a hotfix needs an existing stable release"; exit 1; }
@@ -125,6 +141,16 @@ jobs:
           *) echo "STABLE_TAG=" >> "$GITHUB_OUTPUT" ;;
         esac
 
+    - name: Create and push the tag
+      if: ${{ inputs.create_tag }}
+      env:
+        TAG: ${{ inputs.tag }}
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag "$TAG"
+        git push origin "$TAG"
+
   build:
     name: Build (${{ matrix.os }})
     needs: prepare
@@ -141,7 +167,7 @@ jobs:
       with:
         quiver-version: ${{ needs.prepare.outputs.core_version }}
         release-tag: ${{ needs.prepare.outputs.stable_tag }}
-        build-label: ${{ startsWith(inputs.tag, 'nightly') && '' || inputs.tag }}
+        build-label: ${{ !startsWith(inputs.tag, 'nightly') && inputs.tag || '' }}
         release-channel: ${{ inputs.channel }}
         rust-version: ${{ env.RUST_VERSION }}
       env:
@@ -195,7 +221,13 @@ jobs:
     - name: Release notes
       env:
         CORE_VERSION: ${{ needs.prepare.outputs.core_version }}
+        CHANNEL: ${{ inputs.channel }}
       run: |
+        if [ "$CHANNEL" = "nightly-rolling" ]; then
+          printf 'Automated nightly build from `develop` -- %s\n\nBuilt against quiver.core `%s`.\n\n> Unstable build. Use at your own risk.\n' \
+            "$GITHUB_SHA" "$CORE_VERSION" > CHANGELOG.md
+          exit 0
+        fi
         PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
         if [ -n "$PREV_TAG" ]; then
           echo "## Changes since ${PREV_TAG}" > CHANGELOG.md
@@ -218,9 +250,12 @@ jobs:
         CHANNEL: ${{ inputs.channel }}
       run: |
         FLAGS=""
+        TITLE="$TAG"
         if [ "$CHANNEL" != "stable" ]; then FLAGS="--prerelease"; fi
-        # The nightly pointer is replaced, never accumulated.
+        # The nightly pointer is replaced, never accumulated. --cleanup-tag matters: without it the old git tag
+        # survives and the next release attaches to a stale commit.
         if [ "$CHANNEL" = "nightly-rolling" ]; then
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          TITLE="Nightly ($(git rev-parse --short HEAD))"
         fi
-        gh release create "$TAG" --title "$TAG" --notes-file CHANGELOG.md --target "$GITHUB_SHA" $FLAGS release/*
+        gh release create "$TAG" --title "$TITLE" --notes-file CHANGELOG.md --target "$GITHUB_SHA" $FLAGS release/*

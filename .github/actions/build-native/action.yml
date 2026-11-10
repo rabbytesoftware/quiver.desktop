@@ -1,7 +1,7 @@
 name: 'Build Native App'
 description: >-
   Fetch the quiver.core sidecar, build the GPUI app WITHOUT the e2e bridge and assemble this OS's bundle in
-  target/bundle/ (cargo xtask package). Replacement for build-tauri with the same inputs.
+  target/bundle/ (cargo xtask package).
 
 inputs:
   quiver-version:
@@ -28,7 +28,7 @@ inputs:
   bundle-version:
     description: >-
       Numeric major.minor.patch in the bundle file names and installer metadata (the NSIS installer needs it
-      numeric). It does not track the git tag, as with the Tauri build; the updater selects assets by suffix.
+      numeric). It does not track the git tag; the updater selects assets by suffix.
     required: false
     default: '0.1.0'
   rust-version:

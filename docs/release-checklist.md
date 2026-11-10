@@ -3,7 +3,7 @@
 Manual checklist for shipping a native (GPUI) `quiver.desktop` release that bundles a quiver.core sidecar. What
 cannot be automated is called out as such: macOS notarization needs Apple credentials, Windows code signing needs
 a certificate, and the update-from-the-previous-release check needs a person (or the box scenario) to watch the
-real app replace itself. Everything else has an xtask subcommand or a Makefile target: use it, do not hand-run the
+real app replace itself. `make gate` runs the PR checks locally. Everything else has an xtask subcommand or a Makefile target: use it, do not hand-run the
 equivalent commands.
 
 Run every step in order.
@@ -16,8 +16,8 @@ Run every step in order.
   `fetch-sidecar` shell out to it.
 - A Mac with Xcode command-line tools for the notarization check; a Windows machine for the signing and install
   checks; Docker (or the `E2E (pre-release)` job) for the box.
-- The pipeline that builds a release is `.github/workflows/release-native.yml` (see step 3 for how the three
-  branch-driven workflows reach it).
+- The pipeline that builds a release is `.github/workflows/release-native.yml`, called by `nightly.yml`,
+  `prerelease.yml` and `stable-release.yml` (see step 3).
 
 ## 1. Cut a `stable-*` tag on quiver.core and confirm its release + checksum are published
 
@@ -97,9 +97,15 @@ offer (or miss) a build that does not match the installed one.
 
 ## 3. Build the release bundles
 
-Release bundles come from `.github/workflows/release-native.yml` (`workflow_dispatch`, or `workflow_call` from
-`stable-release.yml` / `prerelease.yml` / `nightly.yml` once the lead's cleanup points them at it). Its `build`
-job runs `.github/actions/build-native` on ubuntu, macos-14 and windows: fetch the sidecar, `cargo build
+Release bundles come from `.github/workflows/release-native.yml`, the one shared pipeline. The three
+branch-driven workflows keep only their trigger and tag derivation and call it with `channel` and `tag`:
+`nightly.yml` (push to `develop`, tag `nightly-rolling`, replaced each run), `prerelease.yml` (push to
+`beta/**` / `hotfix/**`, tags `beta-<series>[-n]` / `hotfix-<v>[-n]`, then comments on the PR) and
+`stable-release.yml` (merged PR `beta/*` or `hotfix/*` into `master`, tag `stable-<series>[.patch]`, then
+`backport.yml`). It can also be run by hand (`workflow_dispatch`, `publish: false` uploads workflow artifacts
+only). Its `prepare` job resolves the quiver.core tag (`cargo xtask resolve-core-version` for beta/stable/nightly;
+`extract-core-version` of the latest stable for a hotfix, also when a hotfix is promoted to stable), checks that
+release exists, and for stable creates and pushes the tag. Its `build` job runs `.github/actions/build-native` on ubuntu, macos-14 and windows: fetch the sidecar, `cargo build
 --release -p quiver-app` (never `--features e2e-bridge`), `cargo xtask package`, then
 `cargo xtask check-release-artifact` on the binaries. Its `publish` job runs `cargo xtask checksums` and
 `cargo xtask check-release-assets` (below) before `gh release create`.
@@ -148,7 +154,7 @@ macOS path (`lipo`, `hdiutil`, `codesign`, `notarytool`) has never run; the firs
 ## 5. Windows installer and code signing
 
 `cargo xtask package windows` compiles `installer/windows/quiver.nsi` with `makensis` (installer hooks reused from
-the Tauri build: `windows-installer-hooks.nsh` installs the VC++ runtime when missing; `QUIVER_VCREDIST_PATH`
+the earlier Tauri installer: `windows-installer-hooks.nsh` installs the VC++ runtime when missing; `QUIVER_VCREDIST_PATH`
 must point at `vc_redist.x64.exe`, which the action downloads and checks for a Microsoft signature). The
 installer is per-user and has no elevation of its own; **a UAC prompt appears only when the VC++ runtime is
 missing** (the `runas` step). There is still no Authenticode signing in the pipeline:
@@ -170,7 +176,7 @@ signtool verify /pa Quiver_*-setup.exe
 
 ## 6. Run the E2E box against the release-shaped build
 
-`make test-e2e-box` (CI: `E2E (pre-release)` on every `stable-*` tag, `native-e2e-box` on PRs) builds the app with
+`make test-e2e-box` (CI: `E2E (pre-release)` on every `stable-*` tag and by hand, the `E2E box` job of `ci.yml` on PRs; both upload `docker/e2e/results/` as `e2e-box-results`) builds the app with
 the bridge feature, builds real quiver.core versions and runs the Rust scenarios (`docs/e2e.md`). Read the
 logs in `docker/e2e/results/native/`, not just the checkmark: `SUMMARY.txt` lists each test and `PASS`/`FAIL`.
 The box tests a bridge-enabled build of the same source, not the release binary: the release binary is covered

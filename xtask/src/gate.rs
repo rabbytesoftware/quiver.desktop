@@ -1,4 +1,4 @@
-//! The quality gate (`make pr-checks` for the native workspace).
+//! The quality gate (`make gate`: the same checks CI runs, minus the OS matrix, the release-artifact scan and the e2e box).
 
 use anyhow::{bail, Result};
 use std::process::Command;
@@ -12,6 +12,21 @@ const STEPS: &[(&str, &[&str])] = &[
             "clippy",
             "--workspace",
             "--all-targets",
+            "--",
+            "-D",
+            "warnings",
+        ],
+    ),
+    (
+        "clippy-e2e-bridge",
+        &[
+            "cargo",
+            "clippy",
+            "-p",
+            "quiver-app",
+            "--all-targets",
+            "--features",
+            "e2e-bridge",
             "--",
             "-D",
             "warnings",

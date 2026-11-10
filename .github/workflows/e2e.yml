@@ -3,7 +3,7 @@ name: E2E (pre-release)
 # A PRE-RELEASE GATE, not a per-PR check (ci.yml's native-e2e-box runs the same box on PRs; this one also runs
 # on stable tags). The scenarios build the app WITH the e2e bridge feature, boot a real quiver.core daemon built
 # from source and drive the GPUI window through the bridge, in the Linux desktop container (docker/e2e).
-# The old tauri-driver/WebdriverIO job is gone with the Tauri app.
+# The scenarios are Rust (crates/quiver-e2e); results land in docker/e2e/results/native/.
 on:
   workflow_dispatch:
     inputs:
