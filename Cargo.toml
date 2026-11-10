@@ -12,7 +12,6 @@ members = [
     "crates/quiver-e2e",
     "xtask",
 ]
-# The old Tauri app stays untouched until the native app passes the definition of done.
 
 [workspace.package]
 version = "0.1.0"
