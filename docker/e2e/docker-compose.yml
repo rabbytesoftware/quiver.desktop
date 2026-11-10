@@ -11,7 +11,7 @@ services:
       dockerfile: Dockerfile
     image: quiver-e2e:latest
     ports:
-      - "127.0.0.1:${E2E_NOVNC_PORT:-6080}:6080"
+      - "${E2E_NOVNC_BIND:-127.0.0.1}:${E2E_NOVNC_PORT:-6080}:6080"
     volumes:
       # This repo (quiver.desktop) at its usual mount point...
       - ../..:/workspace/quiver.desktop
