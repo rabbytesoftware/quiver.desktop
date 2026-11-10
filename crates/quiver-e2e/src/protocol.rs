@@ -51,11 +51,24 @@ pub struct RpcError {
 
 impl Response {
     pub fn ok(id: u64, result: Value) -> Self {
-        Self { jsonrpc: "2.0".into(), id, result: Some(result), error: None }
+        Self {
+            jsonrpc: "2.0".into(),
+            id,
+            result: Some(result),
+            error: None,
+        }
     }
 
     pub fn err(id: u64, code: i64, message: impl Into<String>) -> Self {
-        Self { jsonrpc: "2.0".into(), id, result: None, error: Some(RpcError { code, message: message.into() }) }
+        Self {
+            jsonrpc: "2.0".into(),
+            id,
+            result: None,
+            error: Some(RpcError {
+                code,
+                message: message.into(),
+            }),
+        }
     }
 }
 
@@ -92,7 +105,12 @@ mod tests {
 
     #[test]
     fn request_round_trips() {
-        let req = Request { jsonrpc: "2.0".into(), id: 7, method: "ui.click".into(), params: serde_json::json!({"id":"a"}) };
+        let req = Request {
+            jsonrpc: "2.0".into(),
+            id: 7,
+            method: "ui.click".into(),
+            params: serde_json::json!({"id":"a"}),
+        };
         let back: Request = serde_json::from_str(&serde_json::to_string(&req).unwrap()).unwrap();
         assert_eq!(back.id, 7);
         assert_eq!(back.params["id"], "a");

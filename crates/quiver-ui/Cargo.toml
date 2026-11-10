@@ -3,6 +3,7 @@ name = "quiver-ui"
 description = "GPUI components, one file per Coss component, plus the gallery."
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish.workspace = true
 
 [lints]

@@ -21,15 +21,25 @@ impl AppProcess {
     pub async fn launch(binary: &Path, env: &[(String, String)]) -> Result<Self> {
         let mut cmd = Command::new(binary);
         cmd.env(PORT_ENV, "0").envs(env.iter().map(|(k, v)| (k, v)));
-        cmd.stdout(Stdio::piped()).stderr(Stdio::inherit()).kill_on_drop(true);
-        let mut child = cmd.spawn().map_err(|e| Error::Launch(format!("{}: {e}", binary.display())))?;
-        let stdout = child.stdout.take().ok_or_else(|| Error::Launch("no stdout".into()))?;
+        cmd.stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .kill_on_drop(true);
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| Error::Launch(format!("{}: {e}", binary.display())))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| Error::Launch("no stdout".into()))?;
         let mut lines = BufReader::new(stdout).lines();
         let port = loop {
             match lines.next_line().await? {
                 Some(line) => {
                     if let Some(rest) = line.strip_prefix(PORT_LINE_PREFIX) {
-                        break rest.trim().parse().map_err(|_| Error::Launch(format!("bad port line: {line}")))?;
+                        break rest
+                            .trim()
+                            .parse()
+                            .map_err(|_| Error::Launch(format!("bad port line: {line}")))?;
                     }
                 }
                 None => return Err(Error::Launch("app exited before the bridge came up".into())),

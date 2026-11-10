@@ -3,6 +3,7 @@ name = "quiver-release"
 description = "Resolving this app's own release asset from its GitHub release page, and the build stamp. No GPUI."
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish.workspace = true
 build = "build.rs"
 

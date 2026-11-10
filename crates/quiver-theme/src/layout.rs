@@ -35,7 +35,13 @@ impl Layout {
     }
 }
 
-pub const LAYOUT: Layout = Layout { rail: 246.0, row: 34.0, arrow_app_header: 44.0, icon: 20.0, spacing: 4.0 };
+pub const LAYOUT: Layout = Layout {
+    rail: 246.0,
+    row: 34.0,
+    arrow_app_header: 44.0,
+    icon: 20.0,
+    spacing: 4.0,
+};
 
 /// Font families (`--font-sans`, `--font-mono`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

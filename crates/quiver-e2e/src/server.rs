@@ -39,7 +39,10 @@ pub struct BridgeHandles {
 
 impl BridgeHandles {
     pub fn new() -> Self {
-        Self { signals: Signals::default(), frames: watch::channel(0).0 }
+        Self {
+            signals: Signals::default(),
+            frames: watch::channel(0).0,
+        }
     }
 }
 
@@ -74,7 +77,9 @@ async fn connection<D: Driver>(stream: TcpStream, driver: Arc<D>, handles: Bridg
             }
             Err(e) => Response::err(0, -32700, e.to_string()),
         };
-        let Ok(mut bytes) = serde_json::to_vec(&resp) else { continue };
+        let Ok(mut bytes) = serde_json::to_vec(&resp) else {
+            continue;
+        };
         bytes.push(b'\n');
         if write.write_all(&bytes).await.is_err() {
             break;
@@ -102,10 +107,22 @@ async fn dispatch<D: Driver>(d: &D, h: &BridgeHandles, method: &str, p: Value) -
         "ui.click" => d.click(id, false).await.map(|_| json!({})).map_err(app_err),
         "ui.double_click" => d.click(id, true).await.map(|_| json!({})).map_err(app_err),
         "ui.hover" => d.hover(id).await.map(|_| json!({})).map_err(app_err),
-        "ui.type" => d.type_text(p["id"].as_str(), p["text"].as_str().unwrap_or_default()).await.map(|_| json!({})).map_err(app_err),
-        "ui.key" => d.key(p["keys"].as_str().unwrap_or_default()).await.map(|_| json!({})).map_err(app_err),
+        "ui.type" => d
+            .type_text(p["id"].as_str(), p["text"].as_str().unwrap_or_default())
+            .await
+            .map(|_| json!({}))
+            .map_err(app_err),
+        "ui.key" => d
+            .key(p["keys"].as_str().unwrap_or_default())
+            .await
+            .map(|_| json!({}))
+            .map_err(app_err),
         "ui.scroll" => d
-            .scroll(id, p["dx"].as_f64().unwrap_or(0.0) as f32, p["dy"].as_f64().unwrap_or(0.0) as f32)
+            .scroll(
+                id,
+                p["dx"].as_f64().unwrap_or(0.0) as f32,
+                p["dy"].as_f64().unwrap_or(0.0) as f32,
+            )
             .await
             .map(|_| json!({}))
             .map_err(app_err),
@@ -120,7 +137,12 @@ async fn dispatch<D: Driver>(d: &D, h: &BridgeHandles, method: &str, p: Value) -
             let present = p["present"].as_bool().unwrap_or(true);
             tokio::time::timeout(timeout, wait_node(d, h, id, present))
                 .await
-                .map_err(|_| (-32001, format!("timed out waiting for node {id} present={present}")))
+                .map_err(|_| {
+                    (
+                        -32001,
+                        format!("timed out waiting for node {id} present={present}"),
+                    )
+                })
         }
         "state.dump" => Ok(d.state().await),
         "logs.recent" => Ok(json!(d.logs(p["n"].as_u64().unwrap_or(100) as usize).await)),
@@ -130,7 +152,10 @@ async fn dispatch<D: Driver>(d: &D, h: &BridgeHandles, method: &str, p: Value) -
             Ok(json!({ "png_base64": base64::engine::general_purpose::STANDARD.encode(png) }))
         }
         "window.resize" => d
-            .resize(p["width"].as_f64().unwrap_or(1200.0) as f32, p["height"].as_f64().unwrap_or(800.0) as f32)
+            .resize(
+                p["width"].as_f64().unwrap_or(1200.0) as f32,
+                p["height"].as_f64().unwrap_or(800.0) as f32,
+            )
             .await
             .map(|_| json!({}))
             .map_err(app_err),
@@ -170,20 +195,50 @@ mod tests {
         async fn tree(&self) -> Tree {
             Tree {
                 frame: 1,
-                nodes: vec![Node { id: "ok".into(), kind: "button".into(), label: "OK".into(), enabled: true, state: String::new(), x: 1.0, y: 2.0, w: 3.0, h: 4.0 }],
+                nodes: vec![Node {
+                    id: "ok".into(),
+                    kind: "button".into(),
+                    label: "OK".into(),
+                    enabled: true,
+                    state: String::new(),
+                    x: 1.0,
+                    y: 2.0,
+                    w: 3.0,
+                    h: 4.0,
+                }],
             }
         }
         async fn click(&self, id: &str, _d: bool) -> std::result::Result<(), String> {
-            if id == "ok" { Ok(()) } else { Err(format!("no element {id}")) }
+            if id == "ok" {
+                Ok(())
+            } else {
+                Err(format!("no element {id}"))
+            }
         }
-        async fn hover(&self, _: &str) -> std::result::Result<(), String> { Ok(()) }
-        async fn type_text(&self, _: Option<&str>, _: &str) -> std::result::Result<(), String> { Ok(()) }
-        async fn key(&self, _: &str) -> std::result::Result<(), String> { Ok(()) }
-        async fn scroll(&self, _: &str, _: f32, _: f32) -> std::result::Result<(), String> { Ok(()) }
-        async fn state(&self) -> Value { json!({"screen": "home"}) }
-        async fn logs(&self, _: usize) -> Vec<String> { vec!["hello".into()] }
-        async fn screenshot_png(&self) -> std::result::Result<Vec<u8>, String> { Ok(vec![1, 2, 3]) }
-        async fn resize(&self, _: f32, _: f32) -> std::result::Result<(), String> { Ok(()) }
+        async fn hover(&self, _: &str) -> std::result::Result<(), String> {
+            Ok(())
+        }
+        async fn type_text(&self, _: Option<&str>, _: &str) -> std::result::Result<(), String> {
+            Ok(())
+        }
+        async fn key(&self, _: &str) -> std::result::Result<(), String> {
+            Ok(())
+        }
+        async fn scroll(&self, _: &str, _: f32, _: f32) -> std::result::Result<(), String> {
+            Ok(())
+        }
+        async fn state(&self) -> Value {
+            json!({"screen": "home"})
+        }
+        async fn logs(&self, _: usize) -> Vec<String> {
+            vec!["hello".into()]
+        }
+        async fn screenshot_png(&self) -> std::result::Result<Vec<u8>, String> {
+            Ok(vec![1, 2, 3])
+        }
+        async fn resize(&self, _: f32, _: f32) -> std::result::Result<(), String> {
+            Ok(())
+        }
     }
 
     async fn start() -> (Bridge, BridgeHandles) {
@@ -207,7 +262,10 @@ mod tests {
         assert!(b.find("ok").await.unwrap().is_some());
         assert!(b.find("missing").await.unwrap().is_none());
         b.click("ok").await.unwrap();
-        assert!(matches!(b.click("missing").await, Err(Error::Rpc { code: -32000, .. })));
+        assert!(matches!(
+            b.click("missing").await,
+            Err(Error::Rpc { code: -32000, .. })
+        ));
         assert_eq!(b.state().await.unwrap()["screen"], "home");
         assert_eq!(b.screenshot_png().await.unwrap(), vec![1, 2, 3]);
     }
@@ -222,7 +280,10 @@ mod tests {
     #[tokio::test]
     async fn wait_signal_times_out_on_a_signal_that_never_fires() {
         let (mut b, _) = start().await;
-        assert!(matches!(b.wait_signal("never", 50).await, Err(Error::Rpc { code: -32001, .. })));
+        assert!(matches!(
+            b.wait_signal("never", 50).await,
+            Err(Error::Rpc { code: -32001, .. })
+        ));
     }
 
     #[tokio::test]

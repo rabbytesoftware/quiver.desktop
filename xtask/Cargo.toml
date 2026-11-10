@@ -3,6 +3,7 @@ name = "xtask"
 description = "Repo tasks: quality gate, structure checks, packaging, e2e box."
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish.workspace = true
 
 [lints]

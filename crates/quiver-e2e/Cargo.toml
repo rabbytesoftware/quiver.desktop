@@ -3,6 +3,7 @@ name = "quiver-e2e"
 description = "End-to-end control: the bridge protocol, a client, the MCP server and the scenarios that drive the real app."
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish.workspace = true
 
 [lints]

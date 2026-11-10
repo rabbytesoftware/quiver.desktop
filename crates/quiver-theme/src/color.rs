@@ -10,7 +10,12 @@ pub struct Color {
 }
 
 impl Color {
-    pub const TRANSPARENT: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
+    pub const TRANSPARENT: Color = Color {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 0.0,
+    };
 
     pub const fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
@@ -29,7 +34,12 @@ impl Color {
     /// CSS `color-mix(in srgb, self pct%, other)`: `pct` is how much of `self` is kept.
     pub fn mix_srgb(self, pct: f32, other: Color) -> Self {
         let m = |a: f32, b: f32| a * pct + b * (1.0 - pct);
-        Self { r: m(self.r, other.r), g: m(self.g, other.g), b: m(self.b, other.b), a: m(self.a, other.a) }
+        Self {
+            r: m(self.r, other.r),
+            g: m(self.g, other.g),
+            b: m(self.b, other.b),
+            a: m(self.a, other.a),
+        }
     }
 
     pub const BLACK: Color = Color::rgba(0.0, 0.0, 0.0, 1.0);
@@ -65,7 +75,12 @@ impl Oklch {
         let lin_r = 4.076_741_7 * l - 3.307_711_6 * m + 0.230_969_94 * s;
         let lin_g = -1.268_438 * l + 2.609_757_4 * m - 0.341_319_4 * s;
         let lin_b = -0.004_196_086_3 * l - 0.703_418_6 * m + 1.707_614_7 * s;
-        Color { r: encode(lin_r), g: encode(lin_g), b: encode(lin_b), a: self.a }
+        Color {
+            r: encode(lin_r),
+            g: encode(lin_g),
+            b: encode(lin_b),
+            a: self.a,
+        }
     }
 }
 
@@ -97,7 +112,10 @@ mod tests {
 
     #[test]
     fn alpha_is_carried() {
-        assert_eq!(Oklch::alpha(0.0, 0.0, 0.0, 0.08).to_color().to_rgba8() & 0xFF, 20);
+        assert_eq!(
+            Oklch::alpha(0.0, 0.0, 0.0, 0.08).to_color().to_rgba8() & 0xFF,
+            20
+        );
     }
 
     #[test]

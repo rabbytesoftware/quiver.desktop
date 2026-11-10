@@ -21,17 +21,66 @@ macro_rules! tokens {
 }
 
 tokens!(
-    background, foreground, foreground_subtle, card, card_foreground, popover, popover_foreground,
-    primary, primary_foreground, secondary, secondary_foreground, muted, muted_foreground, accent,
-    accent_foreground, destructive, destructive_foreground, info, info_foreground, success,
-    success_foreground, warning, warning_foreground, border, input, ring,
-    chart_1, chart_2, chart_3, chart_4, chart_5,
-    sidebar, sidebar_foreground, sidebar_primary, sidebar_primary_foreground, sidebar_accent,
-    sidebar_accent_foreground, sidebar_border, sidebar_ring, selected_edge,
-    sidebar_element_idle, sidebar_element_hover, sidebar_count_added, sidebar_count_deleted,
-    console, console_foreground, console_dim, console_row_hover, console_row_open,
-    log_info, log_debug, log_warn, log_error, log_warn_text, log_error_text, log_number, log_bool,
-    log_path, log_field_error, log_underline,
+    background,
+    foreground,
+    foreground_subtle,
+    card,
+    card_foreground,
+    popover,
+    popover_foreground,
+    primary,
+    primary_foreground,
+    secondary,
+    secondary_foreground,
+    muted,
+    muted_foreground,
+    accent,
+    accent_foreground,
+    destructive,
+    destructive_foreground,
+    info,
+    info_foreground,
+    success,
+    success_foreground,
+    warning,
+    warning_foreground,
+    border,
+    input,
+    ring,
+    chart_1,
+    chart_2,
+    chart_3,
+    chart_4,
+    chart_5,
+    sidebar,
+    sidebar_foreground,
+    sidebar_primary,
+    sidebar_primary_foreground,
+    sidebar_accent,
+    sidebar_accent_foreground,
+    sidebar_border,
+    sidebar_ring,
+    selected_edge,
+    sidebar_element_idle,
+    sidebar_element_hover,
+    sidebar_count_added,
+    sidebar_count_deleted,
+    console,
+    console_foreground,
+    console_dim,
+    console_row_hover,
+    console_row_open,
+    log_info,
+    log_debug,
+    log_warn,
+    log_error,
+    log_warn_text,
+    log_error_text,
+    log_number,
+    log_bool,
+    log_path,
+    log_field_error,
+    log_underline,
 );
 
 fn g(l: f32) -> Color {
@@ -189,12 +238,21 @@ mod tests {
 
     #[test]
     fn light_background_is_white_and_dark_is_not() {
-        assert_eq!(Tokens::for_mode(Mode::Light).background.to_rgba8(), 0xFFFF_FFFF);
-        assert_ne!(Tokens::for_mode(Mode::Dark).background.to_rgba8(), 0xFFFF_FFFF);
+        assert_eq!(
+            Tokens::for_mode(Mode::Light).background.to_rgba8(),
+            0xFFFF_FFFF
+        );
+        assert_ne!(
+            Tokens::for_mode(Mode::Dark).background.to_rgba8(),
+            0xFFFF_FFFF
+        );
     }
 
     #[test]
     fn dark_overrides_the_foreground() {
-        assert_eq!(Tokens::for_mode(Mode::Dark).foreground.to_rgba8(), 0xFFFF_FFFF);
+        assert_eq!(
+            Tokens::for_mode(Mode::Dark).foreground.to_rgba8(),
+            0xFFFF_FFFF
+        );
     }
 }

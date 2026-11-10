@@ -17,11 +17,16 @@ struct Session {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut session = Session { app: None, bridge: None };
+    let mut session = Session {
+        app: None,
+        bridge: None,
+    };
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
     let mut out = tokio::io::stdout();
     while let Some(line) = lines.next_line().await? {
-        let Ok(msg) = serde_json::from_str::<Value>(&line) else { continue };
+        let Ok(msg) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
         let id = msg.get("id").cloned();
         let method = msg["method"].as_str().unwrap_or_default().to_string();
         let reply = match method.as_str() {
@@ -51,24 +56,64 @@ fn tool(name: &str, description: &str, props: Value, required: &[&str]) -> Value
 fn tools() -> Vec<Value> {
     let id = json!({ "id": { "type": "string", "description": "stable element id from ui_tree" } });
     vec![
-        tool("app_launch", "Launch the app (built with --features e2e-bridge). env is an optional map.",
-            json!({ "binary": { "type": "string" }, "env": { "type": "object" } }), &["binary"]),
+        tool(
+            "app_launch",
+            "Launch the app (built with --features e2e-bridge). env is an optional map.",
+            json!({ "binary": { "type": "string" }, "env": { "type": "object" } }),
+            &["binary"],
+        ),
         tool("app_stop", "Kill the launched app.", json!({}), &[]),
-        tool("ui_tree", "Dump every element painted in the last frame (id, kind, label, bounds).", json!({}), &[]),
+        tool(
+            "ui_tree",
+            "Dump every element painted in the last frame (id, kind, label, bounds).",
+            json!({}),
+            &[],
+        ),
         tool("ui_find", "Find one element by id.", id.clone(), &["id"]),
         tool("ui_click", "Click an element by id.", id.clone(), &["id"]),
-        tool("ui_type", "Type text, optionally into the element with this id.",
-            json!({ "id": { "type": "string" }, "text": { "type": "string" } }), &["text"]),
-        tool("ui_key", "Press a key chord, e.g. enter, cmd-k.", json!({ "keys": { "type": "string" } }), &["keys"]),
-        tool("ui_scroll", "Scroll an element.",
-            json!({ "id": { "type": "string" }, "dx": { "type": "number" }, "dy": { "type": "number" } }), &["id", "dy"]),
-        tool("wait_signal", "Wait for a named app signal (never sleeps).",
-            json!({ "signal": { "type": "string" }, "timeout_ms": { "type": "number" } }), &["signal"]),
-        tool("wait_node", "Wait for an element to appear/disappear.",
-            json!({ "id": { "type": "string" }, "present": { "type": "boolean" }, "timeout_ms": { "type": "number" } }), &["id"]),
+        tool(
+            "ui_type",
+            "Type text, optionally into the element with this id.",
+            json!({ "id": { "type": "string" }, "text": { "type": "string" } }),
+            &["text"],
+        ),
+        tool(
+            "ui_key",
+            "Press a key chord, e.g. enter, cmd-k.",
+            json!({ "keys": { "type": "string" } }),
+            &["keys"],
+        ),
+        tool(
+            "ui_scroll",
+            "Scroll an element.",
+            json!({ "id": { "type": "string" }, "dx": { "type": "number" }, "dy": { "type": "number" } }),
+            &["id", "dy"],
+        ),
+        tool(
+            "wait_signal",
+            "Wait for a named app signal (never sleeps).",
+            json!({ "signal": { "type": "string" }, "timeout_ms": { "type": "number" } }),
+            &["signal"],
+        ),
+        tool(
+            "wait_node",
+            "Wait for an element to appear/disappear.",
+            json!({ "id": { "type": "string" }, "present": { "type": "boolean" }, "timeout_ms": { "type": "number" } }),
+            &["id"],
+        ),
         tool("state_dump", "Dump the app state as JSON.", json!({}), &[]),
-        tool("logs", "Read the most recent app log lines.", json!({ "n": { "type": "number" } }), &[]),
-        tool("screenshot", "Take a window screenshot (PNG).", json!({}), &[]),
+        tool(
+            "logs",
+            "Read the most recent app log lines.",
+            json!({ "n": { "type": "number" } }),
+            &[],
+        ),
+        tool(
+            "screenshot",
+            "Take a window screenshot (PNG).",
+            json!({}),
+            &[],
+        ),
     ]
 }
 
@@ -94,7 +139,11 @@ async fn run(session: &mut Session, name: &str, args: &Value) -> Result<Value> {
         let binary = PathBuf::from(args["binary"].as_str().unwrap_or_default());
         let env: Vec<(String, String)> = args["env"]
             .as_object()
-            .map(|m| m.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or_default().to_string())).collect())
+            .map(|m| {
+                m.iter()
+                    .map(|(k, v)| (k.clone(), v.as_str().unwrap_or_default().to_string()))
+                    .collect()
+            })
             .unwrap_or_default();
         let app = AppProcess::launch(&binary, &env).await?;
         session.bridge = Some(app.bridge().await?);
@@ -109,7 +158,10 @@ async fn run(session: &mut Session, name: &str, args: &Value) -> Result<Value> {
         session.bridge = None;
         return Ok(text("stopped"));
     }
-    let bridge = session.bridge.as_mut().ok_or_else(|| anyhow::anyhow!("no app launched; call app_launch first"))?;
+    let bridge = session
+        .bridge
+        .as_mut()
+        .ok_or_else(|| anyhow::anyhow!("no app launched; call app_launch first"))?;
     let s = |k: &str| args[k].as_str().unwrap_or_default().to_string();
     let n = |k: &str, d: u64| args[k].as_u64().unwrap_or(d);
     Ok(match name {
@@ -129,16 +181,26 @@ async fn run(session: &mut Session, name: &str, args: &Value) -> Result<Value> {
             text("pressed")
         }
         "ui_scroll" => {
-            bridge.scroll(&s("id"), args["dx"].as_f64().unwrap_or(0.0) as f32, args["dy"].as_f64().unwrap_or(0.0) as f32).await?;
+            bridge
+                .scroll(
+                    &s("id"),
+                    args["dx"].as_f64().unwrap_or(0.0) as f32,
+                    args["dy"].as_f64().unwrap_or(0.0) as f32,
+                )
+                .await?;
             text("scrolled")
         }
         "wait_signal" => {
-            bridge.wait_signal(&s("signal"), n("timeout_ms", 30_000)).await?;
+            bridge
+                .wait_signal(&s("signal"), n("timeout_ms", 30_000))
+                .await?;
             text("signal received")
         }
         "wait_node" => {
             let present = args["present"].as_bool().unwrap_or(true);
-            let node = bridge.wait_node(&s("id"), present, n("timeout_ms", 30_000)).await?;
+            let node = bridge
+                .wait_node(&s("id"), present, n("timeout_ms", 30_000))
+                .await?;
             text(serde_json::to_string(&node)?)
         }
         "state_dump" => text(serde_json::to_string_pretty(&bridge.state().await?)?),

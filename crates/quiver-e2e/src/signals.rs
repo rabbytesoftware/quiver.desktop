@@ -25,7 +25,11 @@ impl Signals {
     }
 
     pub fn has(&self, name: &str) -> bool {
-        self.inner.fired.lock().map(|f| f.contains(name)).unwrap_or(false)
+        self.inner
+            .fired
+            .lock()
+            .map(|f| f.contains(name))
+            .unwrap_or(false)
     }
 
     /// Resolves once `name` has been raised.

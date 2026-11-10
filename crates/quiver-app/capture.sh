@@ -5,7 +5,7 @@
 # PNGs (1200x800, the window's client area) land in docker/native/evidence/<name>.png
 set -euo pipefail
 OUT=docker/native/evidence
-BIN=${QUIVER_BIN:-/work/target/debug/quiver}
+BIN=${QUIVER_BIN:-/work/target/debug/quiverdesktop}
 mkdir -p "$OUT"
 Xvfb :1 -screen 0 1600x1000x24 >/dev/null 2>&1 &
 sleep 1
