@@ -8,7 +8,8 @@ use gpui::{
     SharedString, StyleRefinement, Window,
 };
 
-use crate::button_style::{ButtonSize, ButtonVariant};
+use crate::button_style::{ButtonEdge, ButtonSize, ButtonVariant};
+use crate::edge::{control_edge, inner_highlight};
 use crate::focus::{keyed_focus, offset_ring, FocusableExt};
 use crate::spinner::Spinner;
 use crate::theme::ActiveQuiver;
@@ -214,6 +215,15 @@ impl RenderOnce for Button {
             .when(self.selected, |d| d.bg(hover))
             .when_some(self.tooltip, |d, f| d.tooltip(move |w, cx| f(w, cx)))
             .children(children);
+        if !self.disabled {
+            el = match v.edge {
+                ButtonEdge::None => el,
+                ButtonEdge::Highlight => {
+                    el.child(inner_highlight(spec.radius, gpui::white().opacity(0.16)))
+                }
+                ButtonEdge::Control => el.child(control_edge(&q, spec.radius, 0.06)),
+            };
+        }
         if self.loading {
             let spinner = Spinner::new((self.id.clone(), "spinner"))
                 .size(spec.icon)

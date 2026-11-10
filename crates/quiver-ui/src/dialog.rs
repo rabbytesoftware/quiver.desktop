@@ -142,6 +142,7 @@ impl RenderOnce for Dialog {
             .bg(p.popover)
             .text_color(p.popover_foreground)
             .shadow(shadow_lg(black().opacity(0.05)))
+            .child(crate::edge::control_edge(cx.quiver(), Radius::XXL, 0.06))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .on_key_down(escape_handler(self.on_dismiss.clone()))
             .children(self.children)

@@ -85,6 +85,17 @@ pub struct VariantStyle {
     pub hover_border: Option<Hsla>,
     pub shadow: Vec<BoxShadow>,
     pub underline_on_hover: bool,
+    pub edge: ButtonEdge,
+}
+
+/// The inner line a variant draws (see [`crate::edge`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ButtonEdge {
+    None,
+    /// `inset-shadow-[0_1px_white/16%]` on the filled variants.
+    Highlight,
+    /// `before:shadow-[0_1px_black/4%]` (dark: `0_-1px_white/6%`) on the outline variants.
+    Control,
 }
 
 impl ButtonVariant {
@@ -108,6 +119,7 @@ impl ButtonVariant {
             hover_border: None,
             shadow: vec![],
             underline_on_hover: false,
+            edge: ButtonEdge::None,
         };
         match self {
             ButtonVariant::Default => VariantStyle {
@@ -116,6 +128,7 @@ impl ButtonVariant {
                 border: p.primary,
                 hover_bg: p.primary.opacity(0.9),
                 shadow: shadow_xs(p.primary.opacity(0.24)),
+                edge: ButtonEdge::Highlight,
                 ..base
             },
             ButtonVariant::Destructive => VariantStyle {
@@ -124,6 +137,7 @@ impl ButtonVariant {
                 border: p.destructive,
                 hover_bg: p.destructive.opacity(0.9),
                 shadow: shadow_xs(p.destructive.opacity(0.24)),
+                edge: ButtonEdge::Highlight,
                 ..base
             },
             ButtonVariant::DestructiveOutline => VariantStyle {
@@ -133,6 +147,7 @@ impl ButtonVariant {
                 hover_bg: p.destructive.opacity(0.04),
                 hover_border: Some(p.destructive.opacity(0.32)),
                 shadow: shadow_xs(black().opacity(0.05)),
+                edge: ButtonEdge::Control,
                 ..base
             },
             ButtonVariant::Ghost => VariantStyle {
@@ -152,6 +167,7 @@ impl ButtonVariant {
                     p.accent.opacity(0.5)
                 },
                 shadow: shadow_xs(black().opacity(0.05)),
+                edge: ButtonEdge::Control,
                 ..base
             },
             ButtonVariant::Secondary => VariantStyle {

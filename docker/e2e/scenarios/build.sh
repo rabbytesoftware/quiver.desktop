@@ -62,10 +62,11 @@ build_core_at() {
 	# gives upstream-up.sh the same one). buildID is cosmetic here (it only
 	# reaches `quiver version`), so it is pinned rather than derived from the
 	# clock, to keep two runs of this script byte-comparable.
-	local commit
+	local commit channel=stable
+	case "$version" in nightly*) channel=nightly ;; esac
 	commit="$("$E2E_DIR/fixtures/seed-commit.sh" "$(mktemp -d)" "$CORE_SRC/ARROW.md" develop)"
 	( cd "$CORE_SRC" && CGO_ENABLED=0 go build \
-		-ldflags "-X main.version=${version} -X main.commit=${commit} -X main.channel=stable -X main.buildID=9000" \
+		-ldflags "-X main.version=${version} -X main.commit=${commit} -X main.channel=${channel} -X main.buildID=9000" \
 		-o "$out" ./cmd/quiver )
 	"$out" version
 }

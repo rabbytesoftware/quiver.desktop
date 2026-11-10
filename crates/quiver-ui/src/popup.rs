@@ -135,8 +135,11 @@ pub(crate) fn nav_key(
 
 /// `rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg/5`.
 pub(crate) fn popup_surface(cx: &App) -> gpui::Div {
-    let p = cx.quiver().palette;
+    let q = *cx.quiver();
+    let p = q.palette;
     div()
+        .relative()
+        .child(crate::edge::control_edge(&q, Radius::LG, 0.06))
         .rounded(px(Radius::LG))
         .border_1()
         .border_color(p.border)

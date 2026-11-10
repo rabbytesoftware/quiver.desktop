@@ -16,13 +16,13 @@
 CORE_NS="github.com/rabbytesoftware/quiver.core"
 DESK_NS="github.com/rabbytesoftware/quiver.desktop"
 
-CORE_V1="stable-26.5.90"
-CORE_V2="stable-26.5.91"
-CORE_V3="stable-26.5.92"
-CORE_V4="stable-26.5.93"
+CORE_V1="${CORE_V1:-stable-26.5.90}"
+CORE_V2="${CORE_V2:-stable-26.5.91}"
+CORE_V3="${CORE_V3:-stable-26.5.92}"
+CORE_V4="${CORE_V4:-stable-26.5.93}"
 # Published without a digest by the failure-path scenario; never built.
-CORE_V5="stable-26.5.94"
-DESK_V1="stable-1.0"
+CORE_V5="${CORE_V5:-stable-26.5.94}"
+DESK_V1="${DESK_V1:-stable-1.0}"
 DESK_V2="stable-1.1"
 
 TARGET_TRIPLE="${TARGET_TRIPLE:-$(rustc -vV | awk '/^host:/{print $2}')}"

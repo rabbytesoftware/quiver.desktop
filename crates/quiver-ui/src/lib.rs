@@ -8,6 +8,8 @@ mod button_style;
 mod context_menu;
 mod dialog;
 mod dot_grid;
+mod edge;
+pub use edge::{control_edge, inner_highlight, lower_edge, upper_edge};
 mod elevation;
 mod error;
 mod flicker_frames;

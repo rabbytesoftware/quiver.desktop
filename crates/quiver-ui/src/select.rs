@@ -233,6 +233,7 @@ impl RenderOnce for Select {
             .text_size(px(14.))
             .text_color(p.foreground)
             .shadow(shadow_xs(black().opacity(0.05)))
+            .child(crate::edge::control_edge(&q, Radius::LG, 0.06))
             .child(
                 div()
                     .flex_1()

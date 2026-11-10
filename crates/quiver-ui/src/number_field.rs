@@ -191,7 +191,8 @@ impl RenderOnce for NumberField {
         window: &mut Window,
         cx: &mut App,
     ) -> impl IntoElement {
-        let p = cx.quiver().palette;
+        let q = *cx.quiver();
+        let p = q.palette;
         let initial = self.value.map(format_value).unwrap_or_default();
         let state = window.use_keyed_state(child_id(&self.id, "state"), cx, move |window, cx| {
             let input = cx.new(|cx| InputState::new(window, cx).default_value(initial));
@@ -270,6 +271,7 @@ impl RenderOnce for NumberField {
             .border_1()
             .border_color(p.input)
             .shadow(shadow_xs(black().opacity(0.05)))
+            .child(crate::edge::control_edge(&q, Radius::MD, 0.06))
             .when(self.disabled, |d| d.opacity(0.5))
             .in_focus(move |mut s| {
                 s.border_color = Some(ring_border);

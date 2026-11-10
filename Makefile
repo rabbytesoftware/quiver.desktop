@@ -105,9 +105,10 @@ test-e2e-box:
 
 # docker/e2e as a playground: the app and a real quiver.core in the box, driven by hand through noVNC at
 # http://localhost:6080/vnc.html (E2E_NOVNC_PORT changes the port). SKIP_BUILD=1 reuses the last build.
+NIGHTLY_DATE ?= $(shell git -C $(QUIVER_CORE_DEV_PATH) log -1 --format=%cd --date=short 2>/dev/null)
 play-box:
 	@if [ -z "$(QUIVER_CORE_DEV_PATH)" ]; then echo "set QUIVER_CORE_DEV_PATH to a quiver.core checkout"; exit 1; fi
-	@QUIVER_CORE_DEV_PATH="$(QUIVER_CORE_DEV_PATH)" docker compose -f docker/e2e/docker-compose.yml run --rm --service-ports -e PLAYGROUND=1 -e SKIP_BUILD="$(SKIP_BUILD)" e2e scenarios/run-native.sh
+	@QUIVER_CORE_DEV_PATH="$(QUIVER_CORE_DEV_PATH)" docker compose -f docker/e2e/docker-compose.yml run --rm --service-ports -e PLAYGROUND=1 -e CORE_V1=nightly-$(NIGHTLY_DATE) -e CORE_V2=nightly-$(NIGHTLY_DATE)b -e CORE_V3=nightly-$(NIGHTLY_DATE)c -e CORE_V4=nightly-$(NIGHTLY_DATE)d -e CORE_V5=nightly-$(NIGHTLY_DATE)e -e DESK_V1=nightly-$(NIGHTLY_DATE) -e SKIP_BUILD="$(SKIP_BUILD)" e2e scenarios/run-native.sh
 
 clean:
 	@$(CARGO) clean

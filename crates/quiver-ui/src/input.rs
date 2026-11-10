@@ -99,6 +99,7 @@ impl RenderOnce for Input {
             .text_size(px(14.))
             .text_color(p.foreground)
             .shadow(shadow_xs(black().opacity(0.05)))
+            .child(crate::edge::control_edge(&q, Radius::MD, 0.06))
             .when(self.invalid, |d| {
                 d.map(|mut d| {
                     d.style().box_shadow = Some(vec![ring(ring_color, 3.0)]);
