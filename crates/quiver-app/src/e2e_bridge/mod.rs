@@ -7,7 +7,7 @@
 #[cfg(feature = "e2e-bridge")]
 mod live;
 #[cfg(feature = "e2e-bridge")]
-pub use live::{frame_painted, install_logger, signal, start, StateSnapshot};
+pub use live::{attach, frame_painted, install_logger, signal};
 
 #[cfg(not(feature = "e2e-bridge"))]
 mod stub;

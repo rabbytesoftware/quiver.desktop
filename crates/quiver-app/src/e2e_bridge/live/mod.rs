@@ -1,5 +1,6 @@
 //! The real bridge: a tokio server (from `quiver-e2e`) plus a GPUI-thread command runner.
 
+mod attach;
 mod commands;
 mod driver;
 mod input;
@@ -12,6 +13,7 @@ use quiver_e2e::server::{serve, BridgeHandles};
 use serde_json::Value;
 use std::sync::{Arc, LazyLock};
 
+pub use attach::attach;
 pub use logs::install_logger;
 
 /// Produces the JSON the `state.dump` call returns.
@@ -35,7 +37,7 @@ pub fn frame_painted() {
 }
 
 /// Starts the bridge if `QUIVER_E2E_PORT` is set. Must be called on the GPUI thread with the main window.
-pub fn start(
+pub(crate) fn start(
     cx: &mut App,
     window: AnyWindowHandle,
     runtime: tokio::runtime::Handle,

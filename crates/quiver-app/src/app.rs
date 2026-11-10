@@ -19,7 +19,11 @@ pub fn run(services: Arc<AppServices>, demo: bool, seed: Option<fn(&AppModel)>) 
             seed(model.read(cx));
         }
         cx.activate(true);
-        open_main_window(cx);
+        let _window = open_main_window(cx);
+        #[cfg(feature = "e2e-bridge")]
+        if let Some(window) = _window {
+            crate::e2e_bridge::attach(cx, window, &model);
+        }
         if demo {
             if let Some(route) = crate::demo::route::from_environment() {
                 model.update(cx, |m, cx| m.navigate(route, cx));

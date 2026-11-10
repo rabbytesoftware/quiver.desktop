@@ -26,7 +26,7 @@ fn mode_of(model: &AppModel, appearance: WindowAppearance) -> Mode {
 
 /// Opens the main window. Closing it shuts the services down (the local daemon this app started stops)
 /// and ends the app.
-pub fn open_main_window(cx: &mut App) {
+pub fn open_main_window(cx: &mut App) -> Option<gpui::AnyWindowHandle> {
     let app = crate::model::app_model(cx);
     let mode = mode_of(app.read(cx), cx.window_appearance());
     install(cx, mode);
@@ -64,10 +64,10 @@ pub fn open_main_window(cx: &mut App) {
         });
         window_root(shell, window, cx)
     });
-    if let Err(err) = opened {
+    if let Err(err) = &opened {
         log::error!("could not open the main window: {err}");
         cx.quit();
-        return;
+        return None;
     }
     cx.on_window_closed(|cx| {
         if cx.windows().is_empty() {
@@ -75,4 +75,5 @@ pub fn open_main_window(cx: &mut App) {
         }
     })
     .detach();
+    opened.ok().map(Into::into)
 }

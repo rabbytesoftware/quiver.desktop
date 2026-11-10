@@ -6,7 +6,6 @@ use gpui::prelude::*;
 use gpui::{div, px, AnyView, Context, Entity, Render, Window};
 use quiver_state::shell::SidebarSide;
 use quiver_theme::{FontFamily, TypeScale};
-use quiver_ui::inspect;
 use quiver_ui::ActiveQuiver;
 
 use crate::model::{AppModel, Route};
@@ -37,9 +36,11 @@ impl AppShell {
 
 impl Render for AppShell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        inspect::begin_frame();
+        crate::e2e_bridge::frame_painted();
         let p = cx.quiver().palette;
         let route = self.app.read(cx).route().clone();
+        #[cfg(feature = "e2e-bridge")]
+        crate::e2e_bridge::signal(&format!("route:{}", route.path()));
         let side = self.app.read(cx).shell.sidebar_side;
         let page = match &self.page {
             Some((built_for, view)) if *built_for == route => view.clone(),
