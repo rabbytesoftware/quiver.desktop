@@ -61,11 +61,11 @@ impl App {
     /// and its last log lines, which is what a timeout needs to be understood.
     pub async fn fail(&mut self, what: &str) -> ! {
         self.shot("FAILED").await;
-        let tree = self
+        let (frame, tree) = self
             .bridge
             .tree()
             .await
-            .map(|t| t.nodes)
+            .map(|t| (t.frame, t.nodes))
             .unwrap_or_default();
         let ids: Vec<String> = tree
             .iter()
@@ -74,8 +74,9 @@ impl App {
         let state = self.bridge.state().await.unwrap_or_default();
         let logs = self.bridge.logs(40).await.unwrap_or_default();
         panic!(
-            "{what}\npainted:\n  {}\nstate: {state}\nlast logs:\n  {}",
+            "{what}\npainted (frame {frame}):\n  {}\nstate: {state}\nwindows:\n{}\nlast logs:\n  {}",
             ids.join("\n  "),
+            x_windows(),
             logs.join("\n  ")
         );
     }
@@ -148,4 +149,21 @@ impl App {
             let _ = std::fs::write(dir.join(format!("{name}.png")), png);
         }
     }
+}
+
+/// The X server's window tree and the window manager processes, for a timeout that looks like "the window never
+/// showed" (an unmapped window is never redrawn, so its tree stops changing).
+fn x_windows() -> String {
+    let run = |program: &str, args: &[&str]| {
+        std::process::Command::new(program)
+            .args(args)
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+            .unwrap_or_else(|e| format!("{program}: {e}"))
+    };
+    format!(
+        "{}{}",
+        run("pgrep", &["-a", "openbox"]),
+        run("xwininfo", &["-root", "-tree"])
+    )
 }

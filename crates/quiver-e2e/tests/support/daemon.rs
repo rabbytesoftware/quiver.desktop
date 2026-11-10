@@ -136,10 +136,13 @@ async fn exchange<S: AsyncRead + AsyncWrite + Unpin>(
         ));
     }
     head.push_str("\r\n");
-    stream.write_all(head.as_bytes()).await?;
+    // One write, head and body together: the daemon may answer (and close) without reading a body it does not need,
+    // and a body that lands after it closed makes the kernel reset the connection, which discards the answer the
+    // client already received ("connection reset by peer" on a request the daemon logged as a 200).
     if let Some(p) = payload {
-        stream.write_all(p.as_bytes()).await?;
+        head.push_str(&p);
     }
+    stream.write_all(head.as_bytes()).await?;
     let mut raw = Vec::new();
     stream.read_to_end(&mut raw).await?;
     let text = String::from_utf8_lossy(&raw).into_owned();
