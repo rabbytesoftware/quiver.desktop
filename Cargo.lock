@@ -5474,6 +5474,7 @@ dependencies = [
  "tokio-tungstenite",
  "wiremock",
  "wry",
+ "x11-dl",
 ]
 
 [[package]]

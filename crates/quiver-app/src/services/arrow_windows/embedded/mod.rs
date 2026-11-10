@@ -12,6 +12,8 @@ mod parent;
 mod thread_gtk;
 #[cfg(not(target_os = "linux"))]
 mod thread_ui;
+#[cfg(target_os = "linux")]
+mod x11_lookup;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};

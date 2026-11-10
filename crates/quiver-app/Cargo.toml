@@ -50,6 +50,7 @@ wry = "0.53"
 # gets a thread of its own (services/arrow_windows/embedded).
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
+x11-dl = "2"
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }

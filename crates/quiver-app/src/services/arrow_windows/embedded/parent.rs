@@ -14,26 +14,20 @@ unsafe impl Send for ParentHandle {}
 unsafe impl Sync for ParentHandle {}
 
 impl ParentHandle {
-    /// The handle wry can parent a webview to. GPUI reports the window to X11 through XCB; wry's X11
-    /// backend wants Xlib. The window id is the same either way.
-    pub fn of(window: &impl HasWindowHandle) -> Option<Self> {
-        let raw = window.window_handle().ok()?.as_raw();
-        Some(Self(Self::for_wry(raw)))
-    }
-
+    /// The handle wry can parent a webview to. GPUI's X11 windows cannot report theirs (it panics), so
+    /// on Linux the window is found among this process's X windows (see [`super::x11_lookup`]); wry's X11
+    /// backend wants an Xlib handle.
     #[cfg(target_os = "linux")]
-    fn for_wry(raw: RawWindowHandle) -> RawWindowHandle {
-        match raw {
-            RawWindowHandle::Xcb(h) => RawWindowHandle::Xlib(
-                raw_window_handle::XlibWindowHandle::new(h.window.get().into()),
-            ),
-            other => other,
-        }
+    pub fn of(_: &impl HasWindowHandle) -> Option<Self> {
+        let id = super::x11_lookup::main_window()?;
+        Some(Self(RawWindowHandle::Xlib(
+            raw_window_handle::XlibWindowHandle::new(id),
+        )))
     }
 
     #[cfg(not(target_os = "linux"))]
-    fn for_wry(raw: RawWindowHandle) -> RawWindowHandle {
-        raw
+    pub fn of(window: &impl HasWindowHandle) -> Option<Self> {
+        Some(Self(window.window_handle().ok()?.as_raw()))
     }
 }
 
