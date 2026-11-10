@@ -10,11 +10,14 @@ use gpui::{
     div, px, App, Context, Entity, Pixels, Point, Render, Subscription, Task,
     UniformListScrollHandle, Window,
 };
-use quiver_state::search::{commit_target, submit_action, CommitTarget, SubmitAction};
+use quiver_state::search::{
+    commit_target, needs_namespace_lookup, resolve_namespace, submit_action, CommitTarget,
+    NamespaceTarget, SubmitAction, TargetKind,
+};
 use quiver_state::shell::SidebarSide;
 use quiver_ui::{ActiveQuiver, InputEvent, InputState};
 
-use crate::bridge::observe_store;
+use crate::bridge::{observe_store, spawn_action};
 use crate::model::{AppModel, Route};
 
 pub struct Sidebar {
@@ -83,6 +86,33 @@ impl Sidebar {
         });
     }
 
+    /// What Enter does once the lookup (if any) has answered.
+    fn submit(&mut self, text: &str, resolved: Option<NamespaceTarget>, cx: &mut Context<Self>) {
+        match submit_action(text, resolved, self.showing_results(cx)) {
+            SubmitAction::GoTo(target) => {
+                let route = match target.kind {
+                    TargetKind::Arrow => Route::Arrow {
+                        namespace: target.namespace,
+                    },
+                    TargetKind::Collection => Route::Collection {
+                        id: target.namespace,
+                    },
+                };
+                self.app.update(cx, |app, cx| app.navigate(route, cx));
+            }
+            SubmitAction::Search {
+                request_submit,
+                then,
+            } => {
+                if let Some(query) = request_submit {
+                    crate::views::search::session::session(cx).request_submit(&query);
+                }
+                self.commit(then, cx);
+            }
+        }
+        cx.notify();
+    }
+
     fn search_event(
         &mut self,
         input: &Entity<InputState>,
@@ -108,12 +138,23 @@ impl Sidebar {
             }
             InputEvent::PressEnter { .. } => {
                 self.debounce = None;
-                let SubmitAction::Search { then, .. } =
-                    submit_action(&text, None, self.showing_results(cx))
-                else {
+                if !needs_namespace_lookup(&text) {
+                    self.submit(&text, None, cx);
                     return;
+                }
+                // Enter on something namespace-shaped goes there if it exists. A daemon that does not
+                // answer reads as "nothing there": the draft is searched for instead.
+                let (api, handle) = {
+                    let app = self.app.read(cx);
+                    (app.services.api.clone(), app.handle().clone())
                 };
-                self.commit(then, cx);
+                let draft = text.clone();
+                spawn_action(
+                    cx,
+                    &handle,
+                    async move { resolve_namespace(api.as_ref(), &draft).await.ok().flatten() },
+                    move |this: &mut Sidebar, resolved, cx| this.submit(&text, resolved, cx),
+                );
             }
             _ => {}
         }

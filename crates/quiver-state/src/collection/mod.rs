@@ -1,5 +1,9 @@
 //! A single collection (port of `src/features/collection`): hero, member grid, unresolved routes.
 
+mod membership;
+
+pub use membership::{installed_members, is_member_installed};
+
 use crate::domain::{collection_arrow_route, CollectionArrow, CollectionDetail};
 use crate::i18n::{en::design, Key};
 use crate::namespace::owner_of;

@@ -15,10 +15,6 @@ use crate::bridge::observe_store;
 use crate::model::AppModel;
 use crate::views::screen_probe;
 
-/// How many Popular tiles Home shows before "Load more", and how many each press adds.
-pub(crate) const POPULAR_FIRST: usize = 3;
-pub(crate) const POPULAR_STEP: usize = 6;
-
 pub struct HomeView {
     pub(super) app: Entity<AppModel>,
     pub(super) category: Option<String>,

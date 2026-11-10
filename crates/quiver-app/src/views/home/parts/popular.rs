@@ -3,6 +3,7 @@
 use gpui::prelude::*;
 use gpui::{div, px, Context, CursorStyle, FontWeight, IntoElement};
 use quiver_state::domain::Home;
+use quiver_state::home::popular_slice;
 use quiver_state::i18n::en::{design, home as keys};
 use quiver_state::recommended::build_recommended;
 use quiver_state::tile::BadgePolicy;
@@ -10,7 +11,7 @@ use quiver_ui::inspect::{probe, Kind};
 use quiver_ui::{ActiveQuiver, SectionHeader, TileSize, WavyLine};
 
 use crate::model::Route;
-use crate::views::home::{HomeView, POPULAR_FIRST, POPULAR_STEP};
+use crate::views::home::HomeView;
 use crate::views::tiles::{discovered_input, tile};
 
 fn chip(
@@ -59,8 +60,8 @@ pub fn popular(
     let p = cx.quiver().palette;
     let app = view.app.clone();
     let recommended = build_recommended(home, view.category.as_deref(), 1);
-    let shown = (POPULAR_FIRST + POPULAR_STEP * view.extra).min(recommended.arrows.len());
-    let can_more = recommended.arrows.len() > shown;
+    let slice = popular_slice(recommended.arrows.len(), view.extra);
+    let (shown, can_more) = (slice.shown, slice.can_load_more);
     let (title, link, all) = {
         let a = app.read(cx);
         (
