@@ -5,6 +5,7 @@
 mod feeds;
 mod history;
 mod modals;
+mod preferences;
 mod route;
 mod shell_state;
 
@@ -23,6 +24,7 @@ use crate::services::AppServices;
 
 pub use history::History;
 pub use modals::ModalStack;
+pub use preferences::{build_indicator, desktop_channel};
 pub use route::Route;
 pub use shell_state::save_shell;
 
@@ -57,6 +59,8 @@ impl AppModel {
             feeds::start_versions_feed(&services, core_versions.clone());
         }
         let (shell, theme) = shell_state::load(services.key_value.as_ref());
+        let show_self_components =
+            preferences::initial_show_self_components(services.key_value.as_ref());
         Self {
             services,
             translator: Translator::new(Locale::En),
@@ -66,7 +70,7 @@ impl AppModel {
             core_versions,
             shell,
             theme,
-            show_self_components: false,
+            show_self_components,
             console_open: false,
             demo,
         }
@@ -93,6 +97,14 @@ impl AppModel {
 
     pub fn navigate(&mut self, route: Route, cx: &mut Context<Self>) {
         if self.history.push(route) {
+            cx.notify();
+        }
+    }
+
+    /// Opens or closes the console dock.
+    pub fn set_console_open(&mut self, open: bool, cx: &mut Context<Self>) {
+        if self.console_open != open {
+            self.console_open = open;
             cx.notify();
         }
     }

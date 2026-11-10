@@ -8,6 +8,8 @@ use quiver_ui::{icon, ActiveQuiver, Button, ButtonSize, ButtonVariant, Glyph};
 
 use crate::views::console::ConsoleDock;
 
+type DockAction = Box<dyn Fn(&mut ConsoleDock, &mut Context<ConsoleDock>)>;
+
 pub fn header(dock: &mut ConsoleDock, cx: &mut Context<ConsoleDock>) -> impl IntoElement {
     let p = cx.quiver().palette;
     let m = dock.app.read(cx);
@@ -19,24 +21,21 @@ pub fn header(dock: &mut ConsoleDock, cx: &mut Context<ConsoleDock>) -> impl Int
     );
     let busy = dock.controller.state.running > 0;
     let this = cx.entity();
-    let button = |id: &'static str,
-                  probe_id: &'static str,
-                  label: String,
-                  enabled: bool,
-                  f: Box<dyn Fn(&mut ConsoleDock, &mut Context<ConsoleDock>)>| {
-        let this = this.clone();
-        div()
-            .relative()
-            .child(
-                Button::new(id)
-                    .variant(ButtonVariant::Ghost)
-                    .size(ButtonSize::Sm)
-                    .disabled(!enabled)
-                    .label(label.clone())
-                    .on_click(move |_, _, cx| this.update(cx, |d, cx| f(d, cx))),
-            )
-            .child(probe(probe_id, Kind::Button, label, enabled, ""))
-    };
+    let button =
+        |id: &'static str, probe_id: &'static str, label: String, enabled: bool, f: DockAction| {
+            let this = this.clone();
+            div()
+                .relative()
+                .child(
+                    Button::new(id)
+                        .variant(ButtonVariant::Ghost)
+                        .size(ButtonSize::Sm)
+                        .disabled(!enabled)
+                        .label(label.clone())
+                        .on_click(move |_, _, cx| this.update(cx, |d, cx| f(d, cx))),
+                )
+                .child(probe(probe_id, Kind::Button, label, enabled, ""))
+        };
     div()
         .relative()
         .flex_none()

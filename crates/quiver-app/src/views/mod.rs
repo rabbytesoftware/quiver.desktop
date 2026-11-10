@@ -1,7 +1,18 @@
 //! Views: one folder per feature (`<feature>/mod.rs` + `parts/`). A view draws what `quiver-state`
 //! decided; it holds no business logic. See `README.md` in this folder for the contract.
 
+pub mod arrow_app;
+pub mod arrow_details;
+pub mod collection;
+pub mod collections;
+pub mod console;
+pub mod grid_page;
 pub mod home;
+pub mod library;
+pub mod recommended;
+pub mod remote;
+pub mod search;
+pub mod settings;
 pub mod sidebar;
 pub mod tiles;
 

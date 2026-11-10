@@ -8,6 +8,11 @@ use quiver_core_client::LocalConfig;
 use quiver_state::domain::{ArrowState, Home, HomeShelf, RuntimeUpdate, SearchEntry};
 use quiver_state::persistence::ArrowCatalogRecord;
 
+pub mod collections;
+pub mod route;
+pub mod screens;
+pub mod search;
+
 use crate::model::AppModel;
 use crate::services::{AppServices, NativeReleaseSource, ServicesConfig};
 
@@ -200,6 +205,7 @@ fn popular(
 
 /// Fills the arrow store and the home query.
 pub fn seed(model: &AppModel) {
+    screens::seed(model);
     let rows = library();
     let records: Vec<ArrowCatalogRecord> = rows
         .iter()

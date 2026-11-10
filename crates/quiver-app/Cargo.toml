@@ -3,6 +3,7 @@ name = "quiver-app"
 description = "The Quiver Desktop binaries: views only."
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish.workspace = true
 
 [lints]
@@ -35,6 +36,7 @@ async-trait.workspace = true
 base64 = "0.22"
 futures-util.workspace = true
 gpui.workspace = true
+gpui-component.workspace = true
 http.workspace = true
 log.workspace = true
 quiver-arrow-host.workspace = true
@@ -45,6 +47,7 @@ quiver-state.workspace = true
 quiver-theme.workspace = true
 quiver-ui.workspace = true
 quiver-e2e = { workspace = true, optional = true }
+serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true

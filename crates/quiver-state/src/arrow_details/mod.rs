@@ -11,6 +11,7 @@ pub mod channel;
 pub mod dependency_rows;
 pub mod details;
 pub mod facts;
+pub mod from_detail;
 pub mod glance;
 pub mod header;
 pub mod inference;
@@ -21,12 +22,16 @@ pub mod progress;
 pub mod release_variables;
 pub mod status;
 pub mod switch;
+pub mod variable_form;
 
 pub use action_row::{build_action_row, ActionButton, ActionInfo, ActionRow, ActionSlot};
-pub use actions::{compute_actions, ArrowAction, ArrowActionKind, ArrowActionVariant};
+pub use actions::{
+    compute_actions, launch_label, ArrowAction, ArrowActionKind, ArrowActionVariant,
+};
 pub use facts::{
     ActiveRunFacts, ArrowFacts, LifecycleFacts, MethodFacts, RunStepFacts, StepSpec, StepStatus,
 };
+pub use from_detail::{details_facts, facts_from_detail, last_run_facts};
 pub use header::{build_header, HeaderContext, HeaderModel, VersionControl};
 pub use progress::{ProgressControl, ProgressStep, StepState};
 pub use status::{compute_status, ArrowProblem, ArrowStatus, RunState, StatusGlyph};

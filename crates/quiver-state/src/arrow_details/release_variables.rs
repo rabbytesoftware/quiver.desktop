@@ -38,6 +38,21 @@ pub enum ReleaseResolveErrorKind {
 }
 
 impl ReleaseResolveErrorKind {
+    /// The wire kind (`parse`'s inverse).
+    pub fn wire(self) -> &'static str {
+        match self {
+            Self::Offline => "offline",
+            Self::RateLimited => "rate_limited",
+            Self::NoRelease => "no_release",
+            Self::Http => "http",
+            Self::Malformed => "malformed",
+            Self::NoAsset => "no_asset",
+            Self::UnsupportedPlatform => "unsupported_platform",
+            Self::Unverifiable => "unverifiable",
+            Self::NothingAhead => "nothing_ahead",
+        }
+    }
+
     /// Parses the wire kind.
     pub fn parse(kind: &str) -> Option<Self> {
         Some(match kind {
@@ -120,6 +135,23 @@ pub struct ReleaseFailure {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wire_kinds_round_trip() {
+        for kind in [
+            "offline",
+            "rate_limited",
+            "no_release",
+            "http",
+            "malformed",
+            "no_asset",
+            "unsupported_platform",
+            "unverifiable",
+            "nothing_ahead",
+        ] {
+            assert_eq!(ReleaseResolveErrorKind::parse(kind).unwrap().wire(), kind);
+        }
+    }
 
     #[test]
     fn self_arrow_ignores_the_selector() {
