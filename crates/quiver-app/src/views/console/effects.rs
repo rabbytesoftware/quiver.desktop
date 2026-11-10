@@ -17,7 +17,10 @@ use crate::bridge::spawn_action;
 struct Lines(UnboundedSender<String>);
 
 impl FrameSink for Lines {
-    fn send(&self, frame: String) {
+    fn send(
+        &self,
+        frame: String,
+    ) {
         // The dock going away drops the receiver; a frame for nobody is dropped (see FrameSink).
         let _ = self.0.send(frame);
     }
@@ -28,14 +31,22 @@ fn exec_id(run: u64) -> String {
 }
 
 impl ConsoleDock {
-    pub(super) fn run_effects(&mut self, effects: Vec<ConsoleEffect>, cx: &mut Context<Self>) {
+    pub(super) fn run_effects(
+        &mut self,
+        effects: Vec<ConsoleEffect>,
+        cx: &mut Context<Self>,
+    ) {
         for effect in effects {
             self.run_effect(effect, cx);
         }
         cx.notify();
     }
 
-    fn run_effect(&mut self, effect: ConsoleEffect, cx: &mut Context<Self>) {
+    fn run_effect(
+        &mut self,
+        effect: ConsoleEffect,
+        cx: &mut Context<Self>,
+    ) {
         let (services, handle) = {
             let m = self.app.read(cx);
             (m.services.clone(), m.handle().clone())
@@ -165,7 +176,10 @@ impl ConsoleDock {
 
 impl ConsoleDock {
     /// Ctrl+C or the Cancel button.
-    pub(super) fn cancel(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn cancel(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         let note = self
             .app
             .read(cx)
@@ -175,7 +189,11 @@ impl ConsoleDock {
     }
 
     /// Runs the line in the prompt.
-    pub(super) fn run_line(&mut self, window: &mut gpui::Window, cx: &mut Context<Self>) {
+    pub(super) fn run_line(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut Context<Self>,
+    ) {
         let line = self.input.read(cx).value().to_string();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

@@ -28,7 +28,10 @@ pub struct ContextMenu {
 }
 
 impl ContextMenu {
-    pub fn new(id: impl Into<ElementId>, position: Point<Pixels>) -> Self {
+    pub fn new(
+        id: impl Into<ElementId>,
+        position: Point<Pixels>,
+    ) -> Self {
         Self {
             id: id.into(),
             position,
@@ -39,12 +42,18 @@ impl ContextMenu {
     }
 
     /// E2e ids of the items: `<prefix>.<label, lower-cased with dashes>`.
-    pub fn probes(mut self, prefix: impl Into<gpui::SharedString>) -> Self {
+    pub fn probes(
+        mut self,
+        prefix: impl Into<gpui::SharedString>,
+    ) -> Self {
         self.probe_prefix = Some(prefix.into());
         self
     }
 
-    pub fn item(mut self, item: MenuItem) -> Self {
+    pub fn item(
+        mut self,
+        item: MenuItem,
+    ) -> Self {
         self.entries.push(MenuEntry::Item(item));
         self
     }
@@ -54,14 +63,21 @@ impl ContextMenu {
         self
     }
 
-    pub fn on_dismiss(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+    pub fn on_dismiss(
+        mut self,
+        f: impl Fn(&mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_dismiss = Some(Rc::new(f));
         self
     }
 }
 
 impl RenderOnce for ContextMenu {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        _: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let dismiss = self.on_dismiss;
         let prefix = self.probe_prefix;

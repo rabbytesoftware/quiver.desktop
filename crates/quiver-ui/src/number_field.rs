@@ -21,7 +21,11 @@ use crate::theme::ActiveQuiver;
 type ChangeFn = Rc<dyn Fn(Option<f64>, &mut Window, &mut App)>;
 
 /// Clamps `v` into the optional bounds.
-pub(crate) fn clamp(v: f64, min: Option<f64>, max: Option<f64>) -> f64 {
+pub(crate) fn clamp(
+    v: f64,
+    min: Option<f64>,
+    max: Option<f64>,
+) -> f64 {
     let v = min.map_or(v, |m| v.max(m));
     max.map_or(v, |m| v.min(m))
 }
@@ -41,7 +45,12 @@ pub(crate) fn parse(text: &str) -> Option<f64> {
 }
 
 /// The step a key press applies, or `None` for keys that do not step.
-pub(crate) fn key_delta(key: &str, shift: bool, alt: bool, step: f64) -> Option<f64> {
+pub(crate) fn key_delta(
+    key: &str,
+    shift: bool,
+    alt: bool,
+    step: f64,
+) -> Option<f64> {
     let scale = if shift {
         10.0
     } else if alt {
@@ -68,7 +77,11 @@ struct FieldState {
 
 impl FieldState {
     /// Parses the text, clamps it, rewrites the text and reports the value.
-    fn commit(&mut self, window: &mut Window, cx: &mut gpui::Context<Self>) {
+    fn commit(
+        &mut self,
+        window: &mut Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let parsed =
             parse(self.input.read(cx).value().as_ref()).map(|v| clamp(v, self.min, self.max));
         let text = parsed.map(format_value).unwrap_or_default();
@@ -78,7 +91,12 @@ impl FieldState {
         }
     }
 
-    fn nudge(&mut self, delta: f64, window: &mut Window, cx: &mut gpui::Context<Self>) {
+    fn nudge(
+        &mut self,
+        delta: f64,
+        window: &mut Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let current = parse(self.input.read(cx).value().as_ref()).unwrap_or(0.0);
         let next = clamp(current + delta, self.min, self.max);
         self.input
@@ -115,41 +133,64 @@ impl NumberField {
         }
     }
 
-    pub fn value(mut self, v: Option<f64>) -> Self {
+    pub fn value(
+        mut self,
+        v: Option<f64>,
+    ) -> Self {
         self.value = v;
         self
     }
 
-    pub fn range(mut self, min: f64, max: f64) -> Self {
+    pub fn range(
+        mut self,
+        min: f64,
+        max: f64,
+    ) -> Self {
         self.min = Some(min);
         self.max = Some(max);
         self
     }
 
-    pub fn step(mut self, step: f64) -> Self {
+    pub fn step(
+        mut self,
+        step: f64,
+    ) -> Self {
         self.step = step;
         self
     }
 
     /// Unit text after the field (`ms`, `%`).
-    pub fn suffix(mut self, suffix: impl Into<SharedString>) -> Self {
+    pub fn suffix(
+        mut self,
+        suffix: impl Into<SharedString>,
+    ) -> Self {
         self.suffix = Some(suffix.into());
         self
     }
 
-    pub fn disabled(mut self, disabled: bool) -> Self {
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
         self.disabled = disabled;
         self
     }
 
-    pub fn on_change(mut self, f: impl Fn(Option<f64>, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(
+        mut self,
+        f: impl Fn(Option<f64>, &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_change = Some(Rc::new(f));
         self
     }
 }
 
 impl RenderOnce for NumberField {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let initial = self.value.map(format_value).unwrap_or_default();
         let state = window.use_keyed_state(child_id(&self.id, "state"), cx, move |window, cx| {
@@ -279,7 +320,10 @@ impl RenderOnce for NumberField {
     }
 }
 
-fn parse_current(state: &Entity<FieldState>, cx: &App) -> f64 {
+fn parse_current(
+    state: &Entity<FieldState>,
+    cx: &App,
+) -> f64 {
     let s = state.read(cx);
     parse(s.input.read(cx).value().as_ref()).unwrap_or(0.0)
 }

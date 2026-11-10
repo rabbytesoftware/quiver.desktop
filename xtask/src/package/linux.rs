@@ -17,7 +17,10 @@ use std::path::PathBuf;
 const DESKTOP_ENTRY: &str = include_str!("../../../installer/linux/quiver.desktop");
 const ICON: &str = "installer/icons/icon.png";
 
-pub fn appimage_name(version: &str, arch: &str) -> String {
+pub fn appimage_name(
+    version: &str,
+    arch: &str,
+) -> String {
     format!("{PRODUCT}_{version}_{arch}.AppImage")
 }
 

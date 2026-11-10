@@ -53,7 +53,10 @@ pub struct InvokeState {
 }
 
 /// Which kinds fetch a release asset that `ARROW.md` cannot name (Quiver's own row only).
-pub fn needs_release(kind: ArrowActionKind, namespace: &str) -> bool {
+pub fn needs_release(
+    kind: ArrowActionKind,
+    namespace: &str,
+) -> bool {
     matches!(
         kind,
         ArrowActionKind::Install | ArrowActionKind::Reinstall | ArrowActionKind::Update
@@ -73,13 +76,19 @@ pub fn needs_platform_check(
 impl InvokeState {
     /// Set before any async work: the disabled-while-busy render is what stops a second click from
     /// re-entering during the platform check.
-    pub fn begin(&mut self, kind: ArrowActionKind) {
+    pub fn begin(
+        &mut self,
+        kind: ArrowActionKind,
+    ) {
         self.pending = Some(kind);
         self.up_to_date = false;
         self.retry = None;
     }
 
-    pub fn platform_refused(&mut self, real_platform: &str) {
+    pub fn platform_refused(
+        &mut self,
+        real_platform: &str,
+    ) {
         self.pending = None;
         self.platform_warning = Some(real_platform.to_owned());
     }
@@ -90,7 +99,11 @@ impl InvokeState {
 
     /// Resolving Quiver's own release asset failed before any call to core. Returns true when the page's
     /// `available` was stale (`nothing_ahead`) and the detail should be re-read.
-    pub fn release_failed(&mut self, failure: &ReleaseFailure, kind_wire: &str) -> bool {
+    pub fn release_failed(
+        &mut self,
+        failure: &ReleaseFailure,
+        kind_wire: &str,
+    ) -> bool {
         self.release_error = Some(ReleaseError {
             message: release_error_message_key(kind_wire),
             detail: failure.detail.clone(),
@@ -104,7 +117,11 @@ impl InvokeState {
     }
 
     /// The call succeeded. Restart keeps `pending` through both legs: cleared once `execute` resolves.
-    pub fn succeeded(&mut self, kind: ArrowActionKind, update: Option<UpdateOutcome>) {
+    pub fn succeeded(
+        &mut self,
+        kind: ArrowActionKind,
+        update: Option<UpdateOutcome>,
+    ) {
         if kind == ArrowActionKind::Restart {
             self.restarting = true;
             return;
@@ -116,7 +133,11 @@ impl InvokeState {
     }
 
     /// A mutation rejected, carrying the backend's own precise reason.
-    pub fn failed(&mut self, kind: ArrowActionKind, failure: &ActionFailure) {
+    pub fn failed(
+        &mut self,
+        kind: ArrowActionKind,
+        failure: &ActionFailure,
+    ) {
         self.restarting = false;
         self.pending = None;
         self.action_error = Some(failure.message.clone());
@@ -137,7 +158,10 @@ impl InvokeState {
     /// Restart's second leg: core only accepts `execute` once the arrow has genuinely reached `ready`
     /// (not merely once the `stop` request was accepted), so the view calls this on every live state
     /// change and runs `execute` when it returns true.
-    pub fn restart_ready_for_execute(&mut self, state: RunState) -> bool {
+    pub fn restart_ready_for_execute(
+        &mut self,
+        state: RunState,
+    ) -> bool {
         if !self.restarting || state != RunState::Ready {
             return false;
         }
@@ -146,7 +170,10 @@ impl InvokeState {
     }
 
     /// The second leg finished (either way): the restart is over.
-    pub fn restart_finished(&mut self, failure: Option<&ActionFailure>) {
+    pub fn restart_finished(
+        &mut self,
+        failure: Option<&ActionFailure>,
+    ) {
         if let Some(failure) = failure {
             self.action_error = Some(failure.message.clone());
         }
@@ -155,7 +182,10 @@ impl InvokeState {
 }
 
 /// A toast ("Caddy installed") when an install settles into `ready`.
-pub fn installed_toast_due(previous: RunState, now: RunState) -> bool {
+pub fn installed_toast_due(
+    previous: RunState,
+    now: RunState,
+) -> bool {
     previous == RunState::Installing && now == RunState::Ready
 }
 

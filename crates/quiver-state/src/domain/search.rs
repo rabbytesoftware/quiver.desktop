@@ -70,7 +70,10 @@ pub fn is_held(entry: &SearchEntry) -> bool {
 mod tests {
     use super::*;
 
-    pub(crate) fn entry(installed: bool, provenance: Option<SearchProvenance>) -> SearchEntry {
+    pub(crate) fn entry(
+        installed: bool,
+        provenance: Option<SearchProvenance>,
+    ) -> SearchEntry {
         SearchEntry {
             namespace: "ns".into(),
             name: "n".into(),

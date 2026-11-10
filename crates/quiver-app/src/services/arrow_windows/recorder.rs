@@ -91,7 +91,11 @@ mod tests {
 
     use super::*;
 
-    fn exchange(uri: &str, status: u16, with_csp: bool) -> (ProtocolRequest, ProtocolResponse) {
+    fn exchange(
+        uri: &str,
+        status: u16,
+        with_csp: bool,
+    ) -> (ProtocolRequest, ProtocolResponse) {
         let request = ProtocolRequest {
             id: 1,
             method: "GET".into(),

@@ -8,7 +8,10 @@ fn kinds(facts: &ArrowFacts) -> Vec<ArrowActionKind> {
     compute_actions(facts).iter().map(|a| a.kind).collect()
 }
 
-fn find(facts: &ArrowFacts, kind: ArrowActionKind) -> ArrowAction {
+fn find(
+    facts: &ArrowFacts,
+    kind: ArrowActionKind,
+) -> ArrowAction {
     compute_actions(facts)
         .into_iter()
         .find(|a| a.kind == kind)

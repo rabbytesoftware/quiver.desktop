@@ -30,7 +30,10 @@ pub fn active_connection_kind(snapshot: &ConnectionsSnapshot) -> Option<Connecti
 }
 
 /// The announce a `ready` (or an adopted core) triggers, gated on the active connection being local.
-pub(super) async fn announce_if_local(backend: Arc<dyn Backend>, hook: Arc<dyn SelfAnnounceHook>) {
+pub(super) async fn announce_if_local(
+    backend: Arc<dyn Backend>,
+    hook: Arc<dyn SelfAnnounceHook>,
+) {
     let kind = match backend.get_connections().await {
         Ok(snapshot) => active_connection_kind(&snapshot),
         Err(err) => {

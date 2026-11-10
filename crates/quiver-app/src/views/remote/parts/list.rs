@@ -11,7 +11,10 @@ use super::add_modal::open_add;
 use super::row::connection_row;
 use crate::views::remote::RemoteView;
 
-pub fn header(view: &RemoteView, cx: &mut Context<RemoteView>) -> impl IntoElement {
+pub fn header(
+    view: &RemoteView,
+    cx: &mut Context<RemoteView>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let (title, subtitle, add) = {
         let m = view.app.read(cx);
@@ -68,7 +71,10 @@ pub fn loading(cx: &Context<RemoteView>) -> impl IntoElement {
         .child(Spinner::new("remote-loading").size(20.))
 }
 
-pub fn empty(view: &RemoteView, cx: &mut Context<RemoteView>) -> impl IntoElement {
+pub fn empty(
+    view: &RemoteView,
+    cx: &mut Context<RemoteView>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let (title, body, add) = {
         let m = view.app.read(cx);

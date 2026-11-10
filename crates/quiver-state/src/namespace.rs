@@ -30,7 +30,10 @@ pub fn selector_of(ns: &str) -> &str {
     split_namespace(ns).tail.get(1..).unwrap_or("")
 }
 
-pub fn with_selector(ns: &str, selector: &str) -> String {
+pub fn with_selector(
+    ns: &str,
+    selector: &str,
+) -> String {
     let bare = bare_namespace(ns);
     if selector.is_empty() {
         bare.to_string()

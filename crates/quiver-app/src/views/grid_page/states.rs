@@ -64,7 +64,12 @@ pub fn error_state(
 }
 
 /// `count` placeholder tiles of `width` while the first read is in flight.
-pub fn skeleton(screen: &str, count: usize, width: f32, cx: &App) -> impl IntoElement {
+pub fn skeleton(
+    screen: &str,
+    count: usize,
+    width: f32,
+    cx: &App,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let block = move |i: usize| {
         div()

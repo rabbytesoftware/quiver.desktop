@@ -14,7 +14,10 @@ mod base64_bytes {
     use super::{Engine, STANDARD};
     use serde::{Deserialize, Deserializer, Serializer};
 
-    pub fn serialize<S: Serializer>(bytes: &[u8], s: S) -> Result<S::Ok, S::Error> {
+    pub fn serialize<S: Serializer>(
+        bytes: &[u8],
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
         s.serialize_str(&STANDARD.encode(bytes))
     }
 

@@ -7,15 +7,27 @@ use super::log_level::{normalise_level, Level};
 use crate::i18n::{en::settings, Key};
 use serde_json::Value;
 
-fn int(config: &Value, section: &str, key: &str) -> Option<i64> {
+fn int(
+    config: &Value,
+    section: &str,
+    key: &str,
+) -> Option<i64> {
     config.get(section)?.get(key)?.as_i64()
 }
 
-fn text<'a>(config: &'a Value, section: &str, key: &str) -> Option<&'a str> {
+fn text<'a>(
+    config: &'a Value,
+    section: &str,
+    key: &str,
+) -> Option<&'a str> {
     config.get(section)?.get(key)?.as_str()
 }
 
-fn flag(config: &Value, section: &str, key: &str) -> Option<bool> {
+fn flag(
+    config: &Value,
+    section: &str,
+    key: &str,
+) -> Option<bool> {
     config.get(section)?.get(key)?.as_bool()
 }
 
@@ -162,7 +174,11 @@ mod tests {
     use crate::settings::engine::ConfigView;
     use serde_json::json;
 
-    fn state(configured: Value, running: Value, rejected: Vec<Rejection>) -> EngineState {
+    fn state(
+        configured: Value,
+        running: Value,
+        rejected: Vec<Rejection>,
+    ) -> EngineState {
         let defaults = json!({
             "netbridge": {"ephemeral_port_start": 49152, "ephemeral_port_end": 65535},
             "logger": {"enabled": true, "level": "info"},
@@ -193,7 +209,11 @@ mod tests {
         })
     }
 
-    fn model(configured: Value, running: Value, rejected: Vec<Rejection>) -> EngineModel {
+    fn model(
+        configured: Value,
+        running: Value,
+        rejected: Vec<Rejection>,
+    ) -> EngineModel {
         build_engine_model(&state(configured, running, rejected)).unwrap()
     }
 

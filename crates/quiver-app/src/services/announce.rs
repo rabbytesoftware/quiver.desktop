@@ -31,11 +31,17 @@ impl AnnouncedRows for StoredRows {
         self.0.list()
     }
 
-    fn add(&self, identity: &str) {
+    fn add(
+        &self,
+        identity: &str,
+    ) {
         self.0.add(identity);
     }
 
-    fn drop_identity(&self, identity: &str) {
+    fn drop_identity(
+        &self,
+        identity: &str,
+    ) {
         self.0.drop_identity(identity);
     }
 }

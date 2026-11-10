@@ -68,7 +68,11 @@ fn valid_label(candidate: &str) -> Option<&str> {
 
 /// The pure core of [`build_stamp`], taking the baked values as arguments so
 /// every branch is reachable from a test.
-fn resolve_stamp(commit: Option<&str>, epoch: Option<&str>, label: Option<&str>) -> BuildStamp {
+fn resolve_stamp(
+    commit: Option<&str>,
+    epoch: Option<&str>,
+    label: Option<&str>,
+) -> BuildStamp {
     BuildStamp {
         commit: commit.and_then(valid_commit).map(str::to_owned),
         built_at: epoch.and_then(|e| e.trim().parse().ok()),

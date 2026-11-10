@@ -98,7 +98,10 @@ fn is_path(value: &str) -> bool {
 }
 
 /// How a field's value is styled. Decided by its JSON type first, then by its key and shape.
-pub fn field_kind(key: &str, value: &Value) -> FieldKind {
+pub fn field_kind(
+    key: &str,
+    value: &Value,
+) -> FieldKind {
     match value {
         Value::Bool(_) => FieldKind::Bool,
         Value::Number(_) => FieldKind::Number,
@@ -194,7 +197,10 @@ pub fn parse_log_frame(data: &str) -> LogFrame {
 
 /// `HH:mm:ss.SSS` at a UTC offset in minutes (the viewer's zone); the record's own text when it is not a
 /// date.
-pub fn format_log_time(iso: &str, offset_minutes: i32) -> String {
+pub fn format_log_time(
+    iso: &str,
+    offset_minutes: i32,
+) -> String {
     let Some(ms) = parse_rfc3339_ms(iso) else {
         return iso.to_owned();
     };

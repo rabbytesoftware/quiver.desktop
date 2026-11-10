@@ -36,7 +36,10 @@ fn choice(
     )
 }
 
-pub fn general(view: &mut SettingsView, cx: &mut Context<SettingsView>) -> impl IntoElement {
+pub fn general(
+    view: &mut SettingsView,
+    cx: &mut Context<SettingsView>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let app = view.app.clone();
     let desktop_rows = super::updates::update_rows(view, super::updates::Which::Desktop, cx);

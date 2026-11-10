@@ -17,14 +17,20 @@ struct Inner {
 }
 
 impl Signals {
-    pub fn raise(&self, name: &str) {
+    pub fn raise(
+        &self,
+        name: &str,
+    ) {
         if let Ok(mut fired) = self.inner.fired.lock() {
             fired.insert(name.to_string());
         }
         self.inner.changed.notify_waiters();
     }
 
-    pub fn has(&self, name: &str) -> bool {
+    pub fn has(
+        &self,
+        name: &str,
+    ) -> bool {
         self.inner
             .fired
             .lock()
@@ -33,7 +39,10 @@ impl Signals {
     }
 
     /// Resolves once `name` has been raised.
-    pub async fn wait(&self, name: &str) {
+    pub async fn wait(
+        &self,
+        name: &str,
+    ) {
         loop {
             let notified = self.inner.changed.notified();
             tokio::pin!(notified);

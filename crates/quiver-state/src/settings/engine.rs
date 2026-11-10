@@ -112,7 +112,10 @@ pub fn parse_port_entry(raw: &str) -> Option<i64> {
 }
 
 /// The patch for one port field.
-pub fn port_patch(key: &str, port: i64) -> Value {
+pub fn port_patch(
+    key: &str,
+    port: i64,
+) -> Value {
     serde_json::json!({ "netbridge": { key: port } })
 }
 
@@ -153,7 +156,10 @@ impl EngineState {
         self.patch_error = None;
     }
 
-    pub fn loaded(&mut self, result: Result<ConfigView, String>) {
+    pub fn loaded(
+        &mut self,
+        result: Result<ConfigView, String>,
+    ) {
         self.loading = false;
         match result {
             Ok(view) => self.view = Some(view),
@@ -168,7 +174,10 @@ impl EngineState {
 
     /// Re-reads after a patch rather than merging the response in: the daemon owns `restart_required`
     /// and `corrected`, and recomputing either here would be guessing at what it already told us.
-    pub fn patched(&mut self, result: Result<(Vec<Rejection>, ConfigView), String>) {
+    pub fn patched(
+        &mut self,
+        result: Result<(Vec<Rejection>, ConfigView), String>,
+    ) {
         self.loading = false;
         match result {
             Ok((rejected, view)) => {
@@ -180,7 +189,10 @@ impl EngineState {
     }
 
     /// Why the daemon refused `key`, if it did.
-    pub fn why(&self, key: &str) -> Option<&str> {
+    pub fn why(
+        &self,
+        key: &str,
+    ) -> Option<&str> {
         self.rejected
             .iter()
             .find(|r| r.key == key)
@@ -188,7 +200,10 @@ impl EngineState {
     }
 
     /// After a port patch: a refused value must not linger on screen looking accepted.
-    pub fn port_was_rejected(&self, key: &str) -> bool {
+    pub fn port_was_rejected(
+        &self,
+        key: &str,
+    ) -> bool {
         self.why(&format!("netbridge.{key}")).is_some()
     }
 }

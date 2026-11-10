@@ -1,6 +1,9 @@
 use crate::domain::ConnectionConfig;
 
-pub fn filter_connections(connections: &[ConnectionConfig], query: &str) -> Vec<ConnectionConfig> {
+pub fn filter_connections(
+    connections: &[ConnectionConfig],
+    query: &str,
+) -> Vec<ConnectionConfig> {
     let q = query.trim().to_lowercase();
     if q.is_empty() {
         return connections.to_vec();
@@ -14,7 +17,10 @@ pub fn filter_connections(connections: &[ConnectionConfig], query: &str) -> Vec<
 
 /// Wraps `index` into `[0, length)`, matching arrow-key navigation over a circular list. `0` for an
 /// empty list, since there is nothing to index.
-pub fn clamp_index(index: i64, length: usize) -> usize {
+pub fn clamp_index(
+    index: i64,
+    length: usize,
+) -> usize {
     let Ok(len) = i64::try_from(length) else {
         return 0;
     };

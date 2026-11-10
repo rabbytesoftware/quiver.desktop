@@ -21,7 +21,13 @@ pub enum Pict {
     Alert,
 }
 
-fn arc(cx: f32, cy: f32, r: f32, from: f32, to: f32) -> Vec<(f32, f32)> {
+fn arc(
+    cx: f32,
+    cy: f32,
+    r: f32,
+    from: f32,
+    to: f32,
+) -> Vec<(f32, f32)> {
     (0..=24)
         .map(|i| {
             let a = (from + (to - from) * i as f32 / 24.0).to_radians();
@@ -30,7 +36,12 @@ fn arc(cx: f32, cy: f32, r: f32, from: f32, to: f32) -> Vec<(f32, f32)> {
         .collect()
 }
 
-fn rect(x: f32, y: f32, w: f32, h: f32) -> Vec<(f32, f32)> {
+fn rect(
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+) -> Vec<(f32, f32)> {
     vec![(x, y), (x + w, y), (x + w, y + h), (x, y + h), (x, y)]
 }
 
@@ -113,11 +124,20 @@ fn strokes(pict: Pict) -> Vec<Vec<(f32, f32)>> {
 }
 
 /// A `size`px square picture in `color`; stroke 1.8 of 24 unless the caller passes its own.
-pub fn pict(pict: Pict, size: f32, color: Hsla) -> impl IntoElement {
+pub fn pict(
+    pict: Pict,
+    size: f32,
+    color: Hsla,
+) -> impl IntoElement {
     pict_with_stroke(pict, size, color, 1.8)
 }
 
-pub fn pict_with_stroke(pict: Pict, size: f32, color: Hsla, stroke: f32) -> impl IntoElement {
+pub fn pict_with_stroke(
+    pict: Pict,
+    size: f32,
+    color: Hsla,
+    stroke: f32,
+) -> impl IntoElement {
     canvas(
         |_, _, _| (),
         move |bounds: Bounds<Pixels>, _, window: &mut Window, _: &mut App| {

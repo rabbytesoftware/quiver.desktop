@@ -56,10 +56,16 @@ pub struct StreamResponse {
 #[allow(clippy::double_must_use)]
 pub trait Transport: Send + Sync {
     /// Forward one request and return the daemon's whole response.
-    async fn request(&self, req: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error>;
+    async fn request(
+        &self,
+        req: Request<Vec<u8>>,
+    ) -> Result<Response<Vec<u8>>, Error>;
 
     /// Dial `path` (a full `/v0/...` route) and complete the WebSocket upgrade.
-    async fn open_ws(&self, path: &str) -> Result<WsStream, Error>;
+    async fn open_ws(
+        &self,
+        path: &str,
+    ) -> Result<WsStream, Error>;
 
     /// Forward one request and hand back the response body as it arrives, for
     /// endpoints that stream (`POST /v0/console/exec`). `deadline` bounds the

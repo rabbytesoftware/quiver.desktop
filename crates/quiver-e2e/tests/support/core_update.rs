@@ -44,7 +44,11 @@ pub fn leftovers(home: &Home) -> Vec<String> {
         .collect()
 }
 
-pub async fn value(app: &mut App, id: &str, text: &str) {
+pub async fn value(
+    app: &mut App,
+    id: &str,
+    text: &str,
+) {
     app.matching(json!({"id": format!("settings.core.{id}.value"), "label_contains": text}))
         .await;
 }
@@ -67,7 +71,10 @@ pub struct Run<'a> {
 impl Run<'_> {
     /// One daemon, on `tag`, whose binary is at the self path with nothing left beside it; the app and the
     /// supervised process lived through it.
-    pub async fn swapped_to(&self, tag: &str) {
+    pub async fn swapped_to(
+        &self,
+        tag: &str,
+    ) {
         eventually(&format!("the daemon to report {tag}"), LONG * 2, || async {
             (daemon_version(self.core).await.as_deref() == Some(tag)).then_some(())
         })
@@ -160,7 +167,11 @@ impl Setup {
     }
 
     /// Settings > Engine with the update rows loaded; publishes `tag`, checks and waits for it to be offered.
-    pub async fn offer(&mut self, tag: &str, options: ReleaseOptions<'_>) {
+    pub async fn offer(
+        &mut self,
+        tag: &str,
+        options: ReleaseOptions<'_>,
+    ) {
         self.upstream.publish_core_release_with(tag, options);
         open_engine(&mut self.app).await;
         self.app.click("settings.core.check").await;

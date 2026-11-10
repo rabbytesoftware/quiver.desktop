@@ -25,7 +25,11 @@ impl Bridge {
         })
     }
 
-    pub async fn call(&mut self, method: &str, params: Value) -> Result<Value> {
+    pub async fn call(
+        &mut self,
+        method: &str,
+        params: Value,
+    ) -> Result<Value> {
         let id = self.next_id;
         self.next_id += 1;
         let req = Request {
@@ -68,34 +72,56 @@ impl Bridge {
         )?)
     }
 
-    pub async fn find(&mut self, id: &str) -> Result<Option<Node>> {
+    pub async fn find(
+        &mut self,
+        id: &str,
+    ) -> Result<Option<Node>> {
         Ok(serde_json::from_value(
             self.call("ui.find", json!({ "id": id })).await?,
         )?)
     }
 
-    pub async fn click(&mut self, id: &str) -> Result<()> {
+    pub async fn click(
+        &mut self,
+        id: &str,
+    ) -> Result<()> {
         self.call("ui.click", json!({ "id": id })).await.map(drop)
     }
 
-    pub async fn type_text(&mut self, id: Option<&str>, text: &str) -> Result<()> {
+    pub async fn type_text(
+        &mut self,
+        id: Option<&str>,
+        text: &str,
+    ) -> Result<()> {
         self.call("ui.type", json!({ "id": id, "text": text }))
             .await
             .map(drop)
     }
 
-    pub async fn key(&mut self, keys: &str) -> Result<()> {
+    pub async fn key(
+        &mut self,
+        keys: &str,
+    ) -> Result<()> {
         self.call("ui.key", json!({ "keys": keys })).await.map(drop)
     }
 
-    pub async fn scroll(&mut self, id: &str, dx: f32, dy: f32) -> Result<()> {
+    pub async fn scroll(
+        &mut self,
+        id: &str,
+        dx: f32,
+        dy: f32,
+    ) -> Result<()> {
         self.call("ui.scroll", json!({ "id": id, "dx": dx, "dy": dy }))
             .await
             .map(drop)
     }
 
     /// Waits for a named signal; never a sleep. The app latches signals, so one that already fired returns at once.
-    pub async fn wait_signal(&mut self, signal: &str, timeout_ms: u64) -> Result<()> {
+    pub async fn wait_signal(
+        &mut self,
+        signal: &str,
+        timeout_ms: u64,
+    ) -> Result<()> {
         self.call(
             "wait.signal",
             json!({ "signal": signal, "timeout_ms": timeout_ms }),
@@ -104,7 +130,12 @@ impl Bridge {
         .map(drop)
     }
 
-    pub async fn wait_node(&mut self, id: &str, present: bool, timeout_ms: u64) -> Result<Node> {
+    pub async fn wait_node(
+        &mut self,
+        id: &str,
+        present: bool,
+        timeout_ms: u64,
+    ) -> Result<Node> {
         self.wait_matching(json!({ "id": id }), present, timeout_ms)
             .await
     }
@@ -137,7 +168,10 @@ impl Bridge {
         self.call("state.dump", json!({})).await
     }
 
-    pub async fn logs(&mut self, n: usize) -> Result<Vec<String>> {
+    pub async fn logs(
+        &mut self,
+        n: usize,
+    ) -> Result<Vec<String>> {
         Ok(serde_json::from_value(
             self.call("logs.recent", json!({ "n": n })).await?,
         )?)

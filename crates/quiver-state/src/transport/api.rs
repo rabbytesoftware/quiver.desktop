@@ -45,14 +45,20 @@ pub trait RawFetch: Send + Sync {
 
 #[async_trait]
 pub trait Sleeper: Send + Sync {
-    async fn sleep(&self, duration: Duration);
+    async fn sleep(
+        &self,
+        duration: Duration,
+    );
 }
 
 pub struct TokioSleeper;
 
 #[async_trait]
 impl Sleeper for TokioSleeper {
-    async fn sleep(&self, duration: Duration) {
+    async fn sleep(
+        &self,
+        duration: Duration,
+    ) {
         tokio::time::sleep(duration).await;
     }
 }
@@ -198,12 +204,18 @@ mod tests {
 
     #[async_trait]
     impl Sleeper for Recorder {
-        async fn sleep(&self, d: Duration) {
+        async fn sleep(
+            &self,
+            d: Duration,
+        ) {
             self.0.lock().unwrap().push(d);
         }
     }
 
-    fn res(status: u16, body: &str) -> RawResponse {
+    fn res(
+        status: u16,
+        body: &str,
+    ) -> RawResponse {
         RawResponse {
             status,
             status_text: "Text".into(),
@@ -230,7 +242,10 @@ mod tests {
         (cfg, rec)
     }
 
-    async fn get(script: &Script, cfg: &RetryConfig) -> Result<ApiResult<Option<Value>>, ApiError> {
+    async fn get(
+        script: &Script,
+        cfg: &RetryConfig,
+    ) -> Result<ApiResult<Option<Value>>, ApiError> {
         api_request(script, Method::Get, "/v0/x", None, cfg).await
     }
 

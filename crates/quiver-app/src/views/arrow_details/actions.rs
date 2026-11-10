@@ -165,7 +165,12 @@ impl ArrowDetailsView {
         });
     }
 
-    fn settle(&mut self, kind: ArrowActionKind, done: Done, cx: &mut Context<Self>) {
+    fn settle(
+        &mut self,
+        kind: ArrowActionKind,
+        done: Done,
+        cx: &mut Context<Self>,
+    ) {
         let services = self.app.read(cx).services.clone();
         match done {
             Done::Ok(update) => {
@@ -191,7 +196,10 @@ impl ArrowDetailsView {
         cx.notify();
     }
 
-    fn expire_up_to_date_later(&self, cx: &mut Context<Self>) {
+    fn expire_up_to_date_later(
+        &self,
+        cx: &mut Context<Self>,
+    ) {
         cx.spawn(async move |view, cx| {
             cx.background_executor()
                 .timer(Duration::from_millis(UP_TO_DATE_MS))
@@ -206,7 +214,10 @@ impl ArrowDetailsView {
     }
 
     /// Restart's second leg: Core only accepts `execute` once the row has reached `ready`.
-    pub(super) fn watch_live(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn watch_live(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         let mut revisions = self.app.read(cx).services.arrows.store().subscribe();
         cx.spawn(async move |view, cx| {
             while revisions.changed().await.is_ok() {
@@ -219,7 +230,10 @@ impl ArrowDetailsView {
         .detach();
     }
 
-    fn live_changed(&mut self, cx: &mut Context<Self>) {
+    fn live_changed(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         let Some(detail) = self.merged(cx) else {
             return;
         };
@@ -245,7 +259,10 @@ impl ArrowDetailsView {
         );
     }
 
-    pub(super) fn open_settings(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn open_settings(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         let Some(detail) = self.merged(cx) else {
             return;
         };
@@ -257,7 +274,10 @@ impl ArrowDetailsView {
         open_modal(cx, "arrow-settings", view.into());
     }
 
-    pub(super) fn open_methods(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn open_methods(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         let Some(detail) = self.merged(cx) else {
             return;
         };

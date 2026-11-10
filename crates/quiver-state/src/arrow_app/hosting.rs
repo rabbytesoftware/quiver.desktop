@@ -14,7 +14,11 @@ pub enum HostStep {
 
 /// `route_namespace` is the app the pane is showing (`None` on any other route). The window opens only
 /// once the surface answers: a frame loaded earlier would sit on the daemon's 502 page.
-pub fn host_step(route_namespace: Option<&str>, ready: bool, visible: Option<&str>) -> HostStep {
+pub fn host_step(
+    route_namespace: Option<&str>,
+    ready: bool,
+    visible: Option<&str>,
+) -> HostStep {
     let wanted = route_namespace.filter(|_| ready);
     match (wanted, visible) {
         (Some(want), Some(now)) if want == now => HostStep::Keep,
@@ -35,7 +39,10 @@ pub enum PaneBody {
     Closed,
 }
 
-pub fn pane_body(ready: bool, window_open: bool) -> PaneBody {
+pub fn pane_body(
+    ready: bool,
+    window_open: bool,
+) -> PaneBody {
     match (ready, window_open) {
         (false, _) => PaneBody::Starting,
         (true, true) => PaneBody::Open,
@@ -45,7 +52,10 @@ pub fn pane_body(ready: bool, window_open: bool) -> PaneBody {
 
 /// Which open apps lost their window to the cap, as the names to tell the user about. The names come
 /// from the arrow store; an arrow it does not hold is named by its namespace.
-pub fn eviction_name(namespace: &str, name: Option<&str>) -> String {
+pub fn eviction_name(
+    namespace: &str,
+    name: Option<&str>,
+) -> String {
     name.filter(|n| !n.is_empty())
         .unwrap_or(namespace)
         .to_owned()

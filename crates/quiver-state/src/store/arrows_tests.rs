@@ -12,7 +12,10 @@ fn record(ns: &str) -> ArrowCatalogRecord {
     rec("local", ns)
 }
 
-fn update(ns: &str, state: ArrowState) -> RuntimeUpdate {
+fn update(
+    ns: &str,
+    state: ArrowState,
+) -> RuntimeUpdate {
     RuntimeUpdate {
         namespace: ns.into(),
         state,
@@ -21,7 +24,10 @@ fn update(ns: &str, state: ArrowState) -> RuntimeUpdate {
     }
 }
 
-fn state_of(store: &ArrowStore, ns: &str) -> Option<ArrowState> {
+fn state_of(
+    store: &ArrowStore,
+    ns: &str,
+) -> Option<ArrowState> {
     store.entry(ns).map(|e| e.state)
 }
 

@@ -23,7 +23,12 @@ pub struct RemoteConnection {
 }
 
 impl RemoteConnection {
-    pub async fn new(id: String, name: String, url: String, token: String) -> Result<Self> {
+    pub async fn new(
+        id: String,
+        name: String,
+        url: String,
+        token: String,
+    ) -> Result<Self> {
         let transport: Arc<dyn Transport> = Arc::new(HttpTransport::new(url.clone(), Some(token)));
         let api_version = negotiate_version(transport.as_ref()).await;
         let config = ConnectionConfig {
@@ -39,7 +44,10 @@ impl RemoteConnection {
 
 #[async_trait]
 impl QuiverConnection for RemoteConnection {
-    async fn start(&self, events: &dyn EventSink) -> CoreStatus {
+    async fn start(
+        &self,
+        events: &dyn EventSink,
+    ) -> CoreStatus {
         log::info!(
             "[remote] starting — url: {:?}, api: {}",
             self.config.url,
@@ -81,7 +89,10 @@ impl QuiverConnection for RemoteConnection {
         &self.config
     }
 
-    fn set_name(&mut self, name: String) {
+    fn set_name(
+        &mut self,
+        name: String,
+    ) {
         self.config.name = name;
     }
 }

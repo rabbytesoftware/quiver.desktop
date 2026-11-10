@@ -10,7 +10,10 @@ use crate::{
     Tabs, TabsVariant,
 };
 
-pub(super) fn page(g: &mut Gallery, cx: &mut Context<Gallery>) -> Vec<AnyElement> {
+pub(super) fn page(
+    g: &mut Gallery,
+    cx: &mut Context<Gallery>,
+) -> Vec<AnyElement> {
     let tabs =
         |id: &'static str, variant, orientation, sel: usize, set: fn(&mut Gallery, usize)| {
             Tabs::new(id)

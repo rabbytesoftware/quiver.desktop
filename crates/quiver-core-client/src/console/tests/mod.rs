@@ -15,7 +15,10 @@ use tokio::sync::mpsc;
 
 struct Collect(Arc<StdMutex<Vec<String>>>);
 impl FrameSink for Collect {
-    fn send(&self, frame: String) {
+    fn send(
+        &self,
+        frame: String,
+    ) {
         self.0.lock().unwrap().push(frame);
     }
 }
@@ -32,7 +35,10 @@ struct Scripted {
     seen: StdMutex<Option<(String, String, Vec<u8>)>>,
 }
 impl Scripted {
-    fn new(status: u16, chunks: Vec<Result<Vec<u8>, Error>>) -> Self {
+    fn new(
+        status: u16,
+        chunks: Vec<Result<Vec<u8>, Error>>,
+    ) -> Self {
         Self {
             status,
             chunks,
@@ -42,10 +48,16 @@ impl Scripted {
 }
 #[async_trait]
 impl Transport for Scripted {
-    async fn request(&self, _req: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error> {
+    async fn request(
+        &self,
+        _req: Request<Vec<u8>>,
+    ) -> Result<Response<Vec<u8>>, Error> {
         unreachable!("exec streams")
     }
-    async fn open_ws(&self, _path: &str) -> Result<WsStream, Error> {
+    async fn open_ws(
+        &self,
+        _path: &str,
+    ) -> Result<WsStream, Error> {
         unreachable!()
     }
     async fn request_stream(

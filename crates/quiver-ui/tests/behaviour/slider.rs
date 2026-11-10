@@ -9,7 +9,11 @@ struct Host {
 }
 
 impl Render for Host {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         div()
             .w(px(206.))
             .child(

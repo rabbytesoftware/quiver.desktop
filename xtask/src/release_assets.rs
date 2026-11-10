@@ -17,7 +17,11 @@ const PLATFORM_SUFFIXES: &[(&str, &str)] = &[
 const ARROW_VARIABLES: &[&str] = &["QUIVER_RELEASE_ASSET_URL", "QUIVER_RELEASE_CHECKSUM"];
 
 /// Problems found in a release made of `names` (file names) with the given checksum manifest and ARROW.md.
-pub fn problems(names: &[String], manifest: Option<&str>, arrow: Option<&str>) -> Vec<String> {
+pub fn problems(
+    names: &[String],
+    manifest: Option<&str>,
+    arrow: Option<&str>,
+) -> Vec<String> {
     let mut found = Vec::new();
     for (os, suffix) in PLATFORM_SUFFIXES {
         let count = names

@@ -10,7 +10,11 @@ use crate::theme::ActiveQuiver;
 
 /// A tab-stop focus handle that lives as long as the element with `id` keeps rendering.
 /// (GPUI reads the tab-stop flag from the handle, not from the element, when a handle is tracked.)
-pub fn keyed_focus(id: &ElementId, window: &mut Window, cx: &mut App) -> FocusHandle {
+pub fn keyed_focus(
+    id: &ElementId,
+    window: &mut Window,
+    cx: &mut App,
+) -> FocusHandle {
     let key = ElementId::from((id.clone(), "focus"));
     window
         .use_keyed_state(key, cx, |_, cx| cx.focus_handle().tab_stop(true))
@@ -20,7 +24,11 @@ pub fn keyed_focus(id: &ElementId, window: &mut Window, cx: &mut App) -> FocusHa
 
 /// A focus handle for a container (popup, field wrapper): focusable by code and by click, but
 /// skipped by Tab.
-pub fn keyed_container_focus(id: &ElementId, window: &mut Window, cx: &mut App) -> FocusHandle {
+pub fn keyed_container_focus(
+    id: &ElementId,
+    window: &mut Window,
+    cx: &mut App,
+) -> FocusHandle {
     let key = ElementId::from((id.clone(), "focus"));
     window
         .use_keyed_state(key, cx, |_, cx| cx.focus_handle())
@@ -37,7 +45,10 @@ pub trait FocusableExt: InteractiveElement + Sized {
 
 impl<T: InteractiveElement + Sized> FocusableExt for T {}
 
-fn spread(color: Hsla, px_: f32) -> BoxShadow {
+fn spread(
+    color: Hsla,
+    px_: f32,
+) -> BoxShadow {
     BoxShadow {
         color,
         offset: point(px(0.), px(0.)),
@@ -53,6 +64,9 @@ pub fn offset_ring(cx: &App) -> Vec<BoxShadow> {
 }
 
 /// A plain `ring-N` of `color` (inputs, switch, number field: `ring-3 ring-ring/50`).
-pub fn ring(color: Hsla, width: f32) -> BoxShadow {
+pub fn ring(
+    color: Hsla,
+    width: f32,
+) -> BoxShadow {
     spread(color, width)
 }

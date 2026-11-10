@@ -38,7 +38,11 @@ impl FileSettings {
 }
 
 impl SettingsStore for FileSettings {
-    fn get(&self, file: &str, key: &str) -> Option<serde_json::Value> {
+    fn get(
+        &self,
+        file: &str,
+        key: &str,
+    ) -> Option<serde_json::Value> {
         match self.file(file) {
             Ok(store) => store.get_or_none(key),
             Err(e) => {
@@ -75,12 +79,19 @@ impl FileKeyValue {
 }
 
 impl KeyValueStore for FileKeyValue {
-    fn get(&self, key: &str) -> Result<Option<String>, String> {
+    fn get(
+        &self,
+        key: &str,
+    ) -> Result<Option<String>, String> {
         let store = self.store.as_ref().map_err(ToString::to_string)?;
         store.get::<String>(key).map_err(|e| e.to_string())
     }
 
-    fn set(&self, key: &str, value: &str) -> Result<(), String> {
+    fn set(
+        &self,
+        key: &str,
+        value: &str,
+    ) -> Result<(), String> {
         let store = self.store.as_ref().map_err(ToString::to_string)?;
         store.set(key, &value).map_err(|e| e.to_string())
     }

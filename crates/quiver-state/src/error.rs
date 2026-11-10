@@ -12,7 +12,10 @@ pub enum Error {
 }
 
 impl Error {
-    pub(crate) fn decode(what: &'static str, err: serde_json::Error) -> Self {
+    pub(crate) fn decode(
+        what: &'static str,
+        err: serde_json::Error,
+    ) -> Self {
         Error::Decode {
             what,
             message: err.to_string(),

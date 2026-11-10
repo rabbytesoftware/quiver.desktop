@@ -69,7 +69,10 @@ fn member(
     }
 }
 
-pub fn seed_detail(query: &Query<CollectionDetail>, id: &str) {
+pub fn seed_detail(
+    query: &Query<CollectionDetail>,
+    id: &str,
+) {
     let item = followed()
         .into_iter()
         .find(|c| c.namespace == id)

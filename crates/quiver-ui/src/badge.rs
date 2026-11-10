@@ -40,7 +40,10 @@ struct Colors {
     hover_bg: Hsla,
 }
 
-fn colors(v: BadgeVariant, q: &QuiverTheme) -> Colors {
+fn colors(
+    v: BadgeVariant,
+    q: &QuiverTheme,
+) -> Colors {
     let p = &q.palette;
     let (soft, soft_hover) = if q.is_dark() {
         (0.16, 0.16)
@@ -122,26 +125,41 @@ impl Badge {
     }
 
     /// Stable id for the e2e bridge; required for `on_click`.
-    pub fn id(mut self, id: impl Into<ElementId>) -> Self {
+    pub fn id(
+        mut self,
+        id: impl Into<ElementId>,
+    ) -> Self {
         self.id = Some(id.into());
         self
     }
 
-    pub fn variant(mut self, v: BadgeVariant) -> Self {
+    pub fn variant(
+        mut self,
+        v: BadgeVariant,
+    ) -> Self {
         self.variant = v;
         self
     }
 
-    pub fn size(mut self, s: BadgeSize) -> Self {
+    pub fn size(
+        mut self,
+        s: BadgeSize,
+    ) -> Self {
         self.size = s;
         self
     }
 
-    pub fn label(self, text: impl Into<SharedString>) -> Self {
+    pub fn label(
+        self,
+        text: impl Into<SharedString>,
+    ) -> Self {
         self.child(text.into())
     }
 
-    pub fn on_click(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_click(
+        mut self,
+        f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_click = Some(Rc::new(f));
         self
     }
@@ -160,13 +178,20 @@ impl Styled for Badge {
 }
 
 impl ParentElement for Badge {
-    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+    fn extend(
+        &mut self,
+        elements: impl IntoIterator<Item = AnyElement>,
+    ) {
         self.children.extend(elements);
     }
 }
 
 impl RenderOnce for Badge {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let c = colors(self.variant, cx.quiver());
         let (height, pad, text, radius) = match self.size {
             BadgeSize::Default => (18.0, 3.0, 12.0, Radius::SM),

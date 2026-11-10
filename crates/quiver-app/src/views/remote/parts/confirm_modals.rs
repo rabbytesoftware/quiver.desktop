@@ -86,7 +86,10 @@ impl RenameModal {
         }
     }
 
-    fn save(&mut self, cx: &mut Context<Self>) {
+    fn save(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         let name = self.input.read(cx).value().trim().to_owned();
         if !name.is_empty() {
             let id = self.id.clone();
@@ -96,7 +99,11 @@ impl RenameModal {
 }
 
 impl Render for RenameModal {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let m = app_model(cx).read(cx);
         let (title, label, cancel, save) = (
             m.t(remote::RENAME_TITLE),
@@ -150,7 +157,11 @@ struct RemoveModal {
 }
 
 impl Render for RemoveModal {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let m = app_model(cx).read(cx);
         let title = m.translator.t_with(

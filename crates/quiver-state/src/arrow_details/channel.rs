@@ -28,7 +28,10 @@ fn default_version(channel: &ChannelFacts) -> String {
 
 /// The selector a pick means. Keeping a channel's newest version follows the channel (`crowbar@stable`);
 /// anything else pins exactly that ref (`crowbar@v1.2.0`).
-pub fn selector_for(channel: Option<&ChannelFacts>, version: Option<&str>) -> Option<String> {
+pub fn selector_for(
+    channel: Option<&ChannelFacts>,
+    version: Option<&str>,
+) -> Option<String> {
     let channel = channel?;
     match version {
         None => Some(channel.name.clone()),
@@ -47,7 +50,10 @@ pub struct ChannelSelection {
 impl ChannelSelection {
     /// Seeds from `selector` (the one the page's identity follows). Call again when `channels`
     /// arrives: they come from their own slower query and are empty on the first pass.
-    pub fn seed(selector: &str, channels: Vec<ChannelFacts>) -> Self {
+    pub fn seed(
+        selector: &str,
+        channels: Vec<ChannelFacts>,
+    ) -> Self {
         let (channel, version) = if let Some(named) = channels.iter().find(|c| c.name == selector) {
             (Some(named.name.clone()), Some(default_version(named)))
         } else if let Some(listing) = channels
@@ -92,7 +98,10 @@ impl ChannelSelection {
     }
 
     /// Picks a channel, resetting the version to that channel's own newest.
-    pub fn select_channel(&mut self, name: &str) {
+    pub fn select_channel(
+        &mut self,
+        name: &str,
+    ) {
         self.selected_channel = Some(name.to_owned());
         self.selected_version = self
             .channels
@@ -101,7 +110,10 @@ impl ChannelSelection {
             .map(default_version);
     }
 
-    pub fn select_version(&mut self, reference: &str) {
+    pub fn select_version(
+        &mut self,
+        reference: &str,
+    ) {
         self.selected_version = Some(reference.to_owned());
     }
 }

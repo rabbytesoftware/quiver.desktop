@@ -46,7 +46,10 @@ pub fn bindings() -> Vec<KeyBinding> {
     ]
 }
 
-fn item(action: MenuAction, label: &'static str) -> MenuItem {
+fn item(
+    action: MenuAction,
+    label: &'static str,
+) -> MenuItem {
     match action {
         MenuAction::Quit => MenuItem::action(label, Quit),
         MenuAction::Hide => MenuItem::action(label, HideApp),

@@ -96,7 +96,11 @@ fn the_page_renders_for_every_demo_state(cx: &mut TestAppContext) {
     }
 }
 
-fn entry_state(model: &Entity<AppModel>, cx: &gpui::App, slug: &str) -> ArrowState {
+fn entry_state(
+    model: &Entity<AppModel>,
+    cx: &gpui::App,
+    slug: &str,
+) -> ArrowState {
     model
         .read(cx)
         .services

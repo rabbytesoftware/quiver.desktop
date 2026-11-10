@@ -98,10 +98,16 @@ struct Endless;
 
 #[async_trait]
 impl Transport for Endless {
-    async fn request(&self, _r: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error> {
+    async fn request(
+        &self,
+        _r: Request<Vec<u8>>,
+    ) -> Result<Response<Vec<u8>>, Error> {
         unreachable!()
     }
-    async fn open_ws(&self, _p: &str) -> Result<WsStream, Error> {
+    async fn open_ws(
+        &self,
+        _p: &str,
+    ) -> Result<WsStream, Error> {
         unreachable!()
     }
     async fn request_stream(
@@ -178,10 +184,16 @@ async fn start_reports_an_unreachable_daemon_and_leaves_nothing_behind() {
     struct Dead;
     #[async_trait]
     impl Transport for Dead {
-        async fn request(&self, _r: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error> {
+        async fn request(
+            &self,
+            _r: Request<Vec<u8>>,
+        ) -> Result<Response<Vec<u8>>, Error> {
             Err(Error::Connect("no socket".into()))
         }
-        async fn open_ws(&self, _p: &str) -> Result<WsStream, Error> {
+        async fn open_ws(
+            &self,
+            _p: &str,
+        ) -> Result<WsStream, Error> {
             Err(Error::Connect("no socket".into()))
         }
     }

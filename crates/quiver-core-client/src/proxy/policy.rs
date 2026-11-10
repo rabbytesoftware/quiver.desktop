@@ -30,7 +30,10 @@ pub(super) fn origin_allowed(req: &Request<Vec<u8>>) -> bool {
 /// `Sec-Fetch-Dest` values that mean the response would become a document.
 const DOCUMENT_DESTS: [&str; 5] = ["document", "iframe", "frame", "embed", "object"];
 
-pub(super) fn fetch_metadata(req: &Request<Vec<u8>>, name: &str) -> Option<String> {
+pub(super) fn fetch_metadata(
+    req: &Request<Vec<u8>>,
+    name: &str,
+) -> Option<String> {
     req.headers()
         .get(name)
         .and_then(|v| v.to_str().ok())

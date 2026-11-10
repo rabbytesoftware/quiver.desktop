@@ -13,7 +13,10 @@ pub struct Home {
 
 impl Home {
     /// `<QUIVER_E2E_TMP>/<name>`, deleted and recreated: the "clean QUIVER_HOME" every test starts from.
-    pub fn fresh(env: &Env, name: &str) -> Self {
+    pub fn fresh(
+        env: &Env,
+        name: &str,
+    ) -> Self {
         let root = env.tmp.join(name);
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.join(".quiver")).expect("create the test home");

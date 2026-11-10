@@ -63,13 +63,19 @@ struct State {
 }
 
 impl State {
-    fn emit(&mut self, event: WindowEvent) {
+    fn emit(
+        &mut self,
+        event: WindowEvent,
+    ) {
         self.subscribers.retain(|tx| tx.send(event.clone()).is_ok());
     }
 
     /// Ends `namespace`'s window: asks it to close, then drops the process handle, which kills
     /// whatever did not exit on its own.
-    fn close_window(&mut self, namespace: &str) -> bool {
+    fn close_window(
+        &mut self,
+        namespace: &str,
+    ) -> bool {
         let Some(window) = self.windows.remove(namespace) else {
             return false;
         };
@@ -94,7 +100,11 @@ impl Inner {
     }
 
     /// The helper for `namespace` is gone without being asked to be.
-    pub(super) fn window_gone(&self, namespace: &str, generation: u64) {
+    pub(super) fn window_gone(
+        &self,
+        namespace: &str,
+        generation: u64,
+    ) {
         let mut state = self.state();
         if state.windows.get(namespace).map(|w| w.generation) != Some(generation) {
             return;
@@ -140,7 +150,11 @@ impl ArrowWindows {
 
     /// Makes `namespace` the visible app, opening its window if it has none and closing the window
     /// the cap pushes out. Must run inside the async runtime.
-    pub async fn show(&self, namespace: &str, title: &str) -> Result<()> {
+    pub async fn show(
+        &self,
+        namespace: &str,
+        title: &str,
+    ) -> Result<()> {
         let mut state = self.inner.state();
         if state.shut_down {
             return Ok(());
@@ -236,7 +250,10 @@ impl ArrowWindows {
     }
 
     /// A menu or dialog drawn by GPUI opened (`true`) or closed over the visible page.
-    pub fn set_covered(&self, covered: bool) {
+    pub fn set_covered(
+        &self,
+        covered: bool,
+    ) {
         let mut state = self.inner.state();
         if state.covered == covered {
             return;
@@ -255,7 +272,11 @@ impl ArrowWindows {
 
     /// Where `namespace`'s page goes: the pane body's rectangle in the main window. Cheap to call on
     /// every frame; only a change reaches the page.
-    pub fn set_bounds(&self, namespace: &str, bounds: PageBounds) {
+    pub fn set_bounds(
+        &self,
+        namespace: &str,
+        bounds: PageBounds,
+    ) {
         let mut state = self.inner.state();
         if state.bounds.get(namespace) == Some(&bounds) {
             return;
@@ -267,7 +288,10 @@ impl ArrowWindows {
     }
 
     /// Remounts the app's page; its sockets die with the old document.
-    pub fn reload(&self, namespace: &str) {
+    pub fn reload(
+        &self,
+        namespace: &str,
+    ) {
         let mut state = self.inner.state();
         state.registry.reload(namespace);
         if let Some(window) = state.windows.get(namespace) {
@@ -276,7 +300,10 @@ impl ArrowWindows {
     }
 
     /// Stop: the app leaves the stack and its window closes. False when it was not open.
-    pub fn stop(&self, namespace: &str) -> bool {
+    pub fn stop(
+        &self,
+        namespace: &str,
+    ) -> bool {
         let mut state = self.inner.state();
         let was_open = state.registry.stop(namespace);
         state.close_window(namespace) || was_open
@@ -284,7 +311,10 @@ impl ArrowWindows {
 
     /// Closes the windows of apps whose surface is gone (`live` is the namespaces that still have
     /// one), e.g. after the daemon stopped them.
-    pub fn prune(&self, live: &HashSet<String>) {
+    pub fn prune(
+        &self,
+        live: &HashSet<String>,
+    ) {
         let mut state = self.inner.state();
         for dropped in state.registry.prune(live) {
             state.close_window(&dropped);
@@ -301,7 +331,10 @@ impl ArrowWindows {
     }
 
     /// The remount key of the app (0 until its first reload).
-    pub fn reload_key(&self, namespace: &str) -> u64 {
+    pub fn reload_key(
+        &self,
+        namespace: &str,
+    ) -> u64 {
         self.inner.state().registry.reload_key(namespace)
     }
 

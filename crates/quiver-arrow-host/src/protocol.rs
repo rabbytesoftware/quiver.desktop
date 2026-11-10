@@ -16,13 +16,19 @@ pub struct ProtocolService {
 }
 
 impl ProtocolService {
-    pub fn new(hosts: Arc<ArrowHosts>, upstream: Arc<dyn ArrowUpstream>) -> Self {
+    pub fn new(
+        hosts: Arc<ArrowHosts>,
+        upstream: Arc<dyn ArrowUpstream>,
+    ) -> Self {
         Self { hosts, upstream }
     }
 
     /// Always produces a response (errors are 4xx/5xx pages with the CSP) with
     /// the request's `id`.
-    pub async fn answer(&self, req: ProtocolRequest) -> ProtocolResponse {
+    pub async fn answer(
+        &self,
+        req: ProtocolRequest,
+    ) -> ProtocolResponse {
         let id = req.id;
         let request = ArrowRequest {
             method: req.method,
@@ -58,10 +64,16 @@ mod tests {
 
     #[async_trait]
     impl ArrowUpstream for Echo {
-        async fn request(&self, req: ArrowRequest) -> Result<ArrowResponse> {
+        async fn request(
+            &self,
+            req: ArrowRequest,
+        ) -> Result<ArrowResponse> {
             Ok(ArrowResponse::new(200, req.uri.into_bytes()))
         }
-        async fn open_ws(&self, _: &str) -> Result<Box<dyn WsRelay>> {
+        async fn open_ws(
+            &self,
+            _: &str,
+        ) -> Result<Box<dyn WsRelay>> {
             Err(Error::Upstream("not used".into()))
         }
     }
@@ -72,7 +84,10 @@ mod tests {
         (ProtocolService::new(hosts, Arc::new(Echo)), host)
     }
 
-    fn request(id: u64, uri: String) -> ProtocolRequest {
+    fn request(
+        id: u64,
+        uri: String,
+    ) -> ProtocolRequest {
         ProtocolRequest {
             id,
             method: "GET".into(),

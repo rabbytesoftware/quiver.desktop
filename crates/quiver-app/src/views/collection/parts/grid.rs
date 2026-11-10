@@ -16,7 +16,10 @@ use crate::views::collection::CollectionView;
 use crate::views::grid_page::tile_grid;
 use crate::views::tiles::tile;
 
-fn input(member: &MemberTile, installed: bool) -> TileInput {
+fn input(
+    member: &MemberTile,
+    installed: bool,
+) -> TileInput {
     TileInput {
         description: member.description.clone(),
         icon: member.icon.clone(),

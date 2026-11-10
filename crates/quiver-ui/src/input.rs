@@ -23,7 +23,10 @@ pub struct Input {
 }
 
 impl Input {
-    pub fn new(id: impl Into<ElementId>, state: &Entity<InputState>) -> Self {
+    pub fn new(
+        id: impl Into<ElementId>,
+        state: &Entity<InputState>,
+    ) -> Self {
         Self {
             id: id.into(),
             state: state.clone(),
@@ -33,13 +36,19 @@ impl Input {
         }
     }
 
-    pub fn disabled(mut self, disabled: bool) -> Self {
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
         self.disabled = disabled;
         self
     }
 
     /// `aria-invalid`: destructive border and ring.
-    pub fn invalid(mut self, invalid: bool) -> Self {
+    pub fn invalid(
+        mut self,
+        invalid: bool,
+    ) -> Self {
         self.invalid = invalid;
         self
     }
@@ -52,7 +61,11 @@ impl Styled for Input {
 }
 
 impl RenderOnce for Input {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let q = *cx.quiver();
         let p = q.palette;
         let within = keyed_container_focus(&self.id, window, cx);

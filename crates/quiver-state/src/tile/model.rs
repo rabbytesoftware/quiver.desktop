@@ -36,14 +36,20 @@ pub struct TileInput {
 
 impl TileInput {
     /// Takes the Start action (and whether it reads "Open") from the target's lifecycle.
-    pub fn with_lifecycle(mut self, lifecycle: Option<&LifecycleFacts>) -> Self {
+    pub fn with_lifecycle(
+        mut self,
+        lifecycle: Option<&LifecycleFacts>,
+    ) -> Self {
         self.start_label = lifecycle
             .filter(|l| !l.execute.is_empty())
             .map(|l| launch_label(Some(l)));
         self
     }
 
-    pub fn arrow(namespace: &str, name: &str) -> Self {
+    pub fn arrow(
+        namespace: &str,
+        name: &str,
+    ) -> Self {
         Self {
             kind: TileKind::Arrow,
             namespace: namespace.into(),

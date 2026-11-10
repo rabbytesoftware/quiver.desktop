@@ -26,7 +26,10 @@ pub fn format_number(value: f64) -> String {
 }
 
 /// Fixed number of fraction digits (`Intl` `minimumFractionDigits`).
-pub fn format_number_fixed(value: f64, fraction_digits: usize) -> String {
+pub fn format_number_fixed(
+    value: f64,
+    fraction_digits: usize,
+) -> String {
     let text = format!("{:.*}", fraction_digits, value.abs());
     let (int_part, frac) = text.split_once('.').unwrap_or((&text, ""));
     let sign = if value < 0.0 { "-" } else { "" };
@@ -68,7 +71,10 @@ const UNITS: [(&str, i64); 7] = [
 ];
 
 /// "3 hours ago", "in 3 hours", "yesterday", "last week", "now": the largest unit that fits.
-pub fn format_relative_time(value_ms: i64, now_ms: i64) -> String {
+pub fn format_relative_time(
+    value_ms: i64,
+    now_ms: i64,
+) -> String {
     let delta = value_ms - now_ms;
     for (unit, ms) in UNITS {
         if delta.abs() >= ms {
@@ -78,7 +84,10 @@ pub fn format_relative_time(value_ms: i64, now_ms: i64) -> String {
     "now".into()
 }
 
-fn relative(amount: i64, unit: &str) -> String {
+fn relative(
+    amount: i64,
+    unit: &str,
+) -> String {
     let word = match (amount, unit) {
         (-1, "day") => Some("yesterday"),
         (1, "day") => Some("tomorrow"),

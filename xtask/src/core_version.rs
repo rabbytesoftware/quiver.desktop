@@ -60,7 +60,10 @@ fn highest(mut ranked: Vec<(String, Vec<u32>)>) -> String {
 
 /// Picks the highest release tag on a quiver.core channel. `stable` and `beta` are open ranges: "whatever
 /// the channel currently calls newest". `nightly` is a single rolling pointer tag.
-pub fn resolve_channel(tags: &[String], channel: &str) -> Result<String> {
+pub fn resolve_channel(
+    tags: &[String],
+    channel: &str,
+) -> Result<String> {
     if channel == "nightly" {
         if !tags.iter().any(|t| t == NIGHTLY_TAG) {
             bail!("nightly tag \"{NIGHTLY_TAG}\" not found");
@@ -137,10 +140,16 @@ mod tests {
     fn tags(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
     }
-    fn pick(list: &[&str], channel: &str) -> String {
+    fn pick(
+        list: &[&str],
+        channel: &str,
+    ) -> String {
         resolve_channel(&tags(list), channel).unwrap()
     }
-    fn err(list: &[&str], channel: &str) -> String {
+    fn err(
+        list: &[&str],
+        channel: &str,
+    ) -> String {
         resolve_channel(&tags(list), channel)
             .unwrap_err()
             .to_string()

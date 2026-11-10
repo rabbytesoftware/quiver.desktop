@@ -10,7 +10,10 @@ use crate::{
     PageHeader, SearchInput, SectionHeader, Tile, TileBadge, TileSize, TileStart, TileStatus,
 };
 
-fn drawn(name: &str, hue: u16) -> TileArtKind {
+fn drawn(
+    name: &str,
+    hue: u16,
+) -> TileArtKind {
     TileArtKind::Drawn {
         initial: name[..1].to_string().into(),
         name: name.to_string().into(),
@@ -19,14 +22,22 @@ fn drawn(name: &str, hue: u16) -> TileArtKind {
     }
 }
 
-fn tile(id: &'static str, name: &str, hue: u16, status: Option<(TileStatus, &str)>) -> Tile {
+fn tile(
+    id: &'static str,
+    name: &str,
+    hue: u16,
+    status: Option<(TileStatus, &str)>,
+) -> Tile {
     Tile::new(id, id, drawn(name, hue))
         .size(TileSize::Compact)
         .caption("Automatic-HTTPS reverse proxy with a second line of text that wraps and is cut.")
         .badge(status.map(|(s, l)| TileBadge::new(s, l.to_string())))
 }
 
-pub(super) fn page(g: &mut Gallery, cx: &mut Context<Gallery>) -> Vec<AnyElement> {
+pub(super) fn page(
+    g: &mut Gallery,
+    cx: &mut Context<Gallery>,
+) -> Vec<AnyElement> {
     let banner = Tile::new("t-mc", "t-mc", TileArtKind::Banner { hue: 62 })
         .caption("Vanilla Minecraft dedicated server with automatic world backups.")
         .badge(Some(TileBadge::new(TileStatus::Running, "Running")))

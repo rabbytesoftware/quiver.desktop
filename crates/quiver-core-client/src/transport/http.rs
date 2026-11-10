@@ -102,7 +102,10 @@ impl HttpTransport {
     // The one `expect` in the crate: see the comment at the build call. A TLS
     // backend that will not initialise is a broken build, not a runtime state.
     #[allow(clippy::expect_used)]
-    pub fn new(base_url: impl Into<String>, token: Option<String>) -> Self {
+    pub fn new(
+        base_url: impl Into<String>,
+        token: Option<String>,
+    ) -> Self {
         // `tcp://` is quiver.core's own spelling for "plain HTTP here".
         let base_url = base_url.into().replace("tcp://", "http://");
         Self {
@@ -125,11 +128,17 @@ impl HttpTransport {
         }
     }
 
-    fn url(&self, path: &str) -> String {
+    fn url(
+        &self,
+        path: &str,
+    ) -> String {
         format!("{}{}", self.base_url, path)
     }
 
-    fn ws_url(&self, path: &str) -> String {
+    fn ws_url(
+        &self,
+        path: &str,
+    ) -> String {
         let base = self
             .base_url
             .replacen("https://", "wss://", 1)
@@ -144,7 +153,10 @@ impl HttpTransport {
 
 #[async_trait]
 impl Transport for HttpTransport {
-    async fn request(&self, req: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error> {
+    async fn request(
+        &self,
+        req: Request<Vec<u8>>,
+    ) -> Result<Response<Vec<u8>>, Error> {
         let path_and_query = req
             .uri()
             .path_and_query()
@@ -270,7 +282,10 @@ impl Transport for HttpTransport {
         Ok(StreamResponse { status, chunks: rx })
     }
 
-    async fn open_ws(&self, path: &str) -> Result<WsStream, Error> {
+    async fn open_ws(
+        &self,
+        path: &str,
+    ) -> Result<WsStream, Error> {
         let url = self.ws_url(path);
         let mut request = url
             .into_client_request()

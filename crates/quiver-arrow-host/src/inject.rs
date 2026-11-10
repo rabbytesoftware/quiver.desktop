@@ -20,7 +20,10 @@ pub fn inject_shim(html: &[u8]) -> Vec<u8> {
 }
 
 /// Index just past the `>` of the first `name` tag whose name ends there.
-fn open_tag_end(lower: &[u8], name: &[u8]) -> Option<usize> {
+fn open_tag_end(
+    lower: &[u8],
+    name: &[u8],
+) -> Option<usize> {
     let mut from = 0;
     while let Some(rel) = find(&lower[from..], name) {
         let start = from + rel;
@@ -42,7 +45,10 @@ fn doctype_end(lower: &[u8]) -> Option<usize> {
     Some(start + close + 1)
 }
 
-fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+fn find(
+    haystack: &[u8],
+    needle: &[u8],
+) -> Option<usize> {
     haystack.windows(needle.len()).position(|w| w == needle)
 }
 

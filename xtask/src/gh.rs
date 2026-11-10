@@ -35,14 +35,22 @@ pub fn release_tags(repo: &str) -> Result<Vec<String>> {
         .collect())
 }
 
-pub fn release_notes(repo: &str, tag: &str) -> Result<String> {
+pub fn release_notes(
+    repo: &str,
+    tag: &str,
+) -> Result<String> {
     gh(&[
         "release", "view", tag, "--repo", repo, "--json", "body", "--jq", ".body",
     ])
 }
 
 /// Downloads the single asset `pattern` of release `tag` into `dir`, replacing a file already there.
-pub fn download_asset(repo: &str, tag: &str, pattern: &str, dir: &Path) -> Result<()> {
+pub fn download_asset(
+    repo: &str,
+    tag: &str,
+    pattern: &str,
+    dir: &Path,
+) -> Result<()> {
     let dir = dir.to_str().context("non-utf8 download directory")?;
     gh(&[
         "release",

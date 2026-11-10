@@ -12,7 +12,10 @@ use quiver_ui::{install, window_root};
 use crate::model::AppModel;
 use crate::shell::AppShell;
 
-fn mode_of(model: &AppModel, appearance: WindowAppearance) -> Mode {
+fn mode_of(
+    model: &AppModel,
+    appearance: WindowAppearance,
+) -> Mode {
     let system_dark = matches!(
         appearance,
         WindowAppearance::Dark | WindowAppearance::VibrantDark

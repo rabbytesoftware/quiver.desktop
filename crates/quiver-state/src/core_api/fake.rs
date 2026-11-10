@@ -28,15 +28,24 @@ pub struct FakeStreamHandle {
 }
 
 impl FakeStreamHandle {
-    pub fn send_text(&self, text: impl Into<String>) {
+    pub fn send_text(
+        &self,
+        text: impl Into<String>,
+    ) {
         let _ = self.tx.send(StreamEvent::Message(text.into()));
     }
 
-    pub fn send_json(&self, value: Value) {
+    pub fn send_json(
+        &self,
+        value: Value,
+    ) {
         self.send_text(value.to_string());
     }
 
-    pub fn close(&self, info: Option<(u16, &str)>) {
+    pub fn close(
+        &self,
+        info: Option<(u16, &str)>,
+    ) {
         let info = info.map(|(code, reason)| CloseInfo {
             code,
             reason: reason.into(),
@@ -89,18 +98,35 @@ impl FakeCoreApi {
     }
 
     /// Answers `method path` with `data` and a 200.
-    pub fn route(&self, method: Method, path: &str, data: Value) {
+    pub fn route(
+        &self,
+        method: Method,
+        path: &str,
+        data: Value,
+    ) {
         self.route_status(method, path, 200, Some(data));
     }
 
-    pub fn route_status(&self, method: Method, path: &str, status: u16, data: Option<Value>) {
+    pub fn route_status(
+        &self,
+        method: Method,
+        path: &str,
+        status: u16,
+        data: Option<Value>,
+    ) {
         self.route_fn(method, path, move |_| {
             let data = data.clone();
             async move { Ok(ApiResult { status, data }) }
         });
     }
 
-    pub fn route_error(&self, method: Method, path: &str, status: u16, message: &str) {
+    pub fn route_error(
+        &self,
+        method: Method,
+        path: &str,
+        status: u16,
+        message: &str,
+    ) {
         let message = message.to_string();
         self.route_fn(method, path, move |_| {
             let message = message.clone();
@@ -109,8 +135,12 @@ impl FakeCoreApi {
     }
 
     /// Answers through a future, so a test can park the reply until it is ready (see `Gate`).
-    pub fn route_fn<F, Fut>(&self, method: Method, path: &str, f: F)
-    where
+    pub fn route_fn<F, Fut>(
+        &self,
+        method: Method,
+        path: &str,
+        f: F,
+    ) where
         F: Fn(Option<Value>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Reply> + Send + 'static,
     {
@@ -120,12 +150,19 @@ impl FakeCoreApi {
             .insert((method, path.to_string()), responder);
     }
 
-    pub fn set_reachable(&self, reachable: bool) {
+    pub fn set_reachable(
+        &self,
+        reachable: bool,
+    ) {
         self.lock().reachable = reachable;
     }
 
     /// The next `count` opens of `path` fail to connect.
-    pub fn fail_opens(&self, path: &str, count: u32) {
+    pub fn fail_opens(
+        &self,
+        path: &str,
+        count: u32,
+    ) {
         self.lock().failing_opens.insert(path.into(), count);
     }
 
@@ -133,7 +170,11 @@ impl FakeCoreApi {
         self.lock().calls.clone()
     }
 
-    pub fn calls_to(&self, method: Method, path: &str) -> usize {
+    pub fn calls_to(
+        &self,
+        method: Method,
+        path: &str,
+    ) -> usize {
         self.lock()
             .calls
             .iter()
@@ -142,7 +183,10 @@ impl FakeCoreApi {
     }
 
     /// How many streams were opened on `path` so far.
-    pub fn open_count(&self, path: &str) -> usize {
+    pub fn open_count(
+        &self,
+        path: &str,
+    ) -> usize {
         self.lock()
             .streams
             .iter()
@@ -151,7 +195,11 @@ impl FakeCoreApi {
     }
 
     /// Waits (on a signal, never a timer) until the `index`th stream of `path` has been opened.
-    pub async fn wait_stream(&self, path: &str, index: usize) -> FakeStreamHandle {
+    pub async fn wait_stream(
+        &self,
+        path: &str,
+        index: usize,
+    ) -> FakeStreamHandle {
         loop {
             let notified = self.opened.notified();
             if let Some(handle) = self.stream(path, index) {
@@ -161,7 +209,11 @@ impl FakeCoreApi {
         }
     }
 
-    pub fn stream(&self, path: &str, index: usize) -> Option<FakeStreamHandle> {
+    pub fn stream(
+        &self,
+        path: &str,
+        index: usize,
+    ) -> Option<FakeStreamHandle> {
         self.lock()
             .streams
             .iter()
@@ -173,7 +225,12 @@ impl FakeCoreApi {
 
 #[async_trait]
 impl CoreApi for FakeCoreApi {
-    async fn request(&self, method: Method, path: &str, body: Option<Value>) -> Reply {
+    async fn request(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<Value>,
+    ) -> Reply {
         let responder = {
             let mut inner = self.lock();
             inner.calls.push(Call {
@@ -189,7 +246,10 @@ impl CoreApi for FakeCoreApi {
         }
     }
 
-    async fn open_stream(&self, path: &str) -> Result<Box<dyn CoreStream>, ApiError> {
+    async fn open_stream(
+        &self,
+        path: &str,
+    ) -> Result<Box<dyn CoreStream>, ApiError> {
         let (tx, rx) = mpsc::unbounded_channel();
         {
             let mut inner = self.lock();

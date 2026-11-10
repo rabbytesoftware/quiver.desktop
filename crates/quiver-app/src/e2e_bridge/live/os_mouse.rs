@@ -58,7 +58,10 @@ fn window_origin() -> Result<(i32, i32), String> {
     ))
 }
 
-fn to_screen(x: f32, y: f32) -> Result<(String, String), String> {
+fn to_screen(
+    x: f32,
+    y: f32,
+) -> Result<(String, String), String> {
     let (ox, oy) = window_origin()?;
     Ok((
         (ox + x.round() as i32).to_string(),
@@ -66,19 +69,31 @@ fn to_screen(x: f32, y: f32) -> Result<(String, String), String> {
     ))
 }
 
-pub fn move_to(x: f32, y: f32) -> Result<(), String> {
+pub fn move_to(
+    x: f32,
+    y: f32,
+) -> Result<(), String> {
     let (sx, sy) = to_screen(x, y)?;
     xdotool(&["mousemove", &sx, &sy]).map(drop)
 }
 
-pub fn click(x: f32, y: f32, double: bool) -> Result<(), String> {
+pub fn click(
+    x: f32,
+    y: f32,
+    double: bool,
+) -> Result<(), String> {
     move_to(x, y)?;
     let repeat = if double { "2" } else { "1" };
     xdotool(&["click", "--repeat", repeat, "--delay", "20", "1"]).map(drop)
 }
 
 /// Wheel notches: X11 buttons 4/5 are up/down, 6/7 left/right. One notch is about 40 logical pixels.
-pub fn scroll(x: f32, y: f32, dx: f32, dy: f32) -> Result<(), String> {
+pub fn scroll(
+    x: f32,
+    y: f32,
+    dx: f32,
+    dy: f32,
+) -> Result<(), String> {
     move_to(x, y)?;
     for (delta, negative, positive) in [(dy, "4", "5"), (dx, "6", "7")] {
         let notches = (delta.abs() / 40.0).ceil() as u32;

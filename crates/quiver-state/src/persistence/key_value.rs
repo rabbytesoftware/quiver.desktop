@@ -5,8 +5,15 @@ use std::sync::{Mutex, PoisonError};
 /// Both directions may fail (private mode, full quota, unreadable file); callers treat a failure
 /// as "nothing there" / "not saved" and carry on.
 pub trait KeyValueStore: Send + Sync {
-    fn get(&self, key: &str) -> Result<Option<String>, String>;
-    fn set(&self, key: &str, value: &str) -> Result<(), String>;
+    fn get(
+        &self,
+        key: &str,
+    ) -> Result<Option<String>, String>;
+    fn set(
+        &self,
+        key: &str,
+        value: &str,
+    ) -> Result<(), String>;
 }
 
 #[derive(Default)]
@@ -21,7 +28,10 @@ impl InMemoryKeyValueStore {
 }
 
 impl KeyValueStore for InMemoryKeyValueStore {
-    fn get(&self, key: &str) -> Result<Option<String>, String> {
+    fn get(
+        &self,
+        key: &str,
+    ) -> Result<Option<String>, String> {
         Ok(self
             .map
             .lock()
@@ -30,7 +40,11 @@ impl KeyValueStore for InMemoryKeyValueStore {
             .cloned())
     }
 
-    fn set(&self, key: &str, value: &str) -> Result<(), String> {
+    fn set(
+        &self,
+        key: &str,
+        value: &str,
+    ) -> Result<(), String> {
         self.map
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

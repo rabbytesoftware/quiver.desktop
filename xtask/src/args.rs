@@ -12,7 +12,10 @@ pub struct Args {
 
 impl Args {
     /// `valued` lists the flags that take a value; every other `--name` is a switch.
-    pub fn parse(raw: impl IntoIterator<Item = String>, valued: &[&str]) -> Result<Self> {
+    pub fn parse(
+        raw: impl IntoIterator<Item = String>,
+        valued: &[&str],
+    ) -> Result<Self> {
         let mut out = Self::default();
         let mut raw = raw.into_iter();
         while let Some(arg) = raw.next() {
@@ -32,11 +35,17 @@ impl Args {
         Ok(out)
     }
 
-    pub fn flag(&self, name: &str) -> Option<&str> {
+    pub fn flag(
+        &self,
+        name: &str,
+    ) -> Option<&str> {
         self.flags.get(name).map(String::as_str)
     }
 
-    pub fn has(&self, switch: &str) -> bool {
+    pub fn has(
+        &self,
+        switch: &str,
+    ) -> bool {
         self.switches.iter().any(|s| s == switch)
     }
 }

@@ -6,7 +6,11 @@ use gpui::{div, px, AnyElement, App, FontWeight, SharedString};
 use crate::theme::ActiveQuiver;
 
 /// A titled block of rows.
-pub fn section(title: &'static str, rows: Vec<AnyElement>, cx: &App) -> AnyElement {
+pub fn section(
+    title: &'static str,
+    rows: Vec<AnyElement>,
+    cx: &App,
+) -> AnyElement {
     let p = cx.quiver().palette;
     div()
         .flex()
@@ -25,7 +29,11 @@ pub fn section(title: &'static str, rows: Vec<AnyElement>, cx: &App) -> AnyEleme
 }
 
 /// A captioned horizontal row of demo items.
-pub fn row(caption: impl Into<SharedString>, items: Vec<AnyElement>, cx: &App) -> AnyElement {
+pub fn row(
+    caption: impl Into<SharedString>,
+    items: Vec<AnyElement>,
+    cx: &App,
+) -> AnyElement {
     let p = cx.quiver().palette;
     div()
         .flex()

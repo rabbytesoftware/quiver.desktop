@@ -88,7 +88,11 @@ impl Pages {
     }
 
     /// Applies one host message. False once the page is gone (it was asked to close).
-    pub fn apply(&mut self, id: u64, message: HostToWindow) -> bool {
+    pub fn apply(
+        &mut self,
+        id: u64,
+        message: HostToWindow,
+    ) -> bool {
         let Some(page) = self.views.get(&id) else {
             return false;
         };
@@ -125,7 +129,10 @@ impl Pages {
         true
     }
 
-    pub fn destroy(&mut self, id: u64) {
+    pub fn destroy(
+        &mut self,
+        id: u64,
+    ) {
         if let Some(page) = self.views.remove(&id) {
             let _ = page.view.focus_parent();
         }
@@ -133,7 +140,10 @@ impl Pages {
 }
 
 /// Answers a pending request (on the page thread, where WebKit wants scheme tasks finished).
-fn respond(pending: &Pending, response: ProtocolResponse) {
+fn respond(
+    pending: &Pending,
+    response: ProtocolResponse,
+) {
     let Some(responder) = pending
         .lock()
         .ok()

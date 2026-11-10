@@ -29,11 +29,29 @@ pub trait Backend: Send + Sync {
     /// manifest `targets` are keyed. Native-side because a UA guess can misdetect an architecture.
     async fn get_platform(&self) -> Result<String>;
 
-    async fn check_remote_health(&self, url: &str) -> Result<()>;
-    async fn add_connection(&self, name: &str, url: &str, code: &str) -> Result<ConnectionConfig>;
-    async fn remove_connection(&self, id: &str) -> Result<()>;
-    async fn switch_connection(&self, id: &str) -> Result<()>;
-    async fn rename_connection(&self, id: &str, name: &str) -> Result<()>;
+    async fn check_remote_health(
+        &self,
+        url: &str,
+    ) -> Result<()>;
+    async fn add_connection(
+        &self,
+        name: &str,
+        url: &str,
+        code: &str,
+    ) -> Result<ConnectionConfig>;
+    async fn remove_connection(
+        &self,
+        id: &str,
+    ) -> Result<()>;
+    async fn switch_connection(
+        &self,
+        id: &str,
+    ) -> Result<()>;
+    async fn rename_connection(
+        &self,
+        id: &str,
+        name: &str,
+    ) -> Result<()>;
 }
 
 /// The search controller's platform source, answered by the backend.

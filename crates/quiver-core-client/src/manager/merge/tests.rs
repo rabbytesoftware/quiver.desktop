@@ -1,7 +1,10 @@
 use super::*;
 use crate::types::ConnectionKind;
 
-fn config(id: &str, name: &str) -> ConnectionConfig {
+fn config(
+    id: &str,
+    name: &str,
+) -> ConnectionConfig {
     ConnectionConfig {
         id: id.into(),
         name: name.into(),

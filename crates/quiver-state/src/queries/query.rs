@@ -56,8 +56,10 @@ impl<T: Clone + PartialEq> Query<T> {
     /// (the skeleton is up while `loading`), but a refetch of data already on screen is silent and publishes
     /// once, at the end, and only if the result differs. Home polls every 3 s while core refreshes; without
     /// this every poll repainted the whole window (a 200 ms software-rendered frame) for identical data.
-    pub async fn run<F>(&self, fetch: F)
-    where
+    pub async fn run<F>(
+        &self,
+        fetch: F,
+    ) where
         F: Future<Output = crate::Result<T>>,
     {
         let before = self.state.snapshot();

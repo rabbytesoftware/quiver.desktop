@@ -30,7 +30,10 @@ fn switch(
     )
 }
 
-fn build_section(view: &SettingsView, cx: &Context<SettingsView>) -> Vec<AnyElement> {
+fn build_section(
+    view: &SettingsView,
+    cx: &Context<SettingsView>,
+) -> Vec<AnyElement> {
     let p = cx.quiver().palette;
     let app = view.app.clone();
     let m = app.read(cx);
@@ -102,7 +105,10 @@ fn build_section(view: &SettingsView, cx: &Context<SettingsView>) -> Vec<AnyElem
     ]
 }
 
-fn catalog_section(view: &SettingsView, cx: &Context<SettingsView>) -> Vec<AnyElement> {
+fn catalog_section(
+    view: &SettingsView,
+    cx: &Context<SettingsView>,
+) -> Vec<AnyElement> {
     let p = cx.quiver().palette;
     let app = view.app.clone();
     let m = app.read(cx);
@@ -185,7 +191,10 @@ fn auto_register_row(
     )
 }
 
-pub fn developer(view: &mut SettingsView, cx: &mut Context<SettingsView>) -> impl IntoElement {
+pub fn developer(
+    view: &mut SettingsView,
+    cx: &mut Context<SettingsView>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let (builds, library, arrows, loading) = {
         let m = view.app.read(cx);

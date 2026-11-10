@@ -65,7 +65,10 @@ impl PathStore {
         self.unavailable = false;
     }
 
-    pub fn loaded(&mut self, result: Result<PathStatus, ActionFailure>) {
+    pub fn loaded(
+        &mut self,
+        result: Result<PathStatus, ActionFailure>,
+    ) {
         self.loading = false;
         match result {
             Ok(status) => self.status = Some(status),
@@ -80,7 +83,10 @@ impl PathStore {
     }
 
     /// The response is the updated status, used as-is (no re-read).
-    pub fn setup_done(&mut self, result: Result<PathStatus, ActionFailure>) {
+    pub fn setup_done(
+        &mut self,
+        result: Result<PathStatus, ActionFailure>,
+    ) {
         self.setting_up = false;
         match result {
             Ok(status) => self.status = Some(status),
@@ -93,7 +99,10 @@ impl PathStore {
 mod tests {
     use super::*;
 
-    fn status(on_path: bool, configured: bool) -> PathStatus {
+    fn status(
+        on_path: bool,
+        configured: bool,
+    ) -> PathStatus {
         PathStatus {
             bin_dir: "/b".into(),
             on_path,

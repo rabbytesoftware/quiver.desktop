@@ -25,5 +25,8 @@ pub struct HelperLink {
 
 pub trait HelperLauncher: Send + Sync {
     /// Must be called inside the async runtime (the real launcher spawns tasks).
-    fn launch(&self, args: &HelperArgs) -> Result<HelperLink>;
+    fn launch(
+        &self,
+        args: &HelperArgs,
+    ) -> Result<HelperLink>;
 }

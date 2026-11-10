@@ -18,7 +18,11 @@ use crate::support::upstream::{ReleaseOptions, Upstream};
 
 const SLOW: &str = "github.com/rabbytesoftware/e2e-slow";
 
-async fn glyph(app: &mut App, ns: &str, kind: &str) {
+async fn glyph(
+    app: &mut App,
+    ns: &str,
+    kind: &str,
+) {
     app.matching(json!({"id": format!("sidebar.row.{ns}.glyph"), "label_contains": kind}))
         .await;
 }

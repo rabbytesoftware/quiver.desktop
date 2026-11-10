@@ -19,7 +19,11 @@ fn hue(id: &str) -> f32 {
     (sum * 37 % 360) as f32 / 360.0
 }
 
-fn status_text(row: &ConnectionRowView, view: &RemoteView, cx: &Context<RemoteView>) -> String {
+fn status_text(
+    row: &ConnectionRowView,
+    view: &RemoteView,
+    cx: &Context<RemoteView>,
+) -> String {
     let m = view.app.read(cx);
     match row.status {
         None => m.t(design::REMOTE_NOT_CONNECTED),

@@ -42,7 +42,10 @@ impl EntityCache {
         }
     }
 
-    fn mutate(&self, f: impl FnOnce(&mut BTreeMap<Key, ArrowCatalogRecord>)) {
+    fn mutate(
+        &self,
+        f: impl FnOnce(&mut BTreeMap<Key, ArrowCatalogRecord>),
+    ) {
         let mut rows = self.rows.lock().unwrap_or_else(PoisonError::into_inner);
         f(&mut rows);
         if let Some(store) = &self.persistence {
@@ -55,7 +58,10 @@ impl EntityCache {
         }
     }
 
-    pub fn upsert(&self, record: ArrowCatalogRecord) {
+    pub fn upsert(
+        &self,
+        record: ArrowCatalogRecord,
+    ) {
         self.mutate(|rows| {
             rows.insert(
                 (record.connection_id.clone(), record.namespace.clone()),
@@ -64,7 +70,10 @@ impl EntityCache {
         });
     }
 
-    pub fn arrows_for(&self, connection_id: &str) -> Vec<ArrowCatalogRecord> {
+    pub fn arrows_for(
+        &self,
+        connection_id: &str,
+    ) -> Vec<ArrowCatalogRecord> {
         let rows = self.rows.lock().unwrap_or_else(PoisonError::into_inner);
         rows.values()
             .filter(|r| r.connection_id == connection_id)
@@ -72,13 +81,21 @@ impl EntityCache {
             .collect()
     }
 
-    pub fn arrow(&self, connection_id: &str, namespace: &str) -> Option<ArrowCatalogRecord> {
+    pub fn arrow(
+        &self,
+        connection_id: &str,
+        namespace: &str,
+    ) -> Option<ArrowCatalogRecord> {
         let rows = self.rows.lock().unwrap_or_else(PoisonError::into_inner);
         rows.get(&(connection_id.to_string(), namespace.to_string()))
             .cloned()
     }
 
-    pub fn remove(&self, connection_id: &str, namespace: &str) {
+    pub fn remove(
+        &self,
+        connection_id: &str,
+        namespace: &str,
+    ) {
         self.mutate(|rows| {
             rows.remove(&(connection_id.to_string(), namespace.to_string()));
         });
@@ -95,7 +112,10 @@ pub(crate) mod tests {
     use super::*;
     use crate::persistence::InMemoryKeyValueStore;
 
-    pub(crate) fn rec(connection_id: &str, namespace: &str) -> ArrowCatalogRecord {
+    pub(crate) fn rec(
+        connection_id: &str,
+        namespace: &str,
+    ) -> ArrowCatalogRecord {
         ArrowCatalogRecord {
             connection_id: connection_id.into(),
             namespace: namespace.into(),
@@ -114,11 +134,18 @@ pub(crate) mod tests {
     struct Broken;
 
     impl KeyValueStore for Broken {
-        fn get(&self, _: &str) -> Result<Option<String>, String> {
+        fn get(
+            &self,
+            _: &str,
+        ) -> Result<Option<String>, String> {
             Err("blocked".into())
         }
 
-        fn set(&self, _: &str, _: &str) -> Result<(), String> {
+        fn set(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> Result<(), String> {
             Err("QuotaExceeded".into())
         }
     }

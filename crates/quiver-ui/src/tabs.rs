@@ -49,19 +49,29 @@ impl TabItem {
         }
     }
 
-    pub fn icon(mut self, icon: impl IntoElement) -> Self {
+    pub fn icon(
+        mut self,
+        icon: impl IntoElement,
+    ) -> Self {
         self.icon = Some(icon.into_any_element());
         self
     }
 
-    pub fn disabled(mut self, disabled: bool) -> Self {
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
         self.disabled = disabled;
         self
     }
 }
 
 /// The index reached from `from` going `dir` (+1/-1), skipping disabled tabs, wrapping around.
-pub(crate) fn step_enabled(from: usize, dir: isize, disabled: &[bool]) -> Option<usize> {
+pub(crate) fn step_enabled(
+    from: usize,
+    dir: isize,
+    disabled: &[bool],
+) -> Option<usize> {
     let n = disabled.len() as isize;
     (1..=n)
         .map(|k| (from as isize + dir * k).rem_euclid(n) as usize)
@@ -96,33 +106,51 @@ impl Tabs {
         }
     }
 
-    pub fn tab(mut self, tab: TabItem) -> Self {
+    pub fn tab(
+        mut self,
+        tab: TabItem,
+    ) -> Self {
         self.tabs.push(tab);
         self
     }
 
-    pub fn selected(mut self, index: usize) -> Self {
+    pub fn selected(
+        mut self,
+        index: usize,
+    ) -> Self {
         self.selected = index;
         self
     }
 
-    pub fn variant(mut self, v: TabsVariant) -> Self {
+    pub fn variant(
+        mut self,
+        v: TabsVariant,
+    ) -> Self {
         self.variant = v;
         self
     }
 
-    pub fn orientation(mut self, o: Orientation) -> Self {
+    pub fn orientation(
+        mut self,
+        o: Orientation,
+    ) -> Self {
         self.orientation = o;
         self
     }
 
-    pub fn on_change(mut self, f: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(
+        mut self,
+        f: impl Fn(usize, &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_change = Some(Rc::new(f));
         self
     }
 
     /// The panel of the selected tab (`TabsPanel`).
-    pub fn panel(mut self, panel: impl IntoElement) -> Self {
+    pub fn panel(
+        mut self,
+        panel: impl IntoElement,
+    ) -> Self {
         self.panel = Some(panel.into_any_element());
         self
     }
@@ -135,7 +163,11 @@ impl Styled for Tabs {
 }
 
 impl RenderOnce for Tabs {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let q = *cx.quiver();
         let p = q.palette;
         let vertical = self.orientation == Orientation::Vertical;

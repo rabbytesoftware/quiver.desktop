@@ -60,7 +60,10 @@ impl Default for ConsoleState {
     }
 }
 
-fn numbered(entries: Vec<NewEntry>, from: u64) -> Vec<ConsoleEntry> {
+fn numbered(
+    entries: Vec<NewEntry>,
+    from: u64,
+) -> Vec<ConsoleEntry> {
     entries
         .into_iter()
         .zip(from..)
@@ -73,13 +76,19 @@ impl ConsoleState {
         self.open = !self.open;
     }
 
-    pub fn set_open(&mut self, open: bool) {
+    pub fn set_open(
+        &mut self,
+        open: bool,
+    ) {
         self.open = open;
     }
 
     /// Starts a clean slate for `connection_id`; a no-op when it is the one already shown. History is the
     /// user's, not the connection's, so it survives a switch (as do `open`, the ids and the draft's owner).
-    pub fn adopt(&mut self, connection_id: &str) {
+    pub fn adopt(
+        &mut self,
+        connection_id: &str,
+    ) {
         if self.connection_id.as_deref() == Some(connection_id) {
             return;
         }
@@ -92,7 +101,10 @@ impl ConsoleState {
         };
     }
 
-    pub fn set_versions(&mut self, versions: Option<CoreVersions>) {
+    pub fn set_versions(
+        &mut self,
+        versions: Option<CoreVersions>,
+    ) {
         self.support = match &versions {
             None => Support::Unknown,
             Some(v) if supports_console(Some(v)) => Support::Supported,
@@ -101,19 +113,28 @@ impl ConsoleState {
         self.versions = versions;
     }
 
-    pub fn set_commands(&mut self, commands: Vec<ConsoleCommand>) {
+    pub fn set_commands(
+        &mut self,
+        commands: Vec<ConsoleCommand>,
+    ) {
         self.commands = commands;
         self.commands_loaded = true;
     }
 
-    pub fn set_stream(&mut self, stream: StreamState) {
+    pub fn set_stream(
+        &mut self,
+        stream: StreamState,
+    ) {
         self.stream = stream;
     }
 
     /// Folds frames from the log stream into the buffer. Hand it a whole replay, `ready` included, in one
     /// call: a `ready` that says `reset` (the daemon restarted) discards the daemon lines already held
     /// before the replay is shown.
-    pub fn ingest(&mut self, frames: &[LogFrame]) {
+    pub fn ingest(
+        &mut self,
+        frames: &[LogFrame],
+    ) {
         let reset = frames
             .iter()
             .any(|f| matches!(f, LogFrame::Ready { reset: true, .. }));
@@ -161,7 +182,10 @@ impl ConsoleState {
         self.next_id += count;
     }
 
-    pub fn push(&mut self, entries: Vec<NewEntry>) {
+    pub fn push(
+        &mut self,
+        entries: Vec<NewEntry>,
+    ) {
         if entries.is_empty() {
             return;
         }
@@ -181,7 +205,10 @@ impl ConsoleState {
         self.tail += 1;
     }
 
-    pub fn toggle_expanded(&mut self, id: u64) {
+    pub fn toggle_expanded(
+        &mut self,
+        id: u64,
+    ) {
         self.expanded_id = if self.expanded_id == Some(id) {
             None
         } else {
@@ -189,18 +216,27 @@ impl ConsoleState {
         };
     }
 
-    pub fn set_draft(&mut self, draft: &str) {
+    pub fn set_draft(
+        &mut self,
+        draft: &str,
+    ) {
         self.draft = draft.to_owned();
         self.history_cursor = HistoryCursor::default();
     }
 
-    pub fn remember(&mut self, line: &str) {
+    pub fn remember(
+        &mut self,
+        line: &str,
+    ) {
         self.history = push_history(&self.history, line, HISTORY_CAP);
         self.history_cursor = HistoryCursor::default();
         self.draft.clear();
     }
 
-    pub fn step_history(&mut self, direction: Direction) {
+    pub fn step_history(
+        &mut self,
+        direction: Direction,
+    ) {
         let step = step_history(&self.history, &self.history_cursor, &self.draft, direction);
         self.history_cursor = step.cursor;
         self.draft = step.text;

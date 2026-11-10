@@ -34,7 +34,10 @@ struct StubTransport(Peer);
 
 #[async_trait::async_trait]
 impl Transport for StubTransport {
-    async fn request(&self, _req: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error> {
+    async fn request(
+        &self,
+        _req: Request<Vec<u8>>,
+    ) -> Result<Response<Vec<u8>>, Error> {
         match self.0 {
             Peer::Healthy => Ok(Response::builder()
                 .status(200)
@@ -46,7 +49,10 @@ impl Transport for StubTransport {
         }
     }
 
-    async fn open_ws(&self, _path: &str) -> Result<WsStream, Error> {
+    async fn open_ws(
+        &self,
+        _path: &str,
+    ) -> Result<WsStream, Error> {
         unreachable!("the health probe never opens a WebSocket")
     }
 }

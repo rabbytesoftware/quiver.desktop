@@ -18,7 +18,10 @@ impl MemorySecretStore {
 }
 
 impl SecretStore for MemorySecretStore {
-    fn get(&self, connection_id: &str) -> Result<String> {
+    fn get(
+        &self,
+        connection_id: &str,
+    ) -> Result<String> {
         self.tokens
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -27,7 +30,11 @@ impl SecretStore for MemorySecretStore {
             .ok_or_else(|| Error::Secret(format!("no token stored for {connection_id}")))
     }
 
-    fn set(&self, connection_id: &str, token: &str) -> Result<()> {
+    fn set(
+        &self,
+        connection_id: &str,
+        token: &str,
+    ) -> Result<()> {
         self.tokens
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -35,7 +42,10 @@ impl SecretStore for MemorySecretStore {
         Ok(())
     }
 
-    fn delete(&self, connection_id: &str) -> Result<()> {
+    fn delete(
+        &self,
+        connection_id: &str,
+    ) -> Result<()> {
         self.tokens
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -56,7 +66,11 @@ impl MemorySettingsStore {
 }
 
 impl SettingsStore for MemorySettingsStore {
-    fn get(&self, file: &str, key: &str) -> Option<serde_json::Value> {
+    fn get(
+        &self,
+        file: &str,
+        key: &str,
+    ) -> Option<serde_json::Value> {
         self.values
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -64,7 +78,12 @@ impl SettingsStore for MemorySettingsStore {
             .cloned()
     }
 
-    fn set(&self, file: &str, key: &str, value: serde_json::Value) -> Result<()> {
+    fn set(
+        &self,
+        file: &str,
+        key: &str,
+        value: serde_json::Value,
+    ) -> Result<()> {
         self.values
             .lock()
             .unwrap_or_else(|e| e.into_inner())

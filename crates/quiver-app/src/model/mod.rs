@@ -51,7 +51,10 @@ pub struct AppModel {
 }
 
 impl AppModel {
-    pub fn new(services: Arc<AppServices>, demo: bool) -> Self {
+    pub fn new(
+        services: Arc<AppServices>,
+        demo: bool,
+    ) -> Self {
         let home = Query::default();
         let core_versions = Store::new(None);
         if !demo {
@@ -77,7 +80,11 @@ impl AppModel {
     }
 
     /// Creates the model and installs it as the app's global.
-    pub fn install(cx: &mut App, services: Arc<AppServices>, demo: bool) -> Entity<AppModel> {
+    pub fn install(
+        cx: &mut App,
+        services: Arc<AppServices>,
+        demo: bool,
+    ) -> Entity<AppModel> {
         let model = cx.new(|_| Self::new(services, demo));
         cx.set_global(AppHandle(model.clone()));
         model
@@ -87,7 +94,10 @@ impl AppModel {
         self.history.current()
     }
 
-    pub fn t(&self, key: Key) -> String {
+    pub fn t(
+        &self,
+        key: Key,
+    ) -> String {
         self.translator.t(key)
     }
 
@@ -95,33 +105,51 @@ impl AppModel {
         self.services.handle()
     }
 
-    pub fn navigate(&mut self, route: Route, cx: &mut Context<Self>) {
+    pub fn navigate(
+        &mut self,
+        route: Route,
+        cx: &mut Context<Self>,
+    ) {
         if self.history.push(route) {
             cx.notify();
         }
     }
 
     /// Opens or closes the console dock.
-    pub fn set_console_open(&mut self, open: bool, cx: &mut Context<Self>) {
+    pub fn set_console_open(
+        &mut self,
+        open: bool,
+        cx: &mut Context<Self>,
+    ) {
         if self.console_open != open {
             self.console_open = open;
             cx.notify();
         }
     }
 
-    pub fn replace(&mut self, route: Route, cx: &mut Context<Self>) {
+    pub fn replace(
+        &mut self,
+        route: Route,
+        cx: &mut Context<Self>,
+    ) {
         if self.history.replace(route) {
             cx.notify();
         }
     }
 
-    pub fn back(&mut self, cx: &mut Context<Self>) {
+    pub fn back(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         if self.history.back() {
             cx.notify();
         }
     }
 
-    pub fn forward(&mut self, cx: &mut Context<Self>) {
+    pub fn forward(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         if self.history.forward() {
             cx.notify();
         }
@@ -137,13 +165,21 @@ impl AppModel {
         cx.notify();
     }
 
-    pub fn close_modal(&mut self, id: &str, cx: &mut Context<Self>) {
+    pub fn close_modal(
+        &mut self,
+        id: &str,
+        cx: &mut Context<Self>,
+    ) {
         if self.modals.close(id) {
             cx.notify();
         }
     }
 
-    pub fn set_sidebar_width(&mut self, width: f64, cx: &mut Context<Self>) {
+    pub fn set_sidebar_width(
+        &mut self,
+        width: f64,
+        cx: &mut Context<Self>,
+    ) {
         self.shell.set_width(width);
         shell_state::save_shell(self.services.key_value.as_ref(), &self.shell);
         cx.notify();
@@ -155,15 +191,25 @@ pub fn app_model(cx: &App) -> Entity<AppModel> {
     cx.global::<AppHandle>().0.clone()
 }
 
-pub fn navigate(cx: &mut App, route: Route) {
+pub fn navigate(
+    cx: &mut App,
+    route: Route,
+) {
     app_model(cx).update(cx, |model, cx| model.navigate(route, cx));
 }
 
-pub fn open_modal(cx: &mut App, id: impl Into<SharedString>, view: AnyView) {
+pub fn open_modal(
+    cx: &mut App,
+    id: impl Into<SharedString>,
+    view: AnyView,
+) {
     app_model(cx).update(cx, |model, cx| model.open_modal(id, view, cx));
 }
 
-pub fn close_modal(cx: &mut App, id: &str) {
+pub fn close_modal(
+    cx: &mut App,
+    id: &str,
+) {
     app_model(cx).update(cx, |model, cx| model.close_modal(id, cx));
 }
 

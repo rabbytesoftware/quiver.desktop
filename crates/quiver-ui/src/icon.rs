@@ -27,7 +27,11 @@ pub enum Glyph {
 }
 
 /// Points of a circle in the 24x24 view box.
-fn circle(cx: f32, cy: f32, r: f32) -> Vec<(f32, f32)> {
+fn circle(
+    cx: f32,
+    cy: f32,
+    r: f32,
+) -> Vec<(f32, f32)> {
     (0..=24)
         .map(|i| {
             let a = i as f32 / 24.0 * std::f32::consts::TAU;
@@ -142,12 +146,21 @@ fn paint_polyline(
 }
 
 /// A `size`px square glyph, stroke 2 (scaled), in `color`.
-pub fn icon(glyph: Glyph, size: f32, color: Hsla) -> impl IntoElement {
+pub fn icon(
+    glyph: Glyph,
+    size: f32,
+    color: Hsla,
+) -> impl IntoElement {
     icon_with_stroke(glyph, size, color, 2.0)
 }
 
 /// [`icon`] with an explicit stroke width in the 24px view box.
-pub fn icon_with_stroke(glyph: Glyph, size: f32, color: Hsla, stroke: f32) -> impl IntoElement {
+pub fn icon_with_stroke(
+    glyph: Glyph,
+    size: f32,
+    color: Hsla,
+    stroke: f32,
+) -> impl IntoElement {
     canvas(
         |_, _, _| (),
         move |bounds: Bounds<Pixels>, _, window: &mut Window, _: &mut App| {

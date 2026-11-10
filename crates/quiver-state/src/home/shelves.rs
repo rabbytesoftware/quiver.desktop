@@ -30,7 +30,10 @@ mod tests {
     use super::*;
     use crate::search::relevance::fixtures::entry;
 
-    fn shelf(id: &str, arrows: Vec<crate::domain::SearchEntry>) -> HomeShelf {
+    fn shelf(
+        id: &str,
+        arrows: Vec<crate::domain::SearchEntry>,
+    ) -> HomeShelf {
         HomeShelf {
             id: id.into(),
             title: id.into(),

@@ -61,7 +61,10 @@ impl SettingsStore {
 
     /// The value at `key`; `None` when absent. A value of the wrong shape is
     /// an error.
-    pub fn get<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
+    pub fn get<T: DeserializeOwned>(
+        &self,
+        key: &str,
+    ) -> Result<Option<T>> {
         let Some(value) = self.lock().get(key).cloned() else {
             return Ok(None);
         };
@@ -75,12 +78,19 @@ impl SettingsStore {
 
     /// Like [`Self::get`], but a missing or unreadable value is `None`, which
     /// is how the Tauri app treated its saved connections.
-    pub fn get_or_none<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
+    pub fn get_or_none<T: DeserializeOwned>(
+        &self,
+        key: &str,
+    ) -> Option<T> {
         self.get(key).ok().flatten()
     }
 
     /// Sets `key` and writes the file.
-    pub fn set<T: Serialize>(&self, key: &str, value: &T) -> Result<()> {
+    pub fn set<T: Serialize>(
+        &self,
+        key: &str,
+        value: &T,
+    ) -> Result<()> {
         let value = serde_json::to_value(value).map_err(|source| Error::Value {
             key: key.to_owned(),
             source,
@@ -91,7 +101,10 @@ impl SettingsStore {
     }
 
     /// Removes `key` and writes the file. Returns whether it existed.
-    pub fn remove(&self, key: &str) -> Result<bool> {
+    pub fn remove(
+        &self,
+        key: &str,
+    ) -> Result<bool> {
         let mut entries = self.lock();
         let existed = entries.remove(key).is_some();
         if existed {
@@ -100,7 +113,10 @@ impl SettingsStore {
         Ok(existed)
     }
 
-    fn write(&self, entries: &BTreeMap<String, Value>) -> Result<()> {
+    fn write(
+        &self,
+        entries: &BTreeMap<String, Value>,
+    ) -> Result<()> {
         let io = |source| Error::Io {
             path: self.path.clone(),
             source,

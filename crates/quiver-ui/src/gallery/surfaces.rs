@@ -11,7 +11,10 @@ use crate::{
     FrameTitle, ProgressButton, ScrollArea, WavyLine,
 };
 
-pub(super) fn page(g: &mut Gallery, cx: &mut Context<Gallery>) -> Vec<AnyElement> {
+pub(super) fn page(
+    g: &mut Gallery,
+    cx: &mut Context<Gallery>,
+) -> Vec<AnyElement> {
     let p = cx.quiver().palette;
     let frame = Frame::new()
         .w(px(360.))

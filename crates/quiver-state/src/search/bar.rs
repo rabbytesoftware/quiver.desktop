@@ -18,7 +18,10 @@ pub enum CommitTarget {
     },
 }
 
-pub fn commit_target(next: &str, showing_results: bool) -> CommitTarget {
+pub fn commit_target(
+    next: &str,
+    showing_results: bool,
+) -> CommitTarget {
     if next.is_empty() {
         CommitTarget::Home {
             replace: showing_results,
@@ -72,13 +75,20 @@ pub struct SearchField {
 }
 
 impl SearchField {
-    pub fn sync_from_url(&mut self, url_query: &str, showing_results: bool) {
+    pub fn sync_from_url(
+        &mut self,
+        url_query: &str,
+        showing_results: bool,
+    ) {
         if showing_results {
             self.draft = url_query.to_owned();
         }
     }
 
-    pub fn change(&mut self, next: &str) {
+    pub fn change(
+        &mut self,
+        next: &str,
+    ) {
         self.draft = next.to_owned();
     }
 

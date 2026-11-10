@@ -30,7 +30,11 @@ pub struct SettingsView {
 }
 
 impl SettingsView {
-    pub fn new(app: Entity<AppModel>, tab: SettingsTab, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        tab: SettingsTab,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let services = app.read(cx).services.clone();
         observe_store(cx, services.arrows.store());
         let mut view = Self {
@@ -47,7 +51,11 @@ impl SettingsView {
         view
     }
 
-    pub(super) fn set_tab(&mut self, tab: SettingsTab, cx: &mut Context<Self>) {
+    pub(super) fn set_tab(
+        &mut self,
+        tab: SettingsTab,
+        cx: &mut Context<Self>,
+    ) {
         self.tab = tab;
         self.ensure_loaded(cx);
         cx.notify();
@@ -55,7 +63,10 @@ impl SettingsView {
 
     /// The engine tab and the developer tab read the same config; it is fetched the first time either
     /// is opened, and again by "Try again".
-    fn ensure_loaded(&mut self, cx: &mut Context<Self>) {
+    fn ensure_loaded(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         if self.loaded || self.tab == SettingsTab::General {
             return;
         }
@@ -70,7 +81,11 @@ impl SettingsView {
 }
 
 impl Render for SettingsView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let body = match self.tab {
             SettingsTab::General => parts::general(self, cx).into_any_element(),

@@ -33,14 +33,20 @@ impl Locale {
         LOCALES.iter().copied().find(|l| l.tag() == tag)
     }
 
-    fn lookup(self, key: Key) -> Option<Message> {
+    fn lookup(
+        self,
+        key: Key,
+    ) -> Option<Message> {
         match self {
             Self::En => en::lookup(key),
         }
     }
 
     /// CLDR plural category for English: `one` only for exactly 1.
-    fn is_singular(self, count: f64) -> bool {
+    fn is_singular(
+        self,
+        count: f64,
+    ) -> bool {
         match self {
             Self::En => (count - 1.0).abs() < f64::EPSILON,
         }
@@ -49,7 +55,10 @@ impl Locale {
 
 /// Fills `{name}` holes. A hole with no parameter stays visible; substituted text is not rescanned;
 /// numbers are formatted for the locale.
-pub fn interpolate(template: &str, params: Option<&Params>) -> String {
+pub fn interpolate(
+    template: &str,
+    params: Option<&Params>,
+) -> String {
     let Some(params) = params.filter(|p| !p.is_empty()) else {
         return template.to_owned();
     };
@@ -93,7 +102,11 @@ fn select_plural(
 }
 
 /// Renders a message. A plural message reached without a numeric `count` is treated as zero.
-pub fn render_message(locale: Locale, message: Message, params: Option<&Params>) -> String {
+pub fn render_message(
+    locale: Locale,
+    message: Message,
+    params: Option<&Params>,
+) -> String {
     match message {
         Message::Text(text) => interpolate(text, params),
         Message::Plural { one, other } => {
@@ -109,7 +122,11 @@ pub fn render_message(locale: Locale, message: Message, params: Option<&Params>)
 }
 
 /// Translates `key` in `locale`; the key id itself when no catalogue has it.
-pub fn translate_in(locale: Locale, key: Key, params: Option<&Params>) -> String {
+pub fn translate_in(
+    locale: Locale,
+    key: Key,
+    params: Option<&Params>,
+) -> String {
     match locale.lookup(key).or_else(|| SOURCE_LOCALE.lookup(key)) {
         Some(message) => render_message(locale, message, params),
         None => key.id().to_owned(),
@@ -131,16 +148,27 @@ impl Translator {
         self.locale
     }
 
-    pub fn t(&self, key: Key) -> String {
+    pub fn t(
+        &self,
+        key: Key,
+    ) -> String {
         translate_in(self.locale, key, None)
     }
 
-    pub fn t_with(&self, key: Key, params: &Params) -> String {
+    pub fn t_with(
+        &self,
+        key: Key,
+        params: &Params,
+    ) -> String {
         translate_in(self.locale, key, Some(params))
     }
 
     /// Plural message keyed on `{count}` only.
-    pub fn t_count(&self, key: Key, count: usize) -> String {
+    pub fn t_count(
+        &self,
+        key: Key,
+        count: usize,
+    ) -> String {
         self.t_with(key, &Params::count(count))
     }
 }

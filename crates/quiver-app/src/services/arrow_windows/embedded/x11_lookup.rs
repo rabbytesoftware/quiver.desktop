@@ -39,7 +39,12 @@ impl Server {
     }
 
     /// `(area, id)` of the biggest window at or under `window` that belongs to `pid`.
-    fn biggest(&self, window: c_ulong, pid: u32, depth: u8) -> Option<(u64, c_ulong)> {
+    fn biggest(
+        &self,
+        window: c_ulong,
+        pid: u32,
+        depth: u8,
+    ) -> Option<(u64, c_ulong)> {
         let mut best = None;
         if depth > 0 && self.owner(window) == Some(pid) {
             best = self.area(window).map(|area| (area, window));
@@ -57,7 +62,10 @@ impl Server {
         best
     }
 
-    fn area(&self, window: c_ulong) -> Option<u64> {
+    fn area(
+        &self,
+        window: c_ulong,
+    ) -> Option<u64> {
         // SAFETY: `XWindowAttributes` is plain data Xlib fills in; the display is open.
         unsafe {
             let mut attributes: xlib::XWindowAttributes = std::mem::zeroed();
@@ -66,7 +74,10 @@ impl Server {
         }
     }
 
-    fn children(&self, window: c_ulong) -> Vec<c_ulong> {
+    fn children(
+        &self,
+        window: c_ulong,
+    ) -> Vec<c_ulong> {
         let (mut root, mut parent) = (0, 0);
         let mut list: *mut c_ulong = std::ptr::null_mut();
         let mut count = 0;
@@ -91,7 +102,10 @@ impl Server {
     }
 
     /// The pid in `window`'s `_NET_WM_PID`, if it has one.
-    fn owner(&self, window: c_ulong) -> Option<u32> {
+    fn owner(
+        &self,
+        window: c_ulong,
+    ) -> Option<u32> {
         let mut kind: c_ulong = 0;
         let mut format: c_int = 0;
         let (mut items, mut after): (c_ulong, c_ulong) = (0, 0);

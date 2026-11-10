@@ -87,7 +87,10 @@ fn g(l: f32) -> Color {
     Oklch::new(l, 0.0, 0.0).to_color()
 }
 
-fn ga(l: f32, a: f32) -> Color {
+fn ga(
+    l: f32,
+    a: f32,
+) -> Color {
     Oklch::alpha(l, 0.0, 0.0, a).to_color()
 }
 

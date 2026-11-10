@@ -35,7 +35,10 @@ pub struct Line {
     pub expandable: bool,
 }
 
-fn span(text: impl Into<String>, tone: SpanTone) -> Span {
+fn span(
+    text: impl Into<String>,
+    tone: SpanTone,
+) -> Span {
     Span {
         text: text.into(),
         tone,
@@ -61,7 +64,10 @@ fn field_tone(kind: FieldKind) -> SpanTone {
     }
 }
 
-fn log_spans(record: &LogRecord, offset_minutes: i32) -> Vec<Span> {
+fn log_spans(
+    record: &LogRecord,
+    offset_minutes: i32,
+) -> Vec<Span> {
     let emphasis = match record.level {
         LogLevel::Warn => SpanTone::Warn,
         LogLevel::Error => SpanTone::Error,
@@ -98,7 +104,11 @@ fn tone_of(tone: Tone) -> SpanTone {
 }
 
 /// `offset_minutes` is the viewer's UTC offset.
-pub fn display_line(entry: &ConsoleEntry, tr: &Translator, offset_minutes: i32) -> Line {
+pub fn display_line(
+    entry: &ConsoleEntry,
+    tr: &Translator,
+    offset_minutes: i32,
+) -> Line {
     let (spans, expandable) = match &entry.body {
         NewEntry::Log(record) => (log_spans(record, offset_minutes), true),
         NewEntry::Raw(text) => (vec![span(text.clone(), SpanTone::Muted)], false),

@@ -27,14 +27,20 @@ impl SortKey {
 }
 
 /// Case-insensitive name order (the reader-locale collation, English).
-fn by_name(a: &SearchEntry, b: &SearchEntry) -> std::cmp::Ordering {
+fn by_name(
+    a: &SearchEntry,
+    b: &SearchEntry,
+) -> std::cmp::Ordering {
     a.name
         .to_lowercase()
         .cmp(&b.name.to_lowercase())
         .then_with(|| a.name.cmp(&b.name))
 }
 
-pub fn sort_entries(entries: &[SearchEntry], sort: SortKey) -> Vec<SearchEntry> {
+pub fn sort_entries(
+    entries: &[SearchEntry],
+    sort: SortKey,
+) -> Vec<SearchEntry> {
     let mut sorted = entries.to_vec();
     match sort {
         SortKey::Relevance => {}

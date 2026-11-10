@@ -74,13 +74,23 @@ async fn adding_a_remote_lists_it_announces_the_change_and_can_then_be_switched_
 async fn a_secret_store_that_refuses_the_token_fails_the_add_and_lists_nothing() {
     struct Refusing;
     impl quiver_platform::SecretStore for Refusing {
-        fn set(&self, _: &str, _: &str) -> quiver_platform::Result<()> {
+        fn set(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> quiver_platform::Result<()> {
             Err(quiver_platform::Error::Secret("no secret service".into()))
         }
-        fn get(&self, _: &str) -> quiver_platform::Result<Option<String>> {
+        fn get(
+            &self,
+            _: &str,
+        ) -> quiver_platform::Result<Option<String>> {
             Ok(None)
         }
-        fn delete(&self, _: &str) -> quiver_platform::Result<()> {
+        fn delete(
+            &self,
+            _: &str,
+        ) -> quiver_platform::Result<()> {
             Ok(())
         }
     }

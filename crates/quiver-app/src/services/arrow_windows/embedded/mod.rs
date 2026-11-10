@@ -34,7 +34,10 @@ pub(crate) type ParentSlot = Arc<Mutex<Option<ParentHandle>>>;
 pub(crate) type Job = Box<dyn FnOnce(&mut Pages, Option<&ParentHandle>) + Send>;
 
 pub(crate) trait PageThread: Send + Sync {
-    fn post(&self, job: Job);
+    fn post(
+        &self,
+        job: Job,
+    );
 }
 
 /// Creates the arrow apps' pages inside the main window.
@@ -60,7 +63,10 @@ impl EmbeddedPages {
     }
 
     /// Tells the pages which window they live in. Call on the UI thread when the main window opens.
-    pub fn attach(&self, window: &impl HasWindowHandle) {
+    pub fn attach(
+        &self,
+        window: &impl HasWindowHandle,
+    ) {
         let handle = ParentHandle::of(window);
         if handle.is_none() {
             log::error!("the main window has no native handle: arrow apps cannot be shown");
@@ -71,7 +77,10 @@ impl EmbeddedPages {
     }
 
     /// Starts whatever the platform needs on the UI thread (macOS, Windows: the job runner).
-    pub fn start(&self, cx: &mut gpui::App) {
+    pub fn start(
+        &self,
+        cx: &mut gpui::App,
+    ) {
         #[cfg(not(target_os = "linux"))]
         self.thread.pump(self.parent.clone(), cx);
         #[cfg(target_os = "linux")]
@@ -117,7 +126,10 @@ impl Drop for PageGuard {
 }
 
 impl HelperLauncher for EmbeddedPages {
-    fn launch(&self, args: &HelperArgs) -> Result<HelperLink> {
+    fn launch(
+        &self,
+        args: &HelperArgs,
+    ) -> Result<HelperLink> {
         let thread = self.page_thread()?;
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (to_helper, mut commands) = unbounded_channel::<HostToWindow>();

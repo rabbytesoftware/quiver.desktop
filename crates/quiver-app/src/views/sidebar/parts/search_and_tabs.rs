@@ -37,7 +37,10 @@ fn tab_id(destination: Destination) -> &'static str {
     }
 }
 
-pub fn search_and_tabs(sidebar: &Sidebar, cx: &mut Context<Sidebar>) -> impl IntoElement {
+pub fn search_and_tabs(
+    sidebar: &Sidebar,
+    cx: &mut Context<Sidebar>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let app = sidebar.app.clone();
     let active = active_destination(&app.read(cx).route().path());

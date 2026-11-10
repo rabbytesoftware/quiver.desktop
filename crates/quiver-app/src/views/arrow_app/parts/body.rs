@@ -13,7 +13,10 @@ use quiver_ui::{ActiveQuiver, Spinner};
 
 use crate::views::arrow_app::ArrowAppView;
 
-pub fn body(view: &mut ArrowAppView, cx: &mut Context<ArrowAppView>) -> impl IntoElement {
+pub fn body(
+    view: &mut ArrowAppView,
+    cx: &mut Context<ArrowAppView>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let (entry, windows, demo) = {
         let m = view.app.read(cx);

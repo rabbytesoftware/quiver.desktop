@@ -22,7 +22,10 @@ pub fn load(store: &dyn KeyValueStore) -> (ShellSettings, ThemePreference) {
     (settings, theme)
 }
 
-pub fn save_shell(store: &dyn KeyValueStore, settings: &ShellSettings) {
+pub fn save_shell(
+    store: &dyn KeyValueStore,
+    settings: &ShellSettings,
+) {
     let value = json!({
         "sidebarSide": settings.sidebar_side.as_stored(),
         "sidebarWidth": settings.sidebar_width,

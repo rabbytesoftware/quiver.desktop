@@ -15,13 +15,19 @@ const EXEC_PATH: &str = "/v0/console/exec";
 pub(super) const MAX_ERROR_BODY_BYTES: usize = 64 * 1024;
 
 /// `{"type":"error",...}`: a failure that is not the command's own exit.
-pub(super) fn error_frame(status: u16, message: &str) -> String {
+pub(super) fn error_frame(
+    status: u16,
+    message: &str,
+) -> String {
     serde_json::json!({"type": "error", "status": status, "message": message}).to_string()
 }
 
 /// The daemon's message out of a non-streaming error body
 /// (`{"success":false,"error":"..."}`), falling back to the bare status.
-fn error_message(status: u16, body: &[u8]) -> String {
+fn error_message(
+    status: u16,
+    body: &[u8],
+) -> String {
     serde_json::from_slice::<serde_json::Value>(body)
         .ok()
         .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(str::to_owned))

@@ -94,7 +94,10 @@ fn pool() -> Vec<SearchEntry> {
 }
 
 /// What the store holds after a finished pass for `query` (nothing for a blank one).
-pub fn seed(store: &SearchStore, query: &str) {
+pub fn seed(
+    store: &SearchStore,
+    query: &str,
+) {
     store.set_query(query);
     if query.trim().is_empty() {
         return;

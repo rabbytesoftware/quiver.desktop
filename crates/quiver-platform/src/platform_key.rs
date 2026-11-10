@@ -16,7 +16,10 @@
 /// there is no sensible error to hand back here, and a future Rust target
 /// triple this hasn't been taught about yet should degrade to an unrecognised
 /// (and thus never-matching) platform string, not crash the app.
-pub fn go_platform(os: &str, arch: &str) -> String {
+pub fn go_platform(
+    os: &str,
+    arch: &str,
+) -> String {
     let os = match os {
         "macos" => "darwin",
         other => other,

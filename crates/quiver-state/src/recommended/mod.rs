@@ -69,7 +69,10 @@ mod tests {
     use crate::domain::HomeShelf;
     use crate::search::relevance::fixtures::entry;
 
-    fn open(i: usize, tags: &[&str]) -> SearchEntry {
+    fn open(
+        i: usize,
+        tags: &[&str],
+    ) -> SearchEntry {
         SearchEntry {
             provenance: None,
             tags: tags.iter().map(|t| (*t).into()).collect(),

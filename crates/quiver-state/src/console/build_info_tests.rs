@@ -2,7 +2,10 @@ use super::*;
 
 const BUILT: i64 = 1_791_122_529; // 2026-10-04T14:02:09Z
 
-fn build(channel: BuildChannel, version: Option<&str>) -> BuildDescriptor {
+fn build(
+    channel: BuildChannel,
+    version: Option<&str>,
+) -> BuildDescriptor {
     BuildDescriptor {
         channel,
         version: version.map(Into::into),

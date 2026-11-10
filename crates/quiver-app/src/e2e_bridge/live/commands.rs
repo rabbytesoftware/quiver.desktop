@@ -39,7 +39,11 @@ pub enum Command {
 }
 
 /// Spawns the loop that executes commands on the GPUI thread, one at a time, in arrival order.
-pub fn run(cx: &mut App, window: AnyWindowHandle, mut rx: UnboundedReceiver<Command>) {
+pub fn run(
+    cx: &mut App,
+    window: AnyWindowHandle,
+    mut rx: UnboundedReceiver<Command>,
+) {
     cx.spawn(async move |cx: &mut AsyncApp| {
         while let Some(command) = rx.recv().await {
             execute(cx, window, command);
@@ -48,7 +52,11 @@ pub fn run(cx: &mut App, window: AnyWindowHandle, mut rx: UnboundedReceiver<Comm
     .detach();
 }
 
-fn execute(cx: &mut AsyncApp, window: AnyWindowHandle, command: Command) {
+fn execute(
+    cx: &mut AsyncApp,
+    window: AnyWindowHandle,
+    command: Command,
+) {
     let (result, reply) = match command {
         Command::Click { id, double, reply } => (input::click(cx, window, &id, double), reply),
         Command::Hover { id, reply } => (input::hover(cx, window, &id), reply),

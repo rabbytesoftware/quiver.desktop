@@ -54,7 +54,10 @@ impl Default for ArrowsState {
 
 type Refresh = Arc<dyn Fn() + Send + Sync>;
 
-fn to_entry(record: &ArrowCatalogRecord, overlay: Option<&RuntimeUpdate>) -> ArrowEntry {
+fn to_entry(
+    record: &ArrowCatalogRecord,
+    overlay: Option<&RuntimeUpdate>,
+) -> ArrowEntry {
     ArrowEntry {
         namespace: record.namespace.clone(),
         name: record.name.clone(),
@@ -73,7 +76,10 @@ fn to_entry(record: &ArrowCatalogRecord, overlay: Option<&RuntimeUpdate>) -> Arr
 }
 
 /// A frame that omits the outcome keeps the last known one.
-fn resolve_overlay(existing: &ArrowEntry, update: &RuntimeUpdate) -> RuntimeUpdate {
+fn resolve_overlay(
+    existing: &ArrowEntry,
+    update: &RuntimeUpdate,
+) -> RuntimeUpdate {
     RuntimeUpdate {
         namespace: update.namespace.clone(),
         state: update.state,
@@ -85,7 +91,10 @@ fn resolve_overlay(existing: &ArrowEntry, update: &RuntimeUpdate) -> RuntimeUpda
     }
 }
 
-fn patch_overlay(existing: &mut ArrowEntry, overlay: &RuntimeUpdate) {
+fn patch_overlay(
+    existing: &mut ArrowEntry,
+    overlay: &RuntimeUpdate,
+) {
     existing.state = overlay.state;
     existing.active_run = overlay.active_run.clone();
     existing.last_return = overlay.last_return.clone();
@@ -114,7 +123,10 @@ impl ArrowStore {
         &self.store
     }
 
-    pub fn entry(&self, namespace: &str) -> Option<ArrowEntry> {
+    pub fn entry(
+        &self,
+        namespace: &str,
+    ) -> Option<ArrowEntry> {
         self.store.read(|s| s.arrows.get(namespace).cloned())
     }
 
@@ -130,7 +142,10 @@ impl ArrowStore {
         self.store.update(|s| s.catalog = CatalogStatus::Error);
     }
 
-    pub fn set_catalog(&self, records: &[ArrowCatalogRecord]) {
+    pub fn set_catalog(
+        &self,
+        records: &[ArrowCatalogRecord],
+    ) {
         self.store.update(|s| {
             let mut next = IndexMap::with_capacity(records.len());
             let mut still_present = HashSet::with_capacity(records.len());
@@ -161,7 +176,10 @@ impl ArrowStore {
         });
     }
 
-    pub fn apply_runtime_update(&self, update: RuntimeUpdate) {
+    pub fn apply_runtime_update(
+        &self,
+        update: RuntimeUpdate,
+    ) {
         self.store.update(|s| {
             let Some(existing) = s.arrows.get(&update.namespace) else {
                 s.pending_runtime.shift_remove(&update.namespace);
@@ -182,7 +200,10 @@ impl ArrowStore {
 
     /// Paints the initial state from the catalog list (neither stream pushes on connect), unless a
     /// live runtime frame already established the overlay.
-    pub fn seed_initial_state(&self, update: RuntimeUpdate) {
+    pub fn seed_initial_state(
+        &self,
+        update: RuntimeUpdate,
+    ) {
         self.store.update(|s| {
             let Some(existing) = s.arrows.get(&update.namespace) else {
                 return;
@@ -221,7 +242,10 @@ impl ArrowStore {
         refresh();
     }
 
-    pub fn set_catalog_refresh(&self, refresh: impl Fn() + Send + Sync + 'static) {
+    pub fn set_catalog_refresh(
+        &self,
+        refresh: impl Fn() + Send + Sync + 'static,
+    ) {
         *self.refresh.lock().unwrap_or_else(PoisonError::into_inner) = Arc::new(refresh);
     }
 }

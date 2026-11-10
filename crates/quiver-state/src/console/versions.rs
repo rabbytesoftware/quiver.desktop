@@ -14,7 +14,10 @@ pub struct CoreVersions {
     pub features: Vec<String>,
 }
 
-fn text(data: &Value, key: &str) -> String {
+fn text(
+    data: &Value,
+    key: &str,
+) -> String {
     data.get(key)
         .and_then(Value::as_str)
         .unwrap_or_default()

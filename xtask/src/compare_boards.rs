@@ -49,7 +49,10 @@ fn decode(path: &Path) -> Result<Rgba> {
     })
 }
 
-fn encode(path: &Path, img: &Rgba) -> Result<()> {
+fn encode(
+    path: &Path,
+    img: &Rgba,
+) -> Result<()> {
     let mut enc = png::Encoder::new(
         BufWriter::new(File::create(path)?),
         img.width as u32,
@@ -61,7 +64,11 @@ fn encode(path: &Path, img: &Rgba) -> Result<()> {
     Ok(())
 }
 
-fn pixel(img: &Rgba, x: usize, y: usize) -> [u8; 4] {
+fn pixel(
+    img: &Rgba,
+    x: usize,
+    y: usize,
+) -> [u8; 4] {
     if x >= img.width || y >= img.height {
         return [255, 0, 255, 255];
     }
@@ -69,13 +76,21 @@ fn pixel(img: &Rgba, x: usize, y: usize) -> [u8; 4] {
     [img.data[i], img.data[i + 1], img.data[i + 2], 255]
 }
 
-fn differs(a: [u8; 4], b: [u8; 4], threshold: u8) -> bool {
+fn differs(
+    a: [u8; 4],
+    b: [u8; 4],
+    threshold: u8,
+) -> bool {
     (0..3).any(|c| a[c].abs_diff(b[c]) > threshold)
 }
 
 /// Share of the compared area (the larger of the two sizes) whose pixels differ; pixels outside the
 /// smaller image count as different.
-pub fn difference_ratio(a: &Rgba, b: &Rgba, threshold: u8) -> f64 {
+pub fn difference_ratio(
+    a: &Rgba,
+    b: &Rgba,
+    threshold: u8,
+) -> f64 {
     let (w, h) = (a.width.max(b.width), a.height.max(b.height));
     let total = (w * h).max(1);
     let bad = (0..h)
@@ -85,7 +100,11 @@ pub fn difference_ratio(a: &Rgba, b: &Rgba, threshold: u8) -> f64 {
     bad as f64 / total as f64
 }
 
-fn side_by_side(a: &Rgba, b: &Rgba, threshold: u8) -> Rgba {
+fn side_by_side(
+    a: &Rgba,
+    b: &Rgba,
+    threshold: u8,
+) -> Rgba {
     let (w, h) = (a.width.max(b.width), a.height.max(b.height));
     let gap = 8;
     let width = w * 3 + gap * 2;
@@ -151,7 +170,11 @@ pub fn run(raw: Vec<String>) -> Result<()> {
 mod tests {
     use super::*;
 
-    fn flat(w: usize, h: usize, v: u8) -> Rgba {
+    fn flat(
+        w: usize,
+        h: usize,
+        v: u8,
+    ) -> Rgba {
         Rgba {
             width: w,
             height: h,

@@ -51,7 +51,11 @@ pub struct ArrowDetailsView {
 }
 
 impl ArrowDetailsView {
-    pub fn new(app: Entity<AppModel>, namespace: String, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        namespace: String,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let model = app.read(cx);
         let services = model.services.clone();
         let demo = model.demo;
@@ -102,7 +106,10 @@ impl ArrowDetailsView {
     }
 
     /// The detail with the live runtime (state, active run) laid over the one-time read.
-    pub(super) fn merged(&self, cx: &gpui::App) -> Option<ArrowDetail> {
+    pub(super) fn merged(
+        &self,
+        cx: &gpui::App,
+    ) -> Option<ArrowDetail> {
         let model = self.app.read(cx);
         let mut detail = self.load.read(|l| l.detail.clone())?;
         let entry = model.services.arrows.store().read(|s| {
@@ -124,7 +131,11 @@ impl ArrowDetailsView {
     }
 
     /// Defaults of the manifest seed the form once per arrow.
-    fn seed_values(&mut self, detail: &ArrowDetail, cx: &mut Context<Self>) {
+    fn seed_values(
+        &mut self,
+        detail: &ArrowDetail,
+        cx: &mut Context<Self>,
+    ) {
         if self.seeded {
             return;
         }
@@ -135,7 +146,11 @@ impl ArrowDetailsView {
 }
 
 impl Render for ArrowDetailsView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let load = self.load.snapshot();
         let mut problem = None;

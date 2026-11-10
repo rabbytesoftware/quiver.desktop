@@ -33,7 +33,11 @@ pub struct ConsoleDock {
 }
 
 impl ConsoleDock {
-    pub fn new(app: Entity<AppModel>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let services = app.read(cx).services.clone();
         observe_store(cx, services.status.store());
         observe_store(cx, services.connections.store());
@@ -72,7 +76,10 @@ impl ConsoleDock {
     }
 
     /// Pushes the app's idea of "open" and of the connection into the controller.
-    fn model_changed(&mut self, cx: &mut Context<Self>) {
+    fn model_changed(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         let open = self.app.read(cx).console_open;
         if open != self.controller.state.open {
             let fx = self.controller.set_open(open);
@@ -82,7 +89,10 @@ impl ConsoleDock {
         cx.notify();
     }
 
-    pub(super) fn sync_connection(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn sync_connection(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         let (id, ready) = {
             let services = &self.app.read(cx).services;
             (
@@ -95,7 +105,10 @@ impl ConsoleDock {
     }
 
     /// Escape and the header's close button.
-    pub(super) fn close(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn close(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         self.app.update(cx, |m, cx| m.set_console_open(false, cx));
     }
 }
@@ -112,7 +125,11 @@ impl Drop for ConsoleDock {
 }
 
 impl Render for ConsoleDock {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         if !self.controller.state.open {
             return div().into_any_element();
         }

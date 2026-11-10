@@ -24,7 +24,11 @@ struct RemoteDaemon {
 }
 
 /// A second quiver.core on loopback TCP with a home of its own (the self-installed binary of the app's daemon).
-async fn start_remote(env: &Env, binary: &std::path::Path, port: u16) -> RemoteDaemon {
+async fn start_remote(
+    env: &Env,
+    binary: &std::path::Path,
+    port: u16,
+) -> RemoteDaemon {
     let home = Home::fresh(env, "auto_register_remote");
     let log = std::fs::File::create(home.root.join("daemon.out")).expect("daemon log");
     let child = Command::new(binary)
@@ -60,7 +64,11 @@ async fn mint_code(api: &Daemon) -> String {
 }
 
 /// Redeems a code for a bearer token of a device named `device`.
-async fn redeem(api: &Daemon, code: &str, device: &str) -> String {
+async fn redeem(
+    api: &Daemon,
+    code: &str,
+    device: &str,
+) -> String {
     let body = json!({"code": code, "device_id": device, "label": "auto_register e2e"});
     let reply = api
         .post("/v0/auth/pairing/redeem", Some(body))

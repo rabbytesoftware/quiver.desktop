@@ -55,7 +55,10 @@ impl Drop for FakeDaemon {
 }
 
 impl FakeDaemon {
-    pub fn bind(socket: &Path, routes: Routes) -> Self {
+    pub fn bind(
+        socket: &Path,
+        routes: Routes,
+    ) -> Self {
         let _ = std::fs::remove_file(socket);
         let listener = UnixListener::bind(socket).unwrap();
         let requests = Arc::new(Mutex::new(Vec::new()));
@@ -80,7 +83,10 @@ impl FakeDaemon {
     }
 
     /// Resolves when a request matching `wanted` arrives (or already did, since the last wait).
-    pub async fn wait_for(&mut self, wanted: impl Fn(&Recorded) -> bool) -> Recorded {
+    pub async fn wait_for(
+        &mut self,
+        wanted: impl Fn(&Recorded) -> bool,
+    ) -> Recorded {
         loop {
             let request = self.seen.recv().await.expect("daemon stopped");
             if wanted(&request) {

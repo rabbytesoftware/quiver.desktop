@@ -17,7 +17,10 @@ fn serve(name: &str) -> NamedPipeServer {
 /// the request (see `testing::drain_request` for why the order matters on
 /// Windows). Hands the server back so the caller controls when it closes:
 /// disconnecting early would discard the response before the client read it.
-async fn accept_and_reply(server: NamedPipeServer, raw: &'static str) -> NamedPipeServer {
+async fn accept_and_reply(
+    server: NamedPipeServer,
+    raw: &'static str,
+) -> NamedPipeServer {
     server.connect().await.expect("connect");
     let mut server = server;
     let mut buf = [0u8; 1024];

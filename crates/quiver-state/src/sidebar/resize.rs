@@ -4,7 +4,11 @@ pub const NUDGE: f64 = 8.0;
 
 /// The width a drag of `dx` pixels from `from` lands on. Dragging towards the content grows the rail
 /// whichever edge it sits on, so the right-hand rail inverts the delta.
-pub fn width_after(side: SidebarSide, dx: f64, from: f64) -> f64 {
+pub fn width_after(
+    side: SidebarSide,
+    dx: f64,
+    from: f64,
+) -> f64 {
     let signed = if side == SidebarSide::Left { dx } else { -dx };
     normalise_width(Some(from + signed))
 }

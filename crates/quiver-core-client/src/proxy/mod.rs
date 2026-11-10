@@ -134,7 +134,10 @@ fn with_cors(mut resp: Response<Vec<u8>>) -> Response<Vec<u8>> {
     resp
 }
 
-fn error_response(status: u16, msg: &str) -> Response<Vec<u8>> {
+fn error_response(
+    status: u16,
+    msg: &str,
+) -> Response<Vec<u8>> {
     // The builder is given a status code, two fixed headers and a body, none of
     // which can fail; the fallback exists only so no panic path is left in.
     with_cors(
@@ -176,7 +179,10 @@ fn preflight_response() -> Response<Vec<u8>> {
 /// past `PROXY_TIMEOUT`, past anything. Inside it, the worst case is the same
 /// marked 504 a stalled daemon produces, which is a thing the frontend already
 /// knows how to retry.
-pub async fn proxy_once<F>(transport: F, req: Request<Vec<u8>>) -> Response<Vec<u8>>
+pub async fn proxy_once<F>(
+    transport: F,
+    req: Request<Vec<u8>>,
+) -> Response<Vec<u8>>
 where
     F: Future<Output = Arc<dyn Transport>>,
 {

@@ -43,7 +43,10 @@ impl Dialog {
         }
     }
 
-    pub fn open(mut self, open: bool) -> Self {
+    pub fn open(
+        mut self,
+        open: bool,
+    ) -> Self {
         self.open = open;
         self
     }
@@ -51,19 +54,28 @@ impl Dialog {
     /// The popup's width in px (`max-w-lg`, 512, by default); narrower windows shrink it to fit.
     /// Pixels, not `w_full().max_w(..)`: a percentage width made the popup's auto height count a
     /// wrapping description as one line, so the footer was squeezed out of the card.
-    pub fn width(mut self, px_width: f32) -> Self {
+    pub fn width(
+        mut self,
+        px_width: f32,
+    ) -> Self {
         self.width = px_width;
         self
     }
 
     /// `showCloseButton`.
-    pub fn show_close(mut self, show: bool) -> Self {
+    pub fn show_close(
+        mut self,
+        show: bool,
+    ) -> Self {
         self.show_close = show;
         self
     }
 
     /// Called for Escape, a backdrop press and the close button.
-    pub fn on_dismiss(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+    pub fn on_dismiss(
+        mut self,
+        f: impl Fn(&mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_dismiss = Some(Rc::new(f));
         self
     }
@@ -76,7 +88,10 @@ impl Styled for Dialog {
 }
 
 impl ParentElement for Dialog {
-    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+    fn extend(
+        &mut self,
+        elements: impl IntoIterator<Item = AnyElement>,
+    ) {
         self.children.extend(elements);
     }
 }
@@ -98,7 +113,11 @@ pub(crate) fn close_button(
 }
 
 impl RenderOnce for Dialog {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         if !self.open {
             return div().into_any_element();
         }

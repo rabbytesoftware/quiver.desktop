@@ -51,23 +51,35 @@ impl Switch {
         }
     }
 
-    pub fn checked(mut self, checked: bool) -> Self {
+    pub fn checked(
+        mut self,
+        checked: bool,
+    ) -> Self {
         self.checked = checked;
         self
     }
 
-    pub fn size(mut self, size: SwitchSize) -> Self {
+    pub fn size(
+        mut self,
+        size: SwitchSize,
+    ) -> Self {
         self.size = size;
         self
     }
 
-    pub fn disabled(mut self, disabled: bool) -> Self {
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
         self.disabled = disabled;
         self
     }
 
     /// Called with the next value when the user toggles the switch.
-    pub fn on_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(
+        mut self,
+        f: impl Fn(bool, &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_change = Some(Rc::new(f));
         self
     }
@@ -80,7 +92,11 @@ impl Styled for Switch {
 }
 
 impl RenderOnce for Switch {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let q = *cx.quiver();
         let p = q.palette;
         let (w, h, thumb) = self.size.metrics();

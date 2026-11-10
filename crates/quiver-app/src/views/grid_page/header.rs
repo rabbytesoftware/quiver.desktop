@@ -7,7 +7,11 @@ use quiver_ui::{icon, ActiveQuiver, Glyph, PageHeader};
 use crate::model::{AppModel, Route};
 
 /// "<- Home" above the title. `screen` namespaces its id (`<screen>.back`).
-pub fn back_link(app: &Entity<AppModel>, screen: &str, cx: &App) -> impl IntoElement {
+pub fn back_link(
+    app: &Entity<AppModel>,
+    screen: &str,
+    cx: &App,
+) -> impl IntoElement {
     let muted = cx.quiver().palette.muted_foreground;
     let label = app.read(cx).t(nav::HOME);
     let go = app.clone();

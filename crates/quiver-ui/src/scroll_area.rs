@@ -62,13 +62,19 @@ impl ScrollArea {
     }
 
     /// Also scroll horizontally.
-    pub fn horizontal(mut self, on: bool) -> Self {
+    pub fn horizontal(
+        mut self,
+        on: bool,
+    ) -> Self {
         self.horizontal = on;
         self
     }
 
     /// `scrollFade`: fade the content into `surface` at scrollable edges.
-    pub fn fade_color(mut self, surface: Hsla) -> Self {
+    pub fn fade_color(
+        mut self,
+        surface: Hsla,
+    ) -> Self {
         self.fade = Some(surface);
         self
     }
@@ -81,12 +87,19 @@ impl Styled for ScrollArea {
 }
 
 impl ParentElement for ScrollArea {
-    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+    fn extend(
+        &mut self,
+        elements: impl IntoIterator<Item = AnyElement>,
+    ) {
         self.children.extend(elements);
     }
 }
 
-fn edge_fade(color: Hsla, top: bool, strength: f32) -> impl IntoElement {
+fn edge_fade(
+    color: Hsla,
+    top: bool,
+    strength: f32,
+) -> impl IntoElement {
     let (from, to) = (color.opacity(strength), color.opacity(0.0));
     let angle = if top { 180.0 } else { 0.0 };
     let base = div()
@@ -151,7 +164,11 @@ fn thumb(
 }
 
 impl RenderOnce for ScrollArea {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let handle = window
             .use_keyed_state(child_id(&self.id, "handle"), cx, |_, _| ScrollHandle::new())

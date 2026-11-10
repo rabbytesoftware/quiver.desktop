@@ -98,14 +98,20 @@ impl SearchStore {
         self.store.read(|s| s.phase)
     }
 
-    pub fn set_query(&self, query: &str) {
+    pub fn set_query(
+        &self,
+        query: &str,
+    ) {
         self.store.update(|s| {
             s.query = query.to_string();
             s.clear_results();
         });
     }
 
-    pub fn set_local(&self, local: Vec<SearchEntry>) {
+    pub fn set_local(
+        &self,
+        local: Vec<SearchEntry>,
+    ) {
         self.store.update(|s| {
             s.local = local;
             s.phase = phase_after_local(s.phase);
@@ -120,7 +126,10 @@ impl SearchStore {
         });
     }
 
-    pub fn begin_pass(&self, job: SearchJob) {
+    pub fn begin_pass(
+        &self,
+        job: SearchJob,
+    ) {
         self.store.update(|s| {
             s.job = Some(job);
             s.phase = SearchPhase::Discovering;
@@ -131,7 +140,10 @@ impl SearchStore {
     /// Dedup on the bare namespace within the streamed band only. A namespace `local` also holds is
     /// kept: whether the local copy is on screen is the screen's call (it filters that lane to the
     /// query), and dropping the streamed copy here would lose the arrow when it is not.
-    pub fn receive(&self, entry: SearchEntry) {
+    pub fn receive(
+        &self,
+        entry: SearchEntry,
+    ) {
         self.store.update(|s| {
             if s.phase != SearchPhase::Discovering
                 || s.streamed.iter().any(|e| e.namespace == entry.namespace)
@@ -142,7 +154,10 @@ impl SearchStore {
         });
     }
 
-    pub fn end_pass(&self, summary: DiscoverySummary) {
+    pub fn end_pass(
+        &self,
+        summary: DiscoverySummary,
+    ) {
         self.store.update(|s| {
             s.summary = Some(summary);
             s.phase = SearchPhase::Settling;
@@ -152,7 +167,10 @@ impl SearchStore {
     /// Local is a replacement; `streamed` is left whole (arrival order). Some probed results are
     /// deliberately never indexed, so the re-query alone would erase them, and one it does return
     /// may be filtered out of the local band by the screen -- which then still needs the streamed copy.
-    pub fn settle(&self, local: Vec<SearchEntry>) {
+    pub fn settle(
+        &self,
+        local: Vec<SearchEntry>,
+    ) {
         self.store.update(|s| {
             s.local = local;
             s.phase = SearchPhase::Settled;
@@ -168,7 +186,10 @@ impl SearchStore {
         });
     }
 
-    pub fn request_submit(&self, query: &str) {
+    pub fn request_submit(
+        &self,
+        query: &str,
+    ) {
         self.store
             .update(|s| s.submit_query = Some(query.to_string()));
     }
@@ -177,7 +198,10 @@ impl SearchStore {
         self.store.update(|s| s.submit_query = None);
     }
 
-    pub fn request_restore(&self, query: &str) {
+    pub fn request_restore(
+        &self,
+        query: &str,
+    ) {
         self.store
             .update(|s| s.restore_query = Some(query.to_string()));
     }
@@ -241,7 +265,10 @@ pub(crate) mod tests {
         }
     }
 
-    fn summary(found: u32, verified: u32) -> DiscoverySummary {
+    fn summary(
+        found: u32,
+        verified: u32,
+    ) -> DiscoverySummary {
         DiscoverySummary {
             job_id: "job-1".into(),
             query: "q".into(),

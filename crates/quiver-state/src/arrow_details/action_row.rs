@@ -51,7 +51,10 @@ impl ActionRow {
         })
     }
 
-    pub fn button(&self, kind: ArrowActionKind) -> Option<&ActionButton> {
+    pub fn button(
+        &self,
+        kind: ArrowActionKind,
+    ) -> Option<&ActionButton> {
         self.slots.iter().find_map(|slot| match slot {
             ActionSlot::Button(b) if b.kind == kind => Some(b),
             _ => None,
@@ -67,7 +70,11 @@ fn stopping_verb(state: RunState) -> Option<Key> {
     }
 }
 
-fn button(action: &ArrowAction, busy: bool, switching: bool) -> ActionButton {
+fn button(
+    action: &ArrowAction,
+    busy: bool,
+    switching: bool,
+) -> ActionButton {
     let label = if busy {
         action.busy_label.unwrap_or(action.label)
     } else {

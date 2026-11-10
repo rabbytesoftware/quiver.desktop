@@ -20,7 +20,10 @@ impl StatusStore {
         self.store.snapshot()
     }
 
-    pub fn set_status(&self, status: ConnectionStatus) {
+    pub fn set_status(
+        &self,
+        status: ConnectionStatus,
+    ) {
         self.store.set(status);
     }
 

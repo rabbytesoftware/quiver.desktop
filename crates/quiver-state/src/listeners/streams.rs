@@ -142,7 +142,10 @@ impl Inner {
 
     /// The synchronous half of a status event, so events are handled in the order they arrive;
     /// whatever has to wait is spawned.
-    fn on_status(self: &Arc<Self>, status: ConnectionStatus) {
+    fn on_status(
+        self: &Arc<Self>,
+        status: ConnectionStatus,
+    ) {
         if status == ConnectionStatus::Ready {
             // Captured before begin_streams's own awaits, not read afterwards: it must see the
             // generation this ready belongs to, even if a later `starting` (which bumps it) lands
@@ -175,13 +178,19 @@ impl Inner {
     /// that action's outcome is then lost until a full reload re-seeds from a REST GET. Guarded on
     /// generation for the same reason begin_streams itself is: a `starting` that superseded this
     /// ready while it awaited must not resurrect it as ready afterwards.
-    fn set_ready_if_current(&self, generation: u64) {
+    fn set_ready_if_current(
+        &self,
+        generation: u64,
+    ) {
         if self.generation() == generation {
             self.deps.status.set_status(ConnectionStatus::Ready);
         }
     }
 
-    async fn begin_streams(self: &Arc<Self>, generation: u64) -> crate::Result<()> {
+    async fn begin_streams(
+        self: &Arc<Self>,
+        generation: u64,
+    ) -> crate::Result<()> {
         let _pending = PendingGuard::new(self);
         let snapshot = self.deps.backend.get_connections().await?;
         if self.generation() != generation {
@@ -213,7 +222,10 @@ impl Inner {
         self.set_ready_if_current(generation);
     }
 
-    fn start_streams(self: &Arc<Self>, connection_id: &str) {
+    fn start_streams(
+        self: &Arc<Self>,
+        connection_id: &str,
+    ) {
         self.stop_streams();
         let deps = &self.deps;
         let stream_generation = self.generation();
@@ -338,7 +350,10 @@ impl Inner {
     }
 }
 
-fn on_runtime_frame(arrows: &ArrowStore, data: &Value) {
+fn on_runtime_frame(
+    arrows: &ArrowStore,
+    data: &Value,
+) {
     if is_reconnect_sentinel(data) {
         return;
     }

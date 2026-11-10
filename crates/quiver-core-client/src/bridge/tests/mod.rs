@@ -138,7 +138,10 @@ async fn listening() -> (TcpListener, HttpTransport) {
 struct ClosureSink<F>(F);
 
 impl<F: Fn(String) + Send + Sync + 'static> FrameSink for ClosureSink<F> {
-    fn send(&self, frame: String) {
+    fn send(
+        &self,
+        frame: String,
+    ) {
         (self.0)(frame)
     }
 }

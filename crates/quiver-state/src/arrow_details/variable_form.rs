@@ -46,7 +46,10 @@ pub fn initial_values(variables: &[ArrowVariable]) -> BTreeMap<String, String> {
 }
 
 /// What a field shows: the typed value, else the default, else empty.
-pub fn shown_value(variable: &ArrowVariable, values: &BTreeMap<String, String>) -> String {
+pub fn shown_value(
+    variable: &ArrowVariable,
+    values: &BTreeMap<String, String>,
+) -> String {
     values
         .get(&variable.name)
         .cloned()
@@ -55,7 +58,10 @@ pub fn shown_value(variable: &ArrowVariable, values: &BTreeMap<String, String>) 
 }
 
 /// "1–10", "−∞–10" or "0–∞"; `None` for a number with no bounds.
-pub fn range_hint(min: Option<f64>, max: Option<f64>) -> Option<String> {
+pub fn range_hint(
+    min: Option<f64>,
+    max: Option<f64>,
+) -> Option<String> {
     if min.is_none() && max.is_none() {
         return None;
     }
@@ -84,7 +90,10 @@ impl FieldError {
 
 /// `None` when `value` is acceptable for `variable`. An empty value is acceptable (the daemon
 /// applies the manifest default); only a value that is there and wrong is refused.
-pub fn validate(variable: &ArrowVariable, value: &str) -> Option<FieldError> {
+pub fn validate(
+    variable: &ArrowVariable,
+    value: &str,
+) -> Option<FieldError> {
     if value.is_empty() {
         return None;
     }
@@ -132,7 +141,10 @@ pub fn format_number(n: f64) -> String {
 mod tests {
     use super::*;
 
-    fn var(name: &str, var_type: VariableType) -> ArrowVariable {
+    fn var(
+        name: &str,
+        var_type: VariableType,
+    ) -> ArrowVariable {
         ArrowVariable {
             name: name.into(),
             description: String::new(),

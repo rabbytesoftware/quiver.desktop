@@ -30,7 +30,11 @@ impl ConnectionStore {
         self.store.snapshot()
     }
 
-    pub fn set_from_event(&self, connections: Vec<ConnectionConfig>, active_id: &str) {
+    pub fn set_from_event(
+        &self,
+        connections: Vec<ConnectionConfig>,
+        active_id: &str,
+    ) {
         self.store.set(ConnectionState {
             connections,
             active_id: active_id.to_string(),

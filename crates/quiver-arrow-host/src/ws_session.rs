@@ -57,7 +57,11 @@ pub struct WsSession {
     sockets: HashMap<String, Socket>,
 }
 
-fn to_page(kind: &str, id: &str, extra: serde_json::Value) -> String {
+fn to_page(
+    kind: &str,
+    id: &str,
+    extra: serde_json::Value,
+) -> String {
     let mut message = json!({"__arrowShim": 1, "type": kind, "id": id});
     if let (Some(base), Some(more)) = (message.as_object_mut(), extra.as_object()) {
         base.extend(more.clone());
@@ -82,7 +86,10 @@ impl WsSession {
     }
 
     /// Handles one message the page posted. Anything that is not the shim's is ignored.
-    pub fn handle(&mut self, body: &str) {
+    pub fn handle(
+        &mut self,
+        body: &str,
+    ) {
         let Ok(message) = serde_json::from_str::<FromPage>(body) else {
             return;
         };
@@ -103,7 +110,11 @@ impl WsSession {
         }
     }
 
-    fn open(&mut self, id: String, path: &str) {
+    fn open(
+        &mut self,
+        id: String,
+        path: &str,
+    ) {
         let Ok(target) = ws_target(&self.hosts, &self.host, path) else {
             let _ = self.out.send(to_page("ws-error", &id, json!({})));
             let _ = self
@@ -192,7 +203,10 @@ mod tests {
 
     #[async_trait]
     impl WsRelay for EchoSocket {
-        async fn send(&mut self, text: String) -> Result<()> {
+        async fn send(
+            &mut self,
+            text: String,
+        ) -> Result<()> {
             self.queue.push_back(text);
             if let Some(wake) = &self.wake {
                 wake.notify_one();
@@ -212,10 +226,16 @@ mod tests {
 
     #[async_trait]
     impl ArrowUpstream for Echo {
-        async fn request(&self, _: ArrowRequest) -> Result<ArrowResponse> {
+        async fn request(
+            &self,
+            _: ArrowRequest,
+        ) -> Result<ArrowResponse> {
             Err(Error::Upstream("not used".into()))
         }
-        async fn open_ws(&self, path: &str) -> Result<Box<dyn WsRelay>> {
+        async fn open_ws(
+            &self,
+            path: &str,
+        ) -> Result<Box<dyn WsRelay>> {
             if path.contains("refused") {
                 return Err(Error::Upstream("refused".into()));
             }

@@ -8,7 +8,10 @@ use crate::connection::{Backend, ConnectionStore};
 use crate::domain::ConnectionStatus;
 
 /// The health probe before pairing (`/v0/health`, tokenless). Any failure reads as unreachable.
-pub async fn is_reachable(backend: &dyn Backend, url: &str) -> bool {
+pub async fn is_reachable(
+    backend: &dyn Backend,
+    url: &str,
+) -> bool {
     backend.check_remote_health(url).await.is_ok()
 }
 
@@ -30,7 +33,10 @@ pub async fn connect(
     ConnectionOutcome::Connected { status: status() }
 }
 
-pub async fn add(backend: &dyn Backend, submission: &AddSubmission) -> ConnectionOutcome {
+pub async fn add(
+    backend: &dyn Backend,
+    submission: &AddSubmission,
+) -> ConnectionOutcome {
     match backend
         .add_connection(&submission.name, &submission.url, &submission.code)
         .await
@@ -43,14 +49,21 @@ pub async fn add(backend: &dyn Backend, submission: &AddSubmission) -> Connectio
     }
 }
 
-pub async fn rename(backend: &dyn Backend, id: &str, name: &str) -> ConnectionOutcome {
+pub async fn rename(
+    backend: &dyn Backend,
+    id: &str,
+    name: &str,
+) -> ConnectionOutcome {
     match backend.rename_connection(id, name).await {
         Ok(()) => ConnectionOutcome::Renamed,
         Err(_) => ConnectionOutcome::RenameFailed,
     }
 }
 
-pub async fn remove(backend: &dyn Backend, id: &str) -> ConnectionOutcome {
+pub async fn remove(
+    backend: &dyn Backend,
+    id: &str,
+) -> ConnectionOutcome {
     match backend.remove_connection(id).await {
         Ok(()) => ConnectionOutcome::Removed,
         Err(_) => ConnectionOutcome::RemoveFailed,

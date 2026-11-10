@@ -29,7 +29,11 @@ pub struct SearchView {
 }
 
 impl SearchView {
-    pub fn new(app: Entity<AppModel>, query: String, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        query: String,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let session = session::session(cx);
         let demo = app.read(cx).demo;
         observe_store(cx, session.store.store());
@@ -60,7 +64,11 @@ impl SearchView {
 }
 
 impl Render for SearchView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let state = self.session.store.snapshot();
         let show_self = self.app.read(cx).show_self_components;
@@ -126,7 +134,7 @@ mod tests {
 
     #[gpui::test]
     fn the_demo_answer_for_rust_has_one_vault_hit_one_network_hit_and_a_refusal(
-        cx: &mut gpui::TestAppContext,
+        cx: &mut gpui::TestAppContext
     ) {
         let app = demo_app(cx);
         let view = cx.new(|cx| SearchView::new(app, "rust".into(), cx));

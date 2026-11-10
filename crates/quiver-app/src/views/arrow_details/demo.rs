@@ -29,7 +29,10 @@ fn readme_from_environment() -> Option<String> {
     Some(out)
 }
 
-fn run(title: &str, command: &str) -> ArrowStepDefinition {
+fn run(
+    title: &str,
+    command: &str,
+) -> ArrowStepDefinition {
     ArrowStepDefinition::Run {
         base: StepBase {
             title: title.into(),
@@ -41,7 +44,10 @@ fn run(title: &str, command: &str) -> ArrowStepDefinition {
     }
 }
 
-fn fetch(title: &str, url: &str) -> ArrowStepDefinition {
+fn fetch(
+    title: &str,
+    url: &str,
+) -> ArrowStepDefinition {
     ArrowStepDefinition::Fetch {
         base: StepBase {
             title: title.into(),
@@ -54,7 +60,10 @@ fn fetch(title: &str, url: &str) -> ArrowStepDefinition {
     }
 }
 
-fn simple(kind: &str, title: &str) -> ArrowStepDefinition {
+fn simple(
+    kind: &str,
+    title: &str,
+) -> ArrowStepDefinition {
     let base = StepBase {
         title: title.into(),
         exit_on_failure: None,
@@ -74,7 +83,11 @@ fn four_steps() -> Vec<ArrowStepDefinition> {
     ]
 }
 
-fn target(platform: &str, lifecycle: ArrowLifecycle, methods: Vec<ArrowMethod>) -> ArrowTarget {
+fn target(
+    platform: &str,
+    lifecycle: ArrowLifecycle,
+    methods: Vec<ArrowMethod>,
+) -> ArrowTarget {
     ArrowTarget {
         platform: platform.into(),
         requirement: ArrowRequirement {
@@ -87,7 +100,12 @@ fn target(platform: &str, lifecycle: ArrowLifecycle, methods: Vec<ArrowMethod>) 
     }
 }
 
-fn variable(name: &str, description: &str, var_type: VariableType, default: &str) -> ArrowVariable {
+fn variable(
+    name: &str,
+    description: &str,
+    var_type: VariableType,
+    default: &str,
+) -> ArrowVariable {
     ArrowVariable {
         name: name.into(),
         description: description.into(),
@@ -116,7 +134,10 @@ fn progress(statuses: &[StepStatus]) -> Vec<StepProgress> {
         .collect()
 }
 
-fn active(method: &str, statuses: &[StepStatus]) -> ActiveRun {
+fn active(
+    method: &str,
+    statuses: &[StepStatus],
+) -> ActiveRun {
     ActiveRun {
         method: method.into(),
         pid: None,
@@ -126,7 +147,10 @@ fn active(method: &str, statuses: &[StepStatus]) -> ActiveRun {
     }
 }
 
-fn generic(entry: &ArrowEntry, targets: Vec<ArrowTarget>) -> ArrowDetail {
+fn generic(
+    entry: &ArrowEntry,
+    targets: Vec<ArrowTarget>,
+) -> ArrowDetail {
     ArrowDetail {
         origin: None,
         confidence: None,

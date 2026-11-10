@@ -16,7 +16,10 @@ use super::icons::{pict, Pict};
 use crate::views::arrow_details::page::Page;
 use crate::views::arrow_details::ArrowDetailsView;
 
-fn label(text: String, p: &Palette) -> impl IntoElement {
+fn label(
+    text: String,
+    p: &Palette,
+) -> impl IntoElement {
     div()
         .text_size(px(12.))
         .line_height(px(15.))
@@ -24,7 +27,10 @@ fn label(text: String, p: &Palette) -> impl IntoElement {
         .child(text)
 }
 
-fn mono_value(text: String, p: &Palette) -> impl IntoElement {
+fn mono_value(
+    text: String,
+    p: &Palette,
+) -> impl IntoElement {
     div()
         .font_family(FontFamily::Mono.family())
         .text_size(px(13.))
@@ -32,7 +38,11 @@ fn mono_value(text: String, p: &Palette) -> impl IntoElement {
         .child(text)
 }
 
-fn row(id: String, left: impl IntoElement, right: Option<AnyElement>) -> impl IntoElement {
+fn row(
+    id: String,
+    left: impl IntoElement,
+    right: Option<AnyElement>,
+) -> impl IntoElement {
     div()
         .relative()
         .h(px(18.))
@@ -44,7 +54,11 @@ fn row(id: String, left: impl IntoElement, right: Option<AnyElement>) -> impl In
         .child(probe(id, Kind::Text, "", true, ""))
 }
 
-fn requirements(page: &Page, tr: &Translator, p: &Palette) -> AnyElement {
+fn requirements(
+    page: &Page,
+    tr: &Translator,
+    p: &Palette,
+) -> AnyElement {
     let r = page.details.requirement.unwrap_or_default();
     let item = |id: &str, name: gpui::SharedString, key, value: f64| {
         let text = tr.t_with(key, &Params::new().with("count", value));
@@ -91,7 +105,11 @@ fn requirements(page: &Page, tr: &Translator, p: &Palette) -> AnyElement {
         .into_any_element()
 }
 
-fn dependencies(page: &Page, tr: &Translator, p: &Palette) -> AnyElement {
+fn dependencies(
+    page: &Page,
+    tr: &Translator,
+    p: &Palette,
+) -> AnyElement {
     let d = &page.details;
     div()
         .flex()
@@ -117,7 +135,11 @@ fn dependencies(page: &Page, tr: &Translator, p: &Palette) -> AnyElement {
         .into_any_element()
 }
 
-fn network(page: &Page, tr: &Translator, p: &Palette) -> AnyElement {
+fn network(
+    page: &Page,
+    tr: &Translator,
+    p: &Palette,
+) -> AnyElement {
     let ports: Vec<_> = page
         .details
         .ports
@@ -143,7 +165,12 @@ fn network(page: &Page, tr: &Translator, p: &Palette) -> AnyElement {
         .into_any_element()
 }
 
-fn people(heading: String, id: &str, list: &[CreditFacts], p: &Palette) -> AnyElement {
+fn people(
+    heading: String,
+    id: &str,
+    list: &[CreditFacts],
+    p: &Palette,
+) -> AnyElement {
     let rows: Vec<_> = list
         .iter()
         .map(|c| {

@@ -26,7 +26,10 @@ pub struct RecommendedView {
 }
 
 impl RecommendedView {
-    pub fn new(app: Entity<AppModel>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let home = app.read(cx).home.store().clone();
         observe_store(cx, &home);
         Self {
@@ -36,7 +39,11 @@ impl RecommendedView {
         }
     }
 
-    fn select(&mut self, category: Option<String>, cx: &mut Context<Self>) {
+    fn select(
+        &mut self,
+        category: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
         self.category = category;
         self.presses = 0;
         cx.notify();
@@ -44,7 +51,11 @@ impl RecommendedView {
 }
 
 impl Render for RecommendedView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let app = self.app.clone();
         let home = app.read(cx).home.snapshot();

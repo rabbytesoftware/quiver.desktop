@@ -48,7 +48,12 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn tool(name: &str, description: &str, props: Value, required: &[&str]) -> Value {
+fn tool(
+    name: &str,
+    description: &str,
+    props: Value,
+    required: &[&str],
+) -> Value {
     json!({ "name": name, "description": description,
             "inputSchema": { "type": "object", "properties": props, "required": required } })
 }
@@ -125,7 +130,10 @@ fn error(s: impl Into<String>) -> Value {
     json!({ "isError": true, "content": [{ "type": "text", "text": s.into() }] })
 }
 
-async fn call(session: &mut Session, params: &Value) -> Value {
+async fn call(
+    session: &mut Session,
+    params: &Value,
+) -> Value {
     let name = params["name"].as_str().unwrap_or_default();
     let args = &params["arguments"];
     match run(session, name, args).await {
@@ -134,7 +142,11 @@ async fn call(session: &mut Session, params: &Value) -> Value {
     }
 }
 
-async fn run(session: &mut Session, name: &str, args: &Value) -> Result<Value> {
+async fn run(
+    session: &mut Session,
+    name: &str,
+    args: &Value,
+) -> Result<Value> {
     if name == "app_launch" {
         let binary = PathBuf::from(args["binary"].as_str().unwrap_or_default());
         let env: Vec<(String, String)> = args["env"]

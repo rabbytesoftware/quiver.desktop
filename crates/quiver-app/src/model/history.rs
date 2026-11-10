@@ -31,7 +31,10 @@ impl History {
     }
 
     /// Returns whether the current route changed.
-    pub fn push(&mut self, route: Route) -> bool {
+    pub fn push(
+        &mut self,
+        route: Route,
+    ) -> bool {
         if *self.current() == route {
             return false;
         }
@@ -42,7 +45,10 @@ impl History {
     }
 
     /// Replaces the current entry (typing in search must not pile up history).
-    pub fn replace(&mut self, route: Route) -> bool {
+    pub fn replace(
+        &mut self,
+        route: Route,
+    ) -> bool {
         if *self.current() == route {
             return false;
         }

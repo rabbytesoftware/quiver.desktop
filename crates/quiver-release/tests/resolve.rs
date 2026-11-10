@@ -15,7 +15,10 @@ const REPO_PATH: &str = "/rabbytesoftware/quiver.desktop";
 
 /// An `expanded_assets` page: one list item per asset, the digest as text
 /// beside the link, and the two source archives GitHub always adds.
-fn page(tag: &str, assets: &[(&str, Option<&str>)]) -> String {
+fn page(
+    tag: &str,
+    assets: &[(&str, Option<&str>)],
+) -> String {
     let mut html = String::from("<div><ul class=\"list-style-none\">");
     for (name, digest) in assets {
         html.push_str(&format!(
@@ -29,7 +32,10 @@ fn page(tag: &str, assets: &[(&str, Option<&str>)]) -> String {
     html
 }
 
-async fn serve(tag: &str, html: String) -> MockServer {
+async fn serve(
+    tag: &str,
+    html: String,
+) -> MockServer {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path(format!("{REPO_PATH}/releases/expanded_assets/{tag}")))
@@ -39,7 +45,10 @@ async fn serve(tag: &str, html: String) -> MockServer {
     server
 }
 
-async fn latest_redirects_to(server: &MockServer, location: &str) {
+async fn latest_redirects_to(
+    server: &MockServer,
+    location: &str,
+) {
     Mock::given(method("GET"))
         .and(path(format!("{REPO_PATH}/releases/latest")))
         .respond_with(ResponseTemplate::new(302).insert_header("location", location))

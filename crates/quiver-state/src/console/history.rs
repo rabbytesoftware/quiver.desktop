@@ -16,7 +16,11 @@ pub enum Direction {
 }
 
 /// Adds a line to the history: not blank, and not a repeat of the most recent one.
-pub fn push_history(history: &[String], line: &str, cap: usize) -> Vec<String> {
+pub fn push_history(
+    history: &[String],
+    line: &str,
+    cap: usize,
+) -> Vec<String> {
     let trimmed = line.trim();
     let mut next = history.to_vec();
     if trimmed.is_empty() || history.last().map(String::as_str) == Some(trimmed) {

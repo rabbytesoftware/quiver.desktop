@@ -10,16 +10,25 @@ use crate::Result;
 pub trait ArrowUpstream: Send + Sync {
     /// Forwards a request whose `uri` is already the daemon path
     /// (`/v0/ui/<ns>/...`) and returns the daemon's whole response.
-    async fn request(&self, req: ArrowRequest) -> Result<ArrowResponse>;
+    async fn request(
+        &self,
+        req: ArrowRequest,
+    ) -> Result<ArrowResponse>;
 
     /// Opens a text WebSocket to a daemon path built by [`crate::ws_target`].
-    async fn open_ws(&self, path: &str) -> Result<Box<dyn WsRelay>>;
+    async fn open_ws(
+        &self,
+        path: &str,
+    ) -> Result<Box<dyn WsRelay>>;
 }
 
 /// One open socket. Only text frames cross (see docs/arrow-apps.md).
 #[async_trait]
 pub trait WsRelay: Send {
-    async fn send(&mut self, text: String) -> Result<()>;
+    async fn send(
+        &mut self,
+        text: String,
+    ) -> Result<()>;
     /// `None` once the socket is closed.
     async fn recv(&mut self) -> Option<String>;
     async fn close(&mut self);

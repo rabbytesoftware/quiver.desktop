@@ -156,13 +156,19 @@ impl AppPaths {
     }
 
     /// The self-installed daemon binary, when one exists.
-    pub fn core_binary(&self, windows: bool) -> Option<PathBuf> {
+    pub fn core_binary(
+        &self,
+        windows: bool,
+    ) -> Option<PathBuf> {
         core_binary_in(&self.quiver_home, windows)
     }
 }
 
 /// `<home>/self/quiver[.exe]`, when it exists.
-pub fn core_binary_in(quiver_home: &Path, windows: bool) -> Option<PathBuf> {
+pub fn core_binary_in(
+    quiver_home: &Path,
+    windows: bool,
+) -> Option<PathBuf> {
     let name = if windows { "quiver.exe" } else { "quiver" };
     let candidate = quiver_home.join("self").join(name);
     candidate.exists().then_some(candidate)

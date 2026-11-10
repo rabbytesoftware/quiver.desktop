@@ -21,7 +21,10 @@ impl PageHeader {
         }
     }
 
-    pub fn description(mut self, text: impl Into<SharedString>) -> Self {
+    pub fn description(
+        mut self,
+        text: impl Into<SharedString>,
+    ) -> Self {
         self.description = Some(text.into());
         self
     }
@@ -29,13 +32,20 @@ impl PageHeader {
 
 impl ParentElement for PageHeader {
     /// Children are the actions at the right edge.
-    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+    fn extend(
+        &mut self,
+        elements: impl IntoIterator<Item = AnyElement>,
+    ) {
         self.actions.extend(elements);
     }
 }
 
 impl RenderOnce for PageHeader {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        _: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         div()
             .flex()

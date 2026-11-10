@@ -19,11 +19,18 @@ fn flag(raw: Option<String>) -> Option<bool> {
     }
 }
 
-fn read(store: &dyn KeyValueStore, key: &str) -> Option<String> {
+fn read(
+    store: &dyn KeyValueStore,
+    key: &str,
+) -> Option<String> {
     store.get(key).ok().flatten()
 }
 
-fn write(store: &dyn KeyValueStore, key: &str, value: &str) {
+fn write(
+    store: &dyn KeyValueStore,
+    key: &str,
+    value: &str,
+) {
     if let Err(err) = store.set(key, value) {
         log::warn!("could not save {key}: {err}");
     }
@@ -34,7 +41,10 @@ pub fn load_show_self_components(store: &dyn KeyValueStore) -> Option<bool> {
     flag(read(store, CATALOG_VISIBILITY_STORAGE_KEY))
 }
 
-pub fn save_show_self_components(store: &dyn KeyValueStore, show: bool) {
+pub fn save_show_self_components(
+    store: &dyn KeyValueStore,
+    show: bool,
+) {
     write(store, CATALOG_VISIBILITY_STORAGE_KEY, &show.to_string());
 }
 
@@ -46,7 +56,10 @@ pub fn load_build_indicator(
 }
 
 /// Choosing the default stores nothing (and clears an older choice).
-pub fn save_build_indicator(store: &dyn KeyValueStore, setting: &BuildIndicatorSetting) {
+pub fn save_build_indicator(
+    store: &dyn KeyValueStore,
+    setting: &BuildIndicatorSetting,
+) {
     match setting.stored() {
         Some(shown) => write(store, BUILD_INDICATOR_STORAGE_KEY, &shown.to_string()),
         None => write(store, BUILD_INDICATOR_STORAGE_KEY, ""),
@@ -57,7 +70,10 @@ pub fn load_locale(store: &dyn KeyValueStore) -> LocalePreference {
     normalise_preference(read(store, LOCALE_STORAGE_KEY).as_deref())
 }
 
-pub fn save_locale(store: &dyn KeyValueStore, preference: LocalePreference) {
+pub fn save_locale(
+    store: &dyn KeyValueStore,
+    preference: LocalePreference,
+) {
     write(store, LOCALE_STORAGE_KEY, preference.as_stored());
 }
 

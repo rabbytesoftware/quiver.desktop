@@ -22,7 +22,10 @@ impl Label {
     }
 
     /// `peer-disabled:opacity-50`.
-    pub fn disabled(mut self, disabled: bool) -> Self {
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
         self.disabled = disabled;
         self
     }
@@ -35,7 +38,11 @@ impl Styled for Label {
 }
 
 impl RenderOnce for Label {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        _: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let mut el = div()
             .flex()
             .items_center()

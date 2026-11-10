@@ -16,7 +16,10 @@ pub fn tab_name(tab: SettingsTab) -> &'static str {
     }
 }
 
-pub fn tabs_bar(view: &SettingsView, cx: &mut Context<SettingsView>) -> impl IntoElement {
+pub fn tabs_bar(
+    view: &SettingsView,
+    cx: &mut Context<SettingsView>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let tabs = visible_tabs(cfg!(debug_assertions))
         .into_iter()

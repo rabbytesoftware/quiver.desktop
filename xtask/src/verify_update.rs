@@ -17,7 +17,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Unpacks `bundle` into `dest` and returns the directory holding `usr/bin`.
-fn unpack(bundle: &Path, dest: &Path) -> Result<PathBuf> {
+fn unpack(
+    bundle: &Path,
+    dest: &Path,
+) -> Result<PathBuf> {
     fs::create_dir_all(dest)?;
     let name = bundle
         .file_name()
@@ -51,7 +54,11 @@ fn unpack(bundle: &Path, dest: &Path) -> Result<PathBuf> {
         .with_context(|| format!("{} unpacked to no known directory", bundle.display()))
 }
 
-fn inspect(bundle: &Path, work: &Path, label: &str) -> Result<String> {
+fn inspect(
+    bundle: &Path,
+    work: &Path,
+    label: &str,
+) -> Result<String> {
     let root = unpack(bundle, &work.join(label))?;
     for file in EXPECTED_FILES {
         ensure!(
@@ -65,7 +72,11 @@ fn inspect(bundle: &Path, work: &Path, label: &str) -> Result<String> {
 }
 
 /// The `ARROW.md` update step: place the new asset over `Quiver.AppImage` and make it executable.
-fn replace_install(data_home: &Path, from: &Path, to: &Path) -> Result<()> {
+fn replace_install(
+    data_home: &Path,
+    from: &Path,
+    to: &Path,
+) -> Result<()> {
     let dir = data_home.join("Quiver");
     fs::create_dir_all(&dir)?;
     let target = dir.join("Quiver.AppImage");

@@ -33,20 +33,30 @@ impl FlickerSpinner {
         }
     }
 
-    pub fn size(mut self, px_: f32) -> Self {
+    pub fn size(
+        mut self,
+        px_: f32,
+    ) -> Self {
         self.size = px_;
         self
     }
 
     /// Overrides `currentColor`.
-    pub fn color(mut self, color: Hsla) -> Self {
+    pub fn color(
+        mut self,
+        color: Hsla,
+    ) -> Self {
         self.color = Some(color);
         self
     }
 }
 
 impl RenderOnce for FlickerSpinner {
-    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        _: &mut Window,
+        _: &mut App,
+    ) -> impl IntoElement {
         let (size, color) = (self.size, self.color);
         let first = dot_grid(dots_from_bits(&FRAMES[0]), size, color);
         gpui::div()

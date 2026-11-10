@@ -22,7 +22,10 @@ impl KeyringSecrets {
 }
 
 impl SecretStore for KeyringSecrets {
-    fn get(&self, connection_id: &str) -> quiver_core_client::Result<String> {
+    fn get(
+        &self,
+        connection_id: &str,
+    ) -> quiver_core_client::Result<String> {
         match self.inner.get(connection_id) {
             Ok(Some(token)) => Ok(token),
             Ok(None) => Err(Error::Secret(format!(
@@ -32,13 +35,20 @@ impl SecretStore for KeyringSecrets {
         }
     }
 
-    fn set(&self, connection_id: &str, token: &str) -> quiver_core_client::Result<()> {
+    fn set(
+        &self,
+        connection_id: &str,
+        token: &str,
+    ) -> quiver_core_client::Result<()> {
         self.inner
             .set(connection_id, token)
             .map_err(|e| Error::Secret(e.to_string()))
     }
 
-    fn delete(&self, connection_id: &str) -> quiver_core_client::Result<()> {
+    fn delete(
+        &self,
+        connection_id: &str,
+    ) -> quiver_core_client::Result<()> {
         self.inner
             .delete(connection_id)
             .map_err(|e| Error::Secret(e.to_string()))

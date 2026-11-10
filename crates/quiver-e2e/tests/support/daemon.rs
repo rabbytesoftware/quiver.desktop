@@ -64,21 +64,35 @@ impl Daemon {
         }
     }
 
-    pub fn with_bearer(mut self, token: &str) -> Self {
+    pub fn with_bearer(
+        mut self,
+        token: &str,
+    ) -> Self {
         self.bearer = Some(token.to_string());
         self
     }
 
-    pub async fn get(&self, path: &str) -> std::io::Result<Reply> {
+    pub async fn get(
+        &self,
+        path: &str,
+    ) -> std::io::Result<Reply> {
         self.request("GET", path, None).await
     }
 
-    pub async fn post(&self, path: &str, body: Option<Value>) -> std::io::Result<Reply> {
+    pub async fn post(
+        &self,
+        path: &str,
+        body: Option<Value>,
+    ) -> std::io::Result<Reply> {
         self.request("POST", path, Some(body.unwrap_or(Value::Null)))
             .await
     }
 
-    pub async fn patch(&self, path: &str, body: Value) -> std::io::Result<Reply> {
+    pub async fn patch(
+        &self,
+        path: &str,
+        body: Value,
+    ) -> std::io::Result<Reply> {
         self.request("PATCH", path, Some(body)).await
     }
 

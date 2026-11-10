@@ -7,7 +7,10 @@ use quiver_ui::ActiveQuiver;
 
 use crate::views::remote::RemoteView;
 
-pub fn toasts(view: &RemoteView, cx: &Context<RemoteView>) -> impl IntoElement {
+pub fn toasts(
+    view: &RemoteView,
+    cx: &Context<RemoteView>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     div()
         .absolute()

@@ -8,7 +8,11 @@ use crate::model::Route;
 use crate::views::home::HomeView;
 use crate::views::tiles::{library_input, tile};
 
-pub fn library(view: &HomeView, model: &HomeModel, cx: &mut Context<HomeView>) -> impl IntoElement {
+pub fn library(
+    view: &HomeView,
+    model: &HomeModel,
+    cx: &mut Context<HomeView>,
+) -> impl IntoElement {
     let app = view.app.clone();
     let (title, link) = {
         let a = app.read(cx);

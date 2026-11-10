@@ -69,7 +69,11 @@ pub fn build_dependency_rows(
 mod tests {
     use super::*;
 
-    fn entry(namespace: &str, name: &str, state: RunState) -> CatalogEntryFacts {
+    fn entry(
+        namespace: &str,
+        name: &str,
+        state: RunState,
+    ) -> CatalogEntryFacts {
         CatalogEntryFacts {
             namespace: namespace.into(),
             name: name.into(),

@@ -26,7 +26,10 @@ impl LocalHost {
     /// test` is itself a debug build, so a call with no parameter could never
     /// exercise the production branch at all.
     #[cfg_attr(windows, allow(unused_variables))]
-    pub fn host_arg(&self, dev_override_active: bool) -> String {
+    pub fn host_arg(
+        &self,
+        dev_override_active: bool,
+    ) -> String {
         match self {
             #[cfg(unix)]
             Self::Unix(path) => {
@@ -97,7 +100,10 @@ pub(super) fn dev_quiver_home(
 /// — the same stability `dev_quiver_home` gives everything else. `None` in a
 /// release build, for the same reason `dev_quiver_home` is.
 #[cfg(unix)]
-fn dev_socket_override(manifest_dir: &str, is_debug_build: bool) -> Option<std::path::PathBuf> {
+fn dev_socket_override(
+    manifest_dir: &str,
+    is_debug_build: bool,
+) -> Option<std::path::PathBuf> {
     use std::hash::{Hash, Hasher};
 
     if !is_debug_build {
@@ -113,7 +119,10 @@ fn dev_socket_override(manifest_dir: &str, is_debug_build: bool) -> Option<std::
 /// installed app's daemon on `LOCAL_PIPE_NAME` — the same isolation
 /// `dev_socket_override` gives a unix dev build. `None` in a release build.
 #[cfg(windows)]
-fn dev_pipe_name(manifest_dir: &str, is_debug_build: bool) -> Option<String> {
+fn dev_pipe_name(
+    manifest_dir: &str,
+    is_debug_build: bool,
+) -> Option<String> {
     use std::hash::{Hash, Hasher};
 
     if !is_debug_build {

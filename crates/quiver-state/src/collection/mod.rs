@@ -81,7 +81,10 @@ pub struct FollowButton {
     pub enabled: bool,
 }
 
-pub fn follow_button(followed: bool, pending: bool) -> FollowButton {
+pub fn follow_button(
+    followed: bool,
+    pending: bool,
+) -> FollowButton {
     FollowButton {
         label: if followed {
             design::COLLECTION_FOLLOWING
@@ -102,7 +105,10 @@ pub struct HeroModel {
     pub follow: FollowButton,
 }
 
-pub fn build_hero(detail: &CollectionDetail, follow_pending: bool) -> HeroModel {
+pub fn build_hero(
+    detail: &CollectionDetail,
+    follow_pending: bool,
+) -> HeroModel {
     HeroModel {
         arrow_count: detail.arrows.len(),
         maintainers: detail.maintainers.clone(),

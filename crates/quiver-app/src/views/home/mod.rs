@@ -23,7 +23,10 @@ pub struct HomeView {
 }
 
 impl HomeView {
-    pub fn new(app: Entity<AppModel>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let services = app.read(cx).services.clone();
         observe_store(cx, services.arrows.store());
         let home = app.read(cx).home.store().clone();
@@ -38,7 +41,11 @@ impl HomeView {
 }
 
 impl Render for HomeView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let app = self.app.read(cx);
         let (arrows, catalog) = app

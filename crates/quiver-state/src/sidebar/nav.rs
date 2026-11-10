@@ -34,7 +34,10 @@ pub const DESTINATIONS: [Destination; 3] = [
 /// Pages that hang off Home keep it lit (the sidebar keeps Home highlighted on them).
 const HOME_CHILDREN: [&str; 3] = ["/library", "/collections", "/recommended"];
 
-fn under(pathname: &str, base: &str) -> bool {
+fn under(
+    pathname: &str,
+    base: &str,
+) -> bool {
     pathname == base
         || pathname
             .strip_prefix(base)

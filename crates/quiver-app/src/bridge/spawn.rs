@@ -24,6 +24,9 @@ pub fn spawn_action<V, R>(
 }
 
 /// Fire and forget: the outcome reaches the views through the stores.
-pub fn spawn_detached(handle: &Handle, work: impl Future<Output = ()> + Send + 'static) {
+pub fn spawn_detached(
+    handle: &Handle,
+    work: impl Future<Output = ()> + Send + 'static,
+) {
     handle.spawn(work);
 }

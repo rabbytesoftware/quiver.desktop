@@ -18,7 +18,10 @@ fn serve(sock: &std::path::Path) -> UnixListener {
 /// the request like a real server does (see `testing::drain_request`: closing
 /// over an unread request is an abortive close, and the client can then fail
 /// writing its body before it ever reads the answer).
-async fn accept_and_reply(listener: &UnixListener, raw: &'static str) {
+async fn accept_and_reply(
+    listener: &UnixListener,
+    raw: &'static str,
+) {
     if let Ok((mut s, _)) = listener.accept().await {
         crate::transport::testing::drain_request(&mut s).await;
         let _ = s.write_all(raw.as_bytes()).await;

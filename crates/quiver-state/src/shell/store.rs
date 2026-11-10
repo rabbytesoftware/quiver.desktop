@@ -41,19 +41,28 @@ impl Default for ShellSettings {
 
 impl ShellSettings {
     /// Reads the two persisted values back, normalising whatever was on disk.
-    pub fn from_stored(side: Option<&str>, width: Option<f64>) -> Self {
+    pub fn from_stored(
+        side: Option<&str>,
+        width: Option<f64>,
+    ) -> Self {
         Self {
             sidebar_side: normalise_side(side),
             sidebar_width: normalise_width(width),
         }
     }
 
-    pub fn set_side(&mut self, side: SidebarSide) {
+    pub fn set_side(
+        &mut self,
+        side: SidebarSide,
+    ) {
         self.sidebar_side = side;
     }
 
     /// A drag past either end clamps to the end.
-    pub fn set_width(&mut self, width: f64) {
+    pub fn set_width(
+        &mut self,
+        width: f64,
+    ) {
         self.sidebar_width = normalise_width(Some(width));
     }
 }

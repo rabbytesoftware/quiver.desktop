@@ -29,18 +29,27 @@ impl Avatar {
         }
     }
 
-    pub fn size(mut self, px_: f32) -> Self {
+    pub fn size(
+        mut self,
+        px_: f32,
+    ) -> Self {
         self.size = px_;
         self
     }
 
-    pub fn src(mut self, src: impl Into<ImageSource>) -> Self {
+    pub fn src(
+        mut self,
+        src: impl Into<ImageSource>,
+    ) -> Self {
         self.src = Some(src.into());
         self
     }
 
     /// Text shown while there is no image or it fails to load (`AvatarFallback`).
-    pub fn fallback(mut self, text: impl Into<SharedString>) -> Self {
+    pub fn fallback(
+        mut self,
+        text: impl Into<SharedString>,
+    ) -> Self {
         self.fallback = text.into();
         self
     }
@@ -52,7 +61,11 @@ impl Styled for Avatar {
     }
 }
 
-fn fallback_circle(text: SharedString, muted: gpui::Hsla, fg: gpui::Hsla) -> gpui::Div {
+fn fallback_circle(
+    text: SharedString,
+    muted: gpui::Hsla,
+    fg: gpui::Hsla,
+) -> gpui::Div {
     div()
         .size_full()
         .flex()
@@ -65,7 +78,11 @@ fn fallback_circle(text: SharedString, muted: gpui::Hsla, fg: gpui::Hsla) -> gpu
 }
 
 impl RenderOnce for Avatar {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        _: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let (muted, fg) = (p.muted, p.foreground);
         let key = self.id.to_string();

@@ -55,7 +55,10 @@ impl StubTransport {
 
 #[async_trait]
 impl Transport for StubTransport {
-    async fn request(&self, _req: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error> {
+    async fn request(
+        &self,
+        _req: Request<Vec<u8>>,
+    ) -> Result<Response<Vec<u8>>, Error> {
         match &self.mode {
             StubMode::Status(status, body) => Response::builder()
                 .status(*status)
@@ -66,7 +69,10 @@ impl Transport for StubTransport {
         }
     }
 
-    async fn open_ws(&self, _path: &str) -> Result<WsStream, Error> {
+    async fn open_ws(
+        &self,
+        _path: &str,
+    ) -> Result<WsStream, Error> {
         Err(Error::Protocol("not supported by StubTransport".into()))
     }
 }
@@ -222,7 +228,10 @@ impl CapturingTransport {
 
 #[async_trait]
 impl Transport for CapturingTransport {
-    async fn request(&self, req: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error> {
+    async fn request(
+        &self,
+        req: Request<Vec<u8>>,
+    ) -> Result<Response<Vec<u8>>, Error> {
         *self.captured.lock().unwrap() = Some(req);
         Response::builder()
             .status(201)
@@ -230,7 +239,10 @@ impl Transport for CapturingTransport {
             .map_err(|e| Error::Protocol(e.to_string()))
     }
 
-    async fn open_ws(&self, _path: &str) -> Result<WsStream, Error> {
+    async fn open_ws(
+        &self,
+        _path: &str,
+    ) -> Result<WsStream, Error> {
         Err(Error::Protocol(
             "not supported by CapturingTransport".into(),
         ))

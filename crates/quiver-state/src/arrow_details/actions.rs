@@ -49,7 +49,11 @@ pub struct ArrowAction {
 }
 
 impl ArrowAction {
-    fn new(kind: ArrowActionKind, label: Key, variant: ArrowActionVariant) -> Self {
+    fn new(
+        kind: ArrowActionKind,
+        label: Key,
+        variant: ArrowActionVariant,
+    ) -> Self {
         Self {
             kind,
             label,
@@ -62,23 +66,35 @@ impl ArrowAction {
         }
     }
 
-    fn steps(mut self, steps: &[StepSpec]) -> Self {
+    fn steps(
+        mut self,
+        steps: &[StepSpec],
+    ) -> Self {
         self.steps = steps.to_vec();
         self
     }
 
-    fn with_variables(mut self, names: &[String]) -> Self {
+    fn with_variables(
+        mut self,
+        names: &[String],
+    ) -> Self {
         self.uses_variables = names.to_vec();
         self
     }
 
-    fn busy(mut self, label: Key) -> Self {
+    fn busy(
+        mut self,
+        label: Key,
+    ) -> Self {
         self.force_busy = true;
         self.busy_label = Some(label);
         self
     }
 
-    fn disabled(mut self, disabled: bool) -> Self {
+    fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
         self.force_disabled = disabled;
         self
     }
@@ -132,11 +148,18 @@ impl Ctx<'_> {
         self.lifecycle.is_some_and(|l| !l.install.is_empty())
     }
 
-    fn pick(&self, f: impl Fn(&LifecycleFacts) -> &Vec<StepSpec>) -> Vec<StepSpec> {
+    fn pick(
+        &self,
+        f: impl Fn(&LifecycleFacts) -> &Vec<StepSpec>,
+    ) -> Vec<StepSpec> {
         self.lifecycle.map(|l| f(l).clone()).unwrap_or_default()
     }
 
-    fn execute(&self, disabled: bool, variant: ArrowActionVariant) -> ArrowAction {
+    fn execute(
+        &self,
+        disabled: bool,
+        variant: ArrowActionVariant,
+    ) -> ArrowAction {
         ArrowAction::new(
             ArrowActionKind::Execute,
             launch_label(self.lifecycle),

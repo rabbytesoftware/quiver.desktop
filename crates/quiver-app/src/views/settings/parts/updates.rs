@@ -51,14 +51,21 @@ impl Which {
 }
 
 impl SettingsView {
-    fn card(&mut self, which: Which) -> &mut UpdateCard {
+    fn card(
+        &mut self,
+        which: Which,
+    ) -> &mut UpdateCard {
         match which {
             Which::Core => &mut self.core,
             Which::Desktop => &mut self.desktop,
         }
     }
 
-    pub(in crate::views::settings) fn recheck(&mut self, which: Which, cx: &mut Context<Self>) {
+    pub(in crate::views::settings) fn recheck(
+        &mut self,
+        which: Which,
+        cx: &mut Context<Self>,
+    ) {
         let card = self.card(which);
         card.recheck_pending = true;
         card.update_error = None;
@@ -86,7 +93,11 @@ impl SettingsView {
         cx.notify();
     }
 
-    pub(in crate::views::settings) fn run_update(&mut self, which: Which, cx: &mut Context<Self>) {
+    pub(in crate::views::settings) fn run_update(
+        &mut self,
+        which: Which,
+        cx: &mut Context<Self>,
+    ) {
         let card = self.card(which);
         card.update_pending = true;
         card.update_error = None;
@@ -126,7 +137,10 @@ impl SettingsView {
         cx.notify();
     }
 
-    fn mutations(&self, cx: &Context<Self>) -> (Mutations, tokio::runtime::Handle) {
+    fn mutations(
+        &self,
+        cx: &Context<Self>,
+    ) -> (Mutations, tokio::runtime::Handle) {
         let m = self.app.read(cx);
         (
             Mutations::new(m.services.api.clone(), m.services.queries.clone()),

@@ -14,7 +14,11 @@ pub struct TooltipPopup {
 }
 
 impl Render for TooltipPopup {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         div()
             .rounded(px(Radius::MD))
@@ -33,7 +37,7 @@ impl Render for TooltipPopup {
 /// Builds the tooltip view for `.tooltip(...)`:
 /// `div().id("x").tooltip(quiver_ui::tooltip("Settings"))`.
 pub fn tooltip(
-    text: impl Into<SharedString>,
+    text: impl Into<SharedString>
 ) -> impl Fn(&mut Window, &mut App) -> AnyView + 'static {
     let text = text.into();
     move |_, cx| cx.new(|_| TooltipPopup { text: text.clone() }).into()

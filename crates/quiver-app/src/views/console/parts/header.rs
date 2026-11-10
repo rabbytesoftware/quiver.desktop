@@ -10,7 +10,10 @@ use crate::views::console::ConsoleDock;
 
 type DockAction = Box<dyn Fn(&mut ConsoleDock, &mut Context<ConsoleDock>)>;
 
-pub fn header(dock: &mut ConsoleDock, cx: &mut Context<ConsoleDock>) -> impl IntoElement {
+pub fn header(
+    dock: &mut ConsoleDock,
+    cx: &mut Context<ConsoleDock>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let m = dock.app.read(cx);
     let (title, cancel, clear, running) = (

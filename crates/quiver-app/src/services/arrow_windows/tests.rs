@@ -58,7 +58,10 @@ struct FakeLauncher {
 }
 
 impl FakeLauncher {
-    fn take(&self, index: usize) -> FakeHelper {
+    fn take(
+        &self,
+        index: usize,
+    ) -> FakeHelper {
         self.launched.lock().unwrap().remove(index)
     }
 
@@ -68,7 +71,10 @@ impl FakeLauncher {
 }
 
 impl HelperLauncher for FakeLauncher {
-    fn launch(&self, args: &HelperArgs) -> Result<HelperLink> {
+    fn launch(
+        &self,
+        args: &HelperArgs,
+    ) -> Result<HelperLink> {
         if *self.fail.lock().unwrap() {
             return Err(Error::Helper("no helper binary".into()));
         }
@@ -93,11 +99,17 @@ struct EchoUpstream;
 
 #[async_trait]
 impl ArrowUpstream for EchoUpstream {
-    async fn request(&self, req: ArrowRequest) -> quiver_arrow_host::Result<ArrowResponse> {
+    async fn request(
+        &self,
+        req: ArrowRequest,
+    ) -> quiver_arrow_host::Result<ArrowResponse> {
         Ok(ArrowResponse::new(200, req.uri.into_bytes()))
     }
 
-    async fn open_ws(&self, _: &str) -> quiver_arrow_host::Result<Box<dyn WsRelay>> {
+    async fn open_ws(
+        &self,
+        _: &str,
+    ) -> quiver_arrow_host::Result<Box<dyn WsRelay>> {
         Err(quiver_arrow_host::Error::Upstream("unused".into()))
     }
 }

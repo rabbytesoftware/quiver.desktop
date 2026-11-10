@@ -33,12 +33,18 @@ impl AddConnectionForm {
         *self = Self::default();
     }
 
-    pub fn set_name(&mut self, name: &str) {
+    pub fn set_name(
+        &mut self,
+        name: &str,
+    ) {
         self.name = name.to_owned();
     }
 
     /// Editing the URL withdraws the verdict on the old one.
-    pub fn set_url(&mut self, url: &str) {
+    pub fn set_url(
+        &mut self,
+        url: &str,
+    ) {
         self.url = url.to_owned();
         self.health_error = false;
     }
@@ -57,7 +63,10 @@ impl AddConnectionForm {
         Some(self.url.trim().to_owned())
     }
 
-    pub fn finish_check(&mut self, reachable: bool) {
+    pub fn finish_check(
+        &mut self,
+        reachable: bool,
+    ) {
         self.checking = false;
         if reachable {
             self.stage = AddStage::Pairing;
@@ -70,11 +79,17 @@ impl AddConnectionForm {
         self.stage = AddStage::Details;
     }
 
-    pub fn can_submit(&self, busy: bool) -> bool {
+    pub fn can_submit(
+        &self,
+        busy: bool,
+    ) -> bool {
         self.code.is_complete() && !busy
     }
 
-    pub fn submit(&self, busy: bool) -> Option<AddSubmission> {
+    pub fn submit(
+        &self,
+        busy: bool,
+    ) -> Option<AddSubmission> {
         self.can_submit(busy).then(|| AddSubmission {
             name: self.name.trim().to_owned(),
             url: self.url.trim().to_owned(),

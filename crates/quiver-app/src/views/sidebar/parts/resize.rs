@@ -20,12 +20,19 @@ pub struct RailDrag {
 struct Invisible;
 
 impl Render for Invisible {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        _: &mut Context<Self>,
+    ) -> impl IntoElement {
         div()
     }
 }
 
-pub fn resize_handle(sidebar: &Sidebar, cx: &mut Context<Sidebar>) -> impl IntoElement {
+pub fn resize_handle(
+    sidebar: &Sidebar,
+    cx: &mut Context<Sidebar>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let shell = sidebar.app.read(cx).shell;
     let from = shell.sidebar_width;

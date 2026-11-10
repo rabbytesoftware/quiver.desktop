@@ -10,19 +10,29 @@ pub struct ModalStack {
 
 impl ModalStack {
     /// Opens a modal. Opening an id that is already open replaces its view and moves it to the top.
-    pub fn open(&mut self, id: impl Into<SharedString>, view: AnyView) {
+    pub fn open(
+        &mut self,
+        id: impl Into<SharedString>,
+        view: AnyView,
+    ) {
         let id = id.into();
         self.entries.retain(|(open, _)| *open != id);
         self.entries.push((id, view));
     }
 
-    pub fn close(&mut self, id: &str) -> bool {
+    pub fn close(
+        &mut self,
+        id: &str,
+    ) -> bool {
         let before = self.entries.len();
         self.entries.retain(|(open, _)| open.as_ref() != id);
         self.entries.len() != before
     }
 
-    pub fn is_open(&self, id: &str) -> bool {
+    pub fn is_open(
+        &self,
+        id: &str,
+    ) -> bool {
         self.entries.iter().any(|(open, _)| open.as_ref() == id)
     }
 

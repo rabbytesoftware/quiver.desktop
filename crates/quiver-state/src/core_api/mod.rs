@@ -22,7 +22,10 @@ pub struct ApiError {
 }
 
 impl ApiError {
-    pub fn new(message: impl Into<String>, status: u16) -> Self {
+    pub fn new(
+        message: impl Into<String>,
+        status: u16,
+    ) -> Self {
         Self {
             message: message.into(),
             status,
@@ -49,7 +52,10 @@ pub enum Method {
 }
 
 impl fmt::Display for Method {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         f.write_str(match self {
             Method::Get => "GET",
             Method::Post => "POST",
@@ -101,7 +107,10 @@ pub trait CoreApi: Send + Sync {
     ) -> Result<ApiResult<Option<Value>>, ApiError>;
 
     /// Opens the stream at `path` (e.g. `/v0/arrow`). An `Err` means the connection could not be made.
-    async fn open_stream(&self, path: &str) -> Result<Box<dyn CoreStream>, ApiError>;
+    async fn open_stream(
+        &self,
+        path: &str,
+    ) -> Result<Box<dyn CoreStream>, ApiError>;
 
     /// `GET /v0/health` answered 2xx. Probed once, never retried.
     async fn is_reachable(&self) -> bool;
@@ -110,7 +119,10 @@ pub trait CoreApi: Send + Sync {
 /// Typed conveniences over [`CoreApi`] (a trait object cannot carry generic methods).
 #[async_trait]
 pub trait CoreApiExt: CoreApi {
-    async fn get_json(&self, path: &str) -> Result<Value, ApiError> {
+    async fn get_json(
+        &self,
+        path: &str,
+    ) -> Result<Value, ApiError> {
         Ok(self
             .request(Method::Get, path, None)
             .await?
@@ -128,7 +140,10 @@ pub trait CoreApiExt: CoreApi {
     }
 
     /// `GET path` decoded into `T`. A missing payload decodes from `null`.
-    async fn get<T: DeserializeOwned + Send>(&self, path: &str) -> crate::Result<T> {
+    async fn get<T: DeserializeOwned + Send>(
+        &self,
+        path: &str,
+    ) -> crate::Result<T> {
         let value = self.get_json(path).await?;
         serde_json::from_value(value).map_err(|e| crate::Error::decode("response", e))
     }

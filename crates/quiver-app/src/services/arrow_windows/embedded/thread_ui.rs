@@ -29,7 +29,11 @@ impl UiThread {
     }
 
     /// Starts the foreground task that runs the queued jobs. Call once, on the UI thread.
-    pub fn pump(&self, parent: ParentSlot, cx: &mut App) {
+    pub fn pump(
+        &self,
+        parent: ParentSlot,
+        cx: &mut App,
+    ) {
         let Some(mut inbox) = self.inbox.lock().ok().and_then(|mut i| i.take()) else {
             return;
         };
@@ -44,7 +48,10 @@ impl UiThread {
 }
 
 impl PageThread for UiThread {
-    fn post(&self, job: Job) {
+    fn post(
+        &self,
+        job: Job,
+    ) {
         let _ = self.jobs.send(job);
     }
 }

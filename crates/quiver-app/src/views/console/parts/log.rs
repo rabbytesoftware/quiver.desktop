@@ -12,7 +12,10 @@ use quiver_ui::{ActiveQuiver, Palette};
 
 use crate::views::console::ConsoleDock;
 
-fn tone_color(p: &Palette, tone: SpanTone) -> gpui::Hsla {
+fn tone_color(
+    p: &Palette,
+    tone: SpanTone,
+) -> gpui::Hsla {
     match tone {
         SpanTone::Normal => p.foreground,
         SpanTone::Muted => p.muted_foreground,
@@ -80,7 +83,10 @@ fn row(
         ))
 }
 
-pub fn log(dock: &mut ConsoleDock, cx: &mut Context<ConsoleDock>) -> impl IntoElement {
+pub fn log(
+    dock: &mut ConsoleDock,
+    cx: &mut Context<ConsoleDock>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let this = cx.entity();
     let (unsupported, offset) = {

@@ -12,7 +12,11 @@ use crate::model::AppModel;
 /// The namespace the `arrow-app` demo route opens.
 pub const APP_NAMESPACE: &str = "github.com/rabbyte/grafana";
 
-fn remote(id: &str, name: &str, url: &str) -> ConnectionConfig {
+fn remote(
+    id: &str,
+    name: &str,
+    url: &str,
+) -> ConnectionConfig {
     ConnectionConfig {
         id: id.into(),
         name: name.into(),

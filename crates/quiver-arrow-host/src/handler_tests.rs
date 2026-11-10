@@ -36,11 +36,17 @@ impl Stub {
 
 #[async_trait]
 impl ArrowUpstream for Stub {
-    async fn request(&self, req: ArrowRequest) -> Result<ArrowResponse> {
+    async fn request(
+        &self,
+        req: ArrowRequest,
+    ) -> Result<ArrowResponse> {
         self.seen.lock().unwrap().push(req);
         Ok(self.reply.clone())
     }
-    async fn open_ws(&self, _: &str) -> Result<Box<dyn WsRelay>> {
+    async fn open_ws(
+        &self,
+        _: &str,
+    ) -> Result<Box<dyn WsRelay>> {
         Err(Error::Upstream("not used".into()))
     }
 }
@@ -50,10 +56,16 @@ struct Dead;
 
 #[async_trait]
 impl ArrowUpstream for Dead {
-    async fn request(&self, _: ArrowRequest) -> Result<ArrowResponse> {
+    async fn request(
+        &self,
+        _: ArrowRequest,
+    ) -> Result<ArrowResponse> {
         panic!("upstream must not be used")
     }
-    async fn open_ws(&self, _: &str) -> Result<Box<dyn WsRelay>> {
+    async fn open_ws(
+        &self,
+        _: &str,
+    ) -> Result<Box<dyn WsRelay>> {
         panic!("upstream must not be used")
     }
 }
@@ -62,10 +74,16 @@ struct Hangs;
 
 #[async_trait]
 impl ArrowUpstream for Hangs {
-    async fn request(&self, _: ArrowRequest) -> Result<ArrowResponse> {
+    async fn request(
+        &self,
+        _: ArrowRequest,
+    ) -> Result<ArrowResponse> {
         std::future::pending().await
     }
-    async fn open_ws(&self, _: &str) -> Result<Box<dyn WsRelay>> {
+    async fn open_ws(
+        &self,
+        _: &str,
+    ) -> Result<Box<dyn WsRelay>> {
         Err(Error::Upstream("not used".into()))
     }
 }
@@ -74,15 +92,24 @@ struct Refuses;
 
 #[async_trait]
 impl ArrowUpstream for Refuses {
-    async fn request(&self, _: ArrowRequest) -> Result<ArrowResponse> {
+    async fn request(
+        &self,
+        _: ArrowRequest,
+    ) -> Result<ArrowResponse> {
         Err(Error::Upstream("refused".into()))
     }
-    async fn open_ws(&self, _: &str) -> Result<Box<dyn WsRelay>> {
+    async fn open_ws(
+        &self,
+        _: &str,
+    ) -> Result<Box<dyn WsRelay>> {
         Err(Error::Upstream("not used".into()))
     }
 }
 
-fn ok(body: &str, content_type: &str) -> ArrowResponse {
+fn ok(
+    body: &str,
+    content_type: &str,
+) -> ArrowResponse {
     let mut resp = ArrowResponse::new(200, body.as_bytes().to_vec());
     resp.headers.append("content-type", content_type);
     resp.headers

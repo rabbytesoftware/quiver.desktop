@@ -50,7 +50,10 @@ pub struct ProgressControl {
 
 impl ProgressControl {
     /// Line 2 of the control, e.g. "Verify checksum · 2 of 4"; "Starting…" before the steps are known.
-    pub fn step_line(&self, tr: &Translator) -> String {
+    pub fn step_line(
+        &self,
+        tr: &Translator,
+    ) -> String {
         match &self.step_label {
             Some(label) => tr.t_with(
                 design::STEP_OF,
@@ -66,7 +69,10 @@ impl ProgressControl {
 
 /// The verb for the action in flight. `None` for actions that have no progress control (Start,
 /// Add to Library, ...): those keep their button, busy.
-pub fn verb_for(kind: ArrowActionKind, stopping_state: Option<Key>) -> Option<Key> {
+pub fn verb_for(
+    kind: ArrowActionKind,
+    stopping_state: Option<Key>,
+) -> Option<Key> {
     match kind {
         ArrowActionKind::Install | ArrowActionKind::Reinstall => Some(design::VERB_INSTALLING),
         ArrowActionKind::Update => Some(design::VERB_UPDATING),
@@ -103,7 +109,10 @@ fn step_state(status: StepStatus) -> StepState {
 }
 
 /// `declared` supplies the code of each step by position when the run does not carry it.
-fn progress_step(run: &RunStepFacts, declared: Option<&StepSpec>) -> ProgressStep {
+fn progress_step(
+    run: &RunStepFacts,
+    declared: Option<&StepSpec>,
+) -> ProgressStep {
     ProgressStep {
         state: step_state(run.status),
         title: run.title.clone(),

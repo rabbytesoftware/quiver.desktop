@@ -11,11 +11,21 @@ use crate::{Error, Result};
 pub const KEYRING_SERVICE: &str = "quiver.desktop";
 
 pub trait SecretStore: Send + Sync {
-    fn set(&self, account: &str, secret: &str) -> Result<()>;
+    fn set(
+        &self,
+        account: &str,
+        secret: &str,
+    ) -> Result<()>;
     /// `None` when there is no secret under `account`.
-    fn get(&self, account: &str) -> Result<Option<String>>;
+    fn get(
+        &self,
+        account: &str,
+    ) -> Result<Option<String>>;
     /// Deleting what is not there is not an error.
-    fn delete(&self, account: &str) -> Result<()>;
+    fn delete(
+        &self,
+        account: &str,
+    ) -> Result<()>;
 }
 
 /// The OS keyring (Keychain, Credential Manager, Secret Service).
@@ -35,7 +45,10 @@ impl KeyringStore {
         }
     }
 
-    fn entry(&self, account: &str) -> Result<keyring::Entry> {
+    fn entry(
+        &self,
+        account: &str,
+    ) -> Result<keyring::Entry> {
         keyring::Entry::new(&self.service, account).map_err(|e| Error::Secret(e.to_string()))
     }
 }
@@ -47,13 +60,20 @@ impl Default for KeyringStore {
 }
 
 impl SecretStore for KeyringStore {
-    fn set(&self, account: &str, secret: &str) -> Result<()> {
+    fn set(
+        &self,
+        account: &str,
+        secret: &str,
+    ) -> Result<()> {
         self.entry(account)?
             .set_password(secret)
             .map_err(|e| Error::Secret(e.to_string()))
     }
 
-    fn get(&self, account: &str) -> Result<Option<String>> {
+    fn get(
+        &self,
+        account: &str,
+    ) -> Result<Option<String>> {
         match self.entry(account)?.get_password() {
             Ok(secret) => Ok(Some(secret)),
             Err(keyring::Error::NoEntry) => Ok(None),
@@ -61,7 +81,10 @@ impl SecretStore for KeyringStore {
         }
     }
 
-    fn delete(&self, account: &str) -> Result<()> {
+    fn delete(
+        &self,
+        account: &str,
+    ) -> Result<()> {
         match self.entry(account)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(Error::Secret(e.to_string())),
@@ -86,16 +109,26 @@ impl MemorySecretStore {
 }
 
 impl SecretStore for MemorySecretStore {
-    fn set(&self, account: &str, secret: &str) -> Result<()> {
+    fn set(
+        &self,
+        account: &str,
+        secret: &str,
+    ) -> Result<()> {
         self.lock().insert(account.to_owned(), secret.to_owned());
         Ok(())
     }
 
-    fn get(&self, account: &str) -> Result<Option<String>> {
+    fn get(
+        &self,
+        account: &str,
+    ) -> Result<Option<String>> {
         Ok(self.lock().get(account).cloned())
     }
 
-    fn delete(&self, account: &str) -> Result<()> {
+    fn delete(
+        &self,
+        account: &str,
+    ) -> Result<()> {
         self.lock().remove(account);
         Ok(())
     }

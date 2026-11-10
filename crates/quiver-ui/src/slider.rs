@@ -24,13 +24,25 @@ struct DragState {
 }
 
 /// Maps a pointer x (window space) inside `bounds` to a stepped value in `min..=max`.
-pub(crate) fn value_at(x: f32, left: f32, width: f32, min: f32, max: f32, step: f32) -> f32 {
+pub(crate) fn value_at(
+    x: f32,
+    left: f32,
+    width: f32,
+    min: f32,
+    max: f32,
+    step: f32,
+) -> f32 {
     let travel = (width - THUMB_W).max(1.0);
     let t = ((x - left - THUMB_W / 2.0) / travel).clamp(0.0, 1.0);
     snap(min + t * (max - min), min, max, step)
 }
 
-pub(crate) fn snap(v: f32, min: f32, max: f32, step: f32) -> f32 {
+pub(crate) fn snap(
+    v: f32,
+    min: f32,
+    max: f32,
+    step: f32,
+) -> f32 {
     if step <= 0.0 {
         return v.clamp(min, max);
     }
@@ -65,28 +77,44 @@ impl Slider {
         }
     }
 
-    pub fn value(mut self, v: f32) -> Self {
+    pub fn value(
+        mut self,
+        v: f32,
+    ) -> Self {
         self.value = v;
         self
     }
 
-    pub fn range(mut self, min: f32, max: f32) -> Self {
+    pub fn range(
+        mut self,
+        min: f32,
+        max: f32,
+    ) -> Self {
         self.min = min;
         self.max = max;
         self
     }
 
-    pub fn step(mut self, step: f32) -> Self {
+    pub fn step(
+        mut self,
+        step: f32,
+    ) -> Self {
         self.step = step;
         self
     }
 
-    pub fn disabled(mut self, disabled: bool) -> Self {
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
         self.disabled = disabled;
         self
     }
 
-    pub fn on_change(mut self, f: impl Fn(f32, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(
+        mut self,
+        f: impl Fn(f32, &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_change = Some(Rc::new(f));
         self
     }
@@ -98,7 +126,13 @@ impl Styled for Slider {
     }
 }
 
-fn key_value(key: &str, v: f32, min: f32, max: f32, step: f32) -> Option<f32> {
+fn key_value(
+    key: &str,
+    v: f32,
+    min: f32,
+    max: f32,
+    step: f32,
+) -> Option<f32> {
     let big = step * 10.0;
     let next = match key {
         "right" | "up" => v + step,
@@ -113,7 +147,11 @@ fn key_value(key: &str, v: f32, min: f32, max: f32, step: f32) -> Option<f32> {
 }
 
 impl RenderOnce for Slider {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let state =
             window.use_keyed_state(ElementId::from((self.id.clone(), "drag")), cx, |_, _| {

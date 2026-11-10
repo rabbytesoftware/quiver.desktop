@@ -24,7 +24,10 @@ pub fn info_plist(version: &str) -> String {
 
 /// Builds the .dmg. With `universal`, `inputs` is the arm64 build and `x86_64` the Intel one; each binary
 /// is merged with `lipo`.
-pub fn package(inputs: &Inputs, x86_64: Option<&Inputs>) -> Result<Vec<PathBuf>> {
+pub fn package(
+    inputs: &Inputs,
+    x86_64: Option<&Inputs>,
+) -> Result<Vec<PathBuf>> {
     let stage = inputs.out.join("macos-stage");
     if stage.exists() {
         fs::remove_dir_all(&stage)?;
@@ -79,7 +82,10 @@ pub fn package(inputs: &Inputs, x86_64: Option<&Inputs>) -> Result<Vec<PathBuf>>
     Ok(vec![dmg])
 }
 
-fn arch_label(universal: bool, triple: &str) -> &str {
+fn arch_label(
+    universal: bool,
+    triple: &str,
+) -> &str {
     if universal {
         "universal"
     } else if triple.starts_with("aarch64") {
@@ -89,7 +95,11 @@ fn arch_label(universal: bool, triple: &str) -> &str {
     }
 }
 
-fn lipo_pieces(arm: &[Piece], intel: &[Piece], dir: &Path) -> Result<()> {
+fn lipo_pieces(
+    arm: &[Piece],
+    intel: &[Piece],
+    dir: &Path,
+) -> Result<()> {
     fs::create_dir_all(dir)?;
     for (a, i) in arm.iter().zip(intel) {
         let out = dir.join(&a.installed_as);
@@ -103,7 +113,10 @@ fn lipo_pieces(arm: &[Piece], intel: &[Piece], dir: &Path) -> Result<()> {
 }
 
 /// Nested code first, then the bundle (codesign --deep is deprecated for this).
-fn sign_app(app: &Path, identity: Option<&str>) -> Result<()> {
+fn sign_app(
+    app: &Path,
+    identity: Option<&str>,
+) -> Result<()> {
     let macos_dir = app.join("Contents/MacOS");
     let mut binaries: Vec<PathBuf> = fs::read_dir(&macos_dir)?
         .filter_map(|e| e.ok().map(|e| e.path()))

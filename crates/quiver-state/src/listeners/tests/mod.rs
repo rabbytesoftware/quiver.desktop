@@ -73,7 +73,11 @@ fn rig() -> Rig {
 }
 
 impl Rig {
-    async fn setup(&self, park: Option<Arc<Notify>>, with_queries: bool) -> Listeners {
+    async fn setup(
+        &self,
+        park: Option<Arc<Notify>>,
+        with_queries: bool,
+    ) -> Listeners {
         setup_listeners(ListenerDeps {
             api: Arc::new(self.api.clone()),
             ws: WsManager::new(Arc::new(self.api.clone())),
@@ -91,14 +95,20 @@ impl Rig {
         .await
     }
 
-    async fn wait_status(&self, wanted: ConnectionStatus) {
+    async fn wait_status(
+        &self,
+        wanted: ConnectionStatus,
+    ) {
         let mut rx = self.status.store().subscribe();
         while self.status.status() != wanted {
             rx.changed().await.unwrap();
         }
     }
 
-    async fn wait_arrows(&self, what: impl Fn(&ArrowStore) -> bool) {
+    async fn wait_arrows(
+        &self,
+        what: impl Fn(&ArrowStore) -> bool,
+    ) {
         let mut rx = self.arrows.store().subscribe();
         while !what(&self.arrows) {
             rx.changed().await.unwrap();

@@ -35,7 +35,10 @@ impl NdjsonSplitter {
     /// Feed one chunk; returns the lines it completed, without their newline.
     /// Blank lines are skipped, and invalid UTF-8 is replaced rather than
     /// rejected: the frontend treats a non-JSON line as raw text.
-    pub fn push(&mut self, chunk: &[u8]) -> Vec<String> {
+    pub fn push(
+        &mut self,
+        chunk: &[u8],
+    ) -> Vec<String> {
         let mut lines = Vec::new();
         let mut rest = chunk;
         while !rest.is_empty() {

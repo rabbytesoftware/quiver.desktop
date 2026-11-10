@@ -9,14 +9,21 @@ pub struct PairingCode {
 }
 
 impl PairingCode {
-    pub fn slot(&self, index: usize) -> Option<char> {
+    pub fn slot(
+        &self,
+        index: usize,
+    ) -> Option<char> {
         self.slots.get(index).copied().flatten()
     }
 
     /// `raw` is a controlled input's whole field value, so it may briefly hold more than one character
     /// (typing over an existing digit) -- only the last digit typed is kept, matching a native
     /// single-digit field. Returns the slot to focus next, if any.
-    pub fn set_digit(&mut self, index: usize, raw: &str) -> Option<usize> {
+    pub fn set_digit(
+        &mut self,
+        index: usize,
+        raw: &str,
+    ) -> Option<usize> {
         let digit = raw.chars().rfind(char::is_ascii_digit);
         if let Some(slot) = self.slots.get_mut(index) {
             *slot = digit;
@@ -24,12 +31,18 @@ impl PairingCode {
         (digit.is_some() && index + 1 < PAIRING_CODE_LENGTH).then_some(index + 1)
     }
 
-    pub fn clear_digit(&mut self, index: usize) {
+    pub fn clear_digit(
+        &mut self,
+        index: usize,
+    ) {
         self.set_digit(index, "");
     }
 
     /// Spreads a paste over the slots from the first; returns the slot to focus afterwards.
-    pub fn paste(&mut self, pasted: &str) -> usize {
+    pub fn paste(
+        &mut self,
+        pasted: &str,
+    ) -> usize {
         let digits: Vec<char> = pasted
             .chars()
             .filter(char::is_ascii_digit)
@@ -52,7 +65,10 @@ impl PairingCode {
 
     /// Which slot Backspace should move focus to, or `None` to let the normal in-place clear happen. Only
     /// fires when the current slot is already empty -- a filled slot clears itself first.
-    pub fn backspace_focus(&self, index: usize) -> Option<usize> {
+    pub fn backspace_focus(
+        &self,
+        index: usize,
+    ) -> Option<usize> {
         (self.slot(index).is_none() && index > 0).then(|| index - 1)
     }
 }

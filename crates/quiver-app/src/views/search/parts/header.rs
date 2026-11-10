@@ -9,7 +9,11 @@ use quiver_ui::{ActiveQuiver, Select, SelectOption, SelectSize};
 
 use crate::views::search::SearchView;
 
-fn sort(view: &SearchView, model: &ResultsModel, cx: &mut Context<SearchView>) -> impl IntoElement {
+fn sort(
+    view: &SearchView,
+    model: &ResultsModel,
+    cx: &mut Context<SearchView>,
+) -> impl IntoElement {
     let a = view.app.read(cx);
     let options: Vec<SelectOption> = SORT_KEYS
         .iter()

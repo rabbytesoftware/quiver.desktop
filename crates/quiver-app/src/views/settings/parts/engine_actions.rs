@@ -27,7 +27,10 @@ pub(in crate::views::settings) fn to_failure(error: quiver_state::Error) -> Acti
 }
 
 impl SettingsView {
-    pub(in crate::views::settings) fn load_engine(&mut self, cx: &mut gpui::Context<Self>) {
+    pub(in crate::views::settings) fn load_engine(
+        &mut self,
+        cx: &mut gpui::Context<Self>,
+    ) {
         self.engine.begin_load();
         let (api, handle) = {
             let m = self.app.read(cx);
@@ -45,7 +48,11 @@ impl SettingsView {
     }
 
     /// One patch, then a re-read: the daemon owns what is pending a restart and what it corrected.
-    pub(in crate::views::settings) fn patch(&mut self, patch: Value, cx: &mut gpui::Context<Self>) {
+    pub(in crate::views::settings) fn patch(
+        &mut self,
+        patch: Value,
+        cx: &mut gpui::Context<Self>,
+    ) {
         self.engine.begin_patch();
         let (api, raw, handle) = {
             let m = self.app.read(cx);
@@ -67,7 +74,10 @@ impl SettingsView {
         cx.notify();
     }
 
-    pub(in crate::views::settings) fn load_channels(&mut self, cx: &mut gpui::Context<Self>) {
+    pub(in crate::views::settings) fn load_channels(
+        &mut self,
+        cx: &mut gpui::Context<Self>,
+    ) {
         self.channels = None;
         let (api, handle) = {
             let m = self.app.read(cx);
@@ -88,7 +98,10 @@ impl SettingsView {
         );
     }
 
-    pub(in crate::views::settings) fn load_path(&mut self, cx: &mut gpui::Context<Self>) {
+    pub(in crate::views::settings) fn load_path(
+        &mut self,
+        cx: &mut gpui::Context<Self>,
+    ) {
         self.path.begin_load();
         let (api, handle) = {
             let m = self.app.read(cx);
@@ -105,7 +118,10 @@ impl SettingsView {
         );
     }
 
-    pub(in crate::views::settings) fn run_setup_path(&mut self, cx: &mut gpui::Context<Self>) {
+    pub(in crate::views::settings) fn run_setup_path(
+        &mut self,
+        cx: &mut gpui::Context<Self>,
+    ) {
         self.path.begin_setup();
         let (api, handle) = {
             let m = self.app.read(cx);

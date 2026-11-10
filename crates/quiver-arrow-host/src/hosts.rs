@@ -33,7 +33,10 @@ impl ArrowHosts {
     }
 
     /// Registers `namespace` and returns its host (see `arrow_host`).
-    pub fn register(&self, namespace: &str) -> String {
+    pub fn register(
+        &self,
+        namespace: &str,
+    ) -> String {
         let host = arrow_host(namespace);
         self.by_host
             .write()
@@ -42,7 +45,10 @@ impl ArrowHosts {
         host
     }
 
-    pub fn namespace_for(&self, host: &str) -> Option<String> {
+    pub fn namespace_for(
+        &self,
+        host: &str,
+    ) -> Option<String> {
         self.by_host
             .read()
             .unwrap_or_else(|e| e.into_inner())

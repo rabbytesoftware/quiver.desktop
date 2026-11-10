@@ -54,7 +54,10 @@ impl FakeBackend {
         self.inner.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    pub fn set_connections(&self, snapshot: ConnectionsSnapshot) {
+    pub fn set_connections(
+        &self,
+        snapshot: ConnectionsSnapshot,
+    ) {
         self.set_get_connections(move || {
             let snapshot = snapshot.clone();
             async move { Ok(snapshot) }
@@ -62,8 +65,10 @@ impl FakeBackend {
     }
 
     /// Answers `get_connections` through a future, so a test can park it (race tests).
-    pub fn set_get_connections<F, Fut>(&self, f: F)
-    where
+    pub fn set_get_connections<F, Fut>(
+        &self,
+        f: F,
+    ) where
         F: Fn() -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<ConnectionsSnapshot>> + Send + 'static,
     {
@@ -74,11 +79,17 @@ impl FakeBackend {
         self.set_get_connections(|| async { Err(Error::Backend("ipc gone".into())) });
     }
 
-    pub fn emit_status(&self, status: ConnectionStatus) {
+    pub fn emit_status(
+        &self,
+        status: ConnectionStatus,
+    ) {
         self.lock().status.retain(|tx| tx.send(status).is_ok());
     }
 
-    pub fn emit_connections(&self, snapshot: ConnectionsSnapshot) {
+    pub fn emit_connections(
+        &self,
+        snapshot: ConnectionsSnapshot,
+    ) {
         self.lock()
             .changed
             .retain(|tx| tx.send(snapshot.clone()).is_ok());
@@ -88,7 +99,10 @@ impl FakeBackend {
         self.lock().calls.clone()
     }
 
-    pub fn call_count(&self, name: &str) -> usize {
+    pub fn call_count(
+        &self,
+        name: &str,
+    ) -> usize {
         self.lock()
             .calls
             .iter()
@@ -96,7 +110,10 @@ impl FakeBackend {
             .count()
     }
 
-    fn record(&self, call: String) {
+    fn record(
+        &self,
+        call: String,
+    ) {
         self.lock().calls.push(call);
     }
 }
@@ -128,12 +145,20 @@ impl Backend for FakeBackend {
         Ok("linux/amd64".into())
     }
 
-    async fn check_remote_health(&self, url: &str) -> Result<()> {
+    async fn check_remote_health(
+        &self,
+        url: &str,
+    ) -> Result<()> {
         self.record(format!("check_remote_health {url}"));
         Ok(())
     }
 
-    async fn add_connection(&self, name: &str, url: &str, code: &str) -> Result<ConnectionConfig> {
+    async fn add_connection(
+        &self,
+        name: &str,
+        url: &str,
+        code: &str,
+    ) -> Result<ConnectionConfig> {
         self.record(format!("add_connection {name} {url} {code}"));
         Ok(ConnectionConfig {
             id: "new".into(),
@@ -144,17 +169,27 @@ impl Backend for FakeBackend {
         })
     }
 
-    async fn remove_connection(&self, id: &str) -> Result<()> {
+    async fn remove_connection(
+        &self,
+        id: &str,
+    ) -> Result<()> {
         self.record(format!("remove_connection {id}"));
         Ok(())
     }
 
-    async fn switch_connection(&self, id: &str) -> Result<()> {
+    async fn switch_connection(
+        &self,
+        id: &str,
+    ) -> Result<()> {
         self.record(format!("switch_connection {id}"));
         Ok(())
     }
 
-    async fn rename_connection(&self, id: &str, name: &str) -> Result<()> {
+    async fn rename_connection(
+        &self,
+        id: &str,
+        name: &str,
+    ) -> Result<()> {
         self.record(format!("rename_connection {id} {name}"));
         Ok(())
     }

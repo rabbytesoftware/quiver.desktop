@@ -21,7 +21,10 @@ pub struct App {
 
 impl App {
     /// Starts the app against `home` and connects the bridge.
-    pub async fn launch(env: &Env, home: &Home) -> Self {
+    pub async fn launch(
+        env: &Env,
+        home: &Home,
+    ) -> Self {
         let proc = AppProcess::launch(&env.app_binary, &home.env())
             .await
             .expect("launch the app");
@@ -39,18 +42,27 @@ impl App {
         self.node("sidebar.list").await;
     }
 
-    pub async fn signal(&mut self, name: &str) {
+    pub async fn signal(
+        &mut self,
+        name: &str,
+    ) {
         if let Err(e) = self.bridge.wait_signal(name, WAIT_MS).await {
             self.fail(&format!("signal {name}: {e}")).await;
         }
     }
 
-    pub async fn route(&mut self, path: &str) {
+    pub async fn route(
+        &mut self,
+        path: &str,
+    ) {
         self.signal(&format!("route:{path}")).await;
     }
 
     /// Waits for `id` to be painted and returns it.
-    pub async fn node(&mut self, id: &str) -> Node {
+    pub async fn node(
+        &mut self,
+        id: &str,
+    ) -> Node {
         match self.bridge.wait_node(id, true, WAIT_MS).await {
             Ok(node) => node,
             Err(e) => self.fail(&format!("node {id}: {e}")).await,
@@ -59,7 +71,10 @@ impl App {
 
     /// Fails the test with what the app shows right now: every painted id (with its state), the app's state dump
     /// and its last log lines, which is what a timeout needs to be understood.
-    pub async fn fail(&mut self, what: &str) -> ! {
+    pub async fn fail(
+        &mut self,
+        what: &str,
+    ) -> ! {
         self.shot("FAILED").await;
         let (frame, tree) = self
             .bridge
@@ -82,7 +97,10 @@ impl App {
     }
 
     /// Waits for a node by filter (`id` or `prefix`, `label_contains`, `state_contains`) and returns it.
-    pub async fn matching(&mut self, filter: serde_json::Value) -> Node {
+    pub async fn matching(
+        &mut self,
+        filter: serde_json::Value,
+    ) -> Node {
         match self
             .bridge
             .wait_matching(filter.clone(), true, WAIT_MS)
@@ -93,17 +111,26 @@ impl App {
         }
     }
 
-    pub async fn gone(&mut self, id: &str) {
+    pub async fn gone(
+        &mut self,
+        id: &str,
+    ) {
         if let Err(e) = self.bridge.wait_node(id, false, WAIT_MS).await {
             self.fail(&format!("{id} never went away: {e}")).await;
         }
     }
 
-    pub async fn find(&mut self, id: &str) -> Option<Node> {
+    pub async fn find(
+        &mut self,
+        id: &str,
+    ) -> Option<Node> {
         self.bridge.find(id).await.expect("ui.find")
     }
 
-    pub async fn click(&mut self, id: &str) {
+    pub async fn click(
+        &mut self,
+        id: &str,
+    ) {
         // Enabled, not just painted: a button waits on form state that follows the typing by a frame.
         self.matching(serde_json::json!({"id": id, "enabled": true}))
             .await;
@@ -113,7 +140,10 @@ impl App {
     }
 
     /// Every painted element whose id starts with `prefix`.
-    pub async fn with_prefix(&mut self, prefix: &str) -> Vec<Node> {
+    pub async fn with_prefix(
+        &mut self,
+        prefix: &str,
+    ) -> Vec<Node> {
         self.bridge
             .tree()
             .await
@@ -126,7 +156,11 @@ impl App {
 
     /// Clicks the field `id`, waits until it reports `[focused]` (the click is an OS event the app handles
     /// asynchronously: typing before it landed would go nowhere) and types `text`.
-    pub async fn type_into(&mut self, id: &str, text: &str) {
+    pub async fn type_into(
+        &mut self,
+        id: &str,
+        text: &str,
+    ) {
         self.click(id).await;
         self.matching(serde_json::json!({"id": id, "state_contains": "[focused]"}))
             .await;
@@ -136,14 +170,21 @@ impl App {
     }
 
     /// [`App::type_into`], then enter.
-    pub async fn enter_text(&mut self, id: &str, text: &str) {
+    pub async fn enter_text(
+        &mut self,
+        id: &str,
+        text: &str,
+    ) {
         self.type_into(id, text).await;
         self.bridge.key("enter").await.expect("press enter");
     }
 
     /// Saves what the window shows next to the test's results: a green run leaves the screens its assertions were
     /// made against.
-    pub async fn shot(&mut self, name: &str) {
+    pub async fn shot(
+        &mut self,
+        name: &str,
+    ) {
         let Some(dir) = &self.evidence else { return };
         if let Ok(png) = self.bridge.screenshot_png().await {
             let _ = std::fs::write(dir.join(format!("{name}.png")), png);

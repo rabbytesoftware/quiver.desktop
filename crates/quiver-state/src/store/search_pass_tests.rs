@@ -57,7 +57,10 @@ fn rig() -> Rig {
 }
 
 impl Rig {
-    async fn wait_for(&self, what: impl Fn(&super::search::SearchState) -> bool) {
+    async fn wait_for(
+        &self,
+        what: impl Fn(&super::search::SearchState) -> bool,
+    ) {
         let mut rx = self.store.store().subscribe();
         loop {
             if self.store.store().read(&what) {
@@ -67,7 +70,10 @@ impl Rig {
         }
     }
 
-    async fn wait_phase(&self, phase: SearchPhase) {
+    async fn wait_phase(
+        &self,
+        phase: SearchPhase,
+    ) {
         self.wait_for(|s| s.phase == phase).await;
     }
 

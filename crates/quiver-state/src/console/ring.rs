@@ -1,5 +1,9 @@
 /// Appends `add` to `list`, keeping only the newest `cap` items. Never mutates its inputs.
-pub fn append_capped<T: Clone>(list: &[T], add: &[T], cap: usize) -> Vec<T> {
+pub fn append_capped<T: Clone>(
+    list: &[T],
+    add: &[T],
+    cap: usize,
+) -> Vec<T> {
     let mut merged = Vec::with_capacity((list.len() + add.len()).min(cap.saturating_add(1)));
     merged.extend_from_slice(list);
     merged.extend_from_slice(add);

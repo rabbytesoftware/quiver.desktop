@@ -10,7 +10,11 @@ struct Host {
 }
 
 impl Render for Host {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         div().w(px(200.)).child(
             Select::new("sel")
                 .options(vec![

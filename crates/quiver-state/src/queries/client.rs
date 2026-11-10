@@ -34,13 +34,19 @@ impl QueryClient {
     }
 
     /// Marks every key that starts with `prefix` stale.
-    pub fn invalidate(&self, prefix: &[String]) {
+    pub fn invalidate(
+        &self,
+        prefix: &[String],
+    ) {
         self.lock().invalidations.push(prefix.to_vec());
         self.revision.update(|r| *r += 1);
     }
 
     /// How many invalidations have covered `key` so far; it changes exactly when a re-read is due.
-    pub fn epoch(&self, key: &[String]) -> usize {
+    pub fn epoch(
+        &self,
+        key: &[String],
+    ) -> usize {
         self.lock()
             .invalidations
             .iter()
@@ -52,14 +58,21 @@ impl QueryClient {
         self.revision.subscribe()
     }
 
-    pub fn set_data<T: Serialize>(&self, key: &[String], value: &T) {
+    pub fn set_data<T: Serialize>(
+        &self,
+        key: &[String],
+        value: &T,
+    ) {
         if let Ok(value) = serde_json::to_value(value) {
             self.lock().data.insert(key.to_vec(), value);
             self.revision.update(|r| *r += 1);
         }
     }
 
-    pub fn get_data<T: DeserializeOwned>(&self, key: &[String]) -> Option<T> {
+    pub fn get_data<T: DeserializeOwned>(
+        &self,
+        key: &[String],
+    ) -> Option<T> {
         let value = self.lock().data.get(key).cloned()?;
         serde_json::from_value(value).ok()
     }

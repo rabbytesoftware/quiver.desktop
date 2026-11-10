@@ -8,7 +8,12 @@ use std::collections::{HashMap, HashSet};
 pub const MAX_OPEN_APPS: usize = 4;
 
 /// Marks `ns` most recently used and evicts down to `cap`, sparing `visible`.
-pub fn admit(order: &[String], ns: &str, visible: Option<&str>, cap: usize) -> Vec<String> {
+pub fn admit(
+    order: &[String],
+    ns: &str,
+    visible: Option<&str>,
+    cap: usize,
+) -> Vec<String> {
     let mut next: Vec<String> = order.iter().filter(|n| *n != ns).cloned().collect();
     next.push(ns.to_string());
     while next.len() > cap {
@@ -70,7 +75,10 @@ impl ArrowAppRegistry {
 
     /// Makes `ns` the visible app, keeping it open and evicting the least
     /// recently used hidden one beyond the cap.
-    pub fn show(&mut self, ns: &str) -> Shown {
+    pub fn show(
+        &mut self,
+        ns: &str,
+    ) -> Shown {
         let order = admit(&self.order, ns, Some(ns), self.cap);
         let kept: HashSet<&String> = order.iter().collect();
         let evicted: Vec<String> = self
@@ -96,7 +104,10 @@ impl ArrowAppRegistry {
 
     /// Reload: bumps the key that remounts `ns`'s frame (sockets die with the
     /// old document) and returns the new key.
-    pub fn reload(&mut self, ns: &str) -> u64 {
+    pub fn reload(
+        &mut self,
+        ns: &str,
+    ) -> u64 {
         let key = self.reloads.entry(ns.to_string()).or_insert(0);
         *key += 1;
         *key
@@ -105,7 +116,10 @@ impl ArrowAppRegistry {
     /// Stop (or any other way a surface disappears): drops every app not in
     /// `live`, returning the dropped ones so their windows can be closed. Like
     /// the original, nothing else changes when no open app was dropped.
-    pub fn prune(&mut self, live: &HashSet<String>) -> Vec<String> {
+    pub fn prune(
+        &mut self,
+        live: &HashSet<String>,
+    ) -> Vec<String> {
         let dropped: Vec<String> = self
             .order
             .iter()
@@ -123,7 +137,10 @@ impl ArrowAppRegistry {
 
     /// Stop of one app: it leaves the stack, its frame and its reload key, and
     /// stops being the visible one. Returns whether it was open.
-    pub fn stop(&mut self, ns: &str) -> bool {
+    pub fn stop(
+        &mut self,
+        ns: &str,
+    ) -> bool {
         let was_open = self.order.iter().any(|n| n == ns);
         self.order.retain(|n| n != ns);
         self.frames.retain(|n| n != ns);
@@ -149,7 +166,10 @@ impl ArrowAppRegistry {
     }
 
     /// The remount key of `ns` (0 until its first Reload).
-    pub fn reload_key(&self, ns: &str) -> u64 {
+    pub fn reload_key(
+        &self,
+        ns: &str,
+    ) -> u64 {
         self.reloads.get(ns).copied().unwrap_or(0)
     }
 }

@@ -18,7 +18,10 @@ fn options() -> Vec<SelectOption> {
     ]
 }
 
-pub(super) fn page(g: &mut Gallery, cx: &mut Context<Gallery>) -> Vec<AnyElement> {
+pub(super) fn page(
+    g: &mut Gallery,
+    cx: &mut Context<Gallery>,
+) -> Vec<AnyElement> {
     let on = g.switch_on;
     let switches = vec![
         Switch::new("g-switch")

@@ -7,7 +7,10 @@ pub(super) fn bare_namespace(ns: &str) -> &str {
     ns.split_once('@').map_or(ns, |(head, _)| head)
 }
 
-pub(super) fn with_selector(ns: &str, selector: &str) -> String {
+pub(super) fn with_selector(
+    ns: &str,
+    selector: &str,
+) -> String {
     let bare = bare_namespace(ns);
     if selector.is_empty() {
         bare.to_string()

@@ -58,7 +58,11 @@ impl ConsoleExecManager {
         task
     }
 
-    pub(super) fn register(&self, exec_id: String, handle: AbortHandle) {
+    pub(super) fn register(
+        &self,
+        exec_id: String,
+        handle: AbortHandle,
+    ) {
         // A re-used id strands the previous run, so it is aborted.
         if let Some(previous) = self
             .runs
@@ -71,7 +75,10 @@ impl ConsoleExecManager {
     }
 
     /// Abort one run. Unknown ids are fine: the run may already have ended.
-    pub fn cancel(&self, exec_id: &str) {
+    pub fn cancel(
+        &self,
+        exec_id: &str,
+    ) {
         if let Some(handle) = self
             .runs
             .lock()

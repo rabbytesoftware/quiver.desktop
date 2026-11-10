@@ -17,7 +17,12 @@ impl Color {
         a: 0.0,
     };
 
-    pub const fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
+    pub const fn rgba(
+        r: f32,
+        g: f32,
+        b: f32,
+        a: f32,
+    ) -> Self {
         Self { r, g, b, a }
     }
 
@@ -27,12 +32,19 @@ impl Color {
         (q(self.r) << 24) | (q(self.g) << 16) | (q(self.b) << 8) | q(self.a)
     }
 
-    pub fn with_alpha(self, a: f32) -> Self {
+    pub fn with_alpha(
+        self,
+        a: f32,
+    ) -> Self {
         Self { a, ..self }
     }
 
     /// CSS `color-mix(in srgb, self pct%, other)`: `pct` is how much of `self` is kept.
-    pub fn mix_srgb(self, pct: f32, other: Color) -> Self {
+    pub fn mix_srgb(
+        self,
+        pct: f32,
+        other: Color,
+    ) -> Self {
         let m = |a: f32, b: f32| a * pct + b * (1.0 - pct);
         Self {
             r: m(self.r, other.r),
@@ -56,11 +68,20 @@ pub struct Oklch {
 }
 
 impl Oklch {
-    pub const fn new(l: f32, c: f32, h: f32) -> Self {
+    pub const fn new(
+        l: f32,
+        c: f32,
+        h: f32,
+    ) -> Self {
         Self { l, c, h, a: 1.0 }
     }
 
-    pub const fn alpha(l: f32, c: f32, h: f32, a: f32) -> Self {
+    pub const fn alpha(
+        l: f32,
+        c: f32,
+        h: f32,
+        a: f32,
+    ) -> Self {
         Self { l, c, h, a }
     }
 

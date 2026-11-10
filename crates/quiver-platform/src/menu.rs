@@ -65,7 +65,11 @@ impl MenuSpec {
     }
 }
 
-fn item(action: MenuAction, label: &'static str, shortcut: Option<&'static str>) -> MenuItemSpec {
+fn item(
+    action: MenuAction,
+    label: &'static str,
+    shortcut: Option<&'static str>,
+) -> MenuItemSpec {
     MenuItemSpec::Action {
         action,
         label,

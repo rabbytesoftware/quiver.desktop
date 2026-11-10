@@ -47,7 +47,10 @@ fn last_digest(text: &str) -> Option<String> {
 
 /// The assets an `expanded_assets` page lists, each with the digest shown
 /// beside it. Source archives are not assets.
-pub(crate) fn parse_assets(page: &str, origin: &str) -> Result<Vec<ReleaseAsset>> {
+pub(crate) fn parse_assets(
+    page: &str,
+    origin: &str,
+) -> Result<Vec<ReleaseAsset>> {
     if !page.contains("<ul") {
         return Err(Error::Malformed("not a release assets page".into()));
     }

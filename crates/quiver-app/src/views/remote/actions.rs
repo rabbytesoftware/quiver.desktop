@@ -42,7 +42,12 @@ impl RemoteView {
         cx.notify();
     }
 
-    pub(super) fn connect(&mut self, id: String, name: String, cx: &mut Context<Self>) {
+    pub(super) fn connect(
+        &mut self,
+        id: String,
+        name: String,
+        cx: &mut Context<Self>,
+    ) {
         let (backend, connections, status, handle) = {
             let m = self.app.read(cx);
             (
@@ -60,7 +65,11 @@ impl RemoteView {
         );
     }
 
-    pub(crate) fn add(&mut self, submission: AddSubmission, cx: &mut Context<Self>) {
+    pub(crate) fn add(
+        &mut self,
+        submission: AddSubmission,
+        cx: &mut Context<Self>,
+    ) {
         self.add_busy = true;
         let (backend, handle) = {
             let m = self.app.read(cx);
@@ -79,7 +88,12 @@ impl RemoteView {
         cx.notify();
     }
 
-    pub(crate) fn rename(&mut self, id: String, name: String, cx: &mut Context<Self>) {
+    pub(crate) fn rename(
+        &mut self,
+        id: String,
+        name: String,
+        cx: &mut Context<Self>,
+    ) {
         let (backend, handle) = {
             let m = self.app.read(cx);
             (m.services.backend.clone(), m.handle().clone())
@@ -93,7 +107,12 @@ impl RemoteView {
         );
     }
 
-    pub(crate) fn remove(&mut self, id: String, name: String, cx: &mut Context<Self>) {
+    pub(crate) fn remove(
+        &mut self,
+        id: String,
+        name: String,
+        cx: &mut Context<Self>,
+    ) {
         let (backend, handle) = {
             let m = self.app.read(cx);
             (m.services.backend.clone(), m.handle().clone())

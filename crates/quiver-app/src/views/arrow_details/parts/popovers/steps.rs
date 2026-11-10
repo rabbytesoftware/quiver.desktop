@@ -14,7 +14,10 @@ use super::card;
 use crate::views::arrow_details::parts::icons::{pict, Pict};
 use crate::views::arrow_details::ArrowDetailsView;
 
-fn marker(state: StepState, p: &Palette) -> AnyElement {
+fn marker(
+    state: StepState,
+    p: &Palette,
+) -> AnyElement {
     match state {
         StepState::Done => div()
             .flex_none()

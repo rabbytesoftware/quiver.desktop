@@ -4,7 +4,11 @@ use gpui::prelude::*;
 use gpui::{div, px, IntoElement, SharedString};
 use quiver_ui::Palette;
 
-fn notice(p: &Palette, text: SharedString, destructive: bool) -> impl IntoElement {
+fn notice(
+    p: &Palette,
+    text: SharedString,
+    destructive: bool,
+) -> impl IntoElement {
     div()
         .mb(px(16.))
         .px(px(12.))
@@ -26,10 +30,16 @@ fn notice(p: &Palette, text: SharedString, destructive: bool) -> impl IntoElemen
         .child(text)
 }
 
-pub fn banner(p: &Palette, text: impl Into<SharedString>) -> impl IntoElement {
+pub fn banner(
+    p: &Palette,
+    text: impl Into<SharedString>,
+) -> impl IntoElement {
     notice(p, text.into(), false)
 }
 
-pub fn failure(p: &Palette, text: impl Into<SharedString>) -> impl IntoElement {
+pub fn failure(
+    p: &Palette,
+    text: impl Into<SharedString>,
+) -> impl IntoElement {
     notice(p, text.into(), true)
 }

@@ -88,7 +88,10 @@ impl Inputs {
     }
 }
 
-fn find_app(bin_dir: &Path, suffix: &str) -> Result<PathBuf> {
+fn find_app(
+    bin_dir: &Path,
+    suffix: &str,
+) -> Result<PathBuf> {
     CARGO_APP_NAMES
         .iter()
         .map(|name| bin_dir.join(format!("{name}{suffix}")))
@@ -103,7 +106,10 @@ fn find_app(bin_dir: &Path, suffix: &str) -> Result<PathBuf> {
 }
 
 /// Copies every piece into `dir` under its installed name.
-pub fn copy_pieces(pieces: &[Piece], dir: &Path) -> Result<()> {
+pub fn copy_pieces(
+    pieces: &[Piece],
+    dir: &Path,
+) -> Result<()> {
     std::fs::create_dir_all(dir)?;
     for piece in pieces {
         let dest = dir.join(&piece.installed_as);

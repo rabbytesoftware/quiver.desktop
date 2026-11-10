@@ -76,7 +76,11 @@ impl Params {
     }
 
     /// Adds one parameter (builder style).
-    pub fn with(mut self, name: &'static str, value: impl Into<Param>) -> Self {
+    pub fn with(
+        mut self,
+        name: &'static str,
+        value: impl Into<Param>,
+    ) -> Self {
         self.0.insert(name, value.into());
         self
     }
@@ -86,7 +90,10 @@ impl Params {
         Self::new().with("count", n)
     }
 
-    pub(crate) fn get(&self, name: &str) -> Option<&Param> {
+    pub(crate) fn get(
+        &self,
+        name: &str,
+    ) -> Option<&Param> {
         self.0.get(name)
     }
 

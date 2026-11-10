@@ -40,7 +40,10 @@ pub fn window_controls(is_macos: bool) -> Option<WindowControls> {
 }
 
 /// A rail owns the reserve only when it sits on the same edge as the controls; otherwise the chrome row does.
-pub fn rail_owns_controls(is_macos: bool, side: SidebarSide) -> bool {
+pub fn rail_owns_controls(
+    is_macos: bool,
+    side: SidebarSide,
+) -> bool {
     window_controls(is_macos).is_some_and(|c| {
         matches!(
             (c.edge, side),

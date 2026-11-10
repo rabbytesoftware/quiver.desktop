@@ -33,7 +33,10 @@ pub struct ActiveRun {
     pub pid: Option<u32>,
 }
 
-pub async fn arrow(d: &Daemon, ns: &str) -> (u16, Option<ArrowDetail>) {
+pub async fn arrow(
+    d: &Daemon,
+    ns: &str,
+) -> (u16, Option<ArrowDetail>) {
     match d.get(&format!("/v0/arrow/{}", enc(ns))).await {
         Ok(r) => (r.status, r.data()),
         Err(_) => (0, None),
@@ -54,7 +57,10 @@ pub async fn wait_arrow(
 }
 
 /// `GET /v0/arrow/:ns/channels`: the channel names the repository publishes, default first.
-pub async fn channels(d: &Daemon, ns: &str) -> Vec<String> {
+pub async fn channels(
+    d: &Daemon,
+    ns: &str,
+) -> Vec<String> {
     let reply = d
         .get(&format!("/v0/arrow/{}/channels", enc(ns)))
         .await
@@ -97,7 +103,10 @@ pub async fn library(d: &Daemon) -> Vec<(String, Vec<String>)> {
 /// The daemon re-resolves against upstream before it answers, and on a loaded machine it sometimes drops the
 /// connection mid-request ("connection reset by peer", nothing logged for it). The call is idempotent, so a reset
 /// is asked again (bounded) rather than failing the scenario on a daemon that merely was slow.
-pub async fn check_now(d: &Daemon, ns: &str) -> u16 {
+pub async fn check_now(
+    d: &Daemon,
+    ns: &str,
+) -> u16 {
     let path = format!("/v0/arrow/{}", enc(ns));
     let mut last = None;
     for _ in 0..3 {
@@ -110,7 +119,10 @@ pub async fn check_now(d: &Daemon, ns: &str) -> u16 {
     panic!("check now: {:?}", last)
 }
 
-pub async fn add(d: &Daemon, ns: &str) -> u16 {
+pub async fn add(
+    d: &Daemon,
+    ns: &str,
+) -> u16 {
     d.post(&format!("/v0/arrow/{}", enc(ns)), None)
         .await
         .expect("add arrow")
@@ -118,7 +130,11 @@ pub async fn add(d: &Daemon, ns: &str) -> u16 {
 }
 
 /// POST `/v0/runtime/:ns/<verb>` with an empty body; the status the daemon answered.
-pub async fn runtime(d: &Daemon, ns: &str, verb: &str) -> u16 {
+pub async fn runtime(
+    d: &Daemon,
+    ns: &str,
+    verb: &str,
+) -> u16 {
     d.post(&format!("/v0/runtime/{}/{verb}", enc(ns)), Some(json!({})))
         .await
         .expect("runtime call")

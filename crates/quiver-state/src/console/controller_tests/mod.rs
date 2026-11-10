@@ -44,7 +44,10 @@ struct Rig {
 }
 
 impl Rig {
-    fn apply(&mut self, effects: Vec<ConsoleEffect>) {
+    fn apply(
+        &mut self,
+        effects: Vec<ConsoleEffect>,
+    ) {
         for e in effects {
             match e {
                 ConsoleEffect::FetchVersions { .. } => self.versions_asked += 1,
@@ -69,13 +72,20 @@ impl Rig {
         }
     }
 
-    fn sync(&mut self, id: &str, ready: bool) {
+    fn sync(
+        &mut self,
+        id: &str,
+        ready: bool,
+    ) {
         let fx = self.c.sync(id, ready);
         self.apply(fx);
     }
 
     /// `/versions` answers, then the command table (when it was asked for).
-    fn learn(&mut self, versions: CoreVersions) {
+    fn learn(
+        &mut self,
+        versions: CoreVersions,
+    ) {
         let epoch = self.c.epoch;
         let fx = self.c.on_versions(epoch, Some(versions));
         let wants_commands = fx
@@ -87,12 +97,19 @@ impl Rig {
         }
     }
 
-    fn open(&mut self, open: bool) {
+    fn open(
+        &mut self,
+        open: bool,
+    ) {
         let fx = self.c.set_open(open);
         self.apply(fx);
     }
 
-    fn deliver(&mut self, socket: usize, frame: serde_json::Value) {
+    fn deliver(
+        &mut self,
+        socket: usize,
+        frame: serde_json::Value,
+    ) {
         let attempt = self.sockets[socket].0;
         let fx = self.c.stream_message(attempt, &frame.to_string());
         self.apply(fx);
@@ -103,7 +120,10 @@ impl Rig {
         self.apply(fx);
     }
 
-    fn drop_socket(&mut self, socket: usize) {
+    fn drop_socket(
+        &mut self,
+        socket: usize,
+    ) {
         let attempt = self.sockets[socket].0;
         let fx = self.c.stream_closed(attempt);
         self.apply(fx);
@@ -114,11 +134,18 @@ impl Rig {
         self.apply(fx);
     }
 
-    fn exec(&mut self, run: usize, frame: serde_json::Value) {
+    fn exec(
+        &mut self,
+        run: usize,
+        frame: serde_json::Value,
+    ) {
         self.c.exec_frame(self.execs[run].0, &frame.to_string());
     }
 
-    fn submit(&mut self, line: &str) {
+    fn submit(
+        &mut self,
+        line: &str,
+    ) {
         let fx = self.c.submit(line, 1_791_122_529_000);
         self.apply(fx);
     }
@@ -139,7 +166,10 @@ impl Rig {
     }
 }
 
-fn log(seq: u64, msg: &str) -> serde_json::Value {
+fn log(
+    seq: u64,
+    msg: &str,
+) -> serde_json::Value {
     json!({"type":"log","seq":seq,"msg":msg,"level":"info"})
 }
 

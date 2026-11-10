@@ -24,13 +24,20 @@ pub(crate) struct PopupState {
 }
 
 impl PopupState {
-    pub fn open_at(&mut self, highlighted: Option<usize>, cx: &mut gpui::Context<Self>) {
+    pub fn open_at(
+        &mut self,
+        highlighted: Option<usize>,
+        cx: &mut gpui::Context<Self>,
+    ) {
         self.open = true;
         self.highlighted = highlighted;
         cx.notify();
     }
 
-    pub fn close(&mut self, cx: &mut gpui::Context<Self>) {
+    pub fn close(
+        &mut self,
+        cx: &mut gpui::Context<Self>,
+    ) {
         self.open = false;
         self.highlighted = None;
         cx.notify();
@@ -92,7 +99,11 @@ pub(crate) enum Nav {
     Ignore,
 }
 
-fn step(from: Option<usize>, dir: isize, disabled: &[bool]) -> Option<usize> {
+fn step(
+    from: Option<usize>,
+    dir: isize,
+    disabled: &[bool],
+) -> Option<usize> {
     let n = disabled.len() as isize;
     if n == 0 {
         return None;
@@ -105,7 +116,11 @@ fn step(from: Option<usize>, dir: isize, disabled: &[bool]) -> Option<usize> {
         .find(|i| !disabled[*i])
 }
 
-pub(crate) fn nav_key(key: &str, highlighted: Option<usize>, disabled: &[bool]) -> Nav {
+pub(crate) fn nav_key(
+    key: &str,
+    highlighted: Option<usize>,
+    disabled: &[bool],
+) -> Nav {
     let pick = |i: Option<usize>| i.map_or(Nav::Ignore, Nav::Highlight);
     match key {
         "down" => pick(step(highlighted, 1, disabled)),

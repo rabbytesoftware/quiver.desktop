@@ -138,7 +138,10 @@ impl WsManager {
     }
 }
 
-fn dispatch(subscribers: &Mutex<Subscribers>, data: &Value) {
+fn dispatch(
+    subscribers: &Mutex<Subscribers>,
+    data: &Value,
+) {
     let callbacks: Vec<Callback> = lock(subscribers)
         .list
         .iter()

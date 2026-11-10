@@ -15,7 +15,10 @@ use crate::services::AppServices;
 
 /// Reads `GET /v0/home` once the connection is ready, again while Core says a refresh is in flight
 /// (`refetch_interval`), and whenever something invalidates the home query.
-pub fn start_home_feed(services: &Arc<AppServices>, query: Query<Home>) {
+pub fn start_home_feed(
+    services: &Arc<AppServices>,
+    query: Query<Home>,
+) {
     let (api, queries) = (services.api.clone(), services.queries.clone());
     let status = services.status.store().clone();
     services.handle().spawn(async move {
@@ -56,7 +59,10 @@ pub fn start_home_feed(services: &Arc<AppServices>, query: Query<Home>) {
 
 /// Reads the daemon's build (`GET /versions`) each time the connection becomes ready, for the build
 /// indicator. A daemon that does not answer leaves the indicator on the app line alone.
-pub fn start_versions_feed(services: &Arc<AppServices>, versions: Store<Option<CoreVersions>>) {
+pub fn start_versions_feed(
+    services: &Arc<AppServices>,
+    versions: Store<Option<CoreVersions>>,
+) {
     let api = services.api.clone();
     let status = services.status.store().clone();
     services.handle().spawn(async move {

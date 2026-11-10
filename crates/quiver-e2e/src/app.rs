@@ -18,7 +18,10 @@ pub struct AppProcess {
 impl AppProcess {
     /// Starts `binary` (built with `--features e2e-bridge`) with `env` and waits for the line
     /// `QUIVER_BRIDGE_PORT=<port>` on its stdout: the app's own "bridge is listening" signal.
-    pub async fn launch(binary: &Path, env: &[(String, String)]) -> Result<Self> {
+    pub async fn launch(
+        binary: &Path,
+        env: &[(String, String)],
+    ) -> Result<Self> {
         let mut cmd = Command::new(binary);
         cmd.env(PORT_ENV, "0").envs(env.iter().map(|(k, v)| (k, v)));
         cmd.stdout(Stdio::piped())

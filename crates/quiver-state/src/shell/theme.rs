@@ -20,7 +20,10 @@ impl ThemePreference {
     }
 
     /// Whether the UI is dark: an explicit choice wins, `System` follows the OS.
-    pub fn is_dark(self, system_prefers_dark: bool) -> bool {
+    pub fn is_dark(
+        self,
+        system_prefers_dark: bool,
+    ) -> bool {
         match self {
             Self::Dark => true,
             Self::Light => false,

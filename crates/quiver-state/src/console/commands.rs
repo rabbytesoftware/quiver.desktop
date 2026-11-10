@@ -99,7 +99,10 @@ fn common_prefix(words: &[&String]) -> String {
 /// Tab completion over command words only: it completes `ins` to `install` and `arrow li` to
 /// `arrow list`. Arguments and flags belong to the daemon, so it stops completing words at the first one
 /// that is not part of the command path.
-pub fn complete_line(line: &str, commands: &[ConsoleCommand]) -> Completion {
+pub fn complete_line(
+    line: &str,
+    commands: &[ConsoleCommand],
+) -> Completion {
     let ends_in_space = line.chars().last().is_some_and(char::is_whitespace);
     let words: Vec<&str> = line.split_whitespace().collect();
     let completing_last = !ends_in_space && !words.is_empty();
@@ -144,7 +147,10 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn cmd(path: &[&str], short: &str) -> ConsoleCommand {
+    fn cmd(
+        path: &[&str],
+        short: &str,
+    ) -> ConsoleCommand {
         let path: Vec<String> = path.iter().map(|s| (*s).to_owned()).collect();
         ConsoleCommand {
             usage: path.join(" "),

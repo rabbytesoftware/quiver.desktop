@@ -7,7 +7,10 @@ use crate::namespace::encode_uri_component;
 
 /// 404 is "no such thing"; any other failure is a real one and propagates (a daemon that is down must
 /// not read as "nothing there", or Enter would silently fall through to a search).
-async fn exists(api: &dyn CoreApi, path: String) -> Result<bool, ApiError> {
+async fn exists(
+    api: &dyn CoreApi,
+    path: String,
+) -> Result<bool, ApiError> {
     match api.send(Method::Get, &path, None).await {
         Ok(_) => Ok(true),
         Err(err) if err.is_not_found() => Ok(false),
@@ -49,7 +52,10 @@ mod tests {
     const NS: &str = "github.com/a/b";
     const ENC: &str = "github.com%2Fa%2Fb";
 
-    fn api(collection: Option<u16>, arrow: Option<u16>) -> FakeCoreApi {
+    fn api(
+        collection: Option<u16>,
+        arrow: Option<u16>,
+    ) -> FakeCoreApi {
         let api = FakeCoreApi::new();
         for (kind, status) in [("collection", collection), ("arrow", arrow)] {
             let path = format!("/v0/{kind}/{ENC}");

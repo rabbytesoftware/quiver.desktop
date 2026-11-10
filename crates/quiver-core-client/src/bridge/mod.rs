@@ -76,7 +76,10 @@ fn close_sentinel(info: Option<&(u16, String)>) -> String {
 /// must drop a frame silently when its consumer is gone: that says nothing about
 /// the connection.
 pub trait FrameSink: Send + Sync + 'static {
-    fn send(&self, frame: String);
+    fn send(
+        &self,
+        frame: String,
+    );
 }
 
 /// Everything a live connection needs in order to die. Dropping it ends both of the
@@ -110,13 +113,20 @@ impl WsBridgeManager {
         Self::default()
     }
 
-    fn sender(&self, conn_id: &str) -> Option<mpsc::UnboundedSender<Message>> {
+    fn sender(
+        &self,
+        conn_id: &str,
+    ) -> Option<mpsc::UnboundedSender<Message>> {
         lock(&self.connections).get(conn_id).map(|c| c.tx.clone())
     }
 
     /// Enqueue a raw text frame (the JSON the frontend wants to publish) for a
     /// connection's writer task. The whole of `ws_send`.
-    pub fn send(&self, conn_id: &str, data: String) -> Result<()> {
+    pub fn send(
+        &self,
+        conn_id: &str,
+        data: String,
+    ) -> Result<()> {
         match self.sender(conn_id) {
             Some(tx) => tx
                 .send(Message::Text(data))
@@ -127,7 +137,10 @@ impl WsBridgeManager {
 
     /// Retire one connection — teardown path (2), the frontend closing it. Removing
     /// the entry from the map is the whole of the work; see the module doc.
-    pub fn close(&self, conn_id: &str) {
+    pub fn close(
+        &self,
+        conn_id: &str,
+    ) {
         lock(&self.connections).remove(conn_id);
     }
 

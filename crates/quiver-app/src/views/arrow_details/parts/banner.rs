@@ -8,7 +8,11 @@ use quiver_ui::{icon_with_stroke, Glyph};
 const BANNER_W: f32 = 440.0;
 pub(super) const HEIGHT: f32 = 218.0;
 
-fn hue(h: u16, s: f32, l: f32) -> gpui::Hsla {
+fn hue(
+    h: u16,
+    s: f32,
+    l: f32,
+) -> gpui::Hsla {
     hsla(f32::from(h % 360) / 360.0, s, l, 1.0)
 }
 

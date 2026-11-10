@@ -18,7 +18,10 @@ pub struct SectionHeader {
 }
 
 impl SectionHeader {
-    pub fn new(id: impl Into<ElementId>, title: impl Into<SharedString>) -> Self {
+    pub fn new(
+        id: impl Into<ElementId>,
+        title: impl Into<SharedString>,
+    ) -> Self {
         Self {
             id: id.into(),
             title: title.into(),
@@ -39,7 +42,11 @@ impl SectionHeader {
 }
 
 impl RenderOnce for SectionHeader {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        _: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         div()
             .id(self.id.clone())

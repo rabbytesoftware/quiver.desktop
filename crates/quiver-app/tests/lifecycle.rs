@@ -8,7 +8,10 @@ use quiver_app::services::AppServices;
 use quiver_state::domain::ConnectionStatus;
 use support::{accept_everything, FakeDaemon, LocalSetup};
 
-async fn wait_for_status(services: &AppServices, wanted: ConnectionStatus) {
+async fn wait_for_status(
+    services: &AppServices,
+    wanted: ConnectionStatus,
+) {
     let mut changes = services.status.store().subscribe();
     while services.status.status() != wanted {
         changes.changed().await.unwrap();

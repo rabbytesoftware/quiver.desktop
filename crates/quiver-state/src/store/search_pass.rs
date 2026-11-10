@@ -86,7 +86,11 @@ impl SearchController {
     /// Called with a committed (URL) query -- already debounced by the field. `discover: false`
     /// when the screen is being restored rather than asked for: Lane A still runs, because the
     /// vault holds what the last pass found.
-    pub fn set_query(&self, next: &str, discover: bool) {
+    pub fn set_query(
+        &self,
+        next: &str,
+        discover: bool,
+    ) {
         let query_generation = {
             let mut c = self.shared.ctl();
             if c.disposed || c.query.as_str() == next {
@@ -159,7 +163,10 @@ impl Control {
         self.cancel_pass();
     }
 
-    fn is_current(&self, generation: u64) -> bool {
+    fn is_current(
+        &self,
+        generation: u64,
+    ) -> bool {
         !self.disposed && self.pass_generation == generation
     }
 }
@@ -173,11 +180,17 @@ impl Shared {
         self.ctl().query.clone()
     }
 
-    fn is_current(&self, generation: u64) -> bool {
+    fn is_current(
+        &self,
+        generation: u64,
+    ) -> bool {
         self.ctl().is_current(generation)
     }
 
-    fn query_is_current(&self, generation: u64) -> bool {
+    fn query_is_current(
+        &self,
+        generation: u64,
+    ) -> bool {
         let c = self.ctl();
         !c.disposed && c.query_generation == generation
     }
@@ -200,7 +213,10 @@ impl Shared {
         )
     }
 
-    async fn run_local(self: Arc<Self>, generation: u64) {
+    async fn run_local(
+        self: Arc<Self>,
+        generation: u64,
+    ) {
         if is_blank(&self.query()) {
             return;
         }
@@ -218,7 +234,10 @@ impl Shared {
     }
 
     /// Streamed results are unranked (spec 3); Lane A now sees the vault the pass just filled.
-    async fn requery(self: Arc<Self>, generation: u64) {
+    async fn requery(
+        self: Arc<Self>,
+        generation: u64,
+    ) {
         let path = self.local_path().await;
         let result = self.api.get::<Vec<SearchResultDto>>(&path).await;
         if !self.is_current(generation) {
@@ -251,7 +270,10 @@ impl Shared {
         self.ctl().idle = Some(handle.abort_handle());
     }
 
-    async fn start_pass(self: Arc<Self>, generation: u64) {
+    async fn start_pass(
+        self: Arc<Self>,
+        generation: u64,
+    ) {
         let query = self.query();
         if is_blank(&query) {
             return;
@@ -285,7 +307,13 @@ impl Shared {
         self.connect(generation, path, os, 0);
     }
 
-    fn connect(self: &Arc<Self>, generation: u64, path: String, os: String, reconnects: u32) {
+    fn connect(
+        self: &Arc<Self>,
+        generation: u64,
+        path: String,
+        os: String,
+        reconnects: u32,
+    ) {
         let mut c = self.ctl();
         let id = c.next_socket;
         c.next_socket += 1;

@@ -76,7 +76,10 @@ pub struct HeaderContext<'a> {
     pub selector: &'a str,
 }
 
-pub fn build_header(facts: &ArrowFacts, cx: &HeaderContext<'_>) -> HeaderModel {
+pub fn build_header(
+    facts: &ArrowFacts,
+    cx: &HeaderContext<'_>,
+) -> HeaderModel {
     let status = compute_status(facts.state, facts.user_installed, facts.update_ahead());
     let platform_badge = (cx.platform_resolved && !facts.platform_supported)
         .then(|| platform_supported_notice(cx.platform));
@@ -117,14 +120,20 @@ pub fn build_header(facts: &ArrowFacts, cx: &HeaderContext<'_>) -> HeaderModel {
 }
 
 impl PlatformBadge {
-    pub fn text(&self, tr: &Translator) -> String {
+    pub fn text(
+        &self,
+        tr: &Translator,
+    ) -> String {
         tr.t_with(self.label, &Params::new().with("os", self.os))
     }
 }
 
 /// Text of the problem message: the detached note, the failed step's own error verbatim, or a generic
 /// sentence when core reported none.
-pub fn problem_text(problem: &ArrowProblem, tr: &Translator) -> String {
+pub fn problem_text(
+    problem: &ArrowProblem,
+    tr: &Translator,
+) -> String {
     use crate::i18n::en::arrow;
     match problem {
         ArrowProblem::Detached => tr.t(arrow::PROBLEM_DETACHED_NOTE),

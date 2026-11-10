@@ -32,7 +32,10 @@ fn delete(identity: &str) -> String {
     format!("DELETE /v0/arrow/{}", enc(identity))
 }
 
-fn config(tag: Option<&str>, channel: &str) -> SelfAnnounceConfig {
+fn config(
+    tag: Option<&str>,
+    channel: &str,
+) -> SelfAnnounceConfig {
     SelfAnnounceConfig {
         build_tag: tag.map(str::to_string),
         build_channel: channel.to_string(),

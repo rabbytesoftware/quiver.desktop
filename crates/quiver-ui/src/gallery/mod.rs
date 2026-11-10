@@ -25,7 +25,11 @@ use crate::theme::{install, window_root, ActiveQuiver};
 use crate::{Button, ButtonSize, ButtonVariant};
 
 impl Render for Gallery {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let body = match self.page {
             Page::Actions => actions::page(cx),
@@ -113,7 +117,10 @@ impl Render for Gallery {
 }
 
 /// Registers font files (TTF/OTF bytes) with the text system. Call once at start-up, before any window.
-pub fn load_fonts(cx: &mut App, fonts: Vec<std::borrow::Cow<'static, [u8]>>) {
+pub fn load_fonts(
+    cx: &mut App,
+    fonts: Vec<std::borrow::Cow<'static, [u8]>>,
+) {
     if let Err(err) = cx.text_system().add_fonts(fonts) {
         eprintln!("quiver-ui: could not load fonts: {err}");
     }

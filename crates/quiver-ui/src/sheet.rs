@@ -58,27 +58,42 @@ impl Sheet {
         }
     }
 
-    pub fn open(mut self, open: bool) -> Self {
+    pub fn open(
+        mut self,
+        open: bool,
+    ) -> Self {
         self.open = open;
         self
     }
 
-    pub fn side(mut self, side: SheetSide) -> Self {
+    pub fn side(
+        mut self,
+        side: SheetSide,
+    ) -> Self {
         self.side = side;
         self
     }
 
-    pub fn variant(mut self, variant: SheetVariant) -> Self {
+    pub fn variant(
+        mut self,
+        variant: SheetVariant,
+    ) -> Self {
         self.variant = variant;
         self
     }
 
-    pub fn show_close(mut self, show: bool) -> Self {
+    pub fn show_close(
+        mut self,
+        show: bool,
+    ) -> Self {
         self.show_close = show;
         self
     }
 
-    pub fn on_dismiss(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+    pub fn on_dismiss(
+        mut self,
+        f: impl Fn(&mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_dismiss = Some(Rc::new(f));
         self
     }
@@ -91,13 +106,20 @@ impl Styled for Sheet {
 }
 
 impl ParentElement for Sheet {
-    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+    fn extend(
+        &mut self,
+        elements: impl IntoIterator<Item = AnyElement>,
+    ) {
         self.children.extend(elements);
     }
 }
 
 impl RenderOnce for Sheet {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         if !self.open {
             return div().into_any_element();
         }

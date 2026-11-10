@@ -32,7 +32,10 @@ pub fn app_url(host: &str) -> String {
 }
 
 /// `/v0/ui/<encoded namespace><path and query>`.
-pub fn daemon_path(namespace: &str, path_and_query: &str) -> String {
+pub fn daemon_path(
+    namespace: &str,
+    path_and_query: &str,
+) -> String {
     let rest = if path_and_query.is_empty() {
         "/"
     } else {

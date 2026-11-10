@@ -22,7 +22,10 @@ const HEIGHT: f32 = 40.0;
 const RADIUS: f32 = 11.0;
 
 /// Width in px of the fill for `fraction` of a `width`-px track.
-pub(crate) fn fill_width(fraction: f32, width: f32) -> f32 {
+pub(crate) fn fill_width(
+    fraction: f32,
+    width: f32,
+) -> f32 {
     fraction.clamp(0.0, 1.0) * width
 }
 
@@ -57,41 +60,62 @@ impl ProgressButton {
     }
 
     /// Line 1 (`Updating`).
-    pub fn title(mut self, t: impl Into<SharedString>) -> Self {
+    pub fn title(
+        mut self,
+        t: impl Into<SharedString>,
+    ) -> Self {
         self.title = t.into();
         self
     }
 
     /// Line 2 (`Verify checksum · 2 of 4`).
-    pub fn detail(mut self, t: impl Into<SharedString>) -> Self {
+    pub fn detail(
+        mut self,
+        t: impl Into<SharedString>,
+    ) -> Self {
         self.detail = t.into();
         self
     }
 
     /// Progress in `0.0..=1.0`.
-    pub fn progress(mut self, fraction: f32) -> Self {
+    pub fn progress(
+        mut self,
+        fraction: f32,
+    ) -> Self {
         self.fraction = fraction;
         self
     }
 
     /// Width of the progress track (the Steps button sits outside it).
-    pub fn width(mut self, px_: f32) -> Self {
+    pub fn width(
+        mut self,
+        px_: f32,
+    ) -> Self {
         self.width = px_;
         self
     }
 
-    pub fn steps_open(mut self, open: bool) -> Self {
+    pub fn steps_open(
+        mut self,
+        open: bool,
+    ) -> Self {
         self.steps_open = open;
         self
     }
 
     /// Replaces the default 15px FlickerSpinner.
-    pub fn leading(mut self, el: impl IntoElement) -> Self {
+    pub fn leading(
+        mut self,
+        el: impl IntoElement,
+    ) -> Self {
         self.leading = Some(el.into_any_element());
         self
     }
 
-    pub fn on_steps(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_steps(
+        mut self,
+        f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_steps = Some(Rc::new(f));
         self
     }
@@ -104,7 +128,11 @@ impl Styled for ProgressButton {
 }
 
 impl RenderOnce for ProgressButton {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        _: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let spinner = self.leading.unwrap_or_else(|| {
             FlickerSpinner::new(child_id(&self.id, "spinner"))

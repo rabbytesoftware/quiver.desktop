@@ -11,14 +11,20 @@ pub struct ToastStack {
 }
 
 impl ToastStack {
-    pub fn push(&mut self, message: String) -> u64 {
+    pub fn push(
+        &mut self,
+        message: String,
+    ) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
         self.toasts.push(Toast { id, message });
         id
     }
 
-    pub fn dismiss(&mut self, id: u64) {
+    pub fn dismiss(
+        &mut self,
+        id: u64,
+    ) {
         self.toasts.retain(|t| t.id != id);
     }
 
@@ -41,7 +47,10 @@ pub struct RemoteOverlays {
 }
 
 impl RemoteOverlays {
-    pub fn toggle_menu(&mut self, id: &str) {
+    pub fn toggle_menu(
+        &mut self,
+        id: &str,
+    ) {
         self.open_menu_id = if self.open_menu_id.as_deref() == Some(id) {
             None
         } else {
@@ -67,7 +76,10 @@ impl RemoteOverlays {
     }
 
     /// A new query resets the highlighted row.
-    pub fn set_cmd_query(&mut self, query: &str) {
+    pub fn set_cmd_query(
+        &mut self,
+        query: &str,
+    ) {
         self.cmd_query = query.to_owned();
         self.cmd_index = 0;
     }

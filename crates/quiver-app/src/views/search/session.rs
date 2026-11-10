@@ -62,19 +62,28 @@ impl SearchSession {
 
     /// The page shows `query` (committed by the field, already debounced). The controller ignores a
     /// query it already holds, so a rebuilt page for the same query keeps its results.
-    pub fn show(&self, query: &str) {
+    pub fn show(
+        &self,
+        query: &str,
+    ) {
         let _runtime = self.handle.enter();
         self.controller().set_query(query, true);
     }
 
     /// Enter in the field: run the pass now. The field and the page are siblings, so the request goes
     /// through the store (`SearchState::submit_query`) and the page forwards it.
-    pub fn request_submit(&self, query: &str) {
+    pub fn request_submit(
+        &self,
+        query: &str,
+    ) {
         self.store.request_submit(query);
     }
 
     /// The page's side of [`Self::request_submit`]: fires the pass if Enter was pressed on `query`.
-    pub fn take_submit(&self, query: &str) {
+    pub fn take_submit(
+        &self,
+        query: &str,
+    ) {
         if self.store.snapshot().submit_query.as_deref() != Some(query) {
             return;
         }
@@ -84,7 +93,10 @@ impl SearchSession {
     }
 
     /// Retry after "Quiver is not running": forget the result and ask again from scratch.
-    pub fn restart(&self, query: &str) {
+    pub fn restart(
+        &self,
+        query: &str,
+    ) {
         let _runtime = self.handle.enter();
         self.controller().dispose();
         self.store.reset();

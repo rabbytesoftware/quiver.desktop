@@ -70,7 +70,11 @@ enum Link {
     Source,
 }
 
-fn lines(glance: &Glance, view: &ArrowDetailsView, cx: &gpui::App) -> Vec<Line> {
+fn lines(
+    glance: &Glance,
+    view: &ArrowDetailsView,
+    cx: &gpui::App,
+) -> Vec<Line> {
     let tr = view.app.read(cx).translator;
     let mut out = Vec::new();
     out.push(Line {

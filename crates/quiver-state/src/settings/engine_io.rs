@@ -21,7 +21,10 @@ pub async fn load_config(api: &dyn CoreApi) -> Result<ConfigView, String> {
 
 /// Core answers a fully rejected patch with a 422 whose body still carries the per-key reasons, so this
 /// reads the raw envelope instead of going through the usual "non-2xx is an error" rule.
-pub async fn patch_config(raw: &dyn RawFetch, patch: &Value) -> Result<PatchResult, ActionFailure> {
+pub async fn patch_config(
+    raw: &dyn RawFetch,
+    patch: &Value,
+) -> Result<PatchResult, ActionFailure> {
     let response = raw
         .fetch(Method::Patch, CONFIG_PATH, Some(patch.to_string()))
         .await

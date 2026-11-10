@@ -145,7 +145,10 @@ impl Drop for ArrowStream {
     }
 }
 
-fn text(frame: &Value, key: &str) -> Option<String> {
+fn text(
+    frame: &Value,
+    key: &str,
+) -> Option<String> {
     frame.get(key).and_then(Value::as_str).map(str::to_string)
 }
 
@@ -154,7 +157,10 @@ impl Inner {
         self.disposed.load(Ordering::SeqCst)
     }
 
-    fn on_data(self: &Arc<Self>, data: &Value) {
+    fn on_data(
+        self: &Arc<Self>,
+        data: &Value,
+    ) {
         if self.is_disposed() {
             return;
         }
@@ -213,7 +219,10 @@ impl Inner {
         }
     }
 
-    fn apply_frame(&self, frame: &Value) {
+    fn apply_frame(
+        &self,
+        frame: &Value,
+    ) {
         let connection_id = &self.opts.connection_id;
         let Some(namespace) = text(frame, "namespace") else {
             return;
@@ -298,7 +307,10 @@ impl Inner {
         });
     }
 
-    async fn apply_seed(&self, generation: u64) -> crate::Result<()> {
+    async fn apply_seed(
+        &self,
+        generation: u64,
+    ) -> crate::Result<()> {
         let items = (self.opts.seed)().await?;
         if self.is_disposed() || generation != self.seed_generation.load(Ordering::SeqCst) {
             return Ok(());
@@ -329,7 +341,10 @@ impl Inner {
     }
 }
 
-async fn worker(inner: Arc<Inner>, mut rx: mpsc::UnboundedReceiver<Cmd>) {
+async fn worker(
+    inner: Arc<Inner>,
+    mut rx: mpsc::UnboundedReceiver<Cmd>,
+) {
     while let Some(cmd) = rx.recv().await {
         match cmd {
             Cmd::Stop => return,

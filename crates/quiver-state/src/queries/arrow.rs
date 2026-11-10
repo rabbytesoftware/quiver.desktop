@@ -19,7 +19,10 @@ pub fn is_enabled(namespace: &str) -> bool {
 
 /// 404 is an expected outcome for the optional reads (no readme, nothing published): `fallback`
 /// stands in for it, anything else is a real failure.
-fn or_on_not_found<T>(result: Result<T>, fallback: T) -> Result<T> {
+fn or_on_not_found<T>(
+    result: Result<T>,
+    fallback: T,
+) -> Result<T> {
     match result {
         Err(err) if err.is_not_found() => Ok(fallback),
         other => other,
@@ -30,7 +33,10 @@ fn or_on_not_found<T>(result: Result<T>, fallback: T) -> Result<T> {
 /// or an ARROW.md with nothing outside its fenced block -- which is not a failure of the whole
 /// detail fetch. Read at the identity: two selectors of one repository can sit on manifests with
 /// different prose.
-pub async fn fetch_readme(api: &dyn CoreApi, namespace: &str) -> Result<Option<String>> {
+pub async fn fetch_readme(
+    api: &dyn CoreApi,
+    namespace: &str,
+) -> Result<Option<String>> {
     let dto = api
         .get::<ArrowReadmeDto>(&format!(
             "/v0/arrow/{}/readme",
@@ -42,7 +48,10 @@ pub async fn fetch_readme(api: &dyn CoreApi, namespace: &str) -> Result<Option<S
 
 /// `GET /v0/arrow/:ns/channels` -- what the repository publishes, not a property of any one row, so
 /// it takes the bare namespace. 404 means the arrow doesn't resolve (or has no channels).
-pub async fn fetch_channels(api: &dyn CoreApi, namespace: &str) -> Result<Vec<ArrowChannel>> {
+pub async fn fetch_channels(
+    api: &dyn CoreApi,
+    namespace: &str,
+) -> Result<Vec<ArrowChannel>> {
     let path = format!(
         "/v0/arrow/{}/channels",
         namespace_segment(bare_namespace(namespace))
@@ -71,7 +80,10 @@ pub async fn fetch_dependencies(
 
 /// `GET /v0/arrow/:ns/dependents` -- core normalizes `:ns` to bare internally, but the full
 /// namespace@ref is passed for consistency with `/dependencies`.
-pub async fn fetch_dependents(api: &dyn CoreApi, namespace: &str) -> Result<Vec<String>> {
+pub async fn fetch_dependents(
+    api: &dyn CoreApi,
+    namespace: &str,
+) -> Result<Vec<String>> {
     let path = format!("/v0/arrow/{}/dependents", namespace_segment(namespace));
     let dto = api
         .get::<ArrowDependentsDto>(&path)
@@ -94,7 +106,10 @@ pub async fn fetch_dependents(api: &dyn CoreApi, namespace: &str) -> Result<Vec<
 ///
 /// The manifest is read at the identity, like the detail: each selector of a repository is its own
 /// row with its own manifest, and a bare namespace only reaches whichever row core prefers.
-pub async fn fetch_arrow_detail(api: &dyn CoreApi, namespace: &str) -> Result<ArrowDetail> {
+pub async fn fetch_arrow_detail(
+    api: &dyn CoreApi,
+    namespace: &str,
+) -> Result<ArrowDetail> {
     let base = format!("/v0/arrow/{}", namespace_segment(namespace));
     let manifest_path = format!("{base}/manifest");
     let (detail, manifest) = tokio::join!(

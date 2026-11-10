@@ -6,7 +6,11 @@ use gpui::{canvas, point, px, App, Bounds, Hsla, PathBuilder, Pixels, StyleRefin
 use crate::theme::ActiveQuiver;
 
 /// Sample points of one wave across `width`, `y` relative to the centre line.
-pub(crate) fn wave_points(width: f32, amplitude: f32, wavelength: f32) -> Vec<(f32, f32)> {
+pub(crate) fn wave_points(
+    width: f32,
+    amplitude: f32,
+    wavelength: f32,
+) -> Vec<(f32, f32)> {
     let steps = ((width / wavelength) * 12.0).ceil().max(2.0) as usize;
     (0..=steps)
         .map(|i| {
@@ -40,22 +44,34 @@ impl WavyLine {
     }
 
     /// Defaults to the `border` token.
-    pub fn color(mut self, color: Hsla) -> Self {
+    pub fn color(
+        mut self,
+        color: Hsla,
+    ) -> Self {
         self.color = Some(color);
         self
     }
 
-    pub fn amplitude(mut self, px_: f32) -> Self {
+    pub fn amplitude(
+        mut self,
+        px_: f32,
+    ) -> Self {
         self.amplitude = px_;
         self
     }
 
-    pub fn wavelength(mut self, px_: f32) -> Self {
+    pub fn wavelength(
+        mut self,
+        px_: f32,
+    ) -> Self {
         self.wavelength = px_;
         self
     }
 
-    pub fn thickness(mut self, px_: f32) -> Self {
+    pub fn thickness(
+        mut self,
+        px_: f32,
+    ) -> Self {
         self.thickness = px_;
         self
     }
@@ -74,7 +90,11 @@ impl Styled for WavyLine {
 }
 
 impl RenderOnce for WavyLine {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        _: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let color = self.color.unwrap_or(cx.quiver().palette.border);
         let (amp, len, thick) = (self.amplitude, self.wavelength, self.thickness);
         let mut el = canvas(

@@ -13,11 +13,17 @@ fn get(path: &str) -> Request<Vec<u8>> {
 
 /// A request the shell itself would send: cross-origin from its page, so
 /// the browser always attaches the page's Origin.
-fn req(method: &str, path: &str) -> Request<Vec<u8>> {
+fn req(
+    method: &str,
+    path: &str,
+) -> Request<Vec<u8>> {
     shell_req(method, &format!("quiver://localhost{path}"))
 }
 
-fn shell_req(method: &str, uri: &str) -> Request<Vec<u8>> {
+fn shell_req(
+    method: &str,
+    uri: &str,
+) -> Request<Vec<u8>> {
     let mut r = bare(method, uri);
     r.headers_mut().insert(
         header::ORIGIN,
@@ -27,7 +33,10 @@ fn shell_req(method: &str, uri: &str) -> Request<Vec<u8>> {
 }
 
 /// A request with no Origin at all: a navigation or a subresource load.
-fn bare(method: &str, uri: &str) -> Request<Vec<u8>> {
+fn bare(
+    method: &str,
+    uri: &str,
+) -> Request<Vec<u8>> {
     Request::builder()
         .method(method)
         .uri(uri)
@@ -40,7 +49,10 @@ const METHODS: [&str; 4] = ["GET", "POST", "DELETE", "OPTIONS"];
 
 /// Every refusal looks the same, whatever refused it: a marked 403 that
 /// still carries the CORS and framing headers.
-fn assert_refused(resp: &Response<Vec<u8>>, what: &str) {
+fn assert_refused(
+    resp: &Response<Vec<u8>>,
+    what: &str,
+) {
     assert_eq!(resp.status(), 403, "{what}");
     assert_eq!(
         resp.headers().get(PROXY_ERROR_HEADER).map(|v| v.as_bytes()),
@@ -180,11 +192,17 @@ struct NeverResponds;
 
 #[async_trait::async_trait]
 impl Transport for NeverResponds {
-    async fn request(&self, _req: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error> {
+    async fn request(
+        &self,
+        _req: Request<Vec<u8>>,
+    ) -> Result<Response<Vec<u8>>, Error> {
         std::future::pending().await
     }
 
-    async fn open_ws(&self, _path: &str) -> Result<WsStream, Error> {
+    async fn open_ws(
+        &self,
+        _path: &str,
+    ) -> Result<WsStream, Error> {
         std::future::pending().await
     }
 }
@@ -195,11 +213,17 @@ struct NeverDialled;
 
 #[async_trait::async_trait]
 impl Transport for NeverDialled {
-    async fn request(&self, _req: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error> {
+    async fn request(
+        &self,
+        _req: Request<Vec<u8>>,
+    ) -> Result<Response<Vec<u8>>, Error> {
         panic!("a CORS preflight must be answered by the proxy, not forwarded")
     }
 
-    async fn open_ws(&self, _path: &str) -> Result<WsStream, Error> {
+    async fn open_ws(
+        &self,
+        _path: &str,
+    ) -> Result<WsStream, Error> {
         panic!("open_ws is not part of the proxy path")
     }
 }

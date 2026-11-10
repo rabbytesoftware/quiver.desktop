@@ -12,11 +12,17 @@ static RING: LazyLock<Mutex<VecDeque<String>>> =
 struct RingLogger;
 
 impl Log for RingLogger {
-    fn enabled(&self, metadata: &Metadata) -> bool {
+    fn enabled(
+        &self,
+        metadata: &Metadata,
+    ) -> bool {
         metadata.level() <= LevelFilter::Info
     }
 
-    fn log(&self, record: &Record) {
+    fn log(
+        &self,
+        record: &Record,
+    ) {
         if !self.enabled(record.metadata()) {
             return;
         }

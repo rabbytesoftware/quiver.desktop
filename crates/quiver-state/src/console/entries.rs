@@ -61,7 +61,10 @@ pub enum StreamState {
 }
 
 /// What the console says about itself, in words.
-pub fn note_text(note: &Note, tr: &Translator) -> String {
+pub fn note_text(
+    note: &Note,
+    tr: &Translator,
+) -> String {
     match note {
         Note::Restarted => tr.t(console::NOTE_RESTARTED),
         Note::Exit { code, error } if error.is_empty() => tr.t_with(

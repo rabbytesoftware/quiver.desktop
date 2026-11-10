@@ -78,12 +78,19 @@ pub struct SelectorSwitchState {
 }
 
 impl SelectorSwitchState {
-    pub fn begin(&mut self, from: &str, to: &str) {
+    pub fn begin(
+        &mut self,
+        from: &str,
+        to: &str,
+    ) {
         self.active = Some((from.to_owned(), to.to_owned()));
         self.failure = None;
     }
 
-    pub fn end(&mut self, failure: Option<SwitchFailure>) {
+    pub fn end(
+        &mut self,
+        failure: Option<SwitchFailure>,
+    ) {
         self.active = None;
         self.failure = failure;
     }
@@ -93,14 +100,20 @@ impl SelectorSwitchState {
     }
 
     /// A switch from or to this identity is in flight.
-    pub fn involves_active(&self, namespace: &str) -> bool {
+    pub fn involves_active(
+        &self,
+        namespace: &str,
+    ) -> bool {
         self.active
             .as_ref()
             .is_some_and(|(from, to)| from == namespace || to == namespace)
     }
 
     /// The failure, scoped to the two identities it is about (its sentences only make sense there).
-    pub fn failure_for(&self, namespace: &str) -> Option<&SwitchFailure> {
+    pub fn failure_for(
+        &self,
+        namespace: &str,
+    ) -> Option<&SwitchFailure> {
         self.failure
             .as_ref()
             .filter(|f| f.from == namespace || f.to == namespace)
@@ -133,7 +146,10 @@ impl UninstallWatch {
         }
     }
 
-    pub fn inspect(&mut self, state: Option<RunState>) -> UninstallProgress {
+    pub fn inspect(
+        &mut self,
+        state: Option<RunState>,
+    ) -> UninstallProgress {
         let Some(state) = state else {
             return UninstallProgress::Waiting;
         };

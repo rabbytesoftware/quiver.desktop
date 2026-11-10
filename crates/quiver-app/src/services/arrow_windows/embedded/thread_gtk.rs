@@ -49,7 +49,10 @@ impl GtkThread {
 }
 
 impl PageThread for GtkThread {
-    fn post(&self, job: Job) {
+    fn post(
+        &self,
+        job: Job,
+    ) {
         if let Ok(jobs) = self.jobs.lock() {
             let _ = jobs.send(job);
         }

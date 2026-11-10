@@ -10,7 +10,10 @@ use quiver_ui::{ActiveQuiver, ButtonVariant};
 use super::rows::{row, small_button};
 use crate::views::settings::SettingsView;
 
-pub fn command_line(view: &SettingsView, cx: &Context<SettingsView>) -> Vec<AnyElement> {
+pub fn command_line(
+    view: &SettingsView,
+    cx: &Context<SettingsView>,
+) -> Vec<AnyElement> {
     let p = cx.quiver().palette;
     let m = view.app.read(cx);
     let label = m.t(keys::ENGINE_PATH_LABEL);

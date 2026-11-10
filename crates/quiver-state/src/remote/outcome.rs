@@ -43,7 +43,11 @@ pub fn toast_key(outcome: ConnectionOutcome) -> Key {
 
 /// The toast text for `outcome` about the connection called `name`. A success also closes the dialog it
 /// came from; a failure leaves it open (see [`ConnectionOutcome::closes_dialog`]).
-pub fn toast_for(tr: &Translator, outcome: ConnectionOutcome, name: &str) -> String {
+pub fn toast_for(
+    tr: &Translator,
+    outcome: ConnectionOutcome,
+    name: &str,
+) -> String {
     tr.t_with(toast_key(outcome), &Params::new().with("name", name))
 }
 

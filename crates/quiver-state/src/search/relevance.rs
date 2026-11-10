@@ -27,7 +27,10 @@ fn tokens(query: &str) -> Vec<String> {
 ///
 /// Descriptions are left out on purpose: core's text index matches them, and that is how a followed
 /// collection answered "Quiver.chat" with every arrow whose blurb mentions Quiver.
-pub fn matches_query(entry: &SearchEntry, query: &str) -> bool {
+pub fn matches_query(
+    entry: &SearchEntry,
+    query: &str,
+) -> bool {
     let words = tokens(query);
     if words.is_empty() {
         return true;
@@ -42,7 +45,10 @@ pub fn matches_query(entry: &SearchEntry, query: &str) -> bool {
 /// descriptions, and a followed collection would otherwise fill the screen with arrows nobody asked
 /// for), so it is filtered here. Only the local lane: a streamed entry is a network result, ranked by
 /// core's discovery and kept whole.
-pub fn relevant_local(local: &[SearchEntry], query: &str) -> Vec<SearchEntry> {
+pub fn relevant_local(
+    local: &[SearchEntry],
+    query: &str,
+) -> Vec<SearchEntry> {
     local
         .iter()
         .filter(|e| matches_query(e, query))
@@ -54,7 +60,10 @@ pub fn relevant_local(local: &[SearchEntry], query: &str) -> Vec<SearchEntry> {
 pub(crate) mod fixtures {
     use crate::domain::{SearchEntry, SearchProvenance};
 
-    pub fn entry(namespace: &str, name: &str) -> SearchEntry {
+    pub fn entry(
+        namespace: &str,
+        name: &str,
+    ) -> SearchEntry {
         SearchEntry {
             namespace: namespace.into(),
             name: name.into(),

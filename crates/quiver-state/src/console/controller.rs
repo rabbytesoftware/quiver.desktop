@@ -83,7 +83,10 @@ pub struct ConsoleController {
 }
 
 impl ConsoleController {
-    fn reconcile(&mut self, fx: &mut Vec<ConsoleEffect>) {
+    fn reconcile(
+        &mut self,
+        fx: &mut Vec<ConsoleEffect>,
+    ) {
         let wanted = self.state.open && self.state.support == Support::Supported && self.ready;
         if wanted && !self.stream.running() {
             let actions = self.stream.start(self.state.cursor);
@@ -96,7 +99,11 @@ impl ConsoleController {
         }
     }
 
-    fn apply_stream(&mut self, actions: Vec<StreamAction>, fx: &mut Vec<ConsoleEffect>) {
+    fn apply_stream(
+        &mut self,
+        actions: Vec<StreamAction>,
+        fx: &mut Vec<ConsoleEffect>,
+    ) {
         for action in actions {
             match action {
                 StreamAction::Open { path, attempt } => {
@@ -126,7 +133,10 @@ impl ConsoleController {
         }
     }
 
-    fn flush(&mut self, fx: &mut Vec<ConsoleEffect>) {
+    fn flush(
+        &mut self,
+        fx: &mut Vec<ConsoleEffect>,
+    ) {
         if self.flush_pending {
             fx.push(ConsoleEffect::CancelTimer {
                 kind: TimerKind::Flush,
@@ -139,7 +149,10 @@ impl ConsoleController {
         }
     }
 
-    pub fn set_open(&mut self, open: bool) -> Vec<ConsoleEffect> {
+    pub fn set_open(
+        &mut self,
+        open: bool,
+    ) -> Vec<ConsoleEffect> {
         let mut fx = Vec::new();
         let changed = self.state.open != open;
         self.state.set_open(open);
@@ -154,7 +167,11 @@ impl ConsoleController {
     }
 
     /// The connection or its readiness changed.
-    pub fn sync(&mut self, connection_id: &str, ready: bool) -> Vec<ConsoleEffect> {
+    pub fn sync(
+        &mut self,
+        connection_id: &str,
+        ready: bool,
+    ) -> Vec<ConsoleEffect> {
         let mut fx = Vec::new();
         let changed = self.state.connection_id.as_deref() != Some(connection_id);
         let became_ready = ready && !self.ready;
@@ -235,7 +252,11 @@ impl ConsoleController {
         self.state.push(lines);
     }
 
-    pub fn submit(&mut self, line: &str, now_ms: i64) -> Vec<ConsoleEffect> {
+    pub fn submit(
+        &mut self,
+        line: &str,
+        now_ms: i64,
+    ) -> Vec<ConsoleEffect> {
         let mut fx = Vec::new();
         let text = line.trim();
         if text.is_empty() {
@@ -283,7 +304,11 @@ impl ConsoleController {
     }
 
     /// One NDJSON line of a running command. Frames of a cancelled or finished run are dropped.
-    pub fn exec_frame(&mut self, run: u64, text: &str) {
+    pub fn exec_frame(
+        &mut self,
+        run: u64,
+        text: &str,
+    ) {
         let Some((epoch, output)) = self.runs.get_mut(&run) else {
             return;
         };
@@ -299,7 +324,10 @@ impl ConsoleController {
 
     /// The command's connection ended without an `exit` frame: the console never waits on a command that
     /// is gone.
-    pub fn exec_closed(&mut self, run: u64) {
+    pub fn exec_closed(
+        &mut self,
+        run: u64,
+    ) {
         let Some((epoch, mut output)) = self.runs.remove(&run) else {
             return;
         };
@@ -309,7 +337,10 @@ impl ConsoleController {
         }
     }
 
-    fn cancel_runs(&mut self, fx: &mut Vec<ConsoleEffect>) {
+    fn cancel_runs(
+        &mut self,
+        fx: &mut Vec<ConsoleEffect>,
+    ) {
         let mut ids: Vec<u64> = self.runs.keys().copied().collect();
         ids.sort_unstable();
         for run in ids {
@@ -326,7 +357,10 @@ impl ConsoleController {
     /// The user cancels the commands that are running (Ctrl+C, the Cancel button): their connections are
     /// closed, which cancels them on the daemon, and `note` (the console's own words) says so. Nothing
     /// happens when no command runs.
-    pub fn cancel_running(&mut self, note: &str) -> Vec<ConsoleEffect> {
+    pub fn cancel_running(
+        &mut self,
+        note: &str,
+    ) -> Vec<ConsoleEffect> {
         let mut fx = Vec::new();
         if self.runs.is_empty() {
             return fx;
@@ -339,13 +373,20 @@ impl ConsoleController {
         fx
     }
 
-    pub fn stream_opened(&mut self, attempt: u64) {
+    pub fn stream_opened(
+        &mut self,
+        attempt: u64,
+    ) {
         let mut fx = Vec::new();
         let actions = self.stream.on_open(attempt);
         self.apply_stream(actions, &mut fx);
     }
 
-    pub fn stream_message(&mut self, attempt: u64, text: &str) -> Vec<ConsoleEffect> {
+    pub fn stream_message(
+        &mut self,
+        attempt: u64,
+        text: &str,
+    ) -> Vec<ConsoleEffect> {
         let mut fx = Vec::new();
         if !self.stream.accepts(attempt) {
             return fx;
@@ -372,14 +413,20 @@ impl ConsoleController {
         fx
     }
 
-    pub fn stream_closed(&mut self, attempt: u64) -> Vec<ConsoleEffect> {
+    pub fn stream_closed(
+        &mut self,
+        attempt: u64,
+    ) -> Vec<ConsoleEffect> {
         let mut fx = Vec::new();
         let actions = self.stream.on_close(attempt);
         self.apply_stream(actions, &mut fx);
         fx
     }
 
-    pub fn timer_elapsed(&mut self, kind: TimerKind) -> Vec<ConsoleEffect> {
+    pub fn timer_elapsed(
+        &mut self,
+        kind: TimerKind,
+    ) -> Vec<ConsoleEffect> {
         let mut fx = Vec::new();
         match kind {
             TimerKind::Flush => {

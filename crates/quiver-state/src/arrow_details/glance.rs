@@ -24,7 +24,11 @@ pub struct Glance {
 
 /// A README wins; without one the glance is built from the manifest. `readme` is `None` when core
 /// answered 404 for it (the arrow shipped a bare `arrow.yaml`).
-pub fn body_plan(facts: &ArrowFacts, readme: Option<&str>, source_url: &str) -> BodyPlan {
+pub fn body_plan(
+    facts: &ArrowFacts,
+    readme: Option<&str>,
+    source_url: &str,
+) -> BodyPlan {
     if readme.is_some_and(|r| !r.trim().is_empty()) {
         return BodyPlan::Readme;
     }

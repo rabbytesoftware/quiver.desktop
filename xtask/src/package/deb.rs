@@ -12,13 +12,20 @@ const ICON: &str = "installer/icons/icon.png";
 /// Runtime libraries the GPUI app and its embedded WebKitGTK views load.
 const DEPENDS: &str = "libwebkit2gtk-4.1-0, libgtk-3-0, libxkbcommon-x11-0, libvulkan1, libfontconfig1, libssl3, libxcb1";
 
-pub fn control(version: &str, arch: &str) -> String {
+pub fn control(
+    version: &str,
+    arch: &str,
+) -> String {
     format!(
         "Package: quiver\nVersion: {version}\nSection: devel\nPriority: optional\nArchitecture: {arch}\nDepends: {DEPENDS}\nMaintainer: Rabbyte Software\nDescription: Quiver Desktop\n The Quiver desktop application.\n"
     )
 }
 
-pub fn build(inputs: &Inputs, pieces: &[Piece], arch: &str) -> Result<PathBuf> {
+pub fn build(
+    inputs: &Inputs,
+    pieces: &[Piece],
+    arch: &str,
+) -> Result<PathBuf> {
     let root = inputs.out.join("linux-stage/deb");
     if root.exists() {
         fs::remove_dir_all(&root)?;

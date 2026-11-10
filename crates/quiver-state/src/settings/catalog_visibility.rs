@@ -21,7 +21,10 @@ impl Default for CatalogVisibility {
 }
 
 impl CatalogVisibility {
-    pub fn set(&mut self, show: bool) {
+    pub fn set(
+        &mut self,
+        show: bool,
+    ) {
         self.show_self_components = show;
     }
 }

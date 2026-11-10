@@ -15,7 +15,10 @@ pub struct PopularSlice {
 }
 
 /// `available` is how many arrows match the chip; `presses` how many times Load more was pressed.
-pub fn popular_slice(available: usize, presses: usize) -> PopularSlice {
+pub fn popular_slice(
+    available: usize,
+    presses: usize,
+) -> PopularSlice {
     let allowed = (POPULAR_FIRST + POPULAR_STEP.saturating_mul(presses)).min(POPULAR_CAP);
     let shown = available.min(allowed);
     PopularSlice {

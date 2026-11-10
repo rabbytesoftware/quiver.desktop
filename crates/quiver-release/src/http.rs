@@ -21,7 +21,10 @@ pub(crate) fn client() -> Result<reqwest::Client> {
 }
 
 /// Turns a non-success status into the error the UI branches on.
-fn status_error(status: reqwest::StatusCode, body: &str) -> Error {
+fn status_error(
+    status: reqwest::StatusCode,
+    body: &str,
+) -> Error {
     let detail = format!("GitHub answered {status}: {body}");
     match status.as_u16() {
         403 | 429 => Error::RateLimited(detail),
@@ -32,7 +35,10 @@ fn status_error(status: reqwest::StatusCode, body: &str) -> Error {
 
 /// Sends one GET. Only a transport failure is an error here; the status is the
 /// caller's to read.
-pub(crate) async fn get_page(http: &reqwest::Client, url: &str) -> Result<reqwest::Response> {
+pub(crate) async fn get_page(
+    http: &reqwest::Client,
+    url: &str,
+) -> Result<reqwest::Response> {
     http.get(url)
         .send()
         .await
@@ -57,7 +63,11 @@ pub(crate) async fn page_body(response: reqwest::Response) -> Result<String> {
 
 /// The tag of the newest published release: where `/releases/latest`
 /// redirects to. A repository with no release redirects to `/releases`.
-pub(crate) async fn latest_tag(http: &reqwest::Client, origin: &str, repo: &str) -> Result<String> {
+pub(crate) async fn latest_tag(
+    http: &reqwest::Client,
+    origin: &str,
+    repo: &str,
+) -> Result<String> {
     let response = get_page(http, &format!("{origin}/{repo}/releases/latest")).await?;
     let status = response.status();
     if !status.is_redirection() {

@@ -11,7 +11,10 @@ use crate::{
     SheetTitle,
 };
 
-pub(super) fn page(g: &mut Gallery, cx: &mut Context<Gallery>) -> Vec<AnyElement> {
+pub(super) fn page(
+    g: &mut Gallery,
+    cx: &mut Context<Gallery>,
+) -> Vec<AnyElement> {
     let open_dialog = Button::new("g-open-dialog")
         .variant(ButtonVariant::Outline)
         .label("Open dialog")

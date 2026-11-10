@@ -20,7 +20,10 @@ pub(super) struct Page {
 }
 
 impl Page {
-    pub fn build(detail: &ArrowDetail, view: &ArrowDetailsView) -> Self {
+    pub fn build(
+        detail: &ArrowDetail,
+        view: &ArrowDetailsView,
+    ) -> Self {
         let platform = quiver_platform::platform_key();
         let facts = facts_from_detail(detail, &platform);
         let header = build_header(
@@ -51,7 +54,10 @@ impl Page {
 
 impl Page {
     /// The sentence behind the header's problem chip.
-    pub fn problem_text(&self, tr: quiver_state::i18n::Translator) -> Option<String> {
+    pub fn problem_text(
+        &self,
+        tr: quiver_state::i18n::Translator,
+    ) -> Option<String> {
         self.header
             .problem
             .as_ref()

@@ -44,7 +44,10 @@ impl Daemon {
     }
 
     /// A row whose resolved ref is the ref itself.
-    pub(super) fn with_row(mut self, reference: &str) -> Self {
+    pub(super) fn with_row(
+        mut self,
+        reference: &str,
+    ) -> Self {
         self.rows.push(Row {
             reference: reference.into(),
             resolved: reference.into(),
@@ -52,7 +55,11 @@ impl Daemon {
         self
     }
 
-    pub(super) fn with_resolved_row(mut self, reference: &str, resolved: &str) -> Self {
+    pub(super) fn with_resolved_row(
+        mut self,
+        reference: &str,
+        resolved: &str,
+    ) -> Self {
         self.rows.push(Row {
             reference: reference.into(),
             resolved: resolved.into(),
@@ -60,12 +67,19 @@ impl Daemon {
         self
     }
 
-    pub(super) fn with_channels(mut self, channels: &[&str]) -> Self {
+    pub(super) fn with_channels(
+        mut self,
+        channels: &[&str],
+    ) -> Self {
         self.channels = channels.iter().map(|c| c.to_string()).collect();
         self
     }
 
-    pub(super) fn failing(mut self, call: String, how: Failure) -> Self {
+    pub(super) fn failing(
+        mut self,
+        call: String,
+        how: Failure,
+    ) -> Self {
         self.failing.insert(call, how);
         self
     }
@@ -91,7 +105,10 @@ impl Daemon {
     }
 
     /// The JSON body sent with the call that ended in `suffix`.
-    pub(super) fn body_of(&self, suffix: &str) -> Option<serde_json::Value> {
+    pub(super) fn body_of(
+        &self,
+        suffix: &str,
+    ) -> Option<serde_json::Value> {
         self.bodies
             .lock()
             .unwrap()
@@ -119,7 +136,10 @@ impl Daemon {
 
 #[async_trait]
 impl Transport for Daemon {
-    async fn request(&self, req: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error> {
+    async fn request(
+        &self,
+        req: Request<Vec<u8>>,
+    ) -> Result<Response<Vec<u8>>, Error> {
         let path = req
             .uri()
             .path_and_query()
@@ -165,7 +185,10 @@ impl Transport for Daemon {
         Ok(Response::builder().status(201).body(Vec::new()).unwrap())
     }
 
-    async fn open_ws(&self, _path: &str) -> Result<WsStream, Error> {
+    async fn open_ws(
+        &self,
+        _path: &str,
+    ) -> Result<WsStream, Error> {
         Err(Error::Connect("no ws".into()))
     }
 }

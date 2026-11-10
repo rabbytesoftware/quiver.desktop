@@ -51,7 +51,11 @@ impl ExecOutput {
         self.finished
     }
 
-    fn lines(&mut self, stream: Stream, data: &str) -> Vec<NewEntry> {
+    fn lines(
+        &mut self,
+        stream: Stream,
+        data: &str,
+    ) -> Vec<NewEntry> {
         let pending = if stream == Stream::Stdout {
             &mut self.stdout
         } else {
@@ -87,7 +91,10 @@ impl ExecOutput {
         out
     }
 
-    pub fn on_frame(&mut self, text: &str) -> ExecStep {
+    pub fn on_frame(
+        &mut self,
+        text: &str,
+    ) -> ExecStep {
         if self.finished {
             return ExecStep::default();
         }
@@ -148,14 +155,20 @@ impl ExecOutput {
 mod tests {
     use super::*;
 
-    fn out(stream: Stream, text: &str) -> NewEntry {
+    fn out(
+        stream: Stream,
+        text: &str,
+    ) -> NewEntry {
         NewEntry::Out {
             stream,
             text: text.into(),
         }
     }
 
-    fn frame(stream: &str, data: &str) -> String {
+    fn frame(
+        stream: &str,
+        data: &str,
+    ) -> String {
         serde_json::json!({"type":"out","stream":stream,"data":data}).to_string()
     }
 

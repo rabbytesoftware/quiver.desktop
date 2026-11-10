@@ -8,7 +8,11 @@ use quiver_ui::{SectionHeader, TileSize};
 use crate::views::home::HomeView;
 use crate::views::tiles::{library_input, tile};
 
-pub fn recents(view: &HomeView, model: &HomeModel, cx: &mut Context<HomeView>) -> impl IntoElement {
+pub fn recents(
+    view: &HomeView,
+    model: &HomeModel,
+    cx: &mut Context<HomeView>,
+) -> impl IntoElement {
     let app = view.app.clone();
     let title = app.read(cx).t(keys::RECENTS);
     let tiles = model.recents.iter().map(|entry| {

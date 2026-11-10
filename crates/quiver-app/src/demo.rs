@@ -19,7 +19,7 @@ use crate::services::{AppServices, NativeReleaseSource, ServicesConfig};
 /// Services for the demo: a scratch data dir, an in-memory keyring, no helper process. The daemon
 /// is not found, so the connection simply stays down.
 pub fn services(
-    runtime: &'static tokio::runtime::Runtime,
+    runtime: &'static tokio::runtime::Runtime
 ) -> crate::services::Result<Arc<AppServices>> {
     let scratch = std::env::temp_dir().join(format!("quiver-demo-{}", std::process::id()));
     std::fs::create_dir_all(&scratch)

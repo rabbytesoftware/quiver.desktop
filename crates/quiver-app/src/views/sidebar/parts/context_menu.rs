@@ -12,7 +12,11 @@ use super::super::Sidebar;
 use crate::bridge::spawn_detached;
 use crate::model::{AppModel, Route};
 
-fn run(model: &AppModel, namespace: String, item: &ArrowMenuItem) {
+fn run(
+    model: &AppModel,
+    namespace: String,
+    item: &ArrowMenuItem,
+) {
     if item.via_details {
         return;
     }
@@ -37,7 +41,10 @@ fn run(model: &AppModel, namespace: String, item: &ArrowMenuItem) {
     });
 }
 
-pub fn context_menu(sidebar: &Sidebar, cx: &mut Context<Sidebar>) -> Option<impl IntoElement> {
+pub fn context_menu(
+    sidebar: &Sidebar,
+    cx: &mut Context<Sidebar>,
+) -> Option<impl IntoElement> {
     let (namespace, position) = sidebar.context.clone()?;
     let app = sidebar.app.clone();
     let entry = app

@@ -21,7 +21,11 @@ pub struct ArrowPageView {
 }
 
 impl ArrowPageView {
-    pub fn new(app: Entity<AppModel>, namespace: String, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        namespace: String,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let services = app.read(cx).services.clone();
         observe_store(cx, services.arrows.store());
         let details = cx.new(|cx| ArrowDetailsView::new(app.clone(), namespace.clone(), cx));
@@ -33,7 +37,10 @@ impl ArrowPageView {
         }
     }
 
-    fn has_surface(&self, cx: &Context<Self>) -> bool {
+    fn has_surface(
+        &self,
+        cx: &Context<Self>,
+    ) -> bool {
         let model = self.app.read(cx);
         if model.demo {
             return self.namespace == APP_NAMESPACE;
@@ -50,7 +57,11 @@ impl ArrowPageView {
 }
 
 impl Render for ArrowPageView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let page: AnyElement = if self.has_surface(cx) {
             let (app, namespace, details) = (
                 self.app.clone(),

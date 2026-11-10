@@ -97,7 +97,10 @@ impl ActiveQuiver for App {
 }
 
 /// Initialises gpui-component once and installs `mode`. Safe to call again to switch mode.
-pub fn install(cx: &mut App, mode: Mode) {
+pub fn install(
+    cx: &mut App,
+    mode: Mode,
+) {
     if !cx.has_global::<Theme>() {
         gpui_component::init(cx);
     }

@@ -27,7 +27,11 @@ pub struct MethodsModal {
 }
 
 impl MethodsModal {
-    pub fn new(app: Entity<AppModel>, model: MethodsModel, _: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        model: MethodsModel,
+        _: &mut Context<Self>,
+    ) -> Self {
         Self {
             app,
             model,
@@ -35,7 +39,11 @@ impl MethodsModal {
         }
     }
 
-    fn name_of(&self, row: &MethodRow, cx: &gpui::App) -> String {
+    fn name_of(
+        &self,
+        row: &MethodRow,
+        cx: &gpui::App,
+    ) -> String {
         match &row.name {
             MethodName::Lifecycle(key) => self.app.read(cx).t(*key).to_lowercase(),
             MethodName::Custom(name) => name.clone(),
@@ -64,7 +72,11 @@ impl MethodsModal {
             .join("\n")
     }
 
-    fn row(&self, row: &MethodRow, cx: &mut Context<Self>) -> impl IntoElement {
+    fn row(
+        &self,
+        row: &MethodRow,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let name = self.name_of(row, cx);
         let model = self.app.read(cx);
@@ -155,7 +167,12 @@ impl MethodsModal {
             ))
     }
 
-    fn group(&self, label: String, rows: &[MethodRow], cx: &mut Context<Self>) -> impl IntoElement {
+    fn group(
+        &self,
+        label: String,
+        rows: &[MethodRow],
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let rows: Vec<_> = rows.iter().map(|r| self.row(r, cx)).collect();
         div()
@@ -175,7 +192,11 @@ impl MethodsModal {
 }
 
 impl Render for MethodsModal {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let model = self.app.read(cx);
         let (title, note, lifecycle, custom) = (
             model.t(arrow::TAB_METHODS),

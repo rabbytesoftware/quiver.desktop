@@ -38,13 +38,17 @@ pub(crate) struct ModalLayer {
 }
 
 /// Focus handle of the popup, which receives Escape.
-pub(crate) fn popup_focus(id: &ElementId, window: &mut Window, cx: &mut App) -> FocusHandle {
+pub(crate) fn popup_focus(
+    id: &ElementId,
+    window: &mut Window,
+    cx: &mut App,
+) -> FocusHandle {
     keyed_container_focus(&child_id(id, "modal"), window, cx)
 }
 
 /// Escape dismisses; every other key stays inside the modal.
 pub(crate) fn escape_handler(
-    on_dismiss: Option<DismissFn>,
+    on_dismiss: Option<DismissFn>
 ) -> impl Fn(&KeyDownEvent, &mut Window, &mut App) {
     move |e, window, cx| {
         if e.keystroke.key == "escape" {
@@ -63,7 +67,11 @@ fn spacer(grow: f32) -> gpui::Div {
 }
 
 impl ModalLayer {
-    pub fn into_element(self, window: &mut Window, cx: &mut App) -> AnyElement {
+    pub fn into_element(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> AnyElement {
         let focus = popup_focus(&self.id, window, cx);
         if !focus.contains_focused(window, cx) {
             let f = focus.clone();

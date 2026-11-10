@@ -28,7 +28,11 @@ fn glyph_kind(glyph: StateGlyph) -> Option<GlyphKind> {
     }
 }
 
-fn status_badge(page: &Page, label: String, cx: &Context<ArrowDetailsView>) -> impl IntoElement {
+fn status_badge(
+    page: &Page,
+    label: String,
+    cx: &Context<ArrowDetailsView>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let glyph = page.header.status.glyph;
     let (variant, fg) = match glyph {
@@ -48,7 +52,10 @@ fn status_badge(page: &Page, label: String, cx: &Context<ArrowDetailsView>) -> i
         .child(probe("arrow.status", Kind::Text, label, true, ""))
 }
 
-fn version_chip(page: &Page, cx: &Context<ArrowDetailsView>) -> Option<impl IntoElement> {
+fn version_chip(
+    page: &Page,
+    cx: &Context<ArrowDetailsView>,
+) -> Option<impl IntoElement> {
     let p = cx.quiver().palette;
     let VersionControl::Fixed { version, .. } = &page.header.version else {
         return None;

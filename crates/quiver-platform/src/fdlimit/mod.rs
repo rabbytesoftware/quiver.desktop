@@ -37,7 +37,11 @@ pub struct Limits {
 /// ceiling, not the hard limit, is what can actually be claimed. Where a kernel
 /// imposes no such ceiling, `max_per_proc` is `u64::MAX` and the hard limit
 /// binds.
-pub fn target_soft_limit(soft: u64, hard: u64, max_per_proc: u64) -> Option<u64> {
+pub fn target_soft_limit(
+    soft: u64,
+    hard: u64,
+    max_per_proc: u64,
+) -> Option<u64> {
     let target = hard.min(max_per_proc);
     (target > soft).then_some(target)
 }
@@ -55,7 +59,10 @@ pub enum Outcome {
 }
 
 impl std::fmt::Display for Outcome {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         match self {
             Self::Raised { from, to } => {
                 write!(f, "raised the open-file soft limit from {from} to {to}")
@@ -72,7 +79,11 @@ impl std::fmt::Display for Outcome {
 
 /// The decision [`raise`] makes, with the syscalls passed in so every branch —
 /// including the two the kernel almost never takes — is reachable from a test.
-pub fn raise_with<G, S>(get: G, set: S, max_per_proc: u64) -> Outcome
+pub fn raise_with<G, S>(
+    get: G,
+    set: S,
+    max_per_proc: u64,
+) -> Outcome
 where
     G: FnOnce() -> Result<Limits, String>,
     S: FnOnce(u64) -> Result<(), String>,

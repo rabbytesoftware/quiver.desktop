@@ -3,7 +3,11 @@
 use super::{Locale, LOCALES, SOURCE_LOCALE};
 
 /// Exact tag match first (for every requested tag, in order), then by language subtag, else `fallback`.
-pub fn match_locale<'a>(requested: &[&str], supported: &[&'a str], fallback: &'a str) -> &'a str {
+pub fn match_locale<'a>(
+    requested: &[&str],
+    supported: &[&'a str],
+    fallback: &'a str,
+) -> &'a str {
     for want in requested {
         if let Some(exact) = supported.iter().find(|tag| tag.eq_ignore_ascii_case(want)) {
             return exact;

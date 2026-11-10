@@ -41,8 +41,14 @@ pub struct SelfAnnounceConfig {
 /// apart: both are user-installed.
 pub trait AnnouncedRows: Send + Sync {
     fn list(&self) -> Vec<String>;
-    fn add(&self, identity: &str);
-    fn drop_identity(&self, identity: &str);
+    fn add(
+        &self,
+        identity: &str,
+    );
+    fn drop_identity(
+        &self,
+        identity: &str,
+    );
 }
 
 /// An [`AnnouncedRows`] that remembers nothing across runs.
@@ -75,14 +81,20 @@ impl AnnouncedRows for MemoryAnnouncedRows {
             .clone()
     }
 
-    fn add(&self, identity: &str) {
+    fn add(
+        &self,
+        identity: &str,
+    ) {
         let mut rows = self.identities.lock().unwrap_or_else(|e| e.into_inner());
         if !rows.iter().any(|known| known == identity) {
             rows.push(identity.to_string());
         }
     }
 
-    fn drop_identity(&self, identity: &str) {
+    fn drop_identity(
+        &self,
+        identity: &str,
+    ) {
         self.identities
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -99,7 +111,10 @@ pub trait SelfAnnounce: Send + Sync + 'static {
     /// Fire-and-forget-with-logging: a daemon too old for any of this, an
     /// unreachable manifest host, or a transient error must never fail or block
     /// the connection this rides on, so nothing is returned.
-    async fn announce(&self, transport: Arc<dyn Transport>);
+    async fn announce(
+        &self,
+        transport: Arc<dyn Transport>,
+    );
 }
 
 /// The real hook: [`announce_self`] over the local connection's transport.
@@ -128,7 +143,10 @@ impl LocalSelfAnnounce {
 
 #[async_trait]
 impl SelfAnnounce for LocalSelfAnnounce {
-    async fn announce(&self, transport: Arc<dyn Transport>) {
+    async fn announce(
+        &self,
+        transport: Arc<dyn Transport>,
+    ) {
         let outcome = announce_self(transport.as_ref(), &self.config, self.rows.as_deref()).await;
         if outcome.adopted {
             if let Some(on_adopted) = &self.on_adopted {

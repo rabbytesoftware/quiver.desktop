@@ -83,7 +83,11 @@ impl ArrowAppView {
         view
     }
 
-    fn window_event(&mut self, event: WindowEvent, cx: &mut Context<Self>) {
+    fn window_event(
+        &mut self,
+        event: WindowEvent,
+        cx: &mut Context<Self>,
+    ) {
         if let WindowEvent::Evicted { namespace } = event {
             let m = self.app.read(cx);
             let name = quiver_state::arrow_app::hosting::eviction_name(
@@ -104,7 +108,10 @@ impl ArrowAppView {
 
     /// Brings the window in step with the arrow: prune what has no surface, show this app once its page
     /// answers, and fall back to the arrow's page when the surface is gone.
-    pub(super) fn sync(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn sync(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         let (demo, services) = {
             let m = self.app.read(cx);
             (m.demo, m.services.clone())
@@ -137,20 +144,29 @@ impl ArrowAppView {
     }
 
     /// The arrow's own page over the app (Tauri's Details dialog). The app's page steps aside meanwhile.
-    pub(super) fn open_details(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn open_details(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         self.details_open = true;
         self.services.arrow_windows.set_covered(true);
         cx.notify();
     }
 
-    pub(super) fn close_details(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn close_details(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         self.details_open = false;
         self.services.arrow_windows.set_covered(false);
         cx.notify();
     }
 
     /// Reload remounts the page; when the page is gone (evicted, or it never opened) it opens it again.
-    pub(super) fn reload(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn reload(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         if self
             .services
             .arrow_windows
@@ -163,7 +179,10 @@ impl ArrowAppView {
         self.show_window(cx);
     }
 
-    pub(super) fn show_window(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn show_window(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         let (windows, handle, title) = {
             let m = self.app.read(cx);
             let title = m
@@ -205,7 +224,11 @@ impl Drop for ArrowAppView {
 }
 
 impl Render for ArrowAppView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let this = cx.entity();
         let height = f32::from(window.viewport_size().height) * 0.9;

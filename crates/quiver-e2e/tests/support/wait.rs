@@ -8,7 +8,11 @@
 use std::future::Future;
 use std::time::{Duration, Instant};
 
-pub async fn eventually<T, F, Fut>(what: &str, timeout: Duration, mut check: F) -> T
+pub async fn eventually<T, F, Fut>(
+    what: &str,
+    timeout: Duration,
+    mut check: F,
+) -> T
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = Option<T>>,

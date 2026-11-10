@@ -55,13 +55,21 @@ impl Backend for NativeBackend {
         Ok(self.platform.clone())
     }
 
-    async fn check_remote_health(&self, url: &str) -> Result<()> {
+    async fn check_remote_health(
+        &self,
+        url: &str,
+    ) -> Result<()> {
         quiver_core_client::check_remote_health(url)
             .await
             .map_err(backend_error)
     }
 
-    async fn add_connection(&self, name: &str, url: &str, code: &str) -> Result<ConnectionConfig> {
+    async fn add_connection(
+        &self,
+        name: &str,
+        url: &str,
+        code: &str,
+    ) -> Result<ConnectionConfig> {
         self.manager
             .add_connection(name.into(), url.into(), code.into())
             .await
@@ -69,21 +77,31 @@ impl Backend for NativeBackend {
             .map_err(backend_error)
     }
 
-    async fn remove_connection(&self, id: &str) -> Result<()> {
+    async fn remove_connection(
+        &self,
+        id: &str,
+    ) -> Result<()> {
         self.manager
             .remove_connection(id)
             .await
             .map_err(backend_error)
     }
 
-    async fn switch_connection(&self, id: &str) -> Result<()> {
+    async fn switch_connection(
+        &self,
+        id: &str,
+    ) -> Result<()> {
         self.manager
             .switch_connection(id)
             .await
             .map_err(backend_error)
     }
 
-    async fn rename_connection(&self, id: &str, name: &str) -> Result<()> {
+    async fn rename_connection(
+        &self,
+        id: &str,
+        name: &str,
+    ) -> Result<()> {
         self.manager
             .rename_connection(id, name.into())
             .await

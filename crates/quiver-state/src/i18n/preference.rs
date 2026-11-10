@@ -20,7 +20,11 @@ impl LocalePreference {
 
     /// The locale in force. A forced locale (env override) beats everything; `detected` is
     /// what the system asked for.
-    pub fn resolve(self, detected: Locale, forced: Option<&str>) -> Locale {
+    pub fn resolve(
+        self,
+        detected: Locale,
+        forced: Option<&str>,
+    ) -> Locale {
         if let Some(locale) = detect::locale_forced(forced) {
             return locale;
         }

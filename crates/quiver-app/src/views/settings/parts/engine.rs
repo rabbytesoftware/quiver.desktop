@@ -14,7 +14,10 @@ use super::rows::{probed, reset_button, row, section, small_button};
 use super::updates::{update_rows, Which};
 use crate::views::settings::SettingsView;
 
-fn level_options(view: &SettingsView, cx: &Context<SettingsView>) -> Vec<SelectOption> {
+fn level_options(
+    view: &SettingsView,
+    cx: &Context<SettingsView>,
+) -> Vec<SelectOption> {
     let m = view.app.read(cx);
     [
         ("debug", keys::ENGINE_LOGS_LEVEL_DEBUG),
@@ -27,7 +30,11 @@ fn level_options(view: &SettingsView, cx: &Context<SettingsView>) -> Vec<SelectO
     .collect()
 }
 
-fn logs(view: &SettingsView, model: &EngineModel, cx: &Context<SettingsView>) -> Vec<AnyElement> {
+fn logs(
+    view: &SettingsView,
+    model: &EngineModel,
+    cx: &Context<SettingsView>,
+) -> Vec<AnyElement> {
     let p = cx.quiver().palette;
     let this = cx.entity();
     let m = view.app.read(cx);
@@ -113,7 +120,11 @@ fn logs(view: &SettingsView, model: &EngineModel, cx: &Context<SettingsView>) ->
     ]
 }
 
-fn channel_row(view: &SettingsView, model: &EngineModel, cx: &Context<SettingsView>) -> AnyElement {
+fn channel_row(
+    view: &SettingsView,
+    model: &EngineModel,
+    cx: &Context<SettingsView>,
+) -> AnyElement {
     let p = cx.quiver().palette;
     let this = cx.entity();
     let m = view.app.read(cx);
@@ -200,7 +211,10 @@ fn channel_row(view: &SettingsView, model: &EngineModel, cx: &Context<SettingsVi
     }
 }
 
-pub fn engine(view: &mut SettingsView, cx: &mut Context<SettingsView>) -> impl IntoElement {
+pub fn engine(
+    view: &mut SettingsView,
+    cx: &mut Context<SettingsView>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let (loading, retry_label, restart, corrected, logs_title, updates_title, path_title) = {
         let m = view.app.read(cx);

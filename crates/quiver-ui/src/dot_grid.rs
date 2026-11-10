@@ -26,7 +26,11 @@ pub fn dots_from_bits(rows: &[u8; 5]) -> Dots {
 }
 
 /// Paints `dots` in a square of `side` px. `color` of `None` means the inherited text colour.
-pub fn dot_grid(dots: Dots, side: f32, color: Option<Hsla>) -> impl IntoElement {
+pub fn dot_grid(
+    dots: Dots,
+    side: f32,
+    color: Option<Hsla>,
+) -> impl IntoElement {
     canvas(
         |_, _, _| (),
         move |bounds: Bounds<Pixels>, _, window: &mut Window, _: &mut App| {

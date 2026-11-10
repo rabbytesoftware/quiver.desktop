@@ -8,7 +8,11 @@ use crate::uri::{daemon_path, is_safe_ws_path};
 use crate::{Error, Result};
 
 /// The daemon path an arrow's WebSocket may open: always `/v0/ui/<its ns>/...`.
-pub fn ws_target(hosts: &ArrowHosts, host: &str, path: &str) -> Result<String> {
+pub fn ws_target(
+    hosts: &ArrowHosts,
+    host: &str,
+    path: &str,
+) -> Result<String> {
     let namespace = hosts
         .namespace_for(host)
         .ok_or_else(|| Error::UnknownHost(host.to_string()))?;
@@ -19,7 +23,10 @@ pub fn ws_target(hosts: &ArrowHosts, host: &str, path: &str) -> Result<String> {
 }
 
 /// Bridge key for a connection, namespaced by host so ids can not collide.
-pub fn ws_key(host: &str, conn_id: &str) -> String {
+pub fn ws_key(
+    host: &str,
+    conn_id: &str,
+) -> String {
     format!("arrow:{host}:{conn_id}")
 }
 

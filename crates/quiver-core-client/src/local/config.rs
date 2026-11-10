@@ -21,7 +21,10 @@ impl LocalConfig {
     /// `dev_checkout` is `Some(dir)` for a development build of the checkout at
     /// `dir` (socket, pipe and home are scoped to it, see `host`), and `None`
     /// for a shipped build. `bundled_binary` is the shipped seed Core, if any.
-    pub fn new(dev_checkout: Option<&str>, bundled_binary: Option<PathBuf>) -> Self {
+    pub fn new(
+        dev_checkout: Option<&str>,
+        bundled_binary: Option<PathBuf>,
+    ) -> Self {
         Self {
             host: local_host(dev_checkout),
             dev_home: dev_checkout.and_then(|dir| dev_quiver_home(dir, true)),

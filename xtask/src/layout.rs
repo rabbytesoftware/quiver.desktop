@@ -20,7 +20,10 @@ pub fn check_file_sizes_and_names() -> Result<()> {
     }
 }
 
-fn walk(dir: &Path, problems: &mut Vec<String>) -> Result<()> {
+fn walk(
+    dir: &Path,
+    problems: &mut Vec<String>,
+) -> Result<()> {
     if !dir.exists() {
         return Ok(());
     }

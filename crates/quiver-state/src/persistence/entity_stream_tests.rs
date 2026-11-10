@@ -42,7 +42,10 @@ fn seed_of(records: Vec<ArrowCatalogRecord>) -> SeedFn {
 }
 
 impl Rig {
-    fn opts(&self, seed: SeedFn) -> SubscribeArrowStreamOptions {
+    fn opts(
+        &self,
+        seed: SeedFn,
+    ) -> SubscribeArrowStreamOptions {
         let tx = self.changed_tx.clone();
         SubscribeArrowStreamOptions {
             connection_id: "local".into(),
@@ -56,12 +59,18 @@ impl Rig {
         }
     }
 
-    fn subscribe(&self, seed: SeedFn) -> ArrowStream {
+    fn subscribe(
+        &self,
+        seed: SeedFn,
+    ) -> ArrowStream {
         subscribe_arrow_stream(&self.ws, self.cache.clone(), self.opts(seed))
     }
 
     /// Waits for the initial seed to land and the live socket to be up.
-    async fn ready(&mut self, stream_seed: SeedFn) -> (ArrowStream, FakeStreamHandle) {
+    async fn ready(
+        &mut self,
+        stream_seed: SeedFn,
+    ) -> (ArrowStream, FakeStreamHandle) {
         let stream = self.subscribe(stream_seed);
         self.changed.recv().await.unwrap();
         let handle = self.api.wait_stream("/v0/arrow", 0).await;

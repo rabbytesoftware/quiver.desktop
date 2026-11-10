@@ -18,15 +18,41 @@ use tokio::sync::watch;
 #[async_trait]
 pub trait Driver: Send + Sync + 'static {
     async fn tree(&self) -> Tree;
-    async fn click(&self, id: &str, double: bool) -> std::result::Result<(), String>;
-    async fn hover(&self, id: &str) -> std::result::Result<(), String>;
-    async fn type_text(&self, id: Option<&str>, text: &str) -> std::result::Result<(), String>;
-    async fn key(&self, keys: &str) -> std::result::Result<(), String>;
-    async fn scroll(&self, id: &str, dx: f32, dy: f32) -> std::result::Result<(), String>;
+    async fn click(
+        &self,
+        id: &str,
+        double: bool,
+    ) -> std::result::Result<(), String>;
+    async fn hover(
+        &self,
+        id: &str,
+    ) -> std::result::Result<(), String>;
+    async fn type_text(
+        &self,
+        id: Option<&str>,
+        text: &str,
+    ) -> std::result::Result<(), String>;
+    async fn key(
+        &self,
+        keys: &str,
+    ) -> std::result::Result<(), String>;
+    async fn scroll(
+        &self,
+        id: &str,
+        dx: f32,
+        dy: f32,
+    ) -> std::result::Result<(), String>;
     async fn state(&self) -> Value;
-    async fn logs(&self, n: usize) -> Vec<String>;
+    async fn logs(
+        &self,
+        n: usize,
+    ) -> Vec<String>;
     async fn screenshot_png(&self) -> std::result::Result<Vec<u8>, String>;
-    async fn resize(&self, width: f32, height: f32) -> std::result::Result<(), String>;
+    async fn resize(
+        &self,
+        width: f32,
+        height: f32,
+    ) -> std::result::Result<(), String>;
 }
 
 /// Shared handles the app keeps to feed the bridge.
@@ -53,7 +79,11 @@ impl Default for BridgeHandles {
 }
 
 /// Binds `127.0.0.1:port` (`0` = any), prints the port line on stdout and serves forever.
-pub async fn serve<D: Driver>(port: u16, driver: Arc<D>, handles: BridgeHandles) -> Result<()> {
+pub async fn serve<D: Driver>(
+    port: u16,
+    driver: Arc<D>,
+    handles: BridgeHandles,
+) -> Result<()> {
     let listener = TcpListener::bind(("127.0.0.1", port)).await?;
     let bound = listener.local_addr()?.port();
     println!("{PORT_LINE_PREFIX}{bound}");
@@ -63,7 +93,11 @@ pub async fn serve<D: Driver>(port: u16, driver: Arc<D>, handles: BridgeHandles)
     }
 }
 
-async fn connection<D: Driver>(stream: TcpStream, driver: Arc<D>, handles: BridgeHandles) {
+async fn connection<D: Driver>(
+    stream: TcpStream,
+    driver: Arc<D>,
+    handles: BridgeHandles,
+) {
     let (read, mut write) = stream.into_split();
     let mut lines = BufReader::new(read).lines();
     while let Ok(Some(line)) = lines.next_line().await {
@@ -93,7 +127,12 @@ fn app_err(e: String) -> (i64, String) {
     (-32000, e)
 }
 
-async fn dispatch<D: Driver>(d: &D, h: &BridgeHandles, method: &str, p: Value) -> RpcResult {
+async fn dispatch<D: Driver>(
+    d: &D,
+    h: &BridgeHandles,
+    method: &str,
+    p: Value,
+) -> RpcResult {
     let id = p["id"].as_str().unwrap_or_default();
     let timeout = Duration::from_millis(p["timeout_ms"].as_u64().unwrap_or(30_000));
     match method {
@@ -192,7 +231,10 @@ impl NodeFilter {
         }
     }
 
-    fn matches(&self, n: &Node) -> bool {
+    fn matches(
+        &self,
+        n: &Node,
+    ) -> bool {
         self.id.as_ref().is_none_or(|id| &n.id == id)
             && self
                 .prefix
@@ -213,7 +255,12 @@ impl NodeFilter {
 }
 
 /// Re-checks the tree on every frame the app paints until the filter's presence matches.
-async fn wait_node<D: Driver>(d: &D, h: &BridgeHandles, params: &Value, present: bool) -> Value {
+async fn wait_node<D: Driver>(
+    d: &D,
+    h: &BridgeHandles,
+    params: &Value,
+    present: bool,
+) -> Value {
     let filter = NodeFilter::from_params(params);
     let mut frames = h.frames.subscribe();
     loop {
@@ -258,35 +305,61 @@ mod tests {
                 }],
             }
         }
-        async fn click(&self, id: &str, _d: bool) -> std::result::Result<(), String> {
+        async fn click(
+            &self,
+            id: &str,
+            _d: bool,
+        ) -> std::result::Result<(), String> {
             if id == "ok" {
                 Ok(())
             } else {
                 Err(format!("no element {id}"))
             }
         }
-        async fn hover(&self, _: &str) -> std::result::Result<(), String> {
+        async fn hover(
+            &self,
+            _: &str,
+        ) -> std::result::Result<(), String> {
             Ok(())
         }
-        async fn type_text(&self, _: Option<&str>, _: &str) -> std::result::Result<(), String> {
+        async fn type_text(
+            &self,
+            _: Option<&str>,
+            _: &str,
+        ) -> std::result::Result<(), String> {
             Ok(())
         }
-        async fn key(&self, _: &str) -> std::result::Result<(), String> {
+        async fn key(
+            &self,
+            _: &str,
+        ) -> std::result::Result<(), String> {
             Ok(())
         }
-        async fn scroll(&self, _: &str, _: f32, _: f32) -> std::result::Result<(), String> {
+        async fn scroll(
+            &self,
+            _: &str,
+            _: f32,
+            _: f32,
+        ) -> std::result::Result<(), String> {
             Ok(())
         }
         async fn state(&self) -> Value {
             json!({"screen": "home"})
         }
-        async fn logs(&self, _: usize) -> Vec<String> {
+        async fn logs(
+            &self,
+            _: usize,
+        ) -> Vec<String> {
             vec!["hello".into()]
         }
         async fn screenshot_png(&self) -> std::result::Result<Vec<u8>, String> {
             Ok(vec![1, 2, 3])
         }
-        async fn resize(&self, _: f32, _: f32) -> std::result::Result<(), String> {
+        async fn resize(
+            &self,
+            _: f32,
+            _: f32,
+        ) -> std::result::Result<(), String> {
             Ok(())
         }
     }

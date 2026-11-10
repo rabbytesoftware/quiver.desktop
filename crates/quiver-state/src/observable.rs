@@ -36,12 +36,18 @@ impl<T> Store<T> {
     }
 
     /// Reads through a closure, so no lock guard escapes.
-    pub fn read<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+    pub fn read<R>(
+        &self,
+        f: impl FnOnce(&T) -> R,
+    ) -> R {
         f(&self.value.read().unwrap_or_else(PoisonError::into_inner))
     }
 
     /// Mutates and notifies subscribers.
-    pub fn update<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
+    pub fn update<R>(
+        &self,
+        f: impl FnOnce(&mut T) -> R,
+    ) -> R {
         let out = self.update_quiet(f);
         self.notify();
         out
@@ -49,7 +55,10 @@ impl<T> Store<T> {
 
     /// Mutates WITHOUT notifying: for a caller that decides afterwards, with [`Store::notify`], whether anything
     /// observable changed (a poll that returns what the views already show must not repaint the window).
-    pub fn update_quiet<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
+    pub fn update_quiet<R>(
+        &self,
+        f: impl FnOnce(&mut T) -> R,
+    ) -> R {
         f(&mut self.value.write().unwrap_or_else(PoisonError::into_inner))
     }
 
@@ -59,7 +68,10 @@ impl<T> Store<T> {
     }
 
     /// Replaces the value and notifies subscribers.
-    pub fn set(&self, value: T) {
+    pub fn set(
+        &self,
+        value: T,
+    ) {
         self.update(|v| *v = value);
     }
 

@@ -50,7 +50,10 @@ pub struct RpcError {
 }
 
 impl Response {
-    pub fn ok(id: u64, result: Value) -> Self {
+    pub fn ok(
+        id: u64,
+        result: Value,
+    ) -> Self {
         Self {
             jsonrpc: "2.0".into(),
             id,
@@ -59,7 +62,11 @@ impl Response {
         }
     }
 
-    pub fn err(id: u64, code: i64, message: impl Into<String>) -> Self {
+    pub fn err(
+        id: u64,
+        code: i64,
+        message: impl Into<String>,
+    ) -> Self {
         Self {
             jsonrpc: "2.0".into(),
             id,

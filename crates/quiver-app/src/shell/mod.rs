@@ -21,7 +21,11 @@ pub struct AppShell {
 }
 
 impl AppShell {
-    pub fn new(app: Entity<AppModel>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let sidebar = cx.new(|cx| Sidebar::new(app.clone(), window, cx));
         let console = cx.new(|cx| ConsoleDock::new(app.clone(), window, cx));
         cx.observe(&app, |_, _, cx| cx.notify()).detach();
@@ -35,7 +39,11 @@ impl AppShell {
 }
 
 impl Render for AppShell {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         crate::e2e_bridge::frame_painted();
         let p = cx.quiver().palette;
         let route = self.app.read(cx).route().clone();

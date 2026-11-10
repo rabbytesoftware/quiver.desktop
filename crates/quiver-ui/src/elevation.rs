@@ -2,7 +2,12 @@
 
 use gpui::{point, px, BoxShadow, Hsla};
 
-fn shadow(color: Hsla, y: f32, blur: f32, spread: f32) -> BoxShadow {
+fn shadow(
+    color: Hsla,
+    y: f32,
+    blur: f32,
+    spread: f32,
+) -> BoxShadow {
     BoxShadow {
         color,
         offset: point(px(0.), px(y)),

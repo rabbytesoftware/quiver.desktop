@@ -67,7 +67,12 @@ impl SettingsModal {
         }
     }
 
-    fn set(values: &Entity<FormValues>, name: &str, value: String, cx: &mut gpui::App) {
+    fn set(
+        values: &Entity<FormValues>,
+        name: &str,
+        value: String,
+        cx: &mut gpui::App,
+    ) {
         values.update(cx, |f, cx| {
             f.values.insert(name.to_owned(), value);
             cx.notify();
@@ -75,7 +80,11 @@ impl SettingsModal {
     }
 
     /// The text editors are made on first paint: they need the window.
-    fn ensure_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn ensure_inputs(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         for variable in &self.variables {
             let secret = field_kind(variable) == FieldKind::Secret;
             if !(secret || field_kind(variable) == FieldKind::Text)
@@ -101,7 +110,11 @@ impl SettingsModal {
         }
     }
 
-    fn row(&self, variable: &ArrowVariable, cx: &mut Context<Self>) -> impl IntoElement {
+    fn row(
+        &self,
+        variable: &ArrowVariable,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let shown = shown_value(variable, &self.values.read(cx).values);
         let error = validate(variable, &shown).map(|e| e.message());
@@ -162,7 +175,11 @@ impl SettingsModal {
 }
 
 impl Render for SettingsModal {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         self.ensure_inputs(window, cx);
         let model = self.app.read(cx);
         let (title, subtitle, done) = (

@@ -54,7 +54,11 @@ pub(super) struct Gallery {
 }
 
 impl Gallery {
-    pub fn new(mode: Mode, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        mode: Mode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let open = std::env::var("QUIVER_GALLERY_OPEN").unwrap_or_default();
         Self {
             mode,

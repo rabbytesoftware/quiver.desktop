@@ -160,7 +160,10 @@ where
 
 /// Complete the WebSocket upgrade for `path` (a full `/v0/...` route) over
 /// `stream`.
-pub(super) async fn open_ws_over<S>(stream: S, path: &str) -> Result<WsStream, Error>
+pub(super) async fn open_ws_over<S>(
+    stream: S,
+    path: &str,
+) -> Result<WsStream, Error>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {

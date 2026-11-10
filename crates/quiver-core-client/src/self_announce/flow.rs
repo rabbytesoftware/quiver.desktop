@@ -116,7 +116,10 @@ pub async fn announce_self(
     outcome
 }
 
-async fn register(transport: &dyn Transport, identity: &str) -> bool {
+async fn register(
+    transport: &dyn Transport,
+    identity: &str,
+) -> bool {
     let path = format!("/v0/arrow/{}", namespace_segment(identity));
     match call(transport, "POST", &path, None).await {
         Ok(_) => true,
@@ -175,7 +178,11 @@ async fn listed_channels(transport: &dyn Transport) -> Option<Vec<String>> {
 }
 
 /// Whether the declared state now stands: adopted.
-async fn adopt(transport: &dyn Transport, identity: &str, tag: &str) -> bool {
+async fn adopt(
+    transport: &dyn Transport,
+    identity: &str,
+    tag: &str,
+) -> bool {
     let path = format!("/v0/arrow/{}/adopt", namespace_segment(identity));
     let body = serde_json::json!({ "resolved_ref": tag });
     match call(transport, "POST", &path, Some(body)).await {

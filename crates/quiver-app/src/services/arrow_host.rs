@@ -44,7 +44,10 @@ fn daemon_request(req: ArrowRequest) -> Result<Request<Vec<u8>>> {
 
 #[async_trait]
 impl ArrowUpstream for CoreUpstream {
-    async fn request(&self, req: ArrowRequest) -> Result<ArrowResponse> {
+    async fn request(
+        &self,
+        req: ArrowRequest,
+    ) -> Result<ArrowResponse> {
         let request = daemon_request(req)?;
         let resp = self
             .manager
@@ -68,7 +71,10 @@ impl ArrowUpstream for CoreUpstream {
         })
     }
 
-    async fn open_ws(&self, path: &str) -> Result<Box<dyn WsRelay>> {
+    async fn open_ws(
+        &self,
+        path: &str,
+    ) -> Result<Box<dyn WsRelay>> {
         let socket = self
             .manager
             .transport()
@@ -87,7 +93,10 @@ struct SocketRelay {
 
 #[async_trait]
 impl WsRelay for SocketRelay {
-    async fn send(&mut self, text: String) -> Result<()> {
+    async fn send(
+        &mut self,
+        text: String,
+    ) -> Result<()> {
         self.socket
             .send(Message::Text(text))
             .await

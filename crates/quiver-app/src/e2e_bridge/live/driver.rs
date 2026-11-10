@@ -14,11 +14,17 @@ pub struct GpuiDriver {
 }
 
 impl GpuiDriver {
-    pub fn new(commands: UnboundedSender<Command>, state: StateSnapshot) -> Self {
+    pub fn new(
+        commands: UnboundedSender<Command>,
+        state: StateSnapshot,
+    ) -> Self {
         Self { commands, state }
     }
 
-    async fn ask(&self, build: impl FnOnce(Reply) -> Command) -> Result<(), String> {
+    async fn ask(
+        &self,
+        build: impl FnOnce(Reply) -> Command,
+    ) -> Result<(), String> {
         let (reply, answer) = oneshot::channel();
         self.commands
             .send(build(reply))
@@ -52,27 +58,46 @@ impl Driver for GpuiDriver {
         }
     }
 
-    async fn click(&self, id: &str, double: bool) -> Result<(), String> {
+    async fn click(
+        &self,
+        id: &str,
+        double: bool,
+    ) -> Result<(), String> {
         let id = id.to_string();
         self.ask(|reply| Command::Click { id, double, reply }).await
     }
 
-    async fn hover(&self, id: &str) -> Result<(), String> {
+    async fn hover(
+        &self,
+        id: &str,
+    ) -> Result<(), String> {
         let id = id.to_string();
         self.ask(|reply| Command::Hover { id, reply }).await
     }
 
-    async fn type_text(&self, id: Option<&str>, text: &str) -> Result<(), String> {
+    async fn type_text(
+        &self,
+        id: Option<&str>,
+        text: &str,
+    ) -> Result<(), String> {
         let (id, text) = (id.map(str::to_string), text.to_string());
         self.ask(|reply| Command::Type { id, text, reply }).await
     }
 
-    async fn key(&self, keys: &str) -> Result<(), String> {
+    async fn key(
+        &self,
+        keys: &str,
+    ) -> Result<(), String> {
         let keys = keys.to_string();
         self.ask(|reply| Command::Key { keys, reply }).await
     }
 
-    async fn scroll(&self, id: &str, dx: f32, dy: f32) -> Result<(), String> {
+    async fn scroll(
+        &self,
+        id: &str,
+        dx: f32,
+        dy: f32,
+    ) -> Result<(), String> {
         let id = id.to_string();
         self.ask(|reply| Command::Scroll { id, dx, dy, reply })
             .await
@@ -82,7 +107,10 @@ impl Driver for GpuiDriver {
         (self.state)()
     }
 
-    async fn logs(&self, n: usize) -> Vec<String> {
+    async fn logs(
+        &self,
+        n: usize,
+    ) -> Vec<String> {
         logs::recent(n)
     }
 
@@ -92,7 +120,11 @@ impl Driver for GpuiDriver {
             .map_err(|e| e.to_string())?
     }
 
-    async fn resize(&self, width: f32, height: f32) -> Result<(), String> {
+    async fn resize(
+        &self,
+        width: f32,
+        height: f32,
+    ) -> Result<(), String> {
         self.ask(|reply| Command::Resize {
             width,
             height,

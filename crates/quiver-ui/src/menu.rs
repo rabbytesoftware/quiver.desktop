@@ -41,28 +41,43 @@ impl MenuItem {
     }
 
     /// Reports this item to the e2e bridge under `id` while the menu is open.
-    pub fn probe(mut self, id: impl Into<SharedString>) -> Self {
+    pub fn probe(
+        mut self,
+        id: impl Into<SharedString>,
+    ) -> Self {
         self.probe_id = Some(id.into());
         self
     }
 
     /// `variant="destructive"`.
-    pub fn destructive(mut self, destructive: bool) -> Self {
+    pub fn destructive(
+        mut self,
+        destructive: bool,
+    ) -> Self {
         self.destructive = destructive;
         self
     }
 
-    pub fn disabled(mut self, disabled: bool) -> Self {
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
         self.disabled = disabled;
         self
     }
 
-    pub fn icon(mut self, icon: impl IntoElement) -> Self {
+    pub fn icon(
+        mut self,
+        icon: impl IntoElement,
+    ) -> Self {
         self.icon = Some(icon.into_any_element());
         self
     }
 
-    pub fn on_select(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+    pub fn on_select(
+        mut self,
+        f: impl Fn(&mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_select = Some(Rc::new(f));
         self
     }
@@ -106,7 +121,10 @@ pub struct Menu {
 }
 
 impl Menu {
-    pub fn new(id: impl Into<ElementId>, trigger: Button) -> Self {
+    pub fn new(
+        id: impl Into<ElementId>,
+        trigger: Button,
+    ) -> Self {
         Self {
             id: id.into(),
             trigger,
@@ -116,7 +134,10 @@ impl Menu {
         }
     }
 
-    pub fn item(mut self, item: MenuItem) -> Self {
+    pub fn item(
+        mut self,
+        item: MenuItem,
+    ) -> Self {
         self.entries.push(MenuEntry::Item(item));
         self
     }
@@ -126,20 +147,30 @@ impl Menu {
         self
     }
 
-    pub fn align(mut self, align: MenuAlign) -> Self {
+    pub fn align(
+        mut self,
+        align: MenuAlign,
+    ) -> Self {
         self.align = align;
         self
     }
 
     /// Called when the popup opens or closes.
-    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_open_change(
+        mut self,
+        f: impl Fn(bool, &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_open_change = Some(Rc::new(f));
         self
     }
 }
 
 impl RenderOnce for Menu {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let trigger_id = self.trigger.element_id().clone();
         let h = use_popup(&self.id, &trigger_id, window, cx);

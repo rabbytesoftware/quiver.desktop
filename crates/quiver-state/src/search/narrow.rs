@@ -26,7 +26,10 @@ pub struct Selection {
 }
 
 impl Selection {
-    fn of(&self, kind: FacetKind) -> &Vec<String> {
+    fn of(
+        &self,
+        kind: FacetKind,
+    ) -> &Vec<String> {
         match kind {
             FacetKind::Host => &self.host,
             FacetKind::Tag => &self.tag,
@@ -43,7 +46,10 @@ pub fn host_of(entry: &SearchEntry) -> &str {
     entry.namespace.split('/').next().unwrap_or("")
 }
 
-fn values_of(entry: &SearchEntry, kind: FacetKind) -> Vec<&str> {
+fn values_of(
+    entry: &SearchEntry,
+    kind: FacetKind,
+) -> Vec<&str> {
     match kind {
         FacetKind::Host => vec![host_of(entry)],
         FacetKind::Tag => entry.tags.iter().map(String::as_str).collect(),
@@ -53,7 +59,11 @@ fn values_of(entry: &SearchEntry, kind: FacetKind) -> Vec<&str> {
 /// Counted off the results themselves, so a facet can never name something the list does not contain.
 /// A tag carried by all but one result is dropped: it is the query restated, and selecting it would
 /// remove a single card while looking like a filter.
-pub fn facets_for(entries: &[SearchEntry], kind: FacetKind, take: usize) -> Vec<Facet> {
+pub fn facets_for(
+    entries: &[SearchEntry],
+    kind: FacetKind,
+    take: usize,
+) -> Vec<Facet> {
     let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
     let mut first_seen: Vec<&str> = Vec::new();
     for entry in entries {
@@ -82,7 +92,10 @@ pub fn facets_for(entries: &[SearchEntry], kind: FacetKind, take: usize) -> Vec<
 }
 
 /// Selecting inside one facet widens (OR); selecting across facets narrows (AND).
-pub fn apply_selection(entries: &[SearchEntry], selection: &Selection) -> Vec<SearchEntry> {
+pub fn apply_selection(
+    entries: &[SearchEntry],
+    selection: &Selection,
+) -> Vec<SearchEntry> {
     entries
         .iter()
         .filter(|entry| {
@@ -98,7 +111,11 @@ pub fn apply_selection(entries: &[SearchEntry], selection: &Selection) -> Vec<Se
         .collect()
 }
 
-pub fn toggle(selection: &Selection, kind: FacetKind, value: &str) -> Selection {
+pub fn toggle(
+    selection: &Selection,
+    kind: FacetKind,
+    value: &str,
+) -> Selection {
     let mut next = selection.clone();
     let chosen = match kind {
         FacetKind::Host => &mut next.host,
@@ -117,7 +134,10 @@ mod tests {
     use super::super::relevance::fixtures::entry;
     use super::*;
 
-    fn with_tags(namespace: &str, tags: &[&str]) -> SearchEntry {
+    fn with_tags(
+        namespace: &str,
+        tags: &[&str],
+    ) -> SearchEntry {
         SearchEntry {
             tags: tags.iter().map(|t| (*t).to_owned()).collect(),
             ..entry(namespace, namespace)
@@ -133,7 +153,10 @@ mod tests {
         ]
     }
 
-    fn facet(value: &str, count: usize) -> Facet {
+    fn facet(
+        value: &str,
+        count: usize,
+    ) -> Facet {
         Facet {
             value: value.into(),
             count,

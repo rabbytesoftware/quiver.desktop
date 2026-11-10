@@ -18,7 +18,10 @@ struct Whole(Result<(u16, Vec<u8>), &'static str>);
 
 #[async_trait]
 impl Transport for Whole {
-    async fn request(&self, _req: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error> {
+    async fn request(
+        &self,
+        _req: Request<Vec<u8>>,
+    ) -> Result<Response<Vec<u8>>, Error> {
         match &self.0 {
             Ok((status, body)) => Ok(Response::builder()
                 .status(*status)
@@ -28,7 +31,10 @@ impl Transport for Whole {
         }
     }
 
-    async fn open_ws(&self, _path: &str) -> Result<WsStream, Error> {
+    async fn open_ws(
+        &self,
+        _path: &str,
+    ) -> Result<WsStream, Error> {
         Err(Error::Connect("no ws".into()))
     }
 }

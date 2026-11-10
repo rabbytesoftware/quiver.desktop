@@ -153,7 +153,11 @@ mod tests {
     use crate::domain::{ArrowState, SearchEntry};
     use crate::search::relevance::fixtures::entry;
 
-    fn arrow(ns: &str, name: &str, used: Option<&str>) -> ArrowEntry {
+    fn arrow(
+        ns: &str,
+        name: &str,
+        used: Option<&str>,
+    ) -> ArrowEntry {
         ArrowEntry {
             namespace: ns.into(),
             name: name.into(),
@@ -205,7 +209,10 @@ mod tests {
         }
     }
 
-    fn home_of(arrows: usize, refreshing: bool) -> Home {
+    fn home_of(
+        arrows: usize,
+        refreshing: bool,
+    ) -> Home {
         let arrows = (0..arrows)
             .map(|i| open(&format!("github.com/x/a{i}")))
             .collect();

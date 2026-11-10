@@ -31,7 +31,11 @@ pub struct Sidebar {
 }
 
 impl Sidebar {
-    pub fn new(app: Entity<AppModel>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search Arrows"));
         let services = app.read(cx).services.clone();
         observe_store(cx, services.arrows.store());
@@ -68,11 +72,18 @@ impl Sidebar {
         cx.notify();
     }
 
-    fn showing_results(&self, cx: &App) -> bool {
+    fn showing_results(
+        &self,
+        cx: &App,
+    ) -> bool {
         matches!(self.app.read(cx).route(), Route::Search { .. })
     }
 
-    fn commit(&mut self, target: CommitTarget, cx: &mut Context<Self>) {
+    fn commit(
+        &mut self,
+        target: CommitTarget,
+        cx: &mut Context<Self>,
+    ) {
         let (route, replace) = match target {
             CommitTarget::Home { replace } => (Route::Home, replace),
             CommitTarget::Results { query, replace } => (Route::Search { query }, replace),
@@ -87,7 +98,12 @@ impl Sidebar {
     }
 
     /// What Enter does once the lookup (if any) has answered.
-    fn submit(&mut self, text: &str, resolved: Option<NamespaceTarget>, cx: &mut Context<Self>) {
+    fn submit(
+        &mut self,
+        text: &str,
+        resolved: Option<NamespaceTarget>,
+        cx: &mut Context<Self>,
+    ) {
         match submit_action(text, resolved, self.showing_results(cx)) {
             SubmitAction::GoTo(target) => {
                 let route = match target.kind {
@@ -163,7 +179,11 @@ impl Sidebar {
 }
 
 impl Render for Sidebar {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let (width, side) = {
             let shell = self.app.read(cx).shell;

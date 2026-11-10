@@ -44,7 +44,10 @@ impl TileInput {
     }
 
     /// A collection tile: the badge is its arrow count.
-    pub fn from_collection_item(item: &CollectionListItem, count_label: String) -> Self {
+    pub fn from_collection_item(
+        item: &CollectionListItem,
+        count_label: String,
+    ) -> Self {
         Self {
             kind: TileKind::Collection,
             description: item.description.clone(),

@@ -63,7 +63,10 @@ mod tests {
     use super::*;
     use crate::domain::ArrowState;
 
-    fn arrow(ns: &str, name: &str) -> ArrowEntry {
+    fn arrow(
+        ns: &str,
+        name: &str,
+    ) -> ArrowEntry {
         ArrowEntry {
             namespace: ns.into(),
             name: name.into(),

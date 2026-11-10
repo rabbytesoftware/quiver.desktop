@@ -55,8 +55,14 @@ pub struct ConnectionsState {
 /// Receives the connection layer's events. The application implements this
 /// (the Tauri build emitted `core://status` and `connection://changed`).
 pub trait EventSink: Send + Sync + 'static {
-    fn emit_core_status(&self, status: CoreStatus);
-    fn emit_connection_changed(&self, state: &ConnectionsState);
+    fn emit_core_status(
+        &self,
+        status: CoreStatus,
+    );
+    fn emit_connection_changed(
+        &self,
+        state: &ConnectionsState,
+    );
 }
 
 /// One live connection to a quiver.core.
@@ -66,11 +72,17 @@ pub trait EventSink: Send + Sync + 'static {
 pub trait QuiverConnection: Send + Sync {
     /// Bring the connection up, emitting `Starting` then `Ready` or
     /// `Disconnected` on `events`, and return the status it ended on.
-    async fn start(&self, events: &dyn EventSink) -> CoreStatus;
+    async fn start(
+        &self,
+        events: &dyn EventSink,
+    ) -> CoreStatus;
     async fn teardown(&self);
     fn transport(&self) -> Arc<dyn Transport>;
     fn config(&self) -> &ConnectionConfig;
-    fn set_name(&mut self, name: String);
+    fn set_name(
+        &mut self,
+        name: String,
+    );
 }
 
 #[cfg(test)]

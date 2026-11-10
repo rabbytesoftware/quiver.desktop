@@ -72,7 +72,10 @@ fn action(
         .child(probe(probe_id, Kind::Button, label, true, ""))
 }
 
-pub fn header(view: &mut ArrowAppView, cx: &mut Context<ArrowAppView>) -> impl IntoElement {
+pub fn header(
+    view: &mut ArrowAppView,
+    cx: &mut Context<ArrowAppView>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let entry = view.app.read(cx).services.arrows.entry(&view.namespace);
     let pane = build_pane_header(&view.namespace, entry.as_ref(), true, true);

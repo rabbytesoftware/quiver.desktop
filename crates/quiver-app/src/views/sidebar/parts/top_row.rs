@@ -46,7 +46,10 @@ fn nav_button(
         .child(probe(probe_id, Kind::Button, id, enabled, ""))
 }
 
-pub fn top_row(sidebar: &Sidebar, cx: &mut Context<Sidebar>) -> impl IntoElement {
+pub fn top_row(
+    sidebar: &Sidebar,
+    cx: &mut Context<Sidebar>,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
     let app = sidebar.app.read(cx);
     let compact = compact_for_width(app.shell.sidebar_width);

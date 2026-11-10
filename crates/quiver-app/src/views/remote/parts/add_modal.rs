@@ -18,7 +18,11 @@ use crate::model::{app_model, close_modal, open_modal};
 use crate::views::remote::actions::ADD_MODAL;
 use crate::views::remote::RemoteView;
 
-pub fn open_add(remote: Entity<RemoteView>, window: &mut Window, cx: &mut App) {
+pub fn open_add(
+    remote: Entity<RemoteView>,
+    window: &mut Window,
+    cx: &mut App,
+) {
     let modal = cx.new(|cx| AddModal::new(remote, window, cx));
     open_modal(cx, ADD_MODAL, modal.into());
 }
@@ -33,7 +37,11 @@ struct AddModal {
 }
 
 impl AddModal {
-    fn new(remote: Entity<RemoteView>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    fn new(
+        remote: Entity<RemoteView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let app = app_model(cx);
         let (name_hint, url_hint) = {
             let m = app.read(cx);
@@ -98,7 +106,10 @@ impl AddModal {
         cx.notify();
     }
 
-    fn check(&mut self, cx: &mut Context<Self>) {
+    fn check(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         let Some(url) = self.form.begin_check() else {
             return;
         };
@@ -118,7 +129,10 @@ impl AddModal {
         cx.notify();
     }
 
-    fn submit(&mut self, cx: &mut Context<Self>) {
+    fn submit(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
         let busy = self.remote.read(cx).add_busy;
         if let Some(submission) = self.form.submit(busy) {
             self.remote.update(cx, |v, cx| v.add(submission, cx));
@@ -174,7 +188,11 @@ fn button(
 }
 
 impl Render for AddModal {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let focused =
             |input: &Entity<InputState>| input.read(cx).focus_handle(cx).is_focused(window);
         let (name_focus, url_focus, code_focus) =

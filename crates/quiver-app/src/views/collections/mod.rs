@@ -29,7 +29,10 @@ pub struct CollectionsView {
 }
 
 impl CollectionsView {
-    pub fn new(app: Entity<AppModel>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let followed = Query::default();
         observe_store(cx, followed.store());
         let (services, demo) = {
@@ -57,7 +60,11 @@ impl CollectionsView {
 }
 
 impl Render for CollectionsView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let app = self.app.clone();
         let state = self.followed.snapshot();

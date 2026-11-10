@@ -75,7 +75,10 @@ impl Error {
 }
 
 impl Serialize for Error {
-    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+    fn serialize<S: Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
         let mut out = serializer.serialize_struct("Error", 2)?;
         out.serialize_field("kind", self.kind())?;
         out.serialize_field("detail", self.detail())?;

@@ -2,7 +2,10 @@ use super::*;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-fn remote(id: &str, name: &str) -> ConnectionConfig {
+fn remote(
+    id: &str,
+    name: &str,
+) -> ConnectionConfig {
     ConnectionConfig {
         id: id.into(),
         name: name.into(),
@@ -19,7 +22,10 @@ fn local_harness() -> Harness {
     )
 }
 
-fn save(h: &Harness, configs: &[ConnectionConfig]) {
+fn save(
+    h: &Harness,
+    configs: &[ConnectionConfig],
+) {
     save_remote_configs(h.settings.as_ref(), configs).unwrap();
 }
 

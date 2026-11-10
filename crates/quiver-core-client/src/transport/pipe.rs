@@ -54,11 +54,17 @@ impl PipeTransport {
 
 #[async_trait]
 impl Transport for PipeTransport {
-    async fn request(&self, req: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error> {
+    async fn request(
+        &self,
+        req: Request<Vec<u8>>,
+    ) -> Result<Response<Vec<u8>>, Error> {
         request_over(self.connect().await?, req).await
     }
 
-    async fn open_ws(&self, path: &str) -> Result<WsStream, Error> {
+    async fn open_ws(
+        &self,
+        path: &str,
+    ) -> Result<WsStream, Error> {
         open_ws_over(self.connect().await?, path).await
     }
 

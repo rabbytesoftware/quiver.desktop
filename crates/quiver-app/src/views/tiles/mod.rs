@@ -46,7 +46,10 @@ pub fn library_input(entry: &ArrowEntry) -> TileInput {
 }
 
 /// The model of a search / shelf result.
-pub fn discovered_input(entry: &SearchEntry, policy: BadgePolicy) -> TileInput {
+pub fn discovered_input(
+    entry: &SearchEntry,
+    policy: BadgePolicy,
+) -> TileInput {
     TileInput {
         kind: TileKind::Arrow,
         description: entry.description.clone(),
@@ -65,7 +68,11 @@ pub fn discovered_input(entry: &SearchEntry, policy: BadgePolicy) -> TileInput {
     }
 }
 
-fn run_action(app: &AppModel, namespace: String, kind: ArrowActionKind) {
+fn run_action(
+    app: &AppModel,
+    namespace: String,
+    kind: ArrowActionKind,
+) {
     let mutations = Mutations::new(app.services.api.clone(), app.services.queries.clone());
     spawn_detached(app.handle(), async move {
         let vars = Variables::new();

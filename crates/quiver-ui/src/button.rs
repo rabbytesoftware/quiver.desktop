@@ -46,35 +46,53 @@ impl Button {
         }
     }
 
-    pub fn variant(mut self, v: ButtonVariant) -> Self {
+    pub fn variant(
+        mut self,
+        v: ButtonVariant,
+    ) -> Self {
         self.variant = v;
         self
     }
 
-    pub fn size(mut self, s: ButtonSize) -> Self {
+    pub fn size(
+        mut self,
+        s: ButtonSize,
+    ) -> Self {
         self.size = s;
         self
     }
 
     /// Disables the button and shows a spinner over its (hidden) content.
-    pub fn loading(mut self, loading: bool) -> Self {
+    pub fn loading(
+        mut self,
+        loading: bool,
+    ) -> Self {
         self.loading = loading;
         self
     }
 
-    pub fn disabled(mut self, disabled: bool) -> Self {
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
         self.disabled = disabled;
         self
     }
 
     /// `data-pressed`: keeps the hover look (an open menu or popover trigger).
-    pub fn pressed(mut self, pressed: bool) -> Self {
+    pub fn pressed(
+        mut self,
+        pressed: bool,
+    ) -> Self {
         self.selected = pressed;
         self
     }
 
     /// Hover tooltip, e.g. `.tooltip(quiver_ui::tooltip("Settings"))`.
-    pub fn tooltip(mut self, f: impl Fn(&mut Window, &mut App) -> gpui::AnyView + 'static) -> Self {
+    pub fn tooltip(
+        mut self,
+        f: impl Fn(&mut Window, &mut App) -> gpui::AnyView + 'static,
+    ) -> Self {
         self.tooltip = Some(Rc::new(f));
         self
     }
@@ -83,11 +101,17 @@ impl Button {
         &self.id
     }
 
-    pub fn label(self, text: impl Into<SharedString>) -> Self {
+    pub fn label(
+        self,
+        text: impl Into<SharedString>,
+    ) -> Self {
         self.child(text.into())
     }
 
-    pub fn on_click(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_click(
+        mut self,
+        f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_click = Some(Rc::new(f));
         self
     }
@@ -100,13 +124,20 @@ impl Styled for Button {
 }
 
 impl ParentElement for Button {
-    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+    fn extend(
+        &mut self,
+        elements: impl IntoIterator<Item = AnyElement>,
+    ) {
         self.children.extend(elements);
     }
 }
 
 impl RenderOnce for Button {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let q = *cx.quiver();
         let spec = self.size.spec();
         let v = self.variant.resolve(&q);

@@ -106,40 +106,63 @@ impl Tile {
         }
     }
 
-    pub fn size(mut self, size: TileSize) -> Self {
+    pub fn size(
+        mut self,
+        size: TileSize,
+    ) -> Self {
         self.size = size;
         self
     }
 
-    pub fn badge(mut self, badge: Option<TileBadge>) -> Self {
+    pub fn badge(
+        mut self,
+        badge: Option<TileBadge>,
+    ) -> Self {
         self.badge = badge;
         self
     }
 
     /// The description (two lines at most).
-    pub fn caption(mut self, caption: impl Into<SharedString>) -> Self {
+    pub fn caption(
+        mut self,
+        caption: impl Into<SharedString>,
+    ) -> Self {
         self.caption = caption.into();
         self
     }
 
     /// Title and tags shown over a banner on hover.
-    pub fn hover(mut self, title: impl Into<SharedString>, tags: Vec<SharedString>) -> Self {
+    pub fn hover(
+        mut self,
+        title: impl Into<SharedString>,
+        tags: Vec<SharedString>,
+    ) -> Self {
         self.hover = Some((title.into(), tags));
         self
     }
 
-    pub fn start(mut self, start: Option<TileStart>) -> Self {
+    pub fn start(
+        mut self,
+        start: Option<TileStart>,
+    ) -> Self {
         self.start = start;
         self
     }
 
-    pub fn on_click(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_click(
+        mut self,
+        f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_click = Some(Rc::new(f));
         self
     }
 
     /// The e2e id of the tile (`home.tile.<ns>`); the Start button reports `tile.<ns>.start`.
-    pub fn probe(mut self, id: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
+    pub fn probe(
+        mut self,
+        id: impl Into<SharedString>,
+        label: impl Into<SharedString>,
+    ) -> Self {
         self.probe_id = Some(id.into());
         self.probe_label = label.into();
         self
@@ -147,7 +170,11 @@ impl Tile {
 }
 
 impl RenderOnce for Tile {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        _: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let w = self.size.width();
         let group: SharedString = format!("tile-{}-{}", self.namespace, w).into();

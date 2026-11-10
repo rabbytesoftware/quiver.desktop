@@ -57,7 +57,10 @@ impl LogStream {
         self.active
     }
 
-    pub fn start(&mut self, cursor: Option<u64>) -> Vec<StreamAction> {
+    pub fn start(
+        &mut self,
+        cursor: Option<u64>,
+    ) -> Vec<StreamAction> {
         if self.active {
             return vec![];
         }
@@ -93,7 +96,10 @@ impl LogStream {
         actions
     }
 
-    fn connect(&mut self, cursor: Option<u64>) -> Vec<StreamAction> {
+    fn connect(
+        &mut self,
+        cursor: Option<u64>,
+    ) -> Vec<StreamAction> {
         self.generation += 1;
         self.socket_open = true;
         vec![
@@ -109,7 +115,10 @@ impl LogStream {
         ]
     }
 
-    pub fn on_open(&mut self, attempt: u64) -> Vec<StreamAction> {
+    pub fn on_open(
+        &mut self,
+        attempt: u64,
+    ) -> Vec<StreamAction> {
         if attempt != self.generation {
             return vec![];
         }
@@ -118,11 +127,17 @@ impl LogStream {
     }
 
     /// Whether a message from `attempt` should be handed on.
-    pub fn accepts(&self, attempt: u64) -> bool {
+    pub fn accepts(
+        &self,
+        attempt: u64,
+    ) -> bool {
         attempt == self.generation
     }
 
-    pub fn on_close(&mut self, attempt: u64) -> Vec<StreamAction> {
+    pub fn on_close(
+        &mut self,
+        attempt: u64,
+    ) -> Vec<StreamAction> {
         if attempt != self.generation || !self.active {
             return vec![];
         }
@@ -138,7 +153,10 @@ impl LogStream {
     }
 
     /// The backoff elapsed; `cursor` is where the log got to meanwhile.
-    pub fn on_timer(&mut self, cursor: Option<u64>) -> Vec<StreamAction> {
+    pub fn on_timer(
+        &mut self,
+        cursor: Option<u64>,
+    ) -> Vec<StreamAction> {
         self.waiting = false;
         if self.active {
             self.connect(cursor)

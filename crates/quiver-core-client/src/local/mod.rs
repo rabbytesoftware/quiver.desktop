@@ -49,7 +49,10 @@ impl LocalConnection {
 
 #[async_trait]
 impl QuiverConnection for LocalConnection {
-    async fn start(&self, events: &dyn EventSink) -> CoreStatus {
+    async fn start(
+        &self,
+        events: &dyn EventSink,
+    ) -> CoreStatus {
         log::info!("[local] starting — host: {:?}", self.host);
         events.emit_core_status(CoreStatus::Starting);
 
@@ -81,7 +84,10 @@ impl QuiverConnection for LocalConnection {
         &self.config
     }
 
-    fn set_name(&mut self, name: String) {
+    fn set_name(
+        &mut self,
+        name: String,
+    ) {
         self.config.name = name;
     }
 }

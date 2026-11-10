@@ -7,7 +7,10 @@ pub const CACHE_VERSION_KEY: &str = "quiver:cache-version";
 
 /// Wipes the entity cache when the stored cache version differs from this build's. An unreadable
 /// store counts as a mismatch; a store that cannot be written still gets the wipe.
-pub fn maybe_wipe_on_version_change(cache: &EntityCache, store: &dyn KeyValueStore) {
+pub fn maybe_wipe_on_version_change(
+    cache: &EntityCache,
+    store: &dyn KeyValueStore,
+) {
     let stored = store.get(CACHE_VERSION_KEY).unwrap_or(None);
     if stored.as_deref() == Some(QUIVER_CACHE_VERSION) {
         return;
@@ -29,11 +32,18 @@ mod tests {
     struct Unreadable;
 
     impl KeyValueStore for Unreadable {
-        fn get(&self, _: &str) -> Result<Option<String>, String> {
+        fn get(
+            &self,
+            _: &str,
+        ) -> Result<Option<String>, String> {
             Err("SecurityError".into())
         }
 
-        fn set(&self, _: &str, _: &str) -> Result<(), String> {
+        fn set(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> Result<(), String> {
             Err("QuotaExceededError".into())
         }
     }

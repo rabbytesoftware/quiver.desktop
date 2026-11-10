@@ -50,7 +50,10 @@ impl Upstream {
     }
 
     /// The release asset a built version was packaged as.
-    pub fn built_asset(&self, tag: &str) -> PathBuf {
+    pub fn built_asset(
+        &self,
+        tag: &str,
+    ) -> PathBuf {
         self.core_assets
             .as_ref()
             .expect("QUIVER_E2E_CORE_ASSETS")
@@ -58,12 +61,19 @@ impl Upstream {
             .join(self.core_asset.as_ref().expect("QUIVER_E2E_CORE_ASSET"))
     }
 
-    fn bare(&self, repo: &str) -> PathBuf {
+    fn bare(
+        &self,
+        repo: &str,
+    ) -> PathBuf {
         self.state.join("git").join(format!("{repo}.git"))
     }
 
     /// Tags the repository's HEAD, which is what quiver.core's version check reads through ls-remote.
-    fn tag(&self, repo: &str, name: &str) {
+    fn tag(
+        &self,
+        repo: &str,
+        name: &str,
+    ) {
         let status = Command::new("git")
             .arg("--git-dir")
             .arg(self.bare(repo))
@@ -79,12 +89,19 @@ impl Upstream {
 
     /// Publishes quiver.core `tag`: the tag, the manifest at it, the binary and its `checksums.txt`, and the
     /// "latest release" pointer. Returns the published asset.
-    pub fn publish_core_release(&self, tag: &str) -> PathBuf {
+    pub fn publish_core_release(
+        &self,
+        tag: &str,
+    ) -> PathBuf {
         self.publish_core_release_with(tag, ReleaseOptions::default())
     }
 
     /// [`Upstream::publish_core_release`] with the variations the failure-path scenarios need.
-    pub fn publish_core_release_with(&self, tag: &str, options: ReleaseOptions) -> PathBuf {
+    pub fn publish_core_release_with(
+        &self,
+        tag: &str,
+        options: ReleaseOptions,
+    ) -> PathBuf {
         let asset_name = self.core_asset.clone().expect("QUIVER_E2E_CORE_ASSET");
         let raw = self.state.join("raw").join(CORE_REPO).join(tag);
         std::fs::create_dir_all(&raw).expect("raw dir");
@@ -140,7 +157,11 @@ impl Upstream {
 
     /// A new tag of a small fixture repository, serving the manifest it already serves at `develop`, so a row that
     /// follows the repository's `stable` channel sees a newer release ahead of what it has.
-    pub fn publish_repo_tag(&self, repo: &str, tag: &str) {
+    pub fn publish_repo_tag(
+        &self,
+        repo: &str,
+        tag: &str,
+    ) {
         let from = self
             .state
             .join("raw")
@@ -154,7 +175,10 @@ impl Upstream {
     }
 
     /// How many times the stand-in was asked for `request_path` (the request log is one JSON object per line).
-    pub fn hits(&self, request_path: &str) -> usize {
+    pub fn hits(
+        &self,
+        request_path: &str,
+    ) -> usize {
         let Some(log) = &self.log else { return 0 };
         std::fs::read_to_string(log)
             .unwrap_or_default()

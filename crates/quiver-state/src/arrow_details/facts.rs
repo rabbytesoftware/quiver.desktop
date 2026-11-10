@@ -98,7 +98,10 @@ impl ArrowFacts {
 pub(crate) mod fixtures {
     use super::*;
 
-    pub fn step(title: &str, step_type: &str) -> StepSpec {
+    pub fn step(
+        title: &str,
+        step_type: &str,
+    ) -> StepSpec {
         StepSpec {
             title: title.into(),
             step_type: step_type.into(),

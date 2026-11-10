@@ -1,6 +1,9 @@
 use super::*;
 
-fn post(path: &str, body: &str) -> Request<Vec<u8>> {
+fn post(
+    path: &str,
+    body: &str,
+) -> Request<Vec<u8>> {
     Request::builder()
         .method("POST")
         .uri(format!("quiver://localhost{path}"))

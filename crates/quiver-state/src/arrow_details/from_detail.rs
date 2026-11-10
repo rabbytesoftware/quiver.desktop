@@ -14,14 +14,20 @@ use crate::domain::{
 };
 
 /// The value that applies on `platform`: the plain scalar, or the platform's entry, or `default`.
-fn resolve<'a, T>(value: &'a Overridable<T>, platform: &str) -> Option<&'a T> {
+fn resolve<'a, T>(
+    value: &'a Overridable<T>,
+    platform: &str,
+) -> Option<&'a T> {
     match value {
         Overridable::Plain(v) => Some(v),
         Overridable::PerPlatform(map) => map.get(platform).or_else(|| map.get("default")),
     }
 }
 
-fn text(value: &Overridable<String>, platform: &str) -> Option<String> {
+fn text(
+    value: &Overridable<String>,
+    platform: &str,
+) -> Option<String> {
     resolve(value, platform).filter(|v| !v.is_empty()).cloned()
 }
 
@@ -42,7 +48,10 @@ type StepParts<'a> = (
 );
 
 /// One declared step, with its manifest YAML rebuilt for the step inspector.
-pub fn step_spec(step: &ArrowStepDefinition, platform: &str) -> StepSpec {
+pub fn step_spec(
+    step: &ArrowStepDefinition,
+    platform: &str,
+) -> StepSpec {
     use ArrowStepDefinition as S;
     let (kind, title, command, fields): StepParts<'_> = match step {
         S::Run {
@@ -104,7 +113,10 @@ pub fn step_spec(step: &ArrowStepDefinition, platform: &str) -> StepSpec {
     }
 }
 
-fn steps(list: &[ArrowStepDefinition], platform: &str) -> Vec<StepSpec> {
+fn steps(
+    list: &[ArrowStepDefinition],
+    platform: &str,
+) -> Vec<StepSpec> {
     list.iter().map(|s| step_spec(s, platform)).collect()
 }
 
@@ -135,7 +147,10 @@ fn active_run(run: &ActiveRun) -> ActiveRunFacts {
 }
 
 /// Everything the header and action row need, for the machine at `platform` (`os/arch`).
-pub fn facts_from_detail(detail: &ArrowDetail, platform: &str) -> ArrowFacts {
+pub fn facts_from_detail(
+    detail: &ArrowDetail,
+    platform: &str,
+) -> ArrowFacts {
     let target = target_for_platform(&detail.targets, platform);
     ArrowFacts {
         namespace: detail.namespace.clone(),
@@ -202,7 +217,10 @@ fn credit(c: &ArrowCredit) -> CreditFacts {
 }
 
 /// The Details column's facts: requirements of the machine's target, ports, people, links.
-pub fn details_facts(detail: &ArrowDetail, platform: &str) -> DetailsFacts {
+pub fn details_facts(
+    detail: &ArrowDetail,
+    platform: &str,
+) -> DetailsFacts {
     DetailsFacts {
         requirement: target_for_platform(&detail.targets, platform).map(|t| RequirementFacts {
             cpu_cores: t.requirement.cpu_cores,

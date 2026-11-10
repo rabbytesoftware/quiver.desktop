@@ -36,7 +36,10 @@ pub struct SelectOption {
 }
 
 impl SelectOption {
-    pub fn new(value: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
+    pub fn new(
+        value: impl Into<SharedString>,
+        label: impl Into<SharedString>,
+    ) -> Self {
         Self {
             value: value.into(),
             label: label.into(),
@@ -44,7 +47,10 @@ impl SelectOption {
         }
     }
 
-    pub fn disabled(mut self, disabled: bool) -> Self {
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
         self.disabled = disabled;
         self
     }
@@ -82,44 +88,68 @@ impl Select {
         }
     }
 
-    pub fn options(mut self, options: Vec<SelectOption>) -> Self {
+    pub fn options(
+        mut self,
+        options: Vec<SelectOption>,
+    ) -> Self {
         self.options = options;
         self
     }
 
-    pub fn value(mut self, value: Option<SharedString>) -> Self {
+    pub fn value(
+        mut self,
+        value: Option<SharedString>,
+    ) -> Self {
         self.value = value;
         self
     }
 
-    pub fn placeholder(mut self, text: impl Into<SharedString>) -> Self {
+    pub fn placeholder(
+        mut self,
+        text: impl Into<SharedString>,
+    ) -> Self {
         self.placeholder = text.into();
         self
     }
 
-    pub fn size(mut self, size: SelectSize) -> Self {
+    pub fn size(
+        mut self,
+        size: SelectSize,
+    ) -> Self {
         self.size = size;
         self
     }
 
-    pub fn disabled(mut self, disabled: bool) -> Self {
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
         self.disabled = disabled;
         self
     }
 
     /// `aria-invalid`: destructive border.
-    pub fn invalid(mut self, invalid: bool) -> Self {
+    pub fn invalid(
+        mut self,
+        invalid: bool,
+    ) -> Self {
         self.invalid = invalid;
         self
     }
 
-    pub fn on_change(mut self, f: impl Fn(SharedString, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(
+        mut self,
+        f: impl Fn(SharedString, &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_change = Some(Rc::new(f));
         self
     }
 
     /// Called when the popup opens or closes.
-    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_open_change(
+        mut self,
+        f: impl Fn(bool, &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_open_change = Some(Rc::new(f));
         self
     }
@@ -132,7 +162,11 @@ impl Styled for Select {
 }
 
 impl RenderOnce for Select {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let q = *cx.quiver();
         let p = q.palette;
         let trigger_id = child_id(&self.id, "trigger");

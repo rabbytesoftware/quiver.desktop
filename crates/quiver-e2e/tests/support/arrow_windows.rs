@@ -58,7 +58,10 @@ pub async fn open_apps(app: &mut App) -> Vec<String> {
 }
 
 /// Waits until the app reports exactly these namespaces (any order) as open; returns them LRU first.
-pub async fn wait_open(app: &mut App, expected: &[&str]) -> Vec<String> {
+pub async fn wait_open(
+    app: &mut App,
+    expected: &[&str],
+) -> Vec<String> {
     let mut want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
     want.sort();
     let mut last = Vec::new();
@@ -76,7 +79,11 @@ pub async fn wait_open(app: &mut App, expected: &[&str]) -> Vec<String> {
 }
 
 /// Re-reads the dump until `ok` holds (the helper windows are not signalled), failing the test with the screen.
-pub async fn until(app: &mut App, what: &str, ok: impl Fn(&Value) -> bool) -> Value {
+pub async fn until(
+    app: &mut App,
+    what: &str,
+    ok: impl Fn(&Value) -> bool,
+) -> Value {
     let mut last = Value::Null;
     for _ in 0..150 {
         last = dump(app).await;
@@ -89,7 +96,10 @@ pub async fn until(app: &mut App, what: &str, ok: impl Fn(&Value) -> bool) -> Va
 }
 
 /// The protocol requests made on behalf of `namespace`, oldest first.
-pub async fn requests(app: &mut App, namespace: &str) -> Vec<Value> {
+pub async fn requests(
+    app: &mut App,
+    namespace: &str,
+) -> Vec<Value> {
     dump(app).await["protocol"]
         .as_array()
         .map(|a| {
@@ -102,7 +112,10 @@ pub async fn requests(app: &mut App, namespace: &str) -> Vec<Value> {
 }
 
 /// Waits until the app has exactly `count` live pages (the supervisor's `windows`, hidden ones included).
-pub async fn wait_pages(app: &mut App, count: usize) {
+pub async fn wait_pages(
+    app: &mut App,
+    count: usize,
+) {
     until(app, &format!("{count} live page(s)"), |d| {
         d["windows"].as_array().is_some_and(|a| a.len() == count)
     })
@@ -111,7 +124,10 @@ pub async fn wait_pages(app: &mut App, count: usize) {
 
 /// Waits until the X window tree shows `count` mapped page windows inside the main window, each exactly over
 /// the pane body (`arrow-app.body`),; a page that opened as a window of its own would not be found there.
-pub async fn wait_embedded(app: &mut App, count: usize) {
+pub async fn wait_embedded(
+    app: &mut App,
+    count: usize,
+) {
     let body = if count > 0 {
         let n = app.node("arrow-app.body").await;
         Some((n.x, n.y, n.w, n.h))

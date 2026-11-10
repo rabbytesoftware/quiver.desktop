@@ -5,7 +5,10 @@
 use super::columns::{column_cap, COLUMN_GAP, MIN_TILE};
 
 /// Width of each tile when the answer holds `total` arrows and the grid is `available` px wide.
-pub fn tile_width(total: usize, available: f32) -> f32 {
+pub fn tile_width(
+    total: usize,
+    available: f32,
+) -> f32 {
     let (min, gap) = (MIN_TILE as f32, COLUMN_GAP as f32);
     let cap = column_cap(total) as f32;
     let wanted = ((available - (cap - 1.) * gap) / cap).max(min);

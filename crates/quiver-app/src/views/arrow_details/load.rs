@@ -32,7 +32,11 @@ impl Drop for ReadTask {
     }
 }
 
-pub fn start(services: &Arc<AppServices>, namespace: String, load: Store<Load>) -> ReadTask {
+pub fn start(
+    services: &Arc<AppServices>,
+    namespace: String,
+    load: Store<Load>,
+) -> ReadTask {
     let (api, queries) = (services.api.clone(), services.queries.clone());
     let status = services.status.store().clone();
     ReadTask(services.handle().spawn(async move {
@@ -95,7 +99,10 @@ pub fn start(services: &Arc<AppServices>, namespace: String, load: Store<Load>) 
     }))
 }
 
-fn keep_slow_fields(mut fresh: ArrowDetail, previous: Option<ArrowDetail>) -> ArrowDetail {
+fn keep_slow_fields(
+    mut fresh: ArrowDetail,
+    previous: Option<ArrowDetail>,
+) -> ArrowDetail {
     if let Some(old) = previous {
         fresh.readme = old.readme;
         fresh.dependencies = old.dependencies;

@@ -23,7 +23,10 @@ impl<T: Clone> Subscribers<T> {
     }
 
     /// Delivers to every live subscriber; a dropped receiver unsubscribes.
-    fn publish(&self, value: &T) {
+    fn publish(
+        &self,
+        value: &T,
+    ) {
         self.lock().retain(|tx| tx.send(value.clone()).is_ok());
     }
 
@@ -91,11 +94,17 @@ pub(super) fn snapshot_of(state: &ConnectionsState) -> ConnectionsSnapshot {
 }
 
 impl EventSink for ChannelEvents {
-    fn emit_core_status(&self, status: CoreStatus) {
+    fn emit_core_status(
+        &self,
+        status: CoreStatus,
+    ) {
         self.status.publish(&status_of(status));
     }
 
-    fn emit_connection_changed(&self, state: &ConnectionsState) {
+    fn emit_connection_changed(
+        &self,
+        state: &ConnectionsState,
+    ) {
         self.connections.publish(&snapshot_of(state));
     }
 }

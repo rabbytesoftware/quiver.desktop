@@ -24,12 +24,20 @@ pub enum TileArtKind {
     },
 }
 
-fn hue(h: u16, s: f32, l: f32) -> gpui::Hsla {
+fn hue(
+    h: u16,
+    s: f32,
+    l: f32,
+) -> gpui::Hsla {
     hsla(f32::from(h % 360) / 360.0, s, l, 1.0)
 }
 
 /// The art's children (the container is built by the tile, which owns size, radius and clipping).
-pub(crate) fn art_children(kind: &TileArtKind, w: f32, cx: &App) -> Vec<gpui::AnyElement> {
+pub(crate) fn art_children(
+    kind: &TileArtKind,
+    w: f32,
+    cx: &App,
+) -> Vec<gpui::AnyElement> {
     match kind {
         TileArtKind::Banner { hue: h } => banner(*h, w),
         TileArtKind::Drawn {
@@ -45,7 +53,10 @@ pub(crate) fn banner_background(h: u16) -> gpui::Hsla {
     hue(h, 0.55, 0.24)
 }
 
-fn banner(h: u16, w: f32) -> Vec<gpui::AnyElement> {
+fn banner(
+    h: u16,
+    w: f32,
+) -> Vec<gpui::AnyElement> {
     let mut out = Vec::new();
     let period = w * 0.08;
     let mut x = period - w * 0.002;

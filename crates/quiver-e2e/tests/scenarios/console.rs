@@ -24,7 +24,10 @@ use crate::support::wait::{eventually, LONG};
 const LINE: &str = "console.line.";
 
 /// Types a command the way a person does; returns once its echo (`> <line>`) is in the log pane.
-async fn run(app: &mut App, line: &str) {
+async fn run(
+    app: &mut App,
+    line: &str,
+) {
     app.enter_text("console.input", line).await;
     app.matching(
         json!({"prefix": LINE, "state_contains": "cmd", "label_contains": format!("> {line}")}),
@@ -32,7 +35,10 @@ async fn run(app: &mut App, line: &str) {
     .await;
 }
 
-async fn note(app: &mut App, text_part: &str) -> String {
+async fn note(
+    app: &mut App,
+    text_part: &str,
+) -> String {
     app.matching(
         json!({"prefix": LINE, "state_contains": "note:error", "label_contains": text_part}),
     )
@@ -42,7 +48,11 @@ async fn note(app: &mut App, text_part: &str) -> String {
 
 /// How many times the daemon's own log file says it ran `command` to `code`: the pane only holds what streamed,
 /// the file does not depend on that.
-fn audits(home: &Home, command: &str, code: i64) -> usize {
+fn audits(
+    home: &Home,
+    command: &str,
+    code: i64,
+) -> usize {
     std::fs::read_to_string(home.daemon_log())
         .unwrap_or_default()
         .lines()
@@ -57,7 +67,11 @@ fn audits(home: &Home, command: &str, code: i64) -> usize {
         .count()
 }
 
-async fn audited(home: &Home, command: &str, code: i64) {
+async fn audited(
+    home: &Home,
+    command: &str,
+    code: i64,
+) {
     eventually(
         &format!("the daemon to audit `{command}` at code {code}"),
         LONG,

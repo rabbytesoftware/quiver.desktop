@@ -51,7 +51,10 @@ pub struct TileBadge {
 }
 
 impl TileBadge {
-    pub fn new(status: TileStatus, label: impl Into<SharedString>) -> Self {
+    pub fn new(
+        status: TileStatus,
+        label: impl Into<SharedString>,
+    ) -> Self {
         Self {
             status,
             label: label.into(),
@@ -59,7 +62,12 @@ impl TileBadge {
     }
 }
 
-fn shadow(spread: f32, y: f32, blur: f32, alpha: f32) -> BoxShadow {
+fn shadow(
+    spread: f32,
+    y: f32,
+    blur: f32,
+    alpha: f32,
+) -> BoxShadow {
     BoxShadow {
         color: black().opacity(alpha),
         offset: point(px(0.), px(y)),
@@ -69,7 +77,11 @@ fn shadow(spread: f32, y: f32, blur: f32, alpha: f32) -> BoxShadow {
 }
 
 /// The badge element, absolutely positioned at the top-right of the art.
-pub(crate) fn badge_element(badge: &TileBadge, id: ElementId, cx: &App) -> gpui::Div {
+pub(crate) fn badge_element(
+    badge: &TileBadge,
+    id: ElementId,
+    cx: &App,
+) -> gpui::Div {
     let p = cx.quiver().palette;
     let running = badge.status == TileStatus::Running;
     let (bg, fg): (Hsla, Hsla) = if running {

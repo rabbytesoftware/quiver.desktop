@@ -31,7 +31,10 @@ const STRIPPED: [&str; 6] = [
     "accept-encoding",
 ];
 
-fn plain(status: u16, body: &str) -> ArrowResponse {
+fn plain(
+    status: u16,
+    body: &str,
+) -> ArrowResponse {
     let mut resp = ArrowResponse::new(status, body.as_bytes().to_vec());
     resp.headers
         .set("content-type", "text/plain; charset=utf-8");
@@ -69,7 +72,11 @@ fn has_dot_segment(path: &str) -> bool {
         })
 }
 
-fn forward(namespace: &str, uri: &Uri, req: ArrowRequest) -> ArrowRequest {
+fn forward(
+    namespace: &str,
+    uri: &Uri,
+    req: ArrowRequest,
+) -> ArrowRequest {
     let path_and_query = uri.path_and_query().map(|p| p.as_str()).unwrap_or("/");
     let mut headers = req.headers;
     for name in STRIPPED {
@@ -86,7 +93,11 @@ fn forward(namespace: &str, uri: &Uri, req: ArrowRequest) -> ArrowRequest {
 
 /// Serves one `arrow-app` request. The upstream is resolved inside the
 /// timeout (like `quiver://`), because resolving it takes a fair lock.
-pub async fn handle_request<F>(upstream: F, hosts: &ArrowHosts, req: ArrowRequest) -> ArrowResponse
+pub async fn handle_request<F>(
+    upstream: F,
+    hosts: &ArrowHosts,
+    req: ArrowRequest,
+) -> ArrowResponse
 where
     F: Future<Output = Arc<dyn ArrowUpstream>>,
 {

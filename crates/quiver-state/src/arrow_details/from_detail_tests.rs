@@ -6,7 +6,10 @@ use crate::domain::{
     AvailableVersion, LastReturnDetail, PortProtocol, SelectorKind, StepBase, StepProgress,
 };
 
-fn run_step(title: &str, command: Overridable<String>) -> ArrowStepDefinition {
+fn run_step(
+    title: &str,
+    command: Overridable<String>,
+) -> ArrowStepDefinition {
     ArrowStepDefinition::Run {
         base: StepBase {
             title: title.into(),
@@ -18,7 +21,10 @@ fn run_step(title: &str, command: Overridable<String>) -> ArrowStepDefinition {
     }
 }
 
-fn target(platform: &str, cores: f64) -> ArrowTarget {
+fn target(
+    platform: &str,
+    cores: f64,
+) -> ArrowTarget {
     ArrowTarget {
         platform: platform.into(),
         requirement: ArrowRequirement {

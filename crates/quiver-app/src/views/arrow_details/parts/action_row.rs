@@ -15,7 +15,10 @@ use crate::views::arrow_details::page::Page;
 use crate::views::arrow_details::ArrowDetailsView;
 
 /// The e2e name of an action (`arrow.action.<name>`).
-fn name_of(kind: ArrowActionKind, opens_app: bool) -> &'static str {
+fn name_of(
+    kind: ArrowActionKind,
+    opens_app: bool,
+) -> &'static str {
     match kind {
         ArrowActionKind::AddToLibrary => "add-to-library",
         ArrowActionKind::Install => "install",
@@ -30,7 +33,10 @@ fn name_of(kind: ArrowActionKind, opens_app: bool) -> &'static str {
     }
 }
 
-fn picture(kind: ArrowActionKind, opens_app: bool) -> Option<Pict> {
+fn picture(
+    kind: ArrowActionKind,
+    opens_app: bool,
+) -> Option<Pict> {
     Some(match kind {
         ArrowActionKind::AddToLibrary => Pict::Plus,
         ArrowActionKind::Install | ArrowActionKind::Reinstall => Pict::Download,
@@ -52,7 +58,10 @@ fn variant(v: ArrowActionVariant) -> ButtonVariant {
     }
 }
 
-fn foreground(v: ArrowActionVariant, p: &Palette) -> gpui::Hsla {
+fn foreground(
+    v: ArrowActionVariant,
+    p: &Palette,
+) -> gpui::Hsla {
     match v {
         ArrowActionVariant::Default => p.primary_foreground,
         ArrowActionVariant::Destructive => gpui::white(),
@@ -61,7 +70,11 @@ fn foreground(v: ArrowActionVariant, p: &Palette) -> gpui::Hsla {
     }
 }
 
-fn corners<S: Styled>(mut el: S, left: f32, right: f32) -> S {
+fn corners<S: Styled>(
+    mut el: S,
+    left: f32,
+    right: f32,
+) -> S {
     let radii = &mut el.style().corner_radii;
     radii.top_left = Some(px(left).into());
     radii.bottom_left = Some(px(left).into());

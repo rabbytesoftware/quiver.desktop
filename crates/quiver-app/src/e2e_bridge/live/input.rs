@@ -21,7 +21,11 @@ fn target(id: &str) -> Result<(f32, f32), String> {
     Ok((f32::from(p.x), f32::from(p.y)))
 }
 
-pub fn hover(_cx: &mut AsyncApp, _window: AnyWindowHandle, id: &str) -> Result<(), String> {
+pub fn hover(
+    _cx: &mut AsyncApp,
+    _window: AnyWindowHandle,
+    id: &str,
+) -> Result<(), String> {
     let (x, y) = target(id)?;
     os_mouse::move_to(x, y)
 }
@@ -36,7 +40,11 @@ pub fn click(
     os_mouse::click(x, y, double)
 }
 
-pub fn press(cx: &mut AsyncApp, window: AnyWindowHandle, keys: &str) -> Result<(), String> {
+pub fn press(
+    cx: &mut AsyncApp,
+    window: AnyWindowHandle,
+    keys: &str,
+) -> Result<(), String> {
     for chord in keys.split_whitespace() {
         let keystroke =
             Keystroke::parse(chord).map_err(|e| format!("bad key chord {chord:?}: {e}"))?;

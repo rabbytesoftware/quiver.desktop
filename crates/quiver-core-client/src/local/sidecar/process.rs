@@ -43,7 +43,10 @@ pub(super) fn kill(mut child: Child) {
 }
 
 /// One `POST /v0/system/shutdown`: did the daemon accept it in time?
-pub(super) async fn request_shutdown(transport: &dyn Transport, timeout: Duration) -> bool {
+pub(super) async fn request_shutdown(
+    transport: &dyn Transport,
+    timeout: Duration,
+) -> bool {
     let Ok(req) = ::http::Request::builder()
         .method("POST")
         .uri("quiver://localhost/v0/system/shutdown")

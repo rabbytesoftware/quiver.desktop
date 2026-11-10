@@ -39,12 +39,18 @@ impl TransportCoreApi {
         }
     }
 
-    pub fn with_retry(mut self, retry: RetryConfig) -> Self {
+    pub fn with_retry(
+        mut self,
+        retry: RetryConfig,
+    ) -> Self {
         self.retry = retry;
         self
     }
 
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+    pub fn with_timeout(
+        mut self,
+        timeout: Duration,
+    ) -> Self {
         self.timeout = timeout;
         self
     }
@@ -63,7 +69,10 @@ fn http_method(method: Method) -> http::Method {
 /// What the Tauri proxy answered when its upstream failed: a 502 (504 on timeout) carrying the
 /// `x-quiver-proxy` marker, which is exactly what makes `api_request` retry an idempotent read
 /// through a cold start instead of failing it.
-fn proxy_failure(status: u16, body: String) -> RawResponse {
+fn proxy_failure(
+    status: u16,
+    body: String,
+) -> RawResponse {
     RawResponse {
         status,
         status_text: String::new(),
@@ -124,7 +133,10 @@ impl CoreApi for TransportCoreApi {
         api_request(self, method, path, body, &self.retry).await
     }
 
-    async fn open_stream(&self, path: &str) -> Result<Box<dyn CoreStream>, ApiError> {
+    async fn open_stream(
+        &self,
+        path: &str,
+    ) -> Result<Box<dyn CoreStream>, ApiError> {
         let transport = self.manager.transport().await;
         let socket = transport
             .open_ws(path)

@@ -14,7 +14,10 @@ const DIR: &str = "xtask/src/perf";
 const OUT: &str = "docker/native/evidence/perf";
 const VARIANTS: [&str; 3] = ["native-release", "native-bridge", "tauri"];
 
-fn sh(script: &str, args: &[&str]) -> Result<()> {
+fn sh(
+    script: &str,
+    args: &[&str],
+) -> Result<()> {
     let status = Command::new("bash")
         .arg(format!("{DIR}/{script}"))
         .args(args)

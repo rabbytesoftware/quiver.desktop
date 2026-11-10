@@ -9,7 +9,11 @@ struct Host {
 }
 
 impl Render for Host {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let on = |name: &'static str| {
             cx.listener(move |this: &mut Host, _, _, cx| {
                 this.clicks.push(name);

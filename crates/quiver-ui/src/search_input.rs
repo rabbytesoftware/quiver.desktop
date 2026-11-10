@@ -21,7 +21,10 @@ pub struct SearchInput {
 }
 
 impl SearchInput {
-    pub fn new(id: impl Into<ElementId>, state: &Entity<InputState>) -> Self {
+    pub fn new(
+        id: impl Into<ElementId>,
+        state: &Entity<InputState>,
+    ) -> Self {
         Self {
             id: id.into(),
             state: state.clone(),
@@ -43,7 +46,11 @@ impl SearchInput {
 }
 
 impl RenderOnce for SearchInput {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let value = self.state.read(cx).value().to_string();
         let has_text = !value.is_empty();

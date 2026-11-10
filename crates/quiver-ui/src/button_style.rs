@@ -88,7 +88,10 @@ pub struct VariantStyle {
 }
 
 impl ButtonVariant {
-    pub fn resolve(self, q: &QuiverTheme) -> VariantStyle {
+    pub fn resolve(
+        self,
+        q: &QuiverTheme,
+    ) -> VariantStyle {
         let p = &q.palette;
         let dark = q.is_dark();
         let none = transparent_black();

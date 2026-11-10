@@ -40,7 +40,11 @@ pub fn set_theme(
     window.refresh();
 }
 
-pub fn set_side(app: &Entity<AppModel>, side: SidebarSide, cx: &mut App) {
+pub fn set_side(
+    app: &Entity<AppModel>,
+    side: SidebarSide,
+    cx: &mut App,
+) {
     app.update(cx, |model, cx| {
         let mut shell: ShellSettings = model.shell;
         shell.set_side(side);
@@ -50,7 +54,11 @@ pub fn set_side(app: &Entity<AppModel>, side: SidebarSide, cx: &mut App) {
     });
 }
 
-pub fn set_locale(app: &Entity<AppModel>, preference: LocalePreference, cx: &mut App) {
+pub fn set_locale(
+    app: &Entity<AppModel>,
+    preference: LocalePreference,
+    cx: &mut App,
+) {
     app.update(cx, |model, cx| {
         save_locale(model.services.key_value.as_ref(), preference);
         let detected = detect_locale(&[]);

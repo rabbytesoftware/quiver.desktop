@@ -43,7 +43,10 @@ pub struct SourceLine {
 }
 
 impl SourceLine {
-    pub fn text(&self, tr: &Translator) -> String {
+    pub fn text(
+        &self,
+        tr: &Translator,
+    ) -> String {
         let searched = tr.t_count(design::SEARCH_SOURCES, self.sources);
         if self.unavailable == 0 {
             searched
@@ -132,7 +135,11 @@ pub fn build_results(input: &ResultsInput<'_>) -> ResultsModel {
     }
 }
 
-fn empty_state(input: &ResultsInput<'_>, has_results: bool, refused: usize) -> Option<EmptyState> {
+fn empty_state(
+    input: &ResultsInput<'_>,
+    has_results: bool,
+    refused: usize,
+) -> Option<EmptyState> {
     if has_results {
         return None;
     }
@@ -180,14 +187,20 @@ mod tests {
     use super::*;
     use crate::domain::DiscoveryProvider;
 
-    fn held(namespace: &str, name: &str) -> SearchEntry {
+    fn held(
+        namespace: &str,
+        name: &str,
+    ) -> SearchEntry {
         SearchEntry {
             installed: true,
             ..entry(namespace, name)
         }
     }
 
-    fn net(namespace: &str, name: &str) -> SearchEntry {
+    fn net(
+        namespace: &str,
+        name: &str,
+    ) -> SearchEntry {
         SearchEntry {
             provenance: None,
             ..entry(namespace, name)

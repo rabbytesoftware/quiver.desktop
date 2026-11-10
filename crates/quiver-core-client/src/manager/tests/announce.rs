@@ -7,7 +7,10 @@ struct RecordingAnnounce(mpsc::UnboundedSender<Arc<dyn Transport>>);
 
 #[async_trait]
 impl SelfAnnounce for RecordingAnnounce {
-    async fn announce(&self, transport: Arc<dyn Transport>) {
+    async fn announce(
+        &self,
+        transport: Arc<dyn Transport>,
+    ) {
         let _ = self.0.send(transport);
     }
 }

@@ -17,7 +17,10 @@ pub struct AnnouncedRows {
 impl AnnouncedRows {
     /// The record for the connection `active_id`. (`None` from the caller when the connection
     /// cannot be named, so nothing is recorded or forgotten.)
-    pub fn open(store: Arc<dyn KeyValueStore>, active_id: &str) -> Self {
+    pub fn open(
+        store: Arc<dyn KeyValueStore>,
+        active_id: &str,
+    ) -> Self {
         let key = format!("{KEY_PREFIX}{active_id}");
         let identities = read(store.as_ref(), &key);
         Self {
@@ -34,7 +37,10 @@ impl AnnouncedRows {
             .clone()
     }
 
-    pub fn add(&self, identity: &str) {
+    pub fn add(
+        &self,
+        identity: &str,
+    ) {
         let mut ids = self
             .identities
             .lock()
@@ -45,7 +51,10 @@ impl AnnouncedRows {
         }
     }
 
-    pub fn drop_identity(&self, identity: &str) {
+    pub fn drop_identity(
+        &self,
+        identity: &str,
+    ) {
         let mut ids = self
             .identities
             .lock()
@@ -55,7 +64,10 @@ impl AnnouncedRows {
     }
 
     /// A private mode or a full quota: the announce itself still stands.
-    fn write(&self, ids: &[String]) {
+    fn write(
+        &self,
+        ids: &[String],
+    ) {
         if let Ok(raw) = serde_json::to_string(ids) {
             if let Err(err) = self.store.set(&self.key, &raw) {
                 log::debug!("core-store: announced rows not saved: {err}");
@@ -64,7 +76,10 @@ impl AnnouncedRows {
     }
 }
 
-fn read(store: &dyn KeyValueStore, key: &str) -> Vec<String> {
+fn read(
+    store: &dyn KeyValueStore,
+    key: &str,
+) -> Vec<String> {
     let Ok(Some(raw)) = store.get(key) else {
         return vec![];
     };

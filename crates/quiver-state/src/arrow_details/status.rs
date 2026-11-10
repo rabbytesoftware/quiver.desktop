@@ -88,7 +88,11 @@ pub enum StatusGlyph {
 }
 
 impl StatusGlyph {
-    pub fn for_state(state: RunState, user_installed: bool, update_ahead: bool) -> Self {
+    pub fn for_state(
+        state: RunState,
+        user_installed: bool,
+        update_ahead: bool,
+    ) -> Self {
         if !user_installed {
             return Self::Inactive;
         }
@@ -120,7 +124,11 @@ pub struct ArrowStatus {
 /// "Discovered" (browsed, never added) is not a runtime state, it is `user_installed == false`.
 /// A ready row with something `available` reads as "Update available" even before the runtime's own
 /// `outdated` state catches up. Every other state maps 1:1.
-pub fn compute_status(state: RunState, user_installed: bool, update_ahead: bool) -> ArrowStatus {
+pub fn compute_status(
+    state: RunState,
+    user_installed: bool,
+    update_ahead: bool,
+) -> ArrowStatus {
     let glyph = StatusGlyph::for_state(state, user_installed, update_ahead);
     let label = if !user_installed {
         arrow::STATE_DISCOVERED
@@ -180,7 +188,11 @@ pub fn problem_message(
 mod tests {
     use super::*;
 
-    fn label(state: RunState, installed: bool, ahead: bool) -> Key {
+    fn label(
+        state: RunState,
+        installed: bool,
+        ahead: bool,
+    ) -> Key {
         compute_status(state, installed, ahead).label
     }
 

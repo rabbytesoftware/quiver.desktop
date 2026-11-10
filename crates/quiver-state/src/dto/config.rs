@@ -27,7 +27,11 @@ pub fn flatten_config(section: &Map<String, Value>) -> Vec<ConfigRow> {
     rows
 }
 
-fn flatten_into(section: &Map<String, Value>, prefix: &str, rows: &mut Vec<ConfigRow>) {
+fn flatten_into(
+    section: &Map<String, Value>,
+    prefix: &str,
+    rows: &mut Vec<ConfigRow>,
+) {
     for (name, value) in section {
         let key = if prefix.is_empty() {
             name.clone()
@@ -96,7 +100,10 @@ mod tests {
             .collect()
     }
 
-    fn pair(k: &str, v: Value) -> (String, Value) {
+    fn pair(
+        k: &str,
+        v: Value,
+    ) -> (String, Value) {
         (k.to_string(), v)
     }
 

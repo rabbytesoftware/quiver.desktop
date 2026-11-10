@@ -13,29 +13,46 @@ impl Headers {
         Self::default()
     }
 
-    pub fn get(&self, name: &str) -> Option<&str> {
+    pub fn get(
+        &self,
+        name: &str,
+    ) -> Option<&str> {
         self.0
             .iter()
             .find(|(n, _)| n.eq_ignore_ascii_case(name))
             .map(|(_, v)| v.as_str())
     }
 
-    pub fn contains(&self, name: &str) -> bool {
+    pub fn contains(
+        &self,
+        name: &str,
+    ) -> bool {
         self.get(name).is_some()
     }
 
     /// Appends without replacing (repeated headers stay repeated).
-    pub fn append(&mut self, name: impl Into<String>, value: impl Into<String>) {
+    pub fn append(
+        &mut self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) {
         self.0.push((name.into(), value.into()));
     }
 
     /// Replaces every header of that name with one value.
-    pub fn set(&mut self, name: &str, value: impl Into<String>) {
+    pub fn set(
+        &mut self,
+        name: &str,
+        value: impl Into<String>,
+    ) {
         self.remove(name);
         self.0.push((name.to_ascii_lowercase(), value.into()));
     }
 
-    pub fn remove(&mut self, name: &str) {
+    pub fn remove(
+        &mut self,
+        name: &str,
+    ) {
         self.0.retain(|(n, _)| !n.eq_ignore_ascii_case(name));
     }
 
@@ -83,7 +100,10 @@ pub struct ArrowResponse {
 }
 
 impl ArrowResponse {
-    pub fn new(status: u16, body: Vec<u8>) -> Self {
+    pub fn new(
+        status: u16,
+        body: Vec<u8>,
+    ) -> Self {
         Self {
             status,
             headers: Headers::new(),

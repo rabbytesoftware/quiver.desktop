@@ -8,7 +8,10 @@ const TAGS: usize = 6;
 
 /// A facet every result carries filters nothing (and a one-host answer would always show its host), so
 /// it is not offered -- unless it is selected, when it must stay to be unselected.
-pub fn offered_facets(answer: &[SearchEntry], selection: &Selection) -> Vec<(FacetKind, Facet)> {
+pub fn offered_facets(
+    answer: &[SearchEntry],
+    selection: &Selection,
+) -> Vec<(FacetKind, Facet)> {
     let selected = |kind: FacetKind, value: &str| match kind {
         FacetKind::Host => selection.host.iter().any(|v| v == value),
         FacetKind::Tag => selection.tag.iter().any(|v| v == value),
@@ -29,7 +32,10 @@ mod tests {
     use super::super::relevance::fixtures::entry;
     use super::*;
 
-    fn tagged(ns: &str, tags: &[&str]) -> SearchEntry {
+    fn tagged(
+        ns: &str,
+        tags: &[&str],
+    ) -> SearchEntry {
         SearchEntry {
             tags: tags.iter().map(|t| (*t).into()).collect(),
             ..entry(ns, ns)

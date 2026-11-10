@@ -11,7 +11,10 @@ struct Page {
 }
 
 /// `main_png` with every page window of `main` composited on top; unchanged when there is none or a tool fails.
-pub fn with_pages(main: &str, main_png: Vec<u8>) -> Vec<u8> {
+pub fn with_pages(
+    main: &str,
+    main_png: Vec<u8>,
+) -> Vec<u8> {
     let pages = pages_of(main);
     if pages.is_empty() {
         return main_png;
@@ -29,7 +32,11 @@ pub fn with_pages(main: &str, main_png: Vec<u8>) -> Vec<u8> {
     composed
 }
 
-fn overlay(dir: &std::path::Path, base: &std::path::Path, pages: &[Page]) -> Option<Vec<u8>> {
+fn overlay(
+    dir: &std::path::Path,
+    base: &std::path::Path,
+    pages: &[Page],
+) -> Option<Vec<u8>> {
     for (i, page) in pages.iter().enumerate() {
         let shot = dir.join(format!("page-{i}.png"));
         let ok = Command::new("import")

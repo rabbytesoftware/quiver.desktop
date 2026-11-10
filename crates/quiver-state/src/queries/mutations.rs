@@ -40,7 +40,10 @@ pub struct Mutations {
 }
 
 impl Mutations {
-    pub fn new(api: Arc<dyn CoreApi>, queries: QueryClient) -> Self {
+    pub fn new(
+        api: Arc<dyn CoreApi>,
+        queries: QueryClient,
+    ) -> Self {
         Self { api, queries }
     }
 
@@ -70,19 +73,35 @@ impl Mutations {
             .map(drop)
     }
 
-    pub async fn install(&self, namespace: &str, variables: &Variables) -> Result<()> {
+    pub async fn install(
+        &self,
+        namespace: &str,
+        variables: &Variables,
+    ) -> Result<()> {
         self.runtime_method(namespace, "install", variables).await
     }
 
-    pub async fn uninstall(&self, namespace: &str, variables: &Variables) -> Result<()> {
+    pub async fn uninstall(
+        &self,
+        namespace: &str,
+        variables: &Variables,
+    ) -> Result<()> {
         self.runtime_method(namespace, "uninstall", variables).await
     }
 
-    pub async fn stop(&self, namespace: &str, variables: &Variables) -> Result<()> {
+    pub async fn stop(
+        &self,
+        namespace: &str,
+        variables: &Variables,
+    ) -> Result<()> {
         self.runtime_method(namespace, "stop", variables).await
     }
 
-    pub async fn update(&self, namespace: &str, variables: &Variables) -> Result<UpdateOutcome> {
+    pub async fn update(
+        &self,
+        namespace: &str,
+        variables: &Variables,
+    ) -> Result<UpdateOutcome> {
         let result = self.runtime_request(namespace, "update", variables).await?;
         Ok(if result.status == 202 {
             UpdateOutcome::Started
@@ -94,7 +113,11 @@ impl Mutations {
     /// The one universal "go" action -- `Target.Lifecycle.Execute`, always this exact call, never a
     /// custom method name. Hard-gated to `ready` only by core itself (`BeginExecution.Validate`);
     /// no manifest override is possible, so don't add a state check here that could drift from that.
-    pub async fn execute_arrow(&self, namespace: &str, variables: &Variables) -> Result<()> {
+    pub async fn execute_arrow(
+        &self,
+        namespace: &str,
+        variables: &Variables,
+    ) -> Result<()> {
         self.runtime_method(namespace, "execute", variables).await
     }
 
@@ -111,7 +134,10 @@ impl Mutations {
     /// `POST /v0/arrow/:ns`, no body. `namespace` is the identity the new row is filed under: its
     /// selector (a channel, constraint, pinned ref or commit) travels in the path and never changes
     /// afterwards. A refless namespace is registered under the repository's default channel.
-    pub async fn register_arrow(&self, namespace: &str) -> Result<()> {
+    pub async fn register_arrow(
+        &self,
+        namespace: &str,
+    ) -> Result<()> {
         let path = format!("/v0/arrow/{}", namespace_segment(namespace));
         self.api
             .send(Method::Post, &path, None)
@@ -120,7 +146,10 @@ impl Mutations {
             .map_err(Into::into)
     }
 
-    pub async fn remove_arrow(&self, namespace: &str) -> Result<()> {
+    pub async fn remove_arrow(
+        &self,
+        namespace: &str,
+    ) -> Result<()> {
         let path = format!("/v0/arrow/{}", namespace_segment(namespace));
         self.api
             .send(Method::Delete, &path, None)
@@ -131,7 +160,10 @@ impl Mutations {
 
     /// `PATCH /v0/arrow/:ns`, no body: re-checks the row's selector against its repository and
     /// answers what is ahead, if anything. An installed row stays where it is; only the update call moves it.
-    pub async fn recheck_arrow(&self, namespace: &str) -> Result<RecheckResult> {
+    pub async fn recheck_arrow(
+        &self,
+        namespace: &str,
+    ) -> Result<RecheckResult> {
         let path = format!("/v0/arrow/{}", namespace_segment(namespace));
         let data = self.api.send(Method::Patch, &path, None).await?;
         Ok(data
@@ -139,12 +171,18 @@ impl Mutations {
             .unwrap_or_default())
     }
 
-    pub async fn follow_collection(&self, namespace: &str) -> Result<()> {
+    pub async fn follow_collection(
+        &self,
+        namespace: &str,
+    ) -> Result<()> {
         self.set_collection_followed(Method::Post, true, namespace)
             .await
     }
 
-    pub async fn unfollow_collection(&self, namespace: &str) -> Result<()> {
+    pub async fn unfollow_collection(
+        &self,
+        namespace: &str,
+    ) -> Result<()> {
         self.set_collection_followed(Method::Delete, false, namespace)
             .await
     }

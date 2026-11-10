@@ -22,7 +22,10 @@ pub struct LibraryView {
 }
 
 impl LibraryView {
-    pub fn new(app: Entity<AppModel>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let services = app.read(cx).services.clone();
         observe_store(cx, services.arrows.store());
         Self {
@@ -41,7 +44,11 @@ fn filter_key(filter: LibraryFilter) -> &'static str {
 }
 
 impl Render for LibraryView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let app = self.app.clone();
         let (arrows, catalog) = app

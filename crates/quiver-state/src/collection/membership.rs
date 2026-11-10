@@ -7,7 +7,10 @@ use crate::namespace::bare_namespace;
 /// A member counts as held when the library has its exact route, or its package at any version (a
 /// library row is keyed by what was installed; the collection may pin another selector of the same
 /// repository, which is still the arrow the user knows).
-pub fn is_member_installed(member: &CollectionArrow, library: &[String]) -> bool {
+pub fn is_member_installed(
+    member: &CollectionArrow,
+    library: &[String],
+) -> bool {
     let route = collection_arrow_route(member);
     library
         .iter()
@@ -15,7 +18,10 @@ pub fn is_member_installed(member: &CollectionArrow, library: &[String]) -> bool
 }
 
 /// Resolved members in the library; an unresolved one cannot be held.
-pub fn installed_members(arrows: &[CollectionArrow], library: &[String]) -> usize {
+pub fn installed_members(
+    arrows: &[CollectionArrow],
+    library: &[String],
+) -> usize {
     arrows
         .iter()
         .filter(|a| a.resolved && is_member_installed(a, library))
@@ -26,7 +32,11 @@ pub fn installed_members(arrows: &[CollectionArrow], library: &[String]) -> usiz
 mod tests {
     use super::*;
 
-    fn member(ns: &str, version: Option<&str>, resolved: bool) -> CollectionArrow {
+    fn member(
+        ns: &str,
+        version: Option<&str>,
+        resolved: bool,
+    ) -> CollectionArrow {
         CollectionArrow {
             namespace: ns.into(),
             version: version.map(Into::into),

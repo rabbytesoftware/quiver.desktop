@@ -125,7 +125,11 @@ fn short_commit(commit: Option<&str>) -> Option<String> {
 }
 
 /// `MM-DD HH:mm` at the viewer's UTC offset (minutes); without the time when `compact`.
-pub fn format_build_time(seconds: i64, compact: bool, offset_minutes: i32) -> String {
+pub fn format_build_time(
+    seconds: i64,
+    compact: bool,
+    offset_minutes: i32,
+) -> String {
     let secs = seconds + i64::from(offset_minutes) * 60;
     let days = secs.div_euclid(86_400);
     let rem = secs.rem_euclid(86_400);
@@ -155,7 +159,10 @@ pub struct FormatOptions {
 }
 
 /// The text for one build line, without its `core`/`app` label.
-pub fn format_build(build: &BuildDescriptor, options: FormatOptions) -> String {
+pub fn format_build(
+    build: &BuildDescriptor,
+    options: FormatOptions,
+) -> String {
     let channel = build.channel.name();
     if options.hover {
         if let Some(hash) = short_commit(build.commit.as_deref()) {
@@ -291,7 +298,10 @@ pub struct BuildIndicatorSetting {
 pub const BUILD_INDICATOR_STORAGE_KEY: &str = "quiver.buildIndicator";
 
 impl BuildIndicatorSetting {
-    pub fn new(stored: Option<bool>, build_channel: BuildChannel) -> Self {
+    pub fn new(
+        stored: Option<bool>,
+        build_channel: BuildChannel,
+    ) -> Self {
         Self {
             stored,
             shown_by_default: indicator_shown_by_default(build_channel),
@@ -315,7 +325,10 @@ impl BuildIndicatorSetting {
         self.stored
     }
 
-    pub fn set(&mut self, shown: bool) {
+    pub fn set(
+        &mut self,
+        shown: bool,
+    ) {
         self.stored = if shown == self.shown_by_default {
             None
         } else {

@@ -10,7 +10,11 @@ use super::{signal, start, StateSnapshot};
 use crate::model::AppModel;
 
 /// Starts the bridge (when `QUIVER_E2E_PORT` is set) for the main window.
-pub fn attach(cx: &mut App, window: AnyWindowHandle, model: &Entity<AppModel>) {
+pub fn attach(
+    cx: &mut App,
+    window: AnyWindowHandle,
+    model: &Entity<AppModel>,
+) {
     super::logs::install_logger();
     let services = model.read(cx).services.clone();
     let runtime = model.read(cx).handle().clone();

@@ -36,7 +36,10 @@ fn arch_aliases(arch: &str) -> &'static [&'static str] {
     }
 }
 
-fn names_arch(name: &str, aliases: &[&str]) -> bool {
+fn names_arch(
+    name: &str,
+    aliases: &[&str],
+) -> bool {
     let lower = name.to_ascii_lowercase();
     aliases.iter().any(|alias| lower.contains(alias))
 }

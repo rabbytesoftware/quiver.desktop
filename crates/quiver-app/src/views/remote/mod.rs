@@ -22,7 +22,10 @@ pub struct RemoteView {
 }
 
 impl RemoteView {
-    pub fn new(app: Entity<AppModel>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let services = app.read(cx).services.clone();
         observe_store(cx, services.connections.store());
         observe_store(cx, services.status.store());
@@ -35,7 +38,11 @@ impl RemoteView {
 }
 
 impl Render for RemoteView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let (state, status) = {
             let services = &self.app.read(cx).services;

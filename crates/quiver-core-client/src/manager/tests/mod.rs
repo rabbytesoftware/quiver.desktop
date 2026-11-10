@@ -26,11 +26,18 @@ impl StubConnection {
     /// and the tests below only need `transport()` to RESOLVE — that it
     /// resolves at all, while a switch is mid-flight, is the property
     /// finding B is about.
-    fn new(id: &str, torn_down: Arc<AtomicBool>) -> Self {
+    fn new(
+        id: &str,
+        torn_down: Arc<AtomicBool>,
+    ) -> Self {
         Self::of_kind(id, ConnectionKind::Local, torn_down)
     }
 
-    fn of_kind(id: &str, kind: ConnectionKind, torn_down: Arc<AtomicBool>) -> Self {
+    fn of_kind(
+        id: &str,
+        kind: ConnectionKind,
+        torn_down: Arc<AtomicBool>,
+    ) -> Self {
         Self {
             config: ConnectionConfig {
                 id: id.into(),
@@ -44,18 +51,27 @@ impl StubConnection {
         }
     }
 
-    fn boxed(id: &str, torn_down: Arc<AtomicBool>) -> Box<dyn QuiverConnection> {
+    fn boxed(
+        id: &str,
+        torn_down: Arc<AtomicBool>,
+    ) -> Box<dyn QuiverConnection> {
         Box::new(Self::new(id, torn_down))
     }
 
-    fn boxed_of_kind(id: &str, kind: ConnectionKind) -> Box<dyn QuiverConnection> {
+    fn boxed_of_kind(
+        id: &str,
+        kind: ConnectionKind,
+    ) -> Box<dyn QuiverConnection> {
         Box::new(Self::of_kind(id, kind, Arc::new(AtomicBool::new(false))))
     }
 }
 
 #[async_trait::async_trait]
 impl QuiverConnection for StubConnection {
-    async fn start(&self, _events: &dyn EventSink) -> CoreStatus {
+    async fn start(
+        &self,
+        _events: &dyn EventSink,
+    ) -> CoreStatus {
         CoreStatus::Ready
     }
 
@@ -71,7 +87,10 @@ impl QuiverConnection for StubConnection {
         &self.config
     }
 
-    fn set_name(&mut self, name: String) {
+    fn set_name(
+        &mut self,
+        name: String,
+    ) {
         self.config.name = name;
     }
 }
@@ -83,9 +102,16 @@ struct RecordingEvents {
 }
 
 impl EventSink for RecordingEvents {
-    fn emit_core_status(&self, _status: CoreStatus) {}
+    fn emit_core_status(
+        &self,
+        _status: CoreStatus,
+    ) {
+    }
 
-    fn emit_connection_changed(&self, state: &ConnectionsState) {
+    fn emit_connection_changed(
+        &self,
+        state: &ConnectionsState,
+    ) {
         self.changes.lock().unwrap().push(state.clone());
     }
 }
@@ -137,7 +163,10 @@ async fn active_id(m: &ConnectionManager) -> String {
 struct Recorder(Arc<Mutex<Vec<String>>>);
 
 impl FrameSink for Recorder {
-    fn send(&self, frame: String) {
+    fn send(
+        &self,
+        frame: String,
+    ) {
         self.0.lock().unwrap().push(frame)
     }
 }

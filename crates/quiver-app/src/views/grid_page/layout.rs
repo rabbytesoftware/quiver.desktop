@@ -6,7 +6,11 @@ pub const GRID_GAP_X: f32 = 12.;
 pub const GRID_GAP_Y: f32 = 19.;
 
 /// The scrolling page body: 24 px at the left, 40 at the right, as on Home.
-pub fn page(id: impl Into<ElementId>, surface: Hsla, body: impl IntoElement) -> impl IntoElement {
+pub fn page(
+    id: impl Into<ElementId>,
+    surface: Hsla,
+    body: impl IntoElement,
+) -> impl IntoElement {
     ScrollArea::new(id).fade_color(surface).child(
         div()
             .pl(px(24.))

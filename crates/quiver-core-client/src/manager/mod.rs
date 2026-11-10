@@ -74,11 +74,17 @@ impl ConnectionManager {
         Self::with_active(deps.local.clone(), deps)
     }
 
-    fn with_active(local: LocalConfig, deps: ManagerDeps) -> Self {
+    fn with_active(
+        local: LocalConfig,
+        deps: ManagerDeps,
+    ) -> Self {
         Self::with_connection(Box::new(LocalConnection::new(local)), deps)
     }
 
-    fn with_connection(active: Box<dyn QuiverConnection>, deps: ManagerDeps) -> Self {
+    fn with_connection(
+        active: Box<dyn QuiverConnection>,
+        deps: ManagerDeps,
+    ) -> Self {
         Self {
             active: RwLock::new(active),
             switching: Mutex::new(()),
@@ -181,7 +187,10 @@ impl ConnectionManager {
         Ok(config)
     }
 
-    pub async fn remove_connection(&self, id: &str) -> Result<()> {
+    pub async fn remove_connection(
+        &self,
+        id: &str,
+    ) -> Result<()> {
         if id == "local" {
             return Err(Error::CannotRemoveLocal);
         }
@@ -197,7 +206,10 @@ impl ConnectionManager {
     /// Make `id` the active connection: build it, start it, and only then retire
     /// the one it replaces. A switch that cannot be completed leaves the current
     /// connection and its streams exactly as they were.
-    pub async fn switch_connection(&self, id: &str) -> Result<()> {
+    pub async fn switch_connection(
+        &self,
+        id: &str,
+    ) -> Result<()> {
         self.switch_to(async move {
             // Build first, then start, and only then hand the connection over
             // to be installed: a switch that cannot be completed must leave the
@@ -211,7 +223,10 @@ impl ConnectionManager {
         .map(|_announce| ())
     }
 
-    async fn build_connection(&self, id: &str) -> Result<Box<dyn QuiverConnection>> {
+    async fn build_connection(
+        &self,
+        id: &str,
+    ) -> Result<Box<dyn QuiverConnection>> {
         if id == "local" {
             return Ok(Box::new(LocalConnection::new(self.deps.local.clone())));
         }
@@ -249,7 +264,10 @@ impl ConnectionManager {
     ///
     /// Returns the background self-announce, when the new connection is the local
     /// one and became ready.
-    async fn switch_to<F>(&self, prepare: F) -> Result<Option<JoinHandle<()>>>
+    async fn switch_to<F>(
+        &self,
+        prepare: F,
+    ) -> Result<Option<JoinHandle<()>>>
     where
         F: std::future::Future<Output = Result<(Box<dyn QuiverConnection>, CoreStatus)>>,
     {
@@ -261,7 +279,11 @@ impl ConnectionManager {
         Ok(self.announce_on_ready(&**guard, status))
     }
 
-    pub async fn rename_connection(&self, id: &str, name: String) -> Result<()> {
+    pub async fn rename_connection(
+        &self,
+        id: &str,
+        name: String,
+    ) -> Result<()> {
         if id == "local" {
             return Err(Error::CannotRenameLocal);
         }

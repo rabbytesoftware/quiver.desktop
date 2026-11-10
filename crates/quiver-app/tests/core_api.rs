@@ -20,7 +20,10 @@ struct RecordingSleeper(Mutex<Vec<Duration>>);
 
 #[async_trait]
 impl Sleeper for RecordingSleeper {
-    async fn sleep(&self, duration: Duration) {
+    async fn sleep(
+        &self,
+        duration: Duration,
+    ) {
         self.0.lock().unwrap().push(duration);
     }
 }

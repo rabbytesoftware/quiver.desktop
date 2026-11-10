@@ -42,7 +42,10 @@ pub fn check_files(paths: &[&Path]) -> Result<()> {
     }
 }
 
-fn collect(path: &Path, into: &mut Vec<PathBuf>) -> Result<()> {
+fn collect(
+    path: &Path,
+    into: &mut Vec<PathBuf>,
+) -> Result<()> {
     if path.is_dir() {
         for entry in fs::read_dir(path)? {
             collect(&entry?.path(), into)?;

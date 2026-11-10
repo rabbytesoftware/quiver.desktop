@@ -28,7 +28,11 @@ pub struct CollectionView {
 }
 
 impl CollectionView {
-    pub fn new(app: Entity<AppModel>, id: String, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Entity<AppModel>,
+        id: String,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let detail = Query::default();
         observe_store(cx, detail.store());
         let (services, demo) = {
@@ -73,7 +77,11 @@ impl CollectionView {
 }
 
 impl Render for CollectionView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let app = self.app.clone();
         let state = self.detail.snapshot();
@@ -133,7 +141,7 @@ mod tests {
 
     #[gpui::test]
     fn the_demo_collection_has_an_unresolved_member_in_the_grid_and_follow_flips(
-        cx: &mut gpui::TestAppContext,
+        cx: &mut gpui::TestAppContext
     ) {
         let app = demo_app(cx);
         let view =

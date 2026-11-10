@@ -41,7 +41,10 @@ fn notice(
         .child(probe(screen, Kind::Other, screen, true, ""))
 }
 
-pub fn empty_state(view: &mut HomeView, cx: &mut Context<HomeView>) -> impl IntoElement {
+pub fn empty_state(
+    view: &mut HomeView,
+    cx: &mut Context<HomeView>,
+) -> impl IntoElement {
     let a = view.app.read(cx);
     let (title, body, cta) = (
         a.t(keys::EMPTY_TITLE),
@@ -65,7 +68,10 @@ pub fn empty_state(view: &mut HomeView, cx: &mut Context<HomeView>) -> impl Into
     notice(title, body, action, "home.empty", cx)
 }
 
-pub fn error_state(view: &mut HomeView, cx: &mut Context<HomeView>) -> impl IntoElement {
+pub fn error_state(
+    view: &mut HomeView,
+    cx: &mut Context<HomeView>,
+) -> impl IntoElement {
     let a = view.app.read(cx);
     let (title, body, retry) = (
         a.t(sidebar::ARROWS_ERROR_TITLE),

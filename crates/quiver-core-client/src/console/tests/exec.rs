@@ -132,10 +132,16 @@ async fn a_transport_that_cannot_connect_reports_one_error_frame() {
     struct Dead;
     #[async_trait]
     impl Transport for Dead {
-        async fn request(&self, _r: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, Error> {
+        async fn request(
+            &self,
+            _r: Request<Vec<u8>>,
+        ) -> Result<Response<Vec<u8>>, Error> {
             Err(Error::Connect("no socket".into()))
         }
-        async fn open_ws(&self, _p: &str) -> Result<WsStream, Error> {
+        async fn open_ws(
+            &self,
+            _p: &str,
+        ) -> Result<WsStream, Error> {
             Err(Error::Connect("no socket".into()))
         }
     }

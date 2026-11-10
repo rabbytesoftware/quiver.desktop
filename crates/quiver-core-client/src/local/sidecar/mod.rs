@@ -67,7 +67,10 @@ impl SidecarManager {
     /// The early return is also what makes the ownership rule in [`Self::reap`]
     /// hold: an adopted daemon never reaches `spawn`, so no child handle is
     /// recorded for it, so nothing later kills it.
-    pub async fn ensure_running(&self, transport: &dyn Transport) -> Result<()> {
+    pub async fn ensure_running(
+        &self,
+        transport: &dyn Transport,
+    ) -> Result<()> {
         if health_ok(transport).await {
             log::info!("[local] a daemon is already listening — not spawning another");
             return Ok(());
@@ -166,7 +169,10 @@ impl SidecarManager {
 
     /// Record the child, and let go of the lock. See [`take_spawned`] for why the
     /// critical section is kept to exactly this.
-    fn store(&self, child: Child) {
+    fn store(
+        &self,
+        child: Child,
+    ) {
         *self.child.lock().unwrap_or_else(|e| e.into_inner()) = Some(child);
     }
 
@@ -188,7 +194,10 @@ impl SidecarManager {
     /// started it. The lock is never held across the request or the kill, which
     /// run on the way out of the app where a block is a hang the user cannot
     /// escape.
-    pub async fn reap(&self, transport: &dyn Transport) {
+    pub async fn reap(
+        &self,
+        transport: &dyn Transport,
+    ) {
         let Some(child) = take_spawned(&self.child) else {
             log::debug!("[local] nothing to reap: this app did not spawn the local daemon");
             return;
@@ -202,7 +211,10 @@ impl SidecarManager {
     }
 
     /// See [`Self::spawn`]: private for the same reason.
-    async fn wait_for_ready(&self, transport: &dyn Transport) -> Result<()> {
+    async fn wait_for_ready(
+        &self,
+        transport: &dyn Transport,
+    ) -> Result<()> {
         for _ in 0..HEALTH_MAX_ATTEMPTS {
             if health_ok(transport).await {
                 return Ok(());

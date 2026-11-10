@@ -132,7 +132,10 @@ pub fn target_for_platform<'a>(
 /// Deliberately separate from [`target_for_platform`]: its fallback to the first target exists for
 /// manifests with a single universal target; this is the only place that can tell "no match" from
 /// "one universal target", which is what a not-supported warning needs to know.
-pub fn is_platform_supported(targets: &[ArrowTarget], platform: &str) -> bool {
+pub fn is_platform_supported(
+    targets: &[ArrowTarget],
+    platform: &str,
+) -> bool {
     targets.iter().any(|t| t.platform == platform)
 }
 

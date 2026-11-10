@@ -79,7 +79,10 @@ pub struct StatusGlyph {
 
 impl StatusGlyph {
     /// 16px, like the sidebar rows. Tiles use 12.
-    pub fn new(id: impl Into<ElementId>, kind: GlyphKind) -> Self {
+    pub fn new(
+        id: impl Into<ElementId>,
+        kind: GlyphKind,
+    ) -> Self {
         Self {
             id: id.into(),
             kind,
@@ -88,19 +91,29 @@ impl StatusGlyph {
         }
     }
 
-    pub fn size(mut self, px_: f32) -> Self {
+    pub fn size(
+        mut self,
+        px_: f32,
+    ) -> Self {
         self.size = px_;
         self
     }
 
-    pub fn color(mut self, color: Hsla) -> Self {
+    pub fn color(
+        mut self,
+        color: Hsla,
+    ) -> Self {
         self.color = Some(color);
         self
     }
 }
 
 impl RenderOnce for StatusGlyph {
-    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        _: &mut Window,
+        _: &mut App,
+    ) -> impl IntoElement {
         let (size, color) = (self.size, self.color);
         match self.kind {
             GlyphKind::Busy => {

@@ -12,7 +12,11 @@ use gpui::{
 const SWEEP_DEG: f32 = 288.0;
 const STEPS: usize = 24;
 
-fn arc_points(origin: Point<Pixels>, size: f32, rotation_deg: f32) -> Vec<Point<Pixels>> {
+fn arc_points(
+    origin: Point<Pixels>,
+    size: f32,
+    rotation_deg: f32,
+) -> Vec<Point<Pixels>> {
     let k = size / 24.0;
     (0..=STEPS)
         .map(|i| {
@@ -25,7 +29,11 @@ fn arc_points(origin: Point<Pixels>, size: f32, rotation_deg: f32) -> Vec<Point<
         .collect()
 }
 
-fn arc(size: f32, color: Option<Hsla>, rotation_deg: f32) -> impl IntoElement {
+fn arc(
+    size: f32,
+    color: Option<Hsla>,
+    rotation_deg: f32,
+) -> impl IntoElement {
     canvas(
         |_, _, _| (),
         move |bounds: Bounds<Pixels>, _, window: &mut Window, _: &mut App| {
@@ -63,19 +71,29 @@ impl Spinner {
         }
     }
 
-    pub fn size(mut self, px_: f32) -> Self {
+    pub fn size(
+        mut self,
+        px_: f32,
+    ) -> Self {
         self.size = px_;
         self
     }
 
-    pub fn color(mut self, color: Hsla) -> Self {
+    pub fn color(
+        mut self,
+        color: Hsla,
+    ) -> Self {
         self.color = Some(color);
         self
     }
 }
 
 impl RenderOnce for Spinner {
-    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    fn render(
+        self,
+        _: &mut Window,
+        _: &mut App,
+    ) -> impl IntoElement {
         let (size, color) = (self.size, self.color);
         div()
             .size(px(size))

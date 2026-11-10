@@ -31,7 +31,10 @@ pub fn open<V: gpui::Render + 'static>(
 }
 
 /// The centre of the element registered under `selector`.
-pub fn centre(cx: &mut VisualTestContext, selector: &'static str) -> gpui::Point<gpui::Pixels> {
+pub fn centre(
+    cx: &mut VisualTestContext,
+    selector: &'static str,
+) -> gpui::Point<gpui::Pixels> {
     cx.debug_bounds(selector)
         .unwrap_or_else(|| panic!("no element `{selector}` was rendered"))
         .center()
@@ -50,7 +53,10 @@ pub fn focus_first(cx: &mut VisualTestContext) {
 
 /// Presses and releases `key`. GPUI fires keyboard clicks (Enter/Space on a focused button) on key
 /// *up*, which `simulate_keystrokes` does not send.
-pub fn tap(cx: &mut VisualTestContext, key: &str) {
+pub fn tap(
+    cx: &mut VisualTestContext,
+    key: &str,
+) {
     cx.simulate_keystrokes(key);
     let keystroke = gpui::Keystroke::parse(key).expect("valid key");
     cx.simulate_event(gpui::KeyUpEvent { keystroke });

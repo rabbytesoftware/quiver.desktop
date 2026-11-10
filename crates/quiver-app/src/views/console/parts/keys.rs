@@ -33,7 +33,12 @@ impl ConsoleDock {
         }
     }
 
-    fn step(&mut self, direction: Direction, window: &mut Window, cx: &mut Context<Self>) -> bool {
+    fn step(
+        &mut self,
+        direction: Direction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
         let typed = self.input.read(cx).value().to_string();
         if typed != self.controller.state.draft
             && self.controller.state.history_cursor.index.is_none()
@@ -46,7 +51,11 @@ impl ConsoleDock {
         true
     }
 
-    fn complete(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+    fn complete(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
         let typed = self.input.read(cx).value().to_string();
         let done = complete_line(&typed, &self.controller.state.commands);
         if done.line != typed {

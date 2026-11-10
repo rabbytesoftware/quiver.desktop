@@ -36,7 +36,10 @@ pub fn digest_hex(digest: &str) -> Option<String> {
 /// The digest recorded for `name` in a sha256sum-format manifest.
 ///
 /// Handles both forms `sha256sum` writes: `<hash>  name` and `<hash> *name`.
-pub fn expected_sum(manifest: &str, name: &str) -> Option<String> {
+pub fn expected_sum(
+    manifest: &str,
+    name: &str,
+) -> Option<String> {
     for line in manifest.lines() {
         let mut fields = line.split_whitespace();
         let (Some(hash), Some(entry)) = (fields.next(), fields.next()) else {
