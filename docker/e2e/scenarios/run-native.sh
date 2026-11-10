@@ -185,6 +185,31 @@ start_secret_service() {
 }
 start_secret_service
 
+# `make play-box`: no tests. Seeds the stand-in with the baseline and every fixture arrow, starts the app the way a
+# user would (an installed bundle, a fresh home, the real daemon), and keeps the box up so it can be used by hand
+# through noVNC (http://localhost:6080/vnc.html). `relaunch` restarts the app on a fresh home.
+play() {
+	local play_home=/tmp/quiver-play
+	seed_baseline
+	seed_arrow_apps
+	cat >/usr/local/bin/relaunch <<RELAUNCH
+#!/usr/bin/env bash
+pkill -x quiverdesktop 2>/dev/null; pkill -f 'quiver[^ ]* daemon' 2>/dev/null; sleep 2
+[ "\$1" = "--fresh" ] && rm -rf $play_home
+mkdir -p $play_home
+cd $play_home
+HOME=$play_home QUIVER_HOME=$play_home/.quiver nohup $APP_DIR/quiverdesktop >$play_home.log 2>&1 &
+echo "started; log: $play_home.log"
+RELAUNCH
+	chmod +x /usr/local/bin/relaunch
+	relaunch --fresh
+	record "playground up: open http://localhost:${E2E_NOVNC_PORT:-6080}/vnc.html"
+	record "  relaunch [--fresh]   restart the app (fresh = wipe its home)"
+	record "  upstream stand-in serves: quiver.core, quiver.desktop, e2e-* arrows (echo app, static apps, supervised, form...)"
+	exec sleep infinity
+}
+[ "${PLAYGROUND:-0}" = "1" ] && play
+
 declare -a PASSED=() FAILED=()
 
 # Arrow processes a killed daemon leaves behind: the arrow-apps fixtures and the supervised fixture's sleep.

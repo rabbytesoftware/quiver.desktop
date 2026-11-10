@@ -1,6 +1,6 @@
 # Native Quiver Desktop (GPUI, Rust workspace). The Tauri/bun Makefile is kept as Makefile.tauri until the
 # final cleanup commit removes it.
-.PHONY: help dev dev-local build test gate fmt clippy fetch-sidecar fetch-sidecar-local package \
+.PHONY: help dev dev-local build test play-box gate fmt clippy fetch-sidecar fetch-sidecar-local package \
 	test-e2e-box check-release clean
 
 .DEFAULT_GOAL := help
@@ -102,6 +102,12 @@ endif
 test-e2e-box:
 	@if [ -z "$(QUIVER_CORE_DEV_PATH)" ]; then echo "set QUIVER_CORE_DEV_PATH to a quiver.core checkout"; exit 1; fi
 	@QUIVER_CORE_DEV_PATH="$(QUIVER_CORE_DEV_PATH)" docker compose -f docker/e2e/docker-compose.yml run --rm e2e scenarios/run-native.sh $(TESTS)
+
+# docker/e2e as a playground: the app and a real quiver.core in the box, driven by hand through noVNC at
+# http://localhost:6080/vnc.html (E2E_NOVNC_PORT changes the port). SKIP_BUILD=1 reuses the last build.
+play-box:
+	@if [ -z "$(QUIVER_CORE_DEV_PATH)" ]; then echo "set QUIVER_CORE_DEV_PATH to a quiver.core checkout"; exit 1; fi
+	@QUIVER_CORE_DEV_PATH="$(QUIVER_CORE_DEV_PATH)" docker compose -f docker/e2e/docker-compose.yml run --rm --service-ports -e PLAYGROUND=1 -e SKIP_BUILD="$(SKIP_BUILD)" e2e scenarios/run-native.sh
 
 clean:
 	@$(CARGO) clean
