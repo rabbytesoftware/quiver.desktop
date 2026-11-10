@@ -15,6 +15,7 @@ pub mod mock;
 pub mod nav;
 pub mod recommended;
 pub mod remote;
+pub mod screens;
 pub mod search;
 pub mod settings;
 pub mod sidebar;
@@ -36,6 +37,7 @@ const GROUPS: &[&[(Key, Message)]] = &[
     recommended::MESSAGES,
     collections::MESSAGES,
     remote::MESSAGES,
+    screens::MESSAGES,
 ];
 
 pub(super) fn lookup(key: Key) -> Option<Message> {

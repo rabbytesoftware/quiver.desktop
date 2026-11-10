@@ -13,11 +13,17 @@ use crate::window::open_main_window;
 pub fn run(services: Arc<AppServices>, demo: bool, seed: Option<fn(&AppModel)>) {
     Application::new().run(move |cx| {
         crate::fonts::load(cx);
+        crate::menu::install(cx);
         let model = AppModel::install(cx, services, demo);
         if let Some(seed) = seed {
             seed(model.read(cx));
         }
         cx.activate(true);
         open_main_window(cx);
+        if demo {
+            if let Some(route) = crate::demo::route::from_environment() {
+                model.update(cx, |m, cx| m.navigate(route, cx));
+            }
+        }
     });
 }

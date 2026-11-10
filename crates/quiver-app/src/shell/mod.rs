@@ -10,11 +10,13 @@ use quiver_ui::inspect;
 use quiver_ui::ActiveQuiver;
 
 use crate::model::{AppModel, Route};
+use crate::views::console::ConsoleDock;
 use crate::views::sidebar::Sidebar;
 
 pub struct AppShell {
     app: Entity<AppModel>,
     sidebar: Entity<Sidebar>,
+    console: Entity<ConsoleDock>,
     /// The page view and the route it was built for.
     page: Option<(Route, AnyView)>,
 }
@@ -22,10 +24,12 @@ pub struct AppShell {
 impl AppShell {
     pub fn new(app: Entity<AppModel>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let sidebar = cx.new(|cx| Sidebar::new(app.clone(), window, cx));
+        let console = cx.new(|cx| ConsoleDock::new(app.clone(), window, cx));
         cx.observe(&app, |_, _, cx| cx.notify()).detach();
         Self {
             app,
             sidebar,
+            console,
             page: None,
         }
     }
@@ -45,7 +49,14 @@ impl Render for AppShell {
                 view
             }
         };
-        let content = div().flex_1().min_w_0().h_full().child(page);
+        let content = div()
+            .flex_1()
+            .min_w_0()
+            .h_full()
+            .flex()
+            .flex_col()
+            .child(div().flex_1().min_h_0().child(page))
+            .child(self.console.clone());
         let rail = self.sidebar.clone();
         div()
             .size_full()

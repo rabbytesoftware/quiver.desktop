@@ -8,6 +8,7 @@ pub mod bridge;
 pub mod demo;
 pub mod e2e_bridge;
 pub mod fonts;
+pub mod menu;
 pub mod model;
 pub mod services;
 pub mod shell;

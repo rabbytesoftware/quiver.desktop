@@ -323,6 +323,22 @@ impl ConsoleController {
         }
     }
 
+    /// The user cancels the commands that are running (Ctrl+C, the Cancel button): their connections are
+    /// closed, which cancels them on the daemon, and `note` (the console's own words) says so. Nothing
+    /// happens when no command runs.
+    pub fn cancel_running(&mut self, note: &str) -> Vec<ConsoleEffect> {
+        let mut fx = Vec::new();
+        if self.runs.is_empty() {
+            return fx;
+        }
+        self.cancel_runs(&mut fx);
+        self.state.push(vec![NewEntry::Note {
+            tone: Tone::Info,
+            note: Note::Text(note.to_owned()),
+        }]);
+        fx
+    }
+
     pub fn stream_opened(&mut self, attempt: u64) {
         let mut fx = Vec::new();
         let actions = self.stream.on_open(attempt);

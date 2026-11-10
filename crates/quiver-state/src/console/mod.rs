@@ -9,6 +9,7 @@ pub mod entries;
 pub mod exec;
 pub mod frames;
 pub mod history;
+pub mod lines;
 pub mod ring;
 pub mod state;
 pub mod stream;

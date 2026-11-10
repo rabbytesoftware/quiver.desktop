@@ -8,9 +8,11 @@ pub mod auto_register;
 pub mod catalog_visibility;
 pub mod core_update;
 pub mod engine;
+pub mod engine_io;
 pub mod engine_model;
 pub mod log_level;
 pub mod path;
+pub mod preferences;
 pub mod tabs;
 
 pub use auto_register::{

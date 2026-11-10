@@ -3,6 +3,7 @@
 
 mod add_form;
 mod filter;
+pub mod flows;
 mod outcome;
 mod overlays;
 mod pairing_code;

@@ -3,6 +3,8 @@
 //! the WebSocket bridge's trust and socket scoping live in `quiver-arrow-host`, where they are already
 //! ported with their tests; this module decides only what the pane shows.
 
+pub mod hosting;
+
 use crate::domain::ArrowEntry;
 use crate::i18n::{
     en::{arrowapp, design},

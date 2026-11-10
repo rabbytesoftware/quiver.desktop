@@ -66,6 +66,7 @@ pub fn top_row(sidebar: &Sidebar, cx: &mut Context<Sidebar>) -> impl IntoElement
         .core_versions
         .read(|v| describe_core(v.as_ref()))
         .map(|core| format_build(&core, options));
+    let shown = crate::model::build_indicator(app).shown();
     let (can_back, can_forward) = (app.history.can_go_back(), app.history.can_go_forward());
     let reserve = rail_owns_controls(cfg!(target_os = "macos"), app.shell.sidebar_side);
     let mono = FontFamily::Mono.family();
@@ -84,17 +85,30 @@ pub fn top_row(sidebar: &Sidebar, cx: &mut Context<Sidebar>) -> impl IntoElement
         .h(px(34.))
         .px(px(6.))
         .when(reserve, |d| d.pl(px(64.)))
-        .child(
-            div()
-                .relative()
-                .pl(px(4.))
-                .font_family(mono)
-                .text_size(px(8.5))
-                .line_height(px(10.))
-                .when_some(core_line, |d, core| d.child(line("core", core)))
-                .child(line("app", app_line))
-                .child(probe("sidebar.build", Kind::Text, "Build", true, "")),
-        )
+        .when(shown, |d| {
+            d.child(
+                div()
+                    .id("sidebar-build")
+                    .relative()
+                    .pl(px(4.))
+                    .cursor_pointer()
+                    .on_click({
+                        let app = sidebar.app.clone();
+                        move |_, _, cx| {
+                            app.update(cx, |m, cx| {
+                                let open = !m.console_open;
+                                m.set_console_open(open, cx);
+                            })
+                        }
+                    })
+                    .font_family(mono)
+                    .text_size(px(8.5))
+                    .line_height(px(10.))
+                    .when_some(core_line, |d, core| d.child(line("core", core)))
+                    .child(line("app", app_line))
+                    .child(probe("sidebar.build", Kind::Button, "Build", true, "")),
+            )
+        })
         .child(
             div()
                 .relative()

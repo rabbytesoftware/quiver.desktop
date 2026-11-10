@@ -178,6 +178,7 @@ fn live() -> Rig {
     rig
 }
 
+mod cancelling;
 mod capability;
 mod client_side_commands;
 mod dispose;
