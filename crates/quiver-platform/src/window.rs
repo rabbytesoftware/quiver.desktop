@@ -42,16 +42,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn matches_tauri_conf_json() {
-        let conf = include_str!("../../../src-tauri/tauri.conf.json");
-        for needle in [
-            format!("\"width\": {}", MAIN_WINDOW.width),
-            format!("\"height\": {}", MAIN_WINDOW.height),
-            format!("\"minWidth\": {}", MAIN_WINDOW.min_width),
-            format!("\"minHeight\": {}", MAIN_WINDOW.min_height),
-            format!("\"title\": \"{}\"", MAIN_WINDOW.title),
-        ] {
-            assert!(conf.contains(&needle), "{needle}");
-        }
+    fn is_the_window_the_tauri_build_declared() {
+        // Former tauri.conf.json: 1200x800, minimum 800x600, titled Quiver.
+        assert_eq!((MAIN_WINDOW.width, MAIN_WINDOW.height), (1200, 800));
+        assert_eq!((MAIN_WINDOW.min_width, MAIN_WINDOW.min_height), (800, 600));
+        assert_eq!(MAIN_WINDOW.title, "Quiver");
     }
 }

@@ -225,9 +225,9 @@ mod tests {
     }
 
     #[test]
-    fn the_identifier_matches_tauri_conf_json() {
-        let conf = include_str!("../../../src-tauri/tauri.conf.json");
-        assert!(conf.contains(&format!("\"identifier\": \"{APP_IDENTIFIER}\"")));
+    fn the_identifier_is_the_one_the_tauri_build_shipped_under() {
+        // Changing it orphans every user's data directory (the former tauri.conf.json `identifier`).
+        assert_eq!(APP_IDENTIFIER, "com.rabbytesoftware.quiver");
     }
 
     #[test]

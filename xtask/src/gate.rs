@@ -35,7 +35,7 @@ const STEPS: &[(&str, &[&str])] = &[
     ("test", &["cargo", "test", "--workspace"]),
     ("deny", &["cargo", "deny", "check"]),
     ("audit", &["cargo", "audit"]),
-    ("machete", &["cargo", "machete"]),
+    ("machete", &["cargo-machete"]),
     (
         "check-deps",
         &["cargo", "run", "-q", "-p", "xtask", "--", "check-deps"],
