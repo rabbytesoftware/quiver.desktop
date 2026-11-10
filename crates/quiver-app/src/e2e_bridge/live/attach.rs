@@ -29,15 +29,22 @@ pub fn attach(cx: &mut App, window: AnyWindowHandle, model: &Entity<AppModel>) {
         })
     });
     start(cx, window, runtime.clone(), state);
-    // Core readiness is a signal, so a test waits on it instead of sleeping.
-    let mut revisions = services.status.store().subscribe();
+    // Core readiness is a signal, so a test waits on it instead of sleeping. `connection.ready:<id>` says the same
+    // for each connection once it is the active one and its daemon answered (a remote added later, a switch back).
+    let mut status_revisions = services.status.store().subscribe();
+    let mut connection_revisions = services.connections.store().subscribe();
     runtime.spawn(async move {
         loop {
             if services.status.status() == ConnectionStatus::Ready {
                 signal("core.ready");
+                signal(&format!(
+                    "connection.ready:{}",
+                    services.connections.snapshot().active_id
+                ));
             }
-            if revisions.changed().await.is_err() {
-                break;
+            tokio::select! {
+                changed = status_revisions.changed() => if changed.is_err() { break },
+                changed = connection_revisions.changed() => if changed.is_err() { break },
             }
         }
     });

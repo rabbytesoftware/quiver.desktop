@@ -11,6 +11,7 @@ use gpui::{
 use quiver_theme::Radius;
 
 use crate::button::Button;
+use crate::inspect::{probe, Kind};
 
 use crate::ids::child_id;
 use crate::popup::{floating, nav_key, popup_surface, set_open, use_popup, Nav, OpenFn};
@@ -24,6 +25,7 @@ pub struct MenuItem {
     destructive: bool,
     disabled: bool,
     on_select: Option<SelectFn>,
+    probe_id: Option<SharedString>,
 }
 
 impl MenuItem {
@@ -34,7 +36,14 @@ impl MenuItem {
             destructive: false,
             disabled: false,
             on_select: None,
+            probe_id: None,
         }
+    }
+
+    /// Reports this item to the e2e bridge under `id` while the menu is open.
+    pub fn probe(mut self, id: impl Into<SharedString>) -> Self {
+        self.probe_id = Some(id.into());
+        self
     }
 
     /// `variant="destructive"`.
@@ -247,6 +256,15 @@ impl RenderOnce for Menu {
                             .text_color(fg)
                             .when(lit, |d| d.bg(hover_bg))
                             .children(item.icon.map(|ic| div().text_color(icon_color).child(ic)))
+                            .when_some(item.probe_id, |d, id| {
+                                d.child(probe(
+                                    id,
+                                    Kind::MenuItem,
+                                    item.label.clone(),
+                                    !item.disabled,
+                                    "",
+                                ))
+                            })
                             .child(item.label);
                         if item.disabled {
                             return el.opacity(0.64).into_any_element();

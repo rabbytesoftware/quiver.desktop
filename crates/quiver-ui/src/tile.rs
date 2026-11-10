@@ -227,7 +227,13 @@ impl RenderOnce for Tile {
         }
 
         if let Some(badge) = &self.badge {
-            let mut el = badge_element(badge, (self.id.clone(), "badge").into(), cx);
+            let mut el = badge_element(badge, (self.id.clone(), "badge").into(), cx).child(probe(
+                format!("tile.{}.badge", self.namespace),
+                Kind::Text,
+                badge.label.clone(),
+                true,
+                "",
+            ));
             if has_start {
                 el = el.group_hover(group.clone(), |s| s.opacity(0.));
             }

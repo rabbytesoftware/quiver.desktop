@@ -101,7 +101,13 @@ impl RenderOnce for SearchInput {
             )
             .children(clear)
             .when_some(self.probe_id, |d, id| {
-                d.child(probe(id, Kind::Input, "Search", true, value))
+                // The state is the typed value, then " [focused]" while the field holds the keyboard focus.
+                let state = if focused {
+                    format!("{value} [focused]")
+                } else {
+                    value
+                };
+                d.child(probe(id, Kind::Input, "Search", true, state))
             })
     }
 }

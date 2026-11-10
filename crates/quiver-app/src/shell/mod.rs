@@ -59,7 +59,7 @@ impl Render for AppShell {
             .child(div().flex_1().min_h_0().child(page))
             .child(self.console.clone());
         let rail = self.sidebar.clone();
-        div()
+        let root = div()
             .size_full()
             .flex()
             .when(side == SidebarSide::Right, |d| d.flex_row_reverse())
@@ -69,6 +69,10 @@ impl Render for AppShell {
             .text_size(px(TypeScale::BODY))
             .child(rail)
             .child(content)
-            .children(self.app.read(cx).modals.views().cloned())
+            .children(self.app.read(cx).modals.views().cloned());
+        // The last thing painted in a frame: tells the e2e bridge the frame is complete.
+        #[cfg(feature = "e2e-bridge")]
+        let root = root.child(crate::e2e_bridge::settle_marker());
+        root
     }
 }

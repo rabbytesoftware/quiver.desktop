@@ -66,6 +66,11 @@ pub fn top_row(sidebar: &Sidebar, cx: &mut Context<Sidebar>) -> impl IntoElement
         .core_versions
         .read(|v| describe_core(v.as_ref()))
         .map(|core| format_build(&core, options));
+    // What the indicator says, for the e2e driver (`sidebar.build` state): the core line appears once /versions answered.
+    let build_text = match &core_line {
+        Some(core) => format!("core {core}; app {app_line}"),
+        None => format!("app {app_line}"),
+    };
     let shown = crate::model::build_indicator(app).shown();
     let (can_back, can_forward) = (app.history.can_go_back(), app.history.can_go_forward());
     let reserve = rail_owns_controls(cfg!(target_os = "macos"), app.shell.sidebar_side);
@@ -106,7 +111,13 @@ pub fn top_row(sidebar: &Sidebar, cx: &mut Context<Sidebar>) -> impl IntoElement
                     .line_height(px(10.))
                     .when_some(core_line, |d, core| d.child(line("core", core)))
                     .child(line("app", app_line))
-                    .child(probe("sidebar.build", Kind::Button, "Build", true, "")),
+                    .child(probe(
+                        "sidebar.build",
+                        Kind::Button,
+                        "Build",
+                        true,
+                        build_text,
+                    )),
             )
         })
         .child(

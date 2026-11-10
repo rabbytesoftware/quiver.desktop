@@ -1,7 +1,7 @@
 //! "Add a remote connection": details (name, URL, health probe), then the pairing code.
 
 use gpui::prelude::*;
-use gpui::{div, px, App, Context, Entity, FontWeight, Render, Subscription, Window};
+use gpui::{div, px, Focusable as _, App, Context, Entity, FontWeight, Render, Subscription, Window};
 use quiver_state::i18n::en::remote;
 use quiver_state::remote::flows::is_reachable;
 use quiver_state::remote::{AddConnectionForm, AddStage, PairingCode};
@@ -124,11 +124,14 @@ impl AddModal {
     }
 }
 
+/// A labelled field. Its e2e probe covers the INPUT (not the label above it, which a click would miss) and carries
+/// `[focused]` while the field holds the keyboard focus.
 fn labelled(
     cx: &Context<AddModal>,
     label: String,
     input: impl IntoElement,
     id: &str,
+    focused: bool,
 ) -> impl IntoElement {
     let p = cx.quiver().palette;
     div()
@@ -144,8 +147,12 @@ fn labelled(
                 .text_color(p.foreground)
                 .child(label.clone()),
         )
-        .child(input)
-        .child(probe(id.to_owned(), Kind::Input, label, true, ""))
+        .child(
+            div()
+                .relative()
+                .child(input)
+                .child(probe(id.to_owned(), Kind::Input, label, true, if focused { "[focused]" } else { "" })),
+        )
 }
 
 fn button(
@@ -164,7 +171,10 @@ fn button(
 }
 
 impl Render for AddModal {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let focused = |input: &Entity<InputState>| input.read(cx).focus_handle(cx).is_focused(window);
+        let (name_focus, url_focus, code_focus) =
+            (focused(&self.name), focused(&self.url), focused(&self.code));
         let p = cx.quiver().palette;
         let m = app_model(cx).read(cx);
         let t = |key| m.t(key);
@@ -180,6 +190,7 @@ impl Render for AddModal {
                         t(remote::ADD_CODE_LABEL),
                         Input::new("remote-add-code", &self.code),
                         "remote.add.code",
+                        code_focus,
                     ))
                     .child(
                         div()
@@ -223,12 +234,14 @@ impl Render for AddModal {
                         t(remote::ADD_NAME_LABEL),
                         Input::new("remote-add-name", &self.name),
                         "remote.add.name",
+                        name_focus,
                     ))
                     .child(labelled(
                         cx,
                         t(remote::ADD_URL_LABEL),
                         Input::new("remote-add-url", &self.url).invalid(self.form.health_error),
                         "remote.add.url",
+                        url_focus,
                     ))
                     .when(self.form.health_error, |d| {
                         d.child(

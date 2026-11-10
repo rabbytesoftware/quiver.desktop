@@ -29,17 +29,27 @@ fn window_origin() -> Result<(i32, i32), String> {
         .ok_or("no visible window for this process")?
         .trim()
         .to_string();
-    let geometry = xdotool(&["getwindowgeometry", "--shell", &id])?;
+    // `xdotool getwindowgeometry` reports the position of the window's frame under a reparenting window manager
+    // (openbox puts a 20px title bar above the client), which sent every click 20px too low; `xwininfo` reports
+    // where the client area really is, and window coordinates start there.
+    let info = Command::new("xwininfo")
+        .args(["-id", &id])
+        .output()
+        .map_err(|e| format!("xwininfo is required: {e}"))?;
+    let info = String::from_utf8_lossy(&info.stdout).into_owned();
     let read = |key: &str| {
-        geometry
-            .lines()
+        info.lines()
             .find_map(|l| {
-                l.strip_prefix(key)
+                l.trim()
+                    .strip_prefix(key)
                     .and_then(|v| v.trim().parse::<i32>().ok())
             })
-            .ok_or_else(|| format!("no {key} in window geometry"))
+            .ok_or_else(|| format!("no {key} in xwininfo output"))
     };
-    Ok((read("X=")?, read("Y=")?))
+    Ok((
+        read("Absolute upper-left X:")?,
+        read("Absolute upper-left Y:")?,
+    ))
 }
 
 fn to_screen(x: f32, y: f32) -> Result<(String, String), String> {

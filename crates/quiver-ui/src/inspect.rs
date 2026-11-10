@@ -68,6 +68,8 @@ mod live {
     use std::sync::{LazyLock, Mutex};
 
     static FRAME: AtomicU64 = AtomicU64::new(0);
+    /// The last frame whose painting finished (see [`settle`]).
+    static SETTLED: AtomicU64 = AtomicU64::new(0);
     static NODES: LazyLock<Mutex<BTreeMap<String, Node>>> =
         LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
@@ -79,6 +81,12 @@ mod live {
         FRAME.load(Ordering::SeqCst)
     }
 
+    /// The current frame has been painted completely: from here until the next [`begin_frame`] the snapshot is exactly
+    /// what that frame drew, so an element that stopped being drawn is gone at once.
+    pub fn settle() {
+        SETTLED.store(FRAME.load(Ordering::SeqCst), Ordering::SeqCst);
+    }
+
     pub fn record(mut node: Node) {
         node.frame = frame();
         if let Ok(mut nodes) = NODES.lock() {
@@ -86,15 +94,21 @@ mod live {
         }
     }
 
-    /// Nodes painted in the most recent frame, in id order.
+    /// Nodes painted in the most recent frame, in id order. While a frame is being painted its elements register one by
+    /// one, so the previous frame's are kept too; once it settled only its own count.
     pub fn snapshot() -> Vec<Node> {
         let current = frame();
+        let keep_from = if SETTLED.load(Ordering::SeqCst) >= current {
+            current
+        } else {
+            current.saturating_sub(1)
+        };
         NODES
             .lock()
             .map(|nodes| {
                 nodes
                     .values()
-                    .filter(|n| n.frame + 1 >= current)
+                    .filter(|n| n.frame >= keep_from)
                     .cloned()
                     .collect()
             })
@@ -107,7 +121,7 @@ mod live {
 }
 
 #[cfg(feature = "inspect")]
-pub use live::{begin_frame, find, frame, record, snapshot};
+pub use live::{begin_frame, find, frame, record, settle, snapshot};
 
 #[cfg(not(feature = "inspect"))]
 mod stub {
@@ -122,6 +136,8 @@ mod stub {
         0
     }
     #[inline(always)]
+    pub fn settle() {}
+    #[inline(always)]
     pub fn record(_node: Node) {}
     #[inline(always)]
     pub fn snapshot() -> Vec<Node> {
@@ -134,7 +150,7 @@ mod stub {
 }
 
 #[cfg(not(feature = "inspect"))]
-pub use stub::{begin_frame, find, frame, record, snapshot};
+pub use stub::{begin_frame, find, frame, record, settle, snapshot};
 
 /// An invisible overlay that reports its parent's painted bounds under `id`.
 ///

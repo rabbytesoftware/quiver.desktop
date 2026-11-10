@@ -1,0 +1,44 @@
+quiver.desktop native E2E
+run started: 2026-11-10T02:16:47Z
+host:        Linux x86_64 in a container, display :1
+
+build: ok
+artifact: quiver-stable-26.5.90  59226181 bytes  sha256=4b3d76333476b0166ed81f9217584e281d882eba50e4f9ae49132355bb8063ae
+artifact: quiver-stable-26.5.91  59226181 bytes  sha256=f2e08a6cb309b41e9f742a8ed83a9b44284622fc76cbd29b5b5a177a9e169278
+artifact: quiver-stable-26.5.92  59226181 bytes  sha256=cf93c3d1cfa40b4270d48b9d7f87751d252538f6f30a57e90d331dd6a7cad8a7
+artifact: quiver-stable-26.5.93  59226181 bytes  sha256=f564af5aa775e3457cdc1c7952126d081a644ac583656515198c4af7ee759abd
+artifact: quiverdesktop-stable-1.0  64576808 bytes  sha256=92cbec0b97cc712a38b9a488383cc2cd3edec9c58b36a75096f90d5c303a58b0
+artifact: quiver-arrow-window  6167824 bytes  sha256=11d6c0d49f4a6ee95dd458f1c0b3585862d3e392150fa1170ae0d91e3a5cb27a
+
+tests: 6 (filters: none)
+test auto_register::only_the_local_daemon_learns_about_the_desktop: FAIL (exit 101, see results/native/auto_register__only_the_local_daemon_learns_about_the_desktop.log)
+test bootstrap::a_clean_home_comes_up_self_installed: PASS
+test console::the_build_indicator_and_the_daemon_console: PASS
+test generic_outdated_badge::an_outdated_self_arrow_gets_the_generic_outdated_badge: PASS
+test qol::the_pre_playtest_qol_fixes: FAIL (exit 101, see results/native/qol__the_pre_playtest_qol_fixes.log)
+test self_update_while_running::a_supervised_process_survives_the_daemon_replacing_itself: PASS
+
+passed: bootstrap::a_clean_home_comes_up_self_installed console::the_build_indicator_and_the_daemon_console generic_outdated_badge::an_outdated_self_arrow_gets_the_generic_outdated_badge self_update_while_running::a_supervised_process_survives_the_daemon_replacing_itself
+failed: auto_register::only_the_local_daemon_learns_about_the_desktop qol::the_pre_playtest_qol_fixes
+screenshots:
+  /workspace/results/native/auto_register__only_the_local_daemon_learns_about_the_desktop/FAILED.png (23469 bytes)
+  /workspace/results/native/auto_register__only_the_local_daemon_learns_about_the_desktop/final-screen.png (3072 bytes)
+  /workspace/results/native/bootstrap__a_clean_home_comes_up_self_installed/bootstrap-ready.png (6662 bytes)
+  /workspace/results/native/bootstrap__a_clean_home_comes_up_self_installed/bootstrap-sidebar.png (29153 bytes)
+  /workspace/results/native/bootstrap__a_clean_home_comes_up_self_installed/final-screen.png (3072 bytes)
+  /workspace/results/native/console__the_build_indicator_and_the_daemon_console/console-indicator.png (6663 bytes)
+  /workspace/results/native/console__the_build_indicator_and_the_daemon_console/console-open.png (12287 bytes)
+  /workspace/results/native/console__the_build_indicator_and_the_daemon_console/console-refused.png (79893 bytes)
+  /workspace/results/native/console__the_build_indicator_and_the_daemon_console/final-screen.png (3072 bytes)
+  /workspace/results/native/generic_outdated_badge__an_outdated_self_arrow_gets_the_generic_outdated_badge/final-screen.png (3072 bytes)
+  /workspace/results/native/generic_outdated_badge__an_outdated_self_arrow_gets_the_generic_outdated_badge/outdated-badge.png (40326 bytes)
+  /workspace/results/native/generic_outdated_badge__an_outdated_self_arrow_gets_the_generic_outdated_badge/outdated-details.png (22658 bytes)
+  /workspace/results/native/qol__the_pre_playtest_qol_fixes/01-scrolled.png (72248 bytes)
+  /workspace/results/native/qol__the_pre_playtest_qol_fixes/02-next-screen-at-top.png (15977 bytes)
+  /workspace/results/native/qol__the_pre_playtest_qol_fixes/03-search-focused.png (44674 bytes)
+  /workspace/results/native/qol__the_pre_playtest_qol_fixes/04-search-typed.png (43819 bytes)
+  /workspace/results/native/qol__the_pre_playtest_qol_fixes/05-update-available.png (74889 bytes)
+  /workspace/results/native/qol__the_pre_playtest_qol_fixes/final-screen.png (3072 bytes)
+  /workspace/results/native/self_update_while_running__a_supervised_process_survives_the_daemon_replacing_itself/after-self-update.png (29945 bytes)
+  /workspace/results/native/self_update_while_running__a_supervised_process_survives_the_daemon_replacing_itself/final-screen.png (3072 bytes)
+finished: 2026-11-10T02:21:36Z

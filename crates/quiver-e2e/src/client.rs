@@ -105,14 +105,23 @@ impl Bridge {
     }
 
     pub async fn wait_node(&mut self, id: &str, present: bool, timeout_ms: u64) -> Result<Node> {
-        let v = self
-            .call(
-                "wait.node",
-                json!({ "id": id, "present": present, "timeout_ms": timeout_ms }),
-            )
-            .await?;
+        self.wait_matching(json!({ "id": id }), present, timeout_ms)
+            .await
+    }
+
+    /// Waits for a node to (dis)appear by a filter: `id` or `prefix`, plus `label_contains` / `state_contains`.
+    /// The result is the matching node (a placeholder when waiting for absence).
+    pub async fn wait_matching(
+        &mut self,
+        mut filter: Value,
+        present: bool,
+        timeout_ms: u64,
+    ) -> Result<Node> {
+        filter["present"] = json!(present);
+        filter["timeout_ms"] = json!(timeout_ms);
+        let v = self.call("wait.node", filter.clone()).await?;
         Ok(serde_json::from_value(v).unwrap_or_else(|_| Node {
-            id: id.into(),
+            id: filter["id"].as_str().unwrap_or_default().into(),
             kind: String::new(),
             label: String::new(),
             enabled: false,

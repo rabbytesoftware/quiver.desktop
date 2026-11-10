@@ -135,7 +135,7 @@ async fn dispatch<D: Driver>(d: &D, h: &BridgeHandles, method: &str, p: Value) -
         }
         "wait.node" => {
             let present = p["present"].as_bool().unwrap_or(true);
-            tokio::time::timeout(timeout, wait_node(d, h, id, present))
+            tokio::time::timeout(timeout, wait_node(d, h, &p, present))
                 .await
                 .map_err(|_| {
                     (
@@ -163,11 +163,56 @@ async fn dispatch<D: Driver>(d: &D, h: &BridgeHandles, method: &str, p: Value) -
     }
 }
 
-/// Re-checks the tree on every frame the app paints until the node's presence matches.
-async fn wait_node<D: Driver>(d: &D, h: &BridgeHandles, id: &str, present: bool) -> Value {
+/// Which elements `wait.node` is about: `id` exactly, or every id starting with `prefix`, narrowed by
+/// `label_contains` / `state_contains` (a node's free-form label and state text).
+struct NodeFilter {
+    id: Option<String>,
+    prefix: Option<String>,
+    label_contains: Option<String>,
+    state_contains: Option<String>,
+    /// Only nodes painted above / below this window y (`y_lt`, `y_gt`): how a scroll is observed.
+    y_lt: Option<f32>,
+    y_gt: Option<f32>,
+}
+
+impl NodeFilter {
+    fn from_params(p: &Value) -> Self {
+        let text = |k: &str| p[k].as_str().map(String::from);
+        Self {
+            id: text("id"),
+            prefix: text("prefix"),
+            label_contains: text("label_contains"),
+            state_contains: text("state_contains"),
+            y_lt: p["y_lt"].as_f64().map(|v| v as f32),
+            y_gt: p["y_gt"].as_f64().map(|v| v as f32),
+        }
+    }
+
+    fn matches(&self, n: &Node) -> bool {
+        self.id.as_ref().is_none_or(|id| &n.id == id)
+            && self
+                .prefix
+                .as_ref()
+                .is_none_or(|p| n.id.starts_with(p.as_str()))
+            && self
+                .label_contains
+                .as_ref()
+                .is_none_or(|t| n.label.contains(t.as_str()))
+            && self
+                .state_contains
+                .as_ref()
+                .is_none_or(|t| n.state.contains(t.as_str()))
+            && self.y_lt.is_none_or(|y| n.y < y)
+            && self.y_gt.is_none_or(|y| n.y > y)
+    }
+}
+
+/// Re-checks the tree on every frame the app paints until the filter's presence matches.
+async fn wait_node<D: Driver>(d: &D, h: &BridgeHandles, params: &Value, present: bool) -> Value {
+    let filter = NodeFilter::from_params(params);
     let mut frames = h.frames.subscribe();
     loop {
-        let found: Option<Node> = d.tree().await.nodes.into_iter().find(|n| n.id == id);
+        let found: Option<Node> = d.tree().await.nodes.into_iter().find(|n| filter.matches(n));
         if found.is_some() == present {
             return json!(found);
         }

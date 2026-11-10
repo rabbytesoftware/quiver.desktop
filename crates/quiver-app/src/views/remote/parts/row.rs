@@ -53,9 +53,13 @@ fn actions_menu(
     );
     if row.show_connect {
         let (this, id, name) = (this.clone(), id.clone(), name.clone());
-        menu = menu.item(MenuItem::new(switch).on_select(move |_, cx| {
-            this.update(cx, |v, cx| v.connect(id.clone(), name.clone(), cx))
-        }));
+        menu = menu.item(
+            MenuItem::new(switch)
+                .probe(format!("remote.row.{id}.switch"))
+                .on_select(move |_, cx| {
+                    this.update(cx, |v, cx| v.connect(id.clone(), name.clone(), cx))
+                }),
+        );
     }
     if row.is_remote {
         let (rename_this, rename_id, rename_name) = (this.clone(), id.clone(), name.clone());

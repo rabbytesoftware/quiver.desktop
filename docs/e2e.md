@@ -58,6 +58,30 @@ Not ported from the WebDriver era: shell scenarios 2 (sideload), 3 (desktop upda
 clicked the Tauri window with xdotool and read pixels (`find-button.py`); they, and `demo-up.sh`, were deleted and
 are expected as Rust tests over the bridge. `scenarios/scenario-1-core-self-update.sh` needs no UI and stays.
 
+## Writing a scenario (`crates/quiver-e2e/tests/`)
+
+`tests/scenarios.rs` is the one test target (`--test scenarios`); each scenario is a file in `tests/scenarios/` pulled
+in with `#[path]`, and everything they share is in `tests/support/` (reuse it, do not copy it):
+
+| Module | What it gives |
+| --- | --- |
+| `env` | `Env::load("name")`: reads the `QUIVER_E2E_*` names the box exports. Returns `None` after printing `SKIP ...` when `QUIVER_E2E_APP_BINARY` is unset, so plain `cargo test` stays green: `let Some(env) = Env::load("x") else { return };`. `required(NAME)` / `optional(NAME)` read the other variables. |
+| `home` | `Home::fresh(&env, name)`: a wiped `$QUIVER_E2E_TMP/<name>` (HOME; `QUIVER_HOME` is `<HOME>/.quiver`), with the version-check TTL config; `socket()`, `self_binary()`, `daemon_log()`, `env()`. |
+| `app` | `App::launch(&env, &home)` starts the app with the bridge env and connects; `wait_ready()`, `signal`, `route`, `node`, `matching(filter)`, `gone`, `find`, `click`, `enter_text`, `with_prefix`, `shot(name)` (PNG into `$QUIVER_E2E_RESULTS/<test>/`). All waits are bridge signals or `wait.node`. |
+| `daemon` | `Daemon::unix(socket)` / `Daemon::tcp(port)` (+ `with_bearer`): plain HTTP to a quiver.core, not through the app. |
+| `arrows` | the arrow API of a daemon: `arrow`, `wait_arrow`, `channels`, `library`, `check_now`, `add`, `runtime`. |
+| `upstream` | the GitHub stand-in: `Upstream::load()`, `publish_core_release(tag)`, `publish_repo_tag(repo, tag)`, `hits(path)`, `core_tags()`. |
+| `procs` | `alive`, `pgrep`, `daemon_version`, `kill`. |
+| `wait` | `eventually`: the one bounded re-read, used ONLY for what happens inside another process (the daemon's API, the file system) and which the app does not signal. UI conditions never use it. |
+
+Per-test isolation comes from `run-native.sh` (it runs every test alone with `--exact`, a wiped `QUIVER_E2E_TMP`, a
+freshly seeded stand-in, and `QUIVER_E2E_TEST_NAME`). Ids the views report are listed in
+`crates/quiver-app/src/views/README.md`; the ones the scenarios rely on beyond the screen/tile/sidebar ones are
+`sidebar.build` (state: `core <build>; app <build>`), `console.line.<n>` (label: the row text, state: `log:<level>`,
+`cmd`, `out:stdout|stderr`, `note:<tone>`), `tile.<namespace>.badge` (label: the badge text) and the `[focused]`
+suffix on `sidebar.search`'s state. App signals: `first-frame`, `core.ready`, `connection.ready:<id>`,
+`route:<path>`.
+
 ## Bridge protocol
 
 Newline-delimited JSON-RPC 2.0 over TCP, `127.0.0.1:<port>`. The app prints `QUIVER_BRIDGE_PORT=<port>` on stdout
@@ -74,7 +98,7 @@ Source of truth: `crates/quiver-e2e/src/protocol.rs` and `server.rs`.
 | `ui.key` | `{keys}` | presses a chord: `enter`, `cmd-k`, `ctrl-shift-p` |
 | `ui.scroll` | `{id, dx, dy}` | logical pixels |
 | `wait.signal` | `{signal, timeout_ms}` | waits for a named, latched app signal. Never a sleep; error `-32001` on timeout |
-| `wait.node` | `{id, present, timeout_ms}` | waits for an element to appear or disappear |
+| `wait.node` | `{id? , prefix?, label_contains?, state_contains?, y_lt?, y_gt?, present, timeout_ms}` | waits for an element matching the filter to appear (or, with `present: false`, for none to match); returns the node |
 | `state.dump` | | JSON snapshot of the app state |
 | `logs.recent` | `{n}` | last `n` log lines |
 | `window.screenshot` | | `{png_base64}` |

@@ -2,6 +2,7 @@
 
 use gpui::prelude::*;
 use gpui::{div, px, Context, FontWeight, IntoElement};
+use quiver_state::console::entries::{ConsoleEntry, NewEntry};
 use quiver_state::console::lines::{display_line, Line, SpanTone};
 use quiver_state::console::Support;
 use quiver_state::i18n::en::console;
@@ -25,11 +26,30 @@ fn tone_color(p: &Palette, tone: SpanTone) -> gpui::Hsla {
     }
 }
 
-fn row(p: &Palette, line: &Line, this: &gpui::Entity<ConsoleDock>) -> impl IntoElement {
+/// What kind of entry a row is, for the e2e driver (`console.line.<id>` state): `log:<level>`, `cmd`,
+/// `out:stdout|stderr`, `note:<tone>` or `raw`.
+fn kind_of(entry: &ConsoleEntry) -> String {
+    match &entry.body {
+        NewEntry::Log(record) => format!("log:{:?}", record.level).to_lowercase(),
+        NewEntry::Raw(_) => "raw".into(),
+        NewEntry::Cmd { .. } => "cmd".into(),
+        NewEntry::Out { stream, .. } => format!("out:{stream:?}").to_lowercase(),
+        NewEntry::Note { tone, .. } => format!("note:{tone:?}").to_lowercase(),
+    }
+}
+
+fn row(
+    p: &Palette,
+    line: &Line,
+    kind: String,
+    this: &gpui::Entity<ConsoleDock>,
+) -> impl IntoElement {
     let id = line.id;
     let this = this.clone();
+    let text: String = line.spans.iter().map(|s| s.text.as_str()).collect();
     div()
         .id(("console-line", id))
+        .relative()
         .px(px(12.))
         .py(px(1.))
         .flex()
@@ -51,6 +71,13 @@ fn row(p: &Palette, line: &Line, this: &gpui::Entity<ConsoleDock>) -> impl IntoE
                 .text_color(tone_color(p, s.tone))
                 .child(s.text.clone())
         }))
+        .child(probe(
+            format!("console.line.{id}"),
+            Kind::Text,
+            text,
+            true,
+            kind,
+        ))
 }
 
 pub fn log(dock: &mut ConsoleDock, cx: &mut Context<ConsoleDock>) -> impl IntoElement {
@@ -68,6 +95,7 @@ pub fn log(dock: &mut ConsoleDock, cx: &mut Context<ConsoleDock>) -> impl IntoEl
         .iter()
         .map(|e| display_line(e, &m.translator, offset))
         .collect();
+    let kinds: Vec<String> = dock.controller.state.entries.iter().map(kind_of).collect();
     let notice = unsupported.then(|| m.t(console::UNSUPPORTED));
     let count = lines.len();
     div()
@@ -85,7 +113,12 @@ pub fn log(dock: &mut ConsoleDock, cx: &mut Context<ConsoleDock>) -> impl IntoEl
                 .text_size(px(12.))
                 .line_height(px(17.))
                 .children(notice.map(|n| div().px(px(12.)).text_color(p.muted_foreground).child(n)))
-                .children(lines.iter().map(|l| row(&p, l, &this))),
+                .children(
+                    lines
+                        .iter()
+                        .zip(&kinds)
+                        .map(|(l, k)| row(&p, l, k.clone(), &this)),
+                ),
         )
         .child(probe(
             "console.output",

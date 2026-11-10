@@ -36,6 +36,25 @@ pub fn frame_painted() {
     HANDLES.frames.send_replace(frame);
 }
 
+/// Marks the current frame as completely painted and wakes `wait.node` watchers: the registry is exact from here
+/// until the next frame starts (nodes register while painting, which is after the frame-start wake-up).
+fn frame_settled() {
+    quiver_ui::inspect::settle();
+    HANDLES.frames.send_replace(quiver_ui::inspect::frame());
+}
+
+/// An invisible element that must be the LAST thing painted in the root view: its paint reports the frame settled.
+/// Deferred with the highest priority so it also comes after any deferred layer (popups, tooltips).
+pub fn settle_marker() -> impl gpui::IntoElement {
+    use gpui::{canvas, deferred, px, Styled as _};
+    deferred(
+        canvas(|_, _, _| (), |_, _, _, _| frame_settled())
+            .absolute()
+            .size(px(0.)),
+    )
+    .with_priority(usize::MAX)
+}
+
 /// Starts the bridge if `QUIVER_E2E_PORT` is set. Must be called on the GPUI thread with the main window.
 pub(crate) fn start(
     cx: &mut App,
