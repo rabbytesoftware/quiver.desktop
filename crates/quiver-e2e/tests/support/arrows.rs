@@ -93,11 +93,21 @@ pub async fn library(d: &Daemon) -> Vec<(String, Vec<String>)> {
 }
 
 /// What the Settings button runs: `PATCH /v0/arrow/:ns` re-resolves the row against a fresh snapshot.
+///
+/// The daemon re-resolves against upstream before it answers, and on a loaded machine it sometimes drops the
+/// connection mid-request ("connection reset by peer", nothing logged for it). The call is idempotent, so a reset
+/// is asked again (bounded) rather than failing the scenario on a daemon that merely was slow.
 pub async fn check_now(d: &Daemon, ns: &str) -> u16 {
-    d.patch(&format!("/v0/arrow/{}", enc(ns)), json!({}))
-        .await
-        .expect("check now")
-        .status
+    let path = format!("/v0/arrow/{}", enc(ns));
+    let mut last = None;
+    for _ in 0..3 {
+        match d.patch(&path, json!({})).await {
+            Ok(reply) => return reply.status,
+            Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => last = Some(e),
+            Err(e) => panic!("check now: {e}"),
+        }
+    }
+    panic!("check now: {:?}", last)
 }
 
 pub async fn add(d: &Daemon, ns: &str) -> u16 {
