@@ -21,11 +21,30 @@ pub fn attach(cx: &mut App, window: AnyWindowHandle, model: &Entity<AppModel>) {
             .arrows
             .store()
             .read(|s| s.arrows.keys().cloned().collect());
+        // What the app's store knows of each open interface (the daemon's own view is read straight from it).
+        let surfaces: serde_json::Map<String, serde_json::Value> = for_state
+            .arrows
+            .entries()
+            .into_iter()
+            .filter_map(|e| {
+                let surface = e.active_run?.surface?;
+                Some((e.namespace, json!({"ready": surface.ready})))
+            })
+            .collect();
+        let states: serde_json::Map<String, serde_json::Value> = for_state
+            .arrows
+            .entries()
+            .into_iter()
+            .map(|e| (e.namespace, json!(format!("{:?}", e.state).to_lowercase())))
+            .collect();
         json!({
+            "arrowStates": states,
+            "surfaces": surfaces,
             "status": format!("{:?}", for_state.status.status()).to_lowercase(),
             "activeConnection": connections.active_id,
             "connections": connections.connections.iter().map(|c| &c.id).collect::<Vec<_>>(),
             "arrows": arrows,
+            "arrowWindows": for_state.arrow_windows.snapshot(),
         })
     });
     start(cx, window, runtime.clone(), state);

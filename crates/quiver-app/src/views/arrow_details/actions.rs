@@ -243,6 +243,19 @@ impl ArrowDetailsView {
         let Some(detail) = self.merged(cx) else {
             return;
         };
+        // docs/arrow-apps.md: while the run has an interface the arrow's page is the app pane.
+        let has_surface = detail
+            .active_run
+            .as_ref()
+            .is_some_and(|r| r.surface.is_some());
+        if has_surface && !self.surface_seen && !self.app.read(cx).demo {
+            self.surface_seen = true;
+            let namespace = self.namespace.clone();
+            self.app
+                .update(cx, |m, cx| m.replace(Route::ArrowApp { namespace }, cx));
+            return;
+        }
+        self.surface_seen = has_surface;
         if !self
             .invoke
             .restart_ready_for_execute(RunState::from(detail.state))

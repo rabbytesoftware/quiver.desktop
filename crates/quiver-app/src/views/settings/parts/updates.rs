@@ -14,7 +14,7 @@ use quiver_state::settings::core_update::{build_core_update, CoreUpdateInput, Co
 use quiver_ui::ActiveQuiver;
 
 use super::engine_actions::to_failure;
-use super::rows::{row, small_button};
+use super::rows::{probed, row, small_button};
 use crate::bridge::spawn_action;
 use crate::services::resolve_release_variables;
 use crate::views::settings::SettingsView;
@@ -225,11 +225,18 @@ pub fn update_rows(
             move |_, cx| this.update(cx, |v, cx| v.run_update(which, cx)),
         ));
     }
-    let value = |text: String| {
-        div()
-            .text_size(px(13.))
-            .text_color(p.foreground)
-            .child(text)
+    // The value is what the e2e driver reads: the row's own probe carries the label, not the text.
+    let value = |name: &str, text: String| {
+        probed(
+            div()
+                .text_size(px(13.))
+                .text_color(p.foreground)
+                .child(text.clone()),
+            format!("{id}.{name}.value"),
+            quiver_ui::inspect::Kind::Text,
+            text.into(),
+            String::new(),
+        )
     };
     vec![
         row(
@@ -238,10 +245,10 @@ pub fn update_rows(
             t(keys::ENGINE_SELF_UPDATE_INSTALLED),
             None,
             vec![value(
+                "installed",
                 rows.installed
                     .unwrap_or_else(|| t(keys::ENGINE_SELF_UPDATE_UNKNOWN)),
-            )
-            .into_any_element()],
+            )],
         ),
         row(
             &p,
@@ -249,10 +256,10 @@ pub fn update_rows(
             t(keys::ENGINE_SELF_UPDATE_AVAILABLE),
             None,
             vec![value(
+                "available",
                 rows.available
                     .unwrap_or_else(|| t(keys::ENGINE_SELF_UPDATE_CURRENT)),
-            )
-            .into_any_element()],
+            )],
         ),
         row(
             &p,

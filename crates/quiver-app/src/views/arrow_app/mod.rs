@@ -12,6 +12,7 @@ use quiver_state::arrow_app::hosting::{host_step, HostStep};
 use quiver_state::arrow_app::surface_namespaces;
 use quiver_state::i18n::en::screens;
 use quiver_state::i18n::Params;
+use quiver_state::namespace::bare_namespace;
 use quiver_ui::ActiveQuiver;
 
 use crate::bridge::spawn_action;
@@ -31,6 +32,14 @@ pub struct ArrowAppView {
 impl ArrowAppView {
     pub fn new(app: Entity<AppModel>, namespace: String, cx: &mut Context<Self>) -> Self {
         let services = app.read(cx).services.clone();
+        // The route carries the bare namespace; the store, the windows and the daemon calls are keyed by the
+        // catalog identity (`ns@selector`).
+        let namespace = services
+            .arrows
+            .entries()
+            .into_iter()
+            .find(|e| bare_namespace(&e.namespace) == namespace)
+            .map_or(namespace, |e| e.namespace);
         let mut revisions = services.arrows.store().subscribe();
         let store_task = cx.spawn(async move |this, cx| {
             while revisions.changed().await.is_ok() {
@@ -101,7 +110,7 @@ impl ArrowAppView {
             .and_then(|a| a.active_run.as_ref())
             .and_then(|r| r.surface.as_ref());
         if surface.is_none() && entry.is_some() {
-            let namespace = self.namespace.clone();
+            let namespace = bare_namespace(&self.namespace).to_owned();
             self.app
                 .update(cx, |m, cx| m.replace(Route::Arrow { namespace }, cx));
             return;
@@ -132,12 +141,14 @@ impl ArrowAppView {
             &handle,
             async move { windows.show(&namespace, &title).await },
             |this: &mut Self, result, cx| {
-                this.notice = result.err().map(|e| {
-                    this.app.read(cx).translator.t_with(
+                // Only a failure writes the notice: a success must not wipe the eviction notice the same
+                // `show` just emitted (the event lands before this callback runs).
+                if let Err(e) = result {
+                    this.notice = Some(this.app.read(cx).translator.t_with(
                         screens::ARROWAPP_FAILED,
                         &Params::new().with("reason", e.to_string()),
-                    )
-                });
+                    ));
+                }
                 cx.notify();
             },
         );

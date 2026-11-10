@@ -143,8 +143,16 @@ impl SettingsModal {
             .when_some(error, |d, message| {
                 d.child(
                     div()
+                        .relative()
                         .flex()
                         .justify_end()
+                        .child(probe(
+                            format!("arrow.settings.{}.error", variable.name.to_lowercase()),
+                            Kind::Text,
+                            message.clone(),
+                            true,
+                            "",
+                        ))
                         .text_size(px(11.5))
                         .text_color(p.destructive)
                         .child(message),

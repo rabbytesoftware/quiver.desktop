@@ -42,6 +42,9 @@ pub struct ArrowDetailsView {
     /// The ⓘ popover of an action button.
     pub(super) info_open: Option<ArrowActionKind>,
     pub(super) problem_open: bool,
+    /// The run's interface was already open when the page was entered (or has been seen): only a surface that
+    /// opens while the person is here takes them to the app pane, so Details in the pane does not bounce back.
+    pub(super) surface_seen: bool,
     /// `--demo` only: the modal the route asked for, opened once the page has its detail.
     demo_modal: Option<&'static str>,
     _read: Option<ReadTask>,
@@ -62,6 +65,10 @@ impl ArrowDetailsView {
             .entries()
             .into_iter()
             .find(|e| bare_namespace(&e.namespace) == namespace);
+        let surface_seen = entry
+            .as_ref()
+            .and_then(|e| e.active_run.as_ref())
+            .is_some_and(|r| r.surface.is_some());
         let mut read = None;
         if demo {
             load.update(|l| match &entry {
@@ -89,6 +96,7 @@ impl ArrowDetailsView {
             inspected_step: None,
             info_open: None,
             problem_open: false,
+            surface_seen,
             demo_modal: demo
                 .then(crate::demo::route::arrow_modal_from_environment)
                 .flatten(),

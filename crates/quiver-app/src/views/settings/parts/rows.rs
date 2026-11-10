@@ -44,6 +44,7 @@ pub fn row(
     controls: Vec<AnyElement>,
 ) -> AnyElement {
     let label: SharedString = label.into();
+    let described = description.clone();
     div()
         .relative()
         .flex()
@@ -83,6 +84,9 @@ pub fn row(
                 .items_center()
                 .gap(px(8.))
                 .children(controls),
+        )
+        .children(
+            described.map(|text| probe(format!("{id}.description"), Kind::Text, text, true, "")),
         )
         .child(probe(format!("{id}.row"), Kind::Other, label, true, ""))
         .into_any_element()

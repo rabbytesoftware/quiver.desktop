@@ -18,6 +18,18 @@ pub struct Upstream {
 
 const CORE_REPO: &str = "rabbytesoftware/quiver.core";
 
+/// How a published release differs from a plain build of its tag.
+#[derive(Default, Clone, Copy)]
+pub struct ReleaseOptions<'a> {
+    /// Publish this built version's binary under the tag, for a tag that was never built itself.
+    pub binary_of: Option<&'a str>,
+    /// List a checksum that is not the asset's, as a corrupted or tampered download would.
+    pub wrong_checksum: bool,
+    /// Publish a program that hands over to the real build's `self-update` but is not a daemon itself, so the
+    /// swap starts something that never becomes healthy.
+    pub unhealthy: bool,
+}
+
 impl Upstream {
     pub fn load() -> Self {
         Self {
@@ -35,6 +47,15 @@ impl Upstream {
             .split_whitespace()
             .map(String::from)
             .collect()
+    }
+
+    /// The release asset a built version was packaged as.
+    pub fn built_asset(&self, tag: &str) -> PathBuf {
+        self.core_assets
+            .as_ref()
+            .expect("QUIVER_E2E_CORE_ASSETS")
+            .join(tag)
+            .join(self.core_asset.as_ref().expect("QUIVER_E2E_CORE_ASSET"))
     }
 
     fn bare(&self, repo: &str) -> PathBuf {
@@ -59,6 +80,11 @@ impl Upstream {
     /// Publishes quiver.core `tag`: the tag, the manifest at it, the binary and its `checksums.txt`, and the
     /// "latest release" pointer. Returns the published asset.
     pub fn publish_core_release(&self, tag: &str) -> PathBuf {
+        self.publish_core_release_with(tag, ReleaseOptions::default())
+    }
+
+    /// [`Upstream::publish_core_release`] with the variations the failure-path scenarios need.
+    pub fn publish_core_release_with(&self, tag: &str, options: ReleaseOptions) -> PathBuf {
         let asset_name = self.core_asset.clone().expect("QUIVER_E2E_CORE_ASSET");
         let raw = self.state.join("raw").join(CORE_REPO).join(tag);
         std::fs::create_dir_all(&raw).expect("raw dir");
@@ -74,14 +100,30 @@ impl Upstream {
         let _ = std::fs::remove_dir_all(&release);
         std::fs::create_dir_all(&release).expect("release dir");
         let asset = release.join(&asset_name);
-        let built = self
-            .core_assets
-            .as_ref()
-            .expect("QUIVER_E2E_CORE_ASSETS")
-            .join(tag)
-            .join(&asset_name);
-        std::fs::copy(&built, &asset).unwrap_or_else(|e| panic!("copy {}: {e}", built.display()));
-        let sum = sha256(&asset);
+        let built = self.built_asset(options.binary_of.unwrap_or(tag));
+        if options.unhealthy {
+            std::fs::write(
+                &asset,
+                format!(
+                    "#!/bin/sh\nif [ \"$1\" = self-update ]; then exec {:?} self-update \"$2\"; fi\nexec sleep 600\n",
+                    built.display().to_string()
+                ),
+            )
+            .expect("write the unhealthy asset");
+        } else {
+            std::fs::copy(&built, &asset)
+                .unwrap_or_else(|e| panic!("copy {}: {e}", built.display()));
+        }
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&asset, std::fs::Permissions::from_mode(0o755))
+                .expect("chmod the asset");
+        }
+        let sum = if options.wrong_checksum {
+            "0".repeat(64)
+        } else {
+            sha256(&asset)
+        };
         std::fs::write(
             release.join("checksums.txt"),
             format!("{sum}  ./{asset_name}\n"),

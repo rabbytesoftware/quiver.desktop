@@ -7,6 +7,7 @@
 
 mod launcher;
 mod process;
+mod recorder;
 #[cfg(test)]
 mod tests;
 
@@ -22,6 +23,8 @@ use tokio::task::{JoinHandle, JoinSet};
 
 pub use launcher::{HelperArgs, HelperLauncher, HelperLink};
 pub use process::{ProcessLauncher, HELPER_BINARY};
+
+use recorder::ProtocolLog;
 
 use crate::services::Result;
 
@@ -73,6 +76,7 @@ struct Inner {
     launcher: Arc<dyn HelperLauncher>,
     hosts: Arc<ArrowHosts>,
     protocol: ProtocolService,
+    log: Arc<ProtocolLog>,
     state: Mutex<State>,
 }
 
@@ -112,6 +116,7 @@ impl ArrowWindows {
                 launcher,
                 protocol: ProtocolService::new(hosts.clone(), upstream),
                 hosts,
+                log: Arc::default(),
                 state: Mutex::default(),
             }),
         }
@@ -159,6 +164,7 @@ impl ArrowWindows {
         let pump = tokio::spawn(pump(
             Arc::downgrade(&self.inner),
             self.inner.protocol.clone(),
+            self.inner.log.clone(),
             namespace.to_string(),
             generation,
             link.from_helper,
@@ -220,6 +226,25 @@ impl ArrowWindows {
         self.inner.state().registry.reload_key(namespace)
     }
 
+    /// What the e2e state dump reports: the open apps, the visible one, each app's remount key and the
+    /// protocol requests the helpers made (status and CSP of each answer).
+    pub fn snapshot(&self) -> serde_json::Value {
+        let state = self.inner.state();
+        let reload_keys: serde_json::Map<String, serde_json::Value> = state
+            .registry
+            .order()
+            .iter()
+            .map(|ns| (ns.clone(), state.registry.reload_key(ns).into()))
+            .collect();
+        serde_json::json!({
+            "open": state.registry.order(),
+            "windows": state.windows.keys().collect::<Vec<_>>(),
+            "visible": state.registry.visible(),
+            "reloadKeys": reload_keys,
+            "protocol": self.inner.log.snapshot(),
+        })
+    }
+
     /// Ends every helper. Idempotent; nothing opens afterwards.
     pub fn shutdown(&self) {
         let mut state = self.inner.state();
@@ -236,6 +261,7 @@ impl ArrowWindows {
 async fn pump(
     inner: Weak<Inner>,
     protocol: ProtocolService,
+    log: Arc<ProtocolLog>,
     namespace: String,
     generation: u64,
     mut from_helper: UnboundedReceiver<WindowToHost>,
@@ -250,8 +276,10 @@ async fn pump(
             WindowToHost::ProtocolRequest(request) => {
                 let protocol = protocol.clone();
                 let to_helper = to_helper.clone();
+                let (log, namespace) = (log.clone(), namespace.clone());
                 answering.spawn(async move {
-                    let response = protocol.answer(request).await;
+                    let response = protocol.answer(request.clone()).await;
+                    log.record(&namespace, &request, &response);
                     let _ = to_helper.send(HostToWindow::ProtocolResponse(response));
                 });
             }

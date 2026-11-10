@@ -4,6 +4,10 @@
 
 mod support;
 
+#[path = "scenarios/arrow_apps.rs"]
+mod arrow_apps;
+#[path = "scenarios/arrow_page.rs"]
+mod arrow_page;
 #[path = "scenarios/auto_register.rs"]
 mod auto_register;
 #[path = "scenarios/bootstrap.rs"]
@@ -12,7 +16,13 @@ mod bootstrap;
 mod console;
 #[path = "scenarios/generic_outdated_badge.rs"]
 mod generic_outdated_badge;
+#[path = "scenarios/glyphs.rs"]
+mod glyphs;
+#[path = "scenarios/modals.rs"]
+mod modals;
 #[path = "scenarios/qol.rs"]
 mod qol;
 #[path = "scenarios/self_update_while_running.rs"]
 mod self_update_while_running;
+#[path = "scenarios/update_core.rs"]
+mod update_core;

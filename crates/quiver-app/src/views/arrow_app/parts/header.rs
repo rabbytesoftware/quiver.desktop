@@ -4,6 +4,7 @@ use gpui::prelude::*;
 use gpui::{div, hsla, linear_color_stop, linear_gradient, px, Context, FontWeight, IntoElement};
 use quiver_state::arrow_app::{build_pane_header, PaneMenuItem};
 use quiver_state::i18n::en::arrowapp;
+use quiver_state::namespace::bare_namespace;
 use quiver_state::queries::mutations::{Mutations, Variables};
 use quiver_theme::FontFamily;
 use quiver_ui::inspect::{probe, Kind};
@@ -40,7 +41,7 @@ fn menu(
                 .destructive(item.destructive())
                 .on_select(move |_, cx| {
                     let route = Route::Arrow {
-                        namespace: namespace.clone(),
+                        namespace: bare_namespace(&namespace).to_owned(),
                     };
                     app.update(cx, |m, cx| m.navigate(route, cx));
                 }),
@@ -125,7 +126,7 @@ pub fn header(view: &mut ArrowAppView, cx: &mut Context<ArrowAppView>) -> impl I
             cx,
             move |_, cx| {
                 let route = Route::Arrow {
-                    namespace: ns.clone(),
+                    namespace: bare_namespace(&ns).to_owned(),
                 };
                 app.update(cx, |m, cx| m.navigate(route, cx));
             },

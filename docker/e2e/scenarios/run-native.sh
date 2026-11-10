@@ -104,7 +104,7 @@ seed_baseline() {
 	git_tag rabbytesoftware/quiver.desktop "$DESK_V1"
 
 	local fixture
-	for fixture in e2e-supervised e2e-required; do
+	for fixture in e2e-supervised e2e-required e2e-slow e2e-form; do
 		publish_manifest "rabbytesoftware/$fixture" develop "$E2E_DIR/fixtures/arrows/$fixture/ARROW.md"
 	done
 	publish_manifest rabbytesoftware/e2e-updatable develop "$E2E_DIR/fixtures/arrows/e2e-updatable/ARROW.md"
@@ -118,19 +118,25 @@ seed_baseline() {
 # the `nightly` release; the echo app and its server; the short app; and the three rendered static apps
 # (fixtures/upstream-up.sh).
 seed_arrow_apps() {
-	publish_manifest rabbytesoftware/quiver.chat develop "$CHAT_CHECKOUT/ARROW.md"
-	# The ARROW.md fetches releases/download/${REF}/..., so the archives sit under every ref a test installs from
-	# (develop) as well as the rolling nightly.
-	local ref
-	for ref in nightly develop; do
-		publish_release rabbytesoftware/quiver.chat "$ref" \
-			"$CHAT_DIST/quiver-chat-linux-arm64.tar.gz" "$CHAT_DIST/quiver-chat-linux-amd64.tar.gz"
-	done
+	# quiver.chat is optional: without its checkout the chat test skips itself (QUIVER_E2E_CHAT_MANIFEST names a
+	# file that does not exist) and only the repository's own fixture apps run.
+	if [ -f "$CHAT_CHECKOUT/ARROW.md" ] && [ -d "$CHAT_DIST" ]; then
+		publish_manifest rabbytesoftware/quiver.chat develop "$CHAT_CHECKOUT/ARROW.md"
+		# The ARROW.md fetches releases/download/${REF}/..., so the archives sit under every ref a test installs from
+		# (develop) as well as the rolling nightly.
+		local ref
+		for ref in nightly develop; do
+			publish_release rabbytesoftware/quiver.chat "$ref" \
+				"$CHAT_DIST/quiver-chat-linux-arm64.tar.gz" "$CHAT_DIST/quiver-chat-linux-amd64.tar.gz"
+		done
+	else
+		info "quiver.chat: no checkout at $CHAT_CHECKOUT, its test will skip"
+	fi
 	publish_manifest rabbytesoftware/e2e-echo-app develop "$E2E_DIR/fixtures/arrows/e2e-echo-app/ARROW.md"
 	publish_release rabbytesoftware/e2e-echo-app v1 "$E2E_DIR/fixtures/arrows/e2e-echo-app/server.py"
 	publish_manifest rabbytesoftware/e2e-short-app develop "$E2E_DIR/fixtures/arrows/e2e-short-app/ARROW.md"
 	local n
-	for n in 1 2 3; do
+	for n in 1 2 3 4; do
 		publish_manifest "rabbytesoftware/e2e-static-app-$n" develop "$UPSTREAM_STATE/fixtures/e2e-static-app-$n/ARROW.md"
 	done
 }
@@ -156,7 +162,7 @@ export QUIVER_E2E_CHAT_NS="github.com/rabbytesoftware/quiver.chat"
 export QUIVER_E2E_CHAT_MANIFEST="$CHAT_CHECKOUT/ARROW.md"
 export QUIVER_E2E_ECHO_NS="github.com/rabbytesoftware/e2e-echo-app"
 export QUIVER_E2E_SHORT_NS="github.com/rabbytesoftware/e2e-short-app"
-export QUIVER_E2E_STATIC_NS="github.com/rabbytesoftware/e2e-static-app-1 github.com/rabbytesoftware/e2e-static-app-2 github.com/rabbytesoftware/e2e-static-app-3"
+export QUIVER_E2E_STATIC_NS="github.com/rabbytesoftware/e2e-static-app-1 github.com/rabbytesoftware/e2e-static-app-2 github.com/rabbytesoftware/e2e-static-app-3 github.com/rabbytesoftware/e2e-static-app-4"
 export QUIVER_E2E_TCP_PORT=40299
 # The helper the app spawns for arrow apps sits next to the app binary already (APP_DIR above).
 export CARGO_TARGET_DIR="$CARGO_TARGET"

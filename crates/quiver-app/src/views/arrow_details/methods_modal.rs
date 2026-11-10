@@ -121,7 +121,14 @@ impl MethodsModal {
                                     this.open.insert(toggle_name.clone());
                                 }
                                 cx.notify();
-                            })),
+                            }))
+                            .child(probe(
+                                format!("{id}.inspect"),
+                                Kind::Button,
+                                name.clone(),
+                                true,
+                                "",
+                            )),
                     ),
             )
             .when(open, |d| {

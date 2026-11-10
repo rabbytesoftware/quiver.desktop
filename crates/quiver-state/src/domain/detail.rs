@@ -22,10 +22,12 @@ pub struct ArrowMedia {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum VariableType {
-    String,
     Number,
     Boolean,
     Select,
+    /// Also what the daemon's empty `type` means: a manifest that declares no type is a text field.
+    #[serde(other)]
+    String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -168,4 +170,18 @@ pub struct ArrowDetail {
     pub dependencies: Vec<ArrowDependency>,
     /// namespace@ref of every installed arrow that declares a dependency on this one.
     pub dependents: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::VariableType;
+
+    #[test]
+    fn an_undeclared_type_reads_as_a_text_variable() {
+        let read = |t: &str| serde_json::from_str::<VariableType>(&format!("\"{t}\"")).unwrap();
+        assert_eq!(read(""), VariableType::String);
+        assert_eq!(read("string"), VariableType::String);
+        assert_eq!(read("number"), VariableType::Number);
+        assert_eq!(read("select"), VariableType::Select);
+    }
 }

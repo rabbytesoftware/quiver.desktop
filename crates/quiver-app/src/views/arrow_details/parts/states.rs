@@ -57,6 +57,7 @@ fn notice(
     cx: &Context<ArrowDetailsView>,
 ) -> impl IntoElement {
     let p = cx.quiver().palette;
+    let reported = body.clone();
     div()
         .relative()
         .flex()
@@ -78,7 +79,7 @@ fn notice(
                 .child(body),
         )
         .child(div().mt(px(8.)).child(action))
-        .child(probe(id, Kind::Other, id, true, ""))
+        .child(probe(id, Kind::Other, id, true, reported))
 }
 
 /// The daemon could not be read, or answered with an error.

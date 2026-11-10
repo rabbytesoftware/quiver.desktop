@@ -53,13 +53,13 @@ seed_repo rabbytesoftware/quiver.desktop "$DESK_SRC/ARROW.md" develop
 
 # Small arrows the native scenarios (scenarios/run-native.sh) add to the
 # library: one to supervise, one with a required variable.
-for fixture in e2e-supervised e2e-required e2e-echo-app e2e-short-app e2e-updatable; do
+for fixture in e2e-supervised e2e-required e2e-slow e2e-form e2e-echo-app e2e-short-app e2e-updatable; do
 	seed_repo "rabbytesoftware/$fixture" "$HERE/arrows/$fixture/ARROW.md" develop
 done
 
 # The arrow-apps spec opens several apps at once: the static app's manifest is
 # rendered once per copy into $STATE/fixtures, where run-native.sh publishes it.
-for n in 1 2 3; do
+for n in 1 2 3 4; do
 	mkdir -p "$STATE/fixtures/e2e-static-app-$n"
 	sed "s/__N__/$n/g" "$HERE/arrows/e2e-static-app/ARROW.md" >"$STATE/fixtures/e2e-static-app-$n/ARROW.md"
 	seed_repo "rabbytesoftware/e2e-static-app-$n" "$STATE/fixtures/e2e-static-app-$n/ARROW.md" develop
