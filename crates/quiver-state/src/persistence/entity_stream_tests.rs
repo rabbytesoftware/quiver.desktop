@@ -52,6 +52,7 @@ impl Rig {
             })),
             on_seed_error: None,
             on_unversioned_upsert: None,
+            on_reconnect: None,
         }
     }
 

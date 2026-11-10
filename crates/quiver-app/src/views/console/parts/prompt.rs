@@ -2,7 +2,7 @@
 //! cancels (see `keys`).
 
 use gpui::prelude::*;
-use gpui::{div, px, Focusable as _, Context, IntoElement, Window};
+use gpui::{div, px, Context, Focusable as _, IntoElement, Window};
 use quiver_state::console::Support;
 use quiver_theme::FontFamily;
 use quiver_ui::inspect::{probe, Kind};

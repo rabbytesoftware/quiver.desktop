@@ -7,7 +7,7 @@
 //! home (V1 start), so one failure does not hide the rest:
 //!   * from the arrow page, V1 -> V2        * from Settings > Engine, V1 -> V2
 //!   * a wrong checksum is refused           * a build that never becomes healthy is rolled back
-//!   * closing the window stops the daemon   * a second update after the first swap (FAILS today, app bug)
+//!   * closing the window stops the daemon   * a second update after the first swap
 //!
 //! Substituted claims: the old spec read the setting rows' text from the DOM; natively the values are the
 //! `settings.core.{installed,available}.value` ids and the row notes `settings.core.actions.description`.
@@ -76,9 +76,8 @@ async fn update_from_settings_swaps_the_daemon_and_settings_shows_the_new_versio
     s.app.shot("07-settings-after-swap").await;
 }
 
-/// FAILS today (app bug): after the first swap the app keeps the pre-swap runtime state of quiver.core
-/// ("updating") and of the supervised arrow ("running" while the daemon says "detached"), so Settings leaves
-/// "Check for updates" disabled and no second update can be offered.
+/// After the first swap the app must not keep the pre-swap runtime state of quiver.core ("updating"): the
+/// socket's reconnect re-reads the list over it, so Settings enables "Check for updates" again.
 #[tokio::test]
 async fn a_second_update_can_be_offered_after_the_first_swap() {
     let Some(mut s) = Setup::start("update_core_twice").await else {

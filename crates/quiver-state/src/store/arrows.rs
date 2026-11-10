@@ -190,12 +190,22 @@ impl ArrowStore {
             if s.live_namespaces.contains(&update.namespace) {
                 return;
             }
-            let resolved = resolve_overlay(existing, &update);
+            let mut resolved = resolve_overlay(existing, &update);
+            // The list carries no run: a row still in the same state keeps the one it has.
+            if existing.state == update.state && update.active_run.is_none() {
+                resolved.active_run = existing.active_run.clone();
+            }
             s.runtime.insert(update.namespace.clone(), resolved.clone());
             if let Some(entry) = s.arrows.get_mut(&update.namespace) {
                 patch_overlay(entry, &resolved);
             }
         });
+    }
+
+    /// After a reconnect the overlay painted by live frames can no longer be trusted: lets the next
+    /// `seed_initial_state` replace it. The overlay itself stays until then, so rows do not blank.
+    pub fn forget_live_state(&self) {
+        self.store.update(|s| s.live_namespaces.clear());
     }
 
     pub fn reset(&self) {

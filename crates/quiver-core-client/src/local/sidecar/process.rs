@@ -89,6 +89,7 @@ pub(super) fn spawn_supervisor(
     stderr: Option<ChildStderr>,
 ) {
     let (tx, rx) = mpsc::channel(32);
+    tokio::spawn(reap_when_exited(Arc::clone(&slot)));
     tokio::spawn(async move {
         let pump = tokio::spawn(pump_events(rx));
         tokio::join!(
@@ -114,6 +115,34 @@ pub(super) fn spawn_supervisor(
         drop(tx);
         let _ = pump.await;
     });
+}
+
+const REAP_POLL: Duration = Duration::from_millis(200);
+
+/// Waits for the spawned daemon to exit and collects its status, whatever its pipes are doing.
+///
+/// The pipes closing is not a reliable sign of the exit: the daemon's own children (a supervised arrow
+/// that outlives a self-update swap) inherit them and keep them open, and even when they do close, that
+/// happens a moment before the exit is collectable, so the single `try_wait` after them can find nothing.
+/// An exited child nobody waits for stays a zombie, and a zombie still answers `kill(pid, 0)`: the
+/// daemon replacing itself polls exactly that and gave up with "daemon N still running after 1m30s".
+///
+/// Ends when the child has been collected or `reap` has taken it out of the slot. The status stays
+/// cached in the `Child` for the `try_wait` the supervisor does after the pipes close.
+pub(super) async fn reap_when_exited(slot: Arc<Mutex<Option<Child>>>) {
+    loop {
+        {
+            let mut guard = slot.lock().unwrap_or_else(|e| e.into_inner());
+            match guard.as_mut() {
+                None => return,
+                Some(child) => match child.try_wait() {
+                    Ok(None) => {}
+                    Ok(Some(_)) | Err(_) => return,
+                },
+            }
+        }
+        tokio::time::sleep(REAP_POLL).await;
+    }
 }
 
 #[cfg(unix)]

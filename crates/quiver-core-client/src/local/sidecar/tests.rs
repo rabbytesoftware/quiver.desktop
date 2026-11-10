@@ -264,3 +264,30 @@ async fn a_missing_stream_ends_at_once() {
     read_stream(None::<tokio::io::DuplexStream>, tx, CoreEvent::Stderr).await;
     assert!(rx.recv().await.is_none());
 }
+
+/// The daemon exits while a child of its own (a supervised arrow) still holds its stdout: the pipe never
+/// reaches EOF, so only an explicit wait collects the exit. Left alone it stays a zombie, which
+/// `kill(pid, 0)` reports as alive.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_daemon_that_exited_is_collected_even_while_its_pipes_stay_open() {
+    use std::process::Stdio;
+    use std::sync::{Arc, Mutex};
+
+    let mut child = tokio::process::Command::new("sh")
+        .args(["-c", "sleep 30 & exit 0"])
+        .stdout(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .expect("spawn sh");
+    let pid = child.id().expect("pid");
+    let _stdout = child.stdout.take();
+    let slot = Arc::new(Mutex::new(Some(child)));
+    super::process::reap_when_exited(Arc::clone(&slot)).await;
+    assert!(
+        !std::path::Path::new(&format!("/proc/{pid}")).exists(),
+        "the exited daemon was left as a zombie"
+    );
+    let status = slot.lock().unwrap().as_mut().unwrap().try_wait().unwrap();
+    assert!(status.is_some_and(|s| s.success()));
+}

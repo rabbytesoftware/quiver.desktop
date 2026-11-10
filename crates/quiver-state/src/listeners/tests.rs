@@ -281,6 +281,56 @@ async fn applies_runtime_frames_ignores_unknown_namespaces_and_the_reconnect_sen
     );
 }
 
+/// A self-update swap replaces the daemon: the runtime stream is gone with it and never replays, so
+/// "updating" (and "running" for a supervised arrow the swap detached) would stay forever. The
+/// socket's reconnect re-reads the list, and that read must win over the frames seen before.
+#[tokio::test]
+async fn a_reconnect_replaces_the_runtime_state_the_live_frames_had_painted() {
+    let rig = rig();
+    let _l = rig.ready().await;
+    let runtime = rig.api.wait_stream("/v0/runtime", 0).await;
+    let run = json!({"method": "_update", "variables": {}, "steps": []});
+    runtime.send_json(runtime_frame("updating", run, json!(null)));
+    rig.wait_arrows(|a| {
+        a.entry("a@v1")
+            .is_some_and(|e| e.state == ArrowState::Updating)
+    })
+    .await;
+    rig.api.route(
+        Method::Get,
+        LIST,
+        json!([{"namespace": "a", "name": "A", "description": "", "tags": null,
+                "versions": [{"ref": "v1", "resolved_ref": "2", "state": "detached"}]}]),
+    );
+    let arrow = rig.api.wait_stream("/v0/arrow", 0).await;
+    arrow.send_json(json!({"reconnected": true}));
+    rig.wait_arrows(|a| {
+        a.entry("a@v1")
+            .is_some_and(|e| e.state == ArrowState::Detached)
+    })
+    .await;
+    assert!(rig.arrows.entry("a@v1").unwrap().active_run.is_none());
+}
+
+#[tokio::test]
+async fn a_reseed_without_a_reconnect_keeps_the_state_live_frames_painted() {
+    let rig = rig();
+    let _l = rig.ready().await;
+    let runtime = rig.api.wait_stream("/v0/runtime", 0).await;
+    runtime.send_json(runtime_frame("running", json!(null), json!(null)));
+    rig.wait_arrows(|a| {
+        a.entry("a@v1")
+            .is_some_and(|e| e.state == ArrowState::Running)
+    })
+    .await;
+    rig.arrows.refresh_catalog();
+    let mut rx = rig.arrows.store().subscribe();
+    while rig.api.calls_to(Method::Get, LIST) < 2 {
+        rx.changed().await.unwrap();
+    }
+    assert_eq!(rig.arrows.entry("a@v1").unwrap().state, ArrowState::Running);
+}
+
 #[tokio::test]
 async fn a_successful_update_run_ending_re_reads_the_catalog() {
     let rig = rig();

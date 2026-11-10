@@ -32,6 +32,10 @@ pub struct SubscribeArrowStreamOptions {
     /// registered, or one an update or adoption advanced in place. quiver.core's frames never carry
     /// the resolved ref, so only a re-read of the catalog can supply it.
     pub on_unversioned_upsert: Option<UpsertFn>,
+    /// Called when the socket reconnected, before the catalog is re-read: whatever the daemon did
+    /// while the stream was down (a swap restarts it) is unknown, so the re-read must be able to
+    /// repaint state the live frames had established.
+    pub on_reconnect: Option<ChangeFn>,
 }
 
 enum Cmd {
@@ -155,6 +159,9 @@ impl Inner {
             return;
         }
         if is_reconnect_sentinel(data) {
+            if let Some(cb) = &self.opts.on_reconnect {
+                cb();
+            }
             drop(self.run_seed());
             return;
         }

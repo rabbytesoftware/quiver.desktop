@@ -64,9 +64,8 @@ async fn sidebar_rows_show_the_glyph_of_their_state() {
 /// The daemon replaces itself while the supervised arrow runs, which leaves its process detached; the row must then
 /// say "needs attention".
 ///
-/// FAILS today (app bug, reported in the hand-off): after the swap the daemon says `detached` but the app's
-/// store keeps the stale `running` overlay, so the glyph stays "running". `ArrowStore::seed_initial_state` skips
-/// namespaces a live frame already painted, and the store is only reset on `Starting`, not on a reconnect.
+/// The reconnect after the swap re-reads the list over the `running` overlay the live frames painted
+/// (`ArrowStore::forget_live_state`), so the glyph follows the daemon's `detached`.
 #[tokio::test]
 async fn a_detached_arrow_after_a_daemon_swap_shows_needs_attention() {
     let Some(mut s) = Setup::start("glyphs_detached").await else {

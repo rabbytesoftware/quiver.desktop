@@ -291,6 +291,17 @@ impl Inner {
                 }
             })
         };
+        // The daemon may have been replaced while the socket was down (a self-update swap): the
+        // runtime stream does not replay, so the state the live frames painted ("updating",
+        // "running") is stale and the re-read that follows must overwrite it.
+        let on_reconnect = {
+            let (arrows, generation) = (deps.arrows.clone(), self.generation.clone());
+            Arc::new(move || {
+                if generation.load(Ordering::SeqCst) == stream_generation {
+                    arrows.forget_live_state();
+                }
+            })
+        };
         let arrow_stream = subscribe_arrow_stream(
             &deps.ws,
             deps.cache.clone(),
@@ -300,6 +311,7 @@ impl Inner {
                 on_change: Some(on_change),
                 on_seed_error: Some(on_seed_error),
                 on_unversioned_upsert: Some(on_unversioned_upsert),
+                on_reconnect: Some(on_reconnect),
             },
         );
         let handle = arrow_stream.reseeder();

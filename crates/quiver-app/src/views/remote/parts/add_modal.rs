@@ -1,7 +1,9 @@
 //! "Add a remote connection": details (name, URL, health probe), then the pairing code.
 
 use gpui::prelude::*;
-use gpui::{div, px, Focusable as _, App, Context, Entity, FontWeight, Render, Subscription, Window};
+use gpui::{
+    div, px, App, Context, Entity, Focusable as _, FontWeight, Render, Subscription, Window,
+};
 use quiver_state::i18n::en::remote;
 use quiver_state::remote::flows::is_reachable;
 use quiver_state::remote::{AddConnectionForm, AddStage, PairingCode};
@@ -147,12 +149,13 @@ fn labelled(
                 .text_color(p.foreground)
                 .child(label.clone()),
         )
-        .child(
-            div()
-                .relative()
-                .child(input)
-                .child(probe(id.to_owned(), Kind::Input, label, true, if focused { "[focused]" } else { "" })),
-        )
+        .child(div().relative().child(input).child(probe(
+            id.to_owned(),
+            Kind::Input,
+            label,
+            true,
+            if focused { "[focused]" } else { "" },
+        )))
 }
 
 fn button(
@@ -172,7 +175,8 @@ fn button(
 
 impl Render for AddModal {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let focused = |input: &Entity<InputState>| input.read(cx).focus_handle(cx).is_focused(window);
+        let focused =
+            |input: &Entity<InputState>| input.read(cx).focus_handle(cx).is_focused(window);
         let (name_focus, url_focus, code_focus) =
             (focused(&self.name), focused(&self.url), focused(&self.code));
         let p = cx.quiver().palette;
