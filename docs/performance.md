@@ -52,6 +52,10 @@ Run it: `scripts/perf-box.sh cargo xtask perf build` then `... cargo xtask perf 
 | Binary: app | 23.3 MB | 34.4 MB (LTO off, not shipped) | 8.8 MB (+ system WebKitGTK, not counted) |
 | Binary: core sidecar | 56.5 MB | 56.5 MB | 56.5 MB |
 
+> **Stale for the app binary row and arrow apps:** these figures were measured before arrow apps moved into an
+> embedded webview (the GPUI binary now links GTK/WebKit on Linux, so the 23.3 MB app size and the idle RSS with no
+> arrow open are not re-measured). The idle-CPU and wake-up figures are for the Home screen, which is unchanged.
+
 Reading it honestly:
 
 * **Memory and wake-ups**: native uses less than half of Tauri's RSS (131 vs 300 MB; 117 vs 193 MB PSS) and about a
