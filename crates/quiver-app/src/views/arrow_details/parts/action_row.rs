@@ -99,14 +99,19 @@ fn split_button(
         .child(div().text_color(fg).child(label.clone()))
         .child(probe(id.clone(), Kind::Button, label, button.enabled, ""));
     let info_open = info_open == Some(kind);
+    // The ⓘ is a direct child of the group with its own fixed width and no left border (the main
+    // button's right border is the seam). It used to sit in a 36 px wrapper holding a `w_full` button
+    // with a -1 px margin: the group's auto width then counted the main button only (89 px instead of
+    // 124), and the next group was laid over the ⓘ.
     let info = button.info.as_ref().map(|_| {
         let info_id = format!("{id}.info");
         let tip = tip.to_owned();
         let button = Button::new(SharedString::from(info_id.clone()))
             .variant(variant(button.variant))
             .size(ButtonSize::Xl)
-            .w_full()
+            .w(px(35.))
             .px(px(0.))
+            .border_l_0()
             .pressed(info_open)
             .tooltip(tooltip(tip.clone()))
             .child(pict(Pict::Info, 17., fg))
@@ -120,12 +125,7 @@ fn split_button(
                 cx.notify();
             }))
             .child(probe(info_id, Kind::Button, tip, true, ""));
-        div()
-            .flex_none()
-            .w(px(36.))
-            .h(px(40.))
-            .ml(px(-1.))
-            .child(corners(button, 0., 11.))
+        corners(button, 0., 11.)
     });
     let has_info = info.is_some();
     div()

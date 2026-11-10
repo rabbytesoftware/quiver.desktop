@@ -62,26 +62,32 @@ fn requirements(page: &Page, tr: &Translator, p: &Palette) -> AnyElement {
     div()
         .flex()
         .flex_col()
-        .gap(px(10.))
+        .gap(px(12.))
         .child(label(tr.t(arrow::DETAILS_REQUIREMENTS), p))
-        .child(item(
-            "cpu",
-            tr.t(arrow::DETAILS_REQUIREMENTS_CPU).into(),
-            arrow::DETAILS_REQUIREMENTS_CPU_VALUE,
-            r.cpu_cores,
-        ))
-        .child(item(
-            "memory",
-            tr.t(arrow::DETAILS_REQUIREMENTS_MEMORY).into(),
-            arrow::DETAILS_REQUIREMENTS_MEMORY_VALUE,
-            r.memory_gb,
-        ))
-        .child(item(
-            "disk",
-            tr.t(arrow::DETAILS_REQUIREMENTS_DISK).into(),
-            arrow::DETAILS_REQUIREMENTS_DISK_VALUE,
-            r.disk_gb,
-        ))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(10.))
+                .child(item(
+                    "cpu",
+                    tr.t(arrow::DETAILS_REQUIREMENTS_CPU).into(),
+                    arrow::DETAILS_REQUIREMENTS_CPU_VALUE,
+                    r.cpu_cores,
+                ))
+                .child(item(
+                    "memory",
+                    tr.t(arrow::DETAILS_REQUIREMENTS_MEMORY).into(),
+                    arrow::DETAILS_REQUIREMENTS_MEMORY_VALUE,
+                    r.memory_gb,
+                ))
+                .child(item(
+                    "disk",
+                    tr.t(arrow::DETAILS_REQUIREMENTS_DISK).into(),
+                    arrow::DETAILS_REQUIREMENTS_DISK_VALUE,
+                    r.disk_gb,
+                )),
+        )
         .into_any_element()
 }
 
@@ -90,7 +96,7 @@ fn dependencies(page: &Page, tr: &Translator, p: &Palette) -> AnyElement {
     div()
         .flex()
         .flex_col()
-        .gap(px(10.))
+        .gap(px(12.))
         .child(label(tr.t(arrow::DETAILS_DEPENDENCIES), p))
         .child(row(
             "arrow.dependencies".into(),
@@ -131,9 +137,9 @@ fn network(page: &Page, tr: &Translator, p: &Palette) -> AnyElement {
     div()
         .flex()
         .flex_col()
-        .gap(px(10.))
+        .gap(px(12.))
         .child(label(tr.t(arrow::DETAILS_NETWORK), p))
-        .children(ports)
+        .child(div().flex().flex_col().gap(px(10.)).children(ports))
         .into_any_element()
 }
 
@@ -147,7 +153,7 @@ fn people(heading: String, id: &str, list: &[CreditFacts], p: &Palette) -> AnyEl
                 div()
                     .flex()
                     .items_center()
-                    .gap(px(10.))
+                    .gap(px(12.))
                     .child(
                         Avatar::new(SharedString::from(format!("arrow-{id}-{key}")))
                             .size(24.)
@@ -162,9 +168,9 @@ fn people(heading: String, id: &str, list: &[CreditFacts], p: &Palette) -> AnyEl
     div()
         .flex()
         .flex_col()
-        .gap(px(10.))
+        .gap(px(8.))
         .child(label(heading, p))
-        .children(rows)
+        .child(div().flex().flex_col().gap(px(10.)).children(rows))
         .into_any_element()
 }
 
@@ -229,7 +235,8 @@ pub fn details(
         .enumerate()
         .map(|(i, s)| {
             div()
-                .py(px(18.))
+                .py(px(16.))
+                .when(i == 0, |d| d.pt(px(19.)).pb(px(24.)))
                 .when(i + 1 < count, |d| d.border_b_1().border_color(p.border))
                 .child(s)
         })

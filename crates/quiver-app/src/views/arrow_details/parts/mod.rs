@@ -1,6 +1,7 @@
 //! The sections of the arrow page, one file each.
 
 mod action_row;
+mod banner;
 mod body;
 mod details;
 mod dialogs;

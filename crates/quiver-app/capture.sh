@@ -5,7 +5,7 @@
 # PNGs (1200x800, the window's client area) land in docker/native/evidence/<name>.png
 set -euo pipefail
 OUT=docker/native/evidence
-BIN=${QUIVER_BIN:-/work/target/debug/quiverdesktop}
+BIN=${QUIVER_BIN:-/work/target/debug/quiver}
 mkdir -p "$OUT"
 Xvfb :1 -screen 0 1600x1000x24 >/dev/null 2>&1 &
 sleep 1
@@ -34,6 +34,7 @@ for spec in "$@"; do
     esac
     sleep 1.5
   done
+  mkdir -p "$(dirname "$OUT/$name.png")"
   import -window root -crop "${WIDTH}x${HEIGHT}+${X}+${Y}" +repage "$OUT/$name.png"
 done
 kill "$pid" 2>/dev/null || true

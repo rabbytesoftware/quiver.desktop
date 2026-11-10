@@ -42,6 +42,8 @@ pub struct ArrowDetailsView {
     /// The ⓘ popover of an action button.
     pub(super) info_open: Option<ArrowActionKind>,
     pub(super) problem_open: bool,
+    /// `--demo` only: the modal the route asked for, opened once the page has its detail.
+    demo_modal: Option<&'static str>,
     _read: Option<ReadTask>,
     _subscriptions: Vec<Subscription>,
 }
@@ -64,6 +66,9 @@ impl ArrowDetailsView {
         if demo {
             load.update(|l| match &entry {
                 Some(entry) => l.detail = Some(demo::detail(entry)),
+                None if namespace == "error" => {
+                    l.error = Some("The Quiver Core did not answer (demo)".into())
+                }
                 None => l.not_found = true,
             });
         } else {
@@ -84,6 +89,9 @@ impl ArrowDetailsView {
             inspected_step: None,
             info_open: None,
             problem_open: false,
+            demo_modal: demo
+                .then(crate::demo::route::arrow_modal_from_environment)
+                .flatten(),
             _read: read,
             _subscriptions: subscriptions,
         };
@@ -132,6 +140,15 @@ impl Render for ArrowDetailsView {
         let body = match self.merged(cx) {
             Some(detail) => {
                 self.seed_values(&detail, cx);
+                if let Some(modal) = self.demo_modal.take() {
+                    let this = cx.entity();
+                    cx.defer(move |cx| {
+                        this.update(cx, |view, cx| match modal {
+                            "methods" => view.open_methods(cx),
+                            _ => view.open_settings(cx),
+                        })
+                    });
+                }
                 let page = page::Page::build(&detail, self);
                 problem = page.problem_text(self.app.read(cx).translator);
                 parts::page(self, &page, window, cx).into_any_element()

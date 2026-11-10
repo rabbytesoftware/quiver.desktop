@@ -181,7 +181,7 @@ impl Render for MethodsModal {
             (self.model.lifecycle.clone(), self.model.custom.clone());
         Dialog::new(ID)
             .open(true)
-            .max_w(px(520.))
+            .width(520.)
             .on_dismiss(|_, cx| close_modal(cx, ID))
             .child(
                 DialogHeader::new()

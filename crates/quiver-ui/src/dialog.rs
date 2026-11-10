@@ -24,6 +24,7 @@ pub struct Dialog {
     id: ElementId,
     open: bool,
     show_close: bool,
+    width: f32,
     on_dismiss: Option<DismissFn>,
     children: Vec<AnyElement>,
     style: StyleRefinement,
@@ -35,6 +36,7 @@ impl Dialog {
             id: id.into(),
             open: false,
             show_close: true,
+            width: 512.0,
             on_dismiss: None,
             children: Vec::new(),
             style: StyleRefinement::default(),
@@ -43,6 +45,14 @@ impl Dialog {
 
     pub fn open(mut self, open: bool) -> Self {
         self.open = open;
+        self
+    }
+
+    /// The popup's width in px (`max-w-lg`, 512, by default); narrower windows shrink it to fit.
+    /// Pixels, not `w_full().max_w(..)`: a percentage width made the popup's auto height count a
+    /// wrapping description as one line, so the footer was squeezed out of the card.
+    pub fn width(mut self, px_width: f32) -> Self {
+        self.width = px_width;
         self
     }
 
@@ -102,8 +112,9 @@ impl RenderOnce for Dialog {
             .relative()
             .flex()
             .flex_col()
-            .w_full()
-            .max_w(px(512.))
+            .w(px(self
+                .width
+                .min(f32::from(window.viewport_size().width) - 32.0)))
             .max_h_full()
             .min_h_0()
             .rounded(px(Radius::XXL))

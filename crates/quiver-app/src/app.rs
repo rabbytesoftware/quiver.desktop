@@ -15,6 +15,12 @@ pub fn run(services: Arc<AppServices>, demo: bool, seed: Option<fn(&AppModel)>) 
         crate::fonts::load(cx);
         crate::menu::install(cx);
         let model = AppModel::install(cx, services, demo);
+        if let Some(theme) = demo
+            .then(crate::demo::route::theme_from_environment)
+            .flatten()
+        {
+            model.update(cx, |m, _| m.theme = theme);
+        }
         if let Some(seed) = seed {
             seed(model.read(cx));
         }
