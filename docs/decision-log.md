@@ -69,3 +69,27 @@ the cargo bin `quiver` of `quiver-app` cannot have the sidecar copied beside it 
 `[[bin]]` should be renamed `quiverdesktop` (then `make dev` drops the sidecar into `target/debug/quiver`).
 Asset names stay selectable by `quiver-release`: `Quiver_<v>_<arch>.AppImage`, `Quiver_<v>_universal.dmg`,
 `Quiver_<v>_x64-setup.exe`, plus `checksums.txt` (sha256sum format).
+
+## Late decisions (integration, gate, e2e)
+
+- **Pointer input for the e2e bridge goes through the OS.** GPUI 0.2.2's `Window::dispatch_event` returns a private
+  type and cannot be called from outside the crate. Keyboard input uses `Window::dispatch_keystroke`; mouse and wheel
+  events are injected with `xdotool` (X11), so they also exercise the platform input path. macOS and Windows have no
+  pointer driver yet (the bridge reports a clear error there).
+- **Screenshots** shell out to ImageMagick `import` (Linux), `screencapture` (macOS) or PowerShell (Windows): GPUI
+  cannot read back its own frame buffer.
+- **cargo-deny / cargo-audit.** Every ignored advisory is an "unmaintained" notice for a crate that arrives only through
+  GPUI, wry or the keyring stack (see `deny.toml`). `cargo audit` still prints "unsound" warnings for `glib 0.18` and
+  `rand 0.7` (transitive, via wry/GTK and GPUI); they are warnings, not vulnerabilities, and are re-checked on every
+  GPUI bump. `NCSA` is allowed for `libfuzzer-sys` (build-time only).
+- **Secret Service is required on Linux**, exactly as the Tauri app required it (the `keyring` crate). The e2e box starts
+  `dbus` + `gnome-keyring-daemon`. No file-based fallback was added: that is a security decision for the owner.
+- **Tokio context on the UI thread.** `app::run` enters the services' runtime for the whole GPUI thread, and the state
+  streams capture a runtime handle when opened (a bare `tokio::spawn` from the UI thread panicked on Update).
+- **Daemon reaping.** The sidecar supervisor reaps the daemon child on exit even while a supervised arrow keeps the
+  stdio pipes open; otherwise quiver.core's `kill(pid, 0)` liveness probe sees a zombie for the full 90 s swap timeout.
+- **After a reconnect the runtime overlay is dropped before the re-read** (`ArrowStore::forget_live_state`): the old React
+  store kept it, which was invisible there but left "updating"/"running" stale after a Core swap natively.
+- **Installed names** follow `ARROW.md` and the sidecar lookup: `quiverdesktop[.exe]`, `quiver-arrow-window[.exe]` and the
+  quiver.core sidecar as `quiver[.exe]`.
+- **Removal of the Tauri tree** is its own commit; the old sources are reachable in git history (`git show b599652^:src-tauri/...`).
