@@ -33,7 +33,7 @@ impl GtkThread {
                 #[allow(deprecated)]
                 let (tx, rx) = glib::MainContext::channel::<Job>(glib::Priority::DEFAULT);
                 rx.attach(None, move |job| {
-                    let parent = parent.lock().ok().and_then(|slot| *slot);
+                    let parent = parent.lock().ok().and_then(|slot| slot.clone());
                     PAGES.with(|pages| job(&mut pages.borrow_mut(), parent.as_ref()));
                     glib::ControlFlow::Continue
                 });

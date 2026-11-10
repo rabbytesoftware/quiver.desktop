@@ -35,7 +35,7 @@ impl UiThread {
         };
         cx.spawn(async move |_: &mut AsyncApp| {
             while let Some(job) = inbox.recv().await {
-                let parent = parent.lock().ok().and_then(|slot| *slot);
+                let parent = parent.lock().ok().and_then(|slot| slot.clone());
                 PAGES.with(|pages| job(&mut pages.borrow_mut(), parent.as_ref()));
             }
         })

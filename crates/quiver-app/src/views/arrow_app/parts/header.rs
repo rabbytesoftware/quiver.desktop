@@ -31,7 +31,10 @@ fn menu(
         .variant(ButtonVariant::Ghost)
         .size(ButtonSize::IconSm)
         .child(icon(Glyph::Ellipsis, 16., p.muted_foreground));
-    let mut menu = Menu::new("arrow-app-menu-popup", trigger);
+    let windows = view.app.read(cx).services.arrow_windows.clone();
+    let mut menu = Menu::new("arrow-app-menu-popup", trigger)
+        // The page is a native view above GPUI's pixels: it steps aside while the menu is open.
+        .on_open_change(move |open, _, _| windows.set_covered(open));
     for item in items {
         let label = view.app.read(cx).t(item.label());
         let (app, namespace) = (view.app.clone(), view.namespace.clone());

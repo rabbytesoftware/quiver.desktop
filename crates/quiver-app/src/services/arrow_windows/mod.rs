@@ -53,6 +53,9 @@ struct State {
     registry: ArrowAppRegistry,
     /// Where each app's page goes, as last reported by the pane.
     bounds: HashMap<String, PageBounds>,
+    /// Something drawn by GPUI (a menu, a dialog) is open over the page. A native view always paints
+    /// above GPUI's own pixels, so the page steps aside while that is so.
+    covered: bool,
     windows: HashMap<String, Window>,
     subscribers: Vec<UnboundedSender<WindowEvent>>,
     next_generation: u64,
@@ -158,10 +161,11 @@ impl ArrowWindows {
                 });
             }
         }
+        let covered = state.covered;
         if let Some(window) = state.windows.get(namespace) {
             let _ = window
                 .to_helper
-                .send(HostToWindow::Visible { visible: true });
+                .send(HostToWindow::Visible { visible: !covered });
             return Ok(());
         }
 
@@ -202,7 +206,8 @@ impl ArrowWindows {
         if let Some(bounds) = state.bounds.get(namespace) {
             let _ = link.to_helper.send(HostToWindow::Bounds(*bounds));
         }
-        let _ = link.to_helper.send(HostToWindow::Visible { visible: true });
+        let visible = !state.covered;
+        let _ = link.to_helper.send(HostToWindow::Visible { visible });
         state.windows.insert(
             namespace.to_string(),
             Window {
@@ -228,6 +233,24 @@ impl ArrowWindows {
                 .send(HostToWindow::Visible { visible: false });
         }
         state.registry.hide();
+    }
+
+    /// A menu or dialog drawn by GPUI opened (`true`) or closed over the visible page.
+    pub fn set_covered(&self, covered: bool) {
+        let mut state = self.inner.state();
+        if state.covered == covered {
+            return;
+        }
+        state.covered = covered;
+        if let Some(window) = state
+            .registry
+            .visible()
+            .and_then(|visible| state.windows.get(visible))
+        {
+            let _ = window
+                .to_helper
+                .send(HostToWindow::Visible { visible: !covered });
+        }
     }
 
     /// Where `namespace`'s page goes: the pane body's rectangle in the main window. Cheap to call on
