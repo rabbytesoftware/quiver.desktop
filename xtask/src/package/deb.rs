@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 const DESKTOP_ENTRY: &str = include_str!("../../../installer/linux/quiver.desktop");
 const ICON: &str = "installer/icons/icon.png";
-/// Runtime libraries the GPUI app and the WebKitGTK helper load.
+/// Runtime libraries the GPUI app and its embedded WebKitGTK views load.
 const DEPENDS: &str = "libwebkit2gtk-4.1-0, libgtk-3-0, libxkbcommon-x11-0, libvulkan1, libfontconfig1, libssl3, libxcb1";
 
 pub fn control(version: &str, arch: &str) -> String {

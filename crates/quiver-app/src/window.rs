@@ -58,6 +58,9 @@ pub fn open_main_window(cx: &mut App) -> Option<gpui::AnyWindowHandle> {
     let opened = cx.open_window(options, |window: &mut Window, cx| {
         let shell = cx.new(|cx| AppShell::new(app.clone(), window, cx));
         let services = services.clone();
+        if let Some(pages) = &services.pages {
+            pages.attach(window);
+        }
         window.on_window_should_close(cx, move |_, _| {
             services.shutdown();
             true

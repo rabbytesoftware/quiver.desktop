@@ -1,29 +1,31 @@
-//! One native window per open arrow app, each in its own helper process (docs/decision-log.md:
-//! "Arrow apps: separate WebView process"). This supervisor owns those processes: it starts one
-//! when an app is shown, answers the helper's `arrow-app` protocol requests through
-//! [`ProtocolService`], keeps at most [`MAX_OPEN_APPS`] alive (the least recently used hidden one is
-//! sent `Close`), and ends every helper on Stop, on the user closing a window and on shutdown, so no
-//! window outlives its host.
+//! One webview per open arrow app, embedded in the main window (docs/decision-log.md: "Arrow apps:
+//! embedded child webview"). This supervisor owns those pages: it opens one when an app is shown,
+//! answers the page's `arrow-app` protocol requests through [`ProtocolService`], keeps at most
+//! [`MAX_OPEN_APPS`] alive (the least recently used hidden one is sent `Close`), shows only the
+//! visible app's page at the rectangle the pane reports, and ends every page on Stop and on
+//! shutdown, so no page outlives its host.
 
+mod embedded;
 mod launcher;
-mod process;
+mod pump;
 mod recorder;
 #[cfg(test)]
 mod tests;
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use quiver_arrow_host::{
-    app_url, ArrowAppRegistry, ArrowHosts, ArrowUpstream, HostToWindow, ProtocolService,
-    WindowToHost,
+    app_url, ArrowAppRegistry, ArrowHosts, ArrowUpstream, HostToWindow, PageBounds,
+    ProtocolService, WsSession,
 };
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
-use tokio::task::{JoinHandle, JoinSet};
+use tokio::task::JoinHandle;
 
+pub use embedded::EmbeddedPages;
 pub use launcher::{HelperArgs, HelperLauncher, HelperLink};
-pub use process::{ProcessLauncher, HELPER_BINARY};
 
+use pump::Pump;
 use recorder::ProtocolLog;
 
 use crate::services::Result;
@@ -42,13 +44,15 @@ struct Window {
     generation: u64,
     to_helper: UnboundedSender<HostToWindow>,
     pump: JoinHandle<()>,
-    /// Dropping it ends the helper process.
+    /// Dropping it destroys the page.
     _guard: Box<dyn Send>,
 }
 
 #[derive(Default)]
 struct State {
     registry: ArrowAppRegistry,
+    /// Where each app's page goes, as last reported by the pane.
+    bounds: HashMap<String, PageBounds>,
     windows: HashMap<String, Window>,
     subscribers: Vec<UnboundedSender<WindowEvent>>,
     next_generation: u64,
@@ -72,10 +76,11 @@ impl State {
     }
 }
 
-struct Inner {
+pub(super) struct Inner {
     launcher: Arc<dyn HelperLauncher>,
     hosts: Arc<ArrowHosts>,
     protocol: ProtocolService,
+    upstream: Arc<dyn ArrowUpstream>,
     log: Arc<ProtocolLog>,
     state: Mutex<State>,
 }
@@ -86,7 +91,7 @@ impl Inner {
     }
 
     /// The helper for `namespace` is gone without being asked to be.
-    fn window_gone(&self, namespace: &str, generation: u64) {
+    pub(super) fn window_gone(&self, namespace: &str, generation: u64) {
         let mut state = self.state();
         if state.windows.get(namespace).map(|w| w.generation) != Some(generation) {
             return;
@@ -114,7 +119,8 @@ impl ArrowWindows {
         Self {
             inner: Arc::new(Inner {
                 launcher,
-                protocol: ProtocolService::new(hosts.clone(), upstream),
+                protocol: ProtocolService::new(hosts.clone(), upstream.clone()),
+                upstream,
                 hosts,
                 log: Arc::default(),
                 state: Mutex::default(),
@@ -136,7 +142,15 @@ impl ArrowWindows {
         if state.shut_down {
             return Ok(());
         }
+        let previous = state.registry.visible().map(str::to_owned);
         let shown = state.registry.show(namespace);
+        if let Some(previous) = previous.filter(|p| p != namespace) {
+            if let Some(window) = state.windows.get(&previous) {
+                let _ = window
+                    .to_helper
+                    .send(HostToWindow::Visible { visible: false });
+            }
+        }
         for evicted in &shown.evicted {
             if state.close_window(evicted) {
                 state.emit(WindowEvent::Evicted {
@@ -144,7 +158,10 @@ impl ArrowWindows {
                 });
             }
         }
-        if state.windows.contains_key(namespace) {
+        if let Some(window) = state.windows.get(namespace) {
+            let _ = window
+                .to_helper
+                .send(HostToWindow::Visible { visible: true });
             return Ok(());
         }
 
@@ -161,15 +178,31 @@ impl ArrowWindows {
         };
         let generation = state.next_generation;
         state.next_generation += 1;
-        let pump = tokio::spawn(pump(
-            Arc::downgrade(&self.inner),
-            self.inner.protocol.clone(),
-            self.inner.log.clone(),
-            namespace.to_string(),
-            generation,
-            link.from_helper,
-            link.to_helper.clone(),
-        ));
+        let (deliveries, to_page) = unbounded_channel();
+        let sockets = WsSession::new(
+            self.inner.hosts.register(namespace),
+            self.inner.hosts.clone(),
+            self.inner.upstream.clone(),
+            deliveries,
+        );
+        let pump = tokio::spawn(
+            Pump {
+                inner: Arc::downgrade(&self.inner),
+                protocol: self.inner.protocol.clone(),
+                sockets,
+                to_page,
+                log: self.inner.log.clone(),
+                namespace: namespace.to_string(),
+                generation,
+                from_helper: link.from_helper,
+                to_helper: link.to_helper.clone(),
+            }
+            .run(),
+        );
+        if let Some(bounds) = state.bounds.get(namespace) {
+            let _ = link.to_helper.send(HostToWindow::Bounds(*bounds));
+        }
+        let _ = link.to_helper.send(HostToWindow::Visible { visible: true });
         state.windows.insert(
             namespace.to_string(),
             Window {
@@ -182,9 +215,32 @@ impl ArrowWindows {
         Ok(())
     }
 
-    /// The visible app's window goes away from view; it stays alive.
+    /// The visible app's page goes away from view; it stays alive.
     pub fn hide(&self) {
-        self.inner.state().registry.hide();
+        let mut state = self.inner.state();
+        if let Some(window) = state
+            .registry
+            .visible()
+            .and_then(|visible| state.windows.get(visible))
+        {
+            let _ = window
+                .to_helper
+                .send(HostToWindow::Visible { visible: false });
+        }
+        state.registry.hide();
+    }
+
+    /// Where `namespace`'s page goes: the pane body's rectangle in the main window. Cheap to call on
+    /// every frame; only a change reaches the page.
+    pub fn set_bounds(&self, namespace: &str, bounds: PageBounds) {
+        let mut state = self.inner.state();
+        if state.bounds.get(namespace) == Some(&bounds) {
+            return;
+        }
+        state.bounds.insert(namespace.to_owned(), bounds);
+        if let Some(window) = state.windows.get(namespace) {
+            let _ = window.to_helper.send(HostToWindow::Bounds(bounds));
+        }
     }
 
     /// Remounts the app's page; its sockets die with the old document.
@@ -254,38 +310,5 @@ impl ArrowWindows {
             state.close_window(&namespace);
             state.registry.stop(&namespace);
         }
-    }
-}
-
-/// Serves one helper until it says it closed or its process ends.
-async fn pump(
-    inner: Weak<Inner>,
-    protocol: ProtocolService,
-    log: Arc<ProtocolLog>,
-    namespace: String,
-    generation: u64,
-    mut from_helper: UnboundedReceiver<WindowToHost>,
-    to_helper: UnboundedSender<HostToWindow>,
-) {
-    // Dropped with the pump, which aborts any request still being answered.
-    let mut answering = JoinSet::new();
-    while let Some(message) = from_helper.recv().await {
-        match message {
-            WindowToHost::Ready => log::debug!("arrow window for {namespace} is ready"),
-            WindowToHost::Closed => break,
-            WindowToHost::ProtocolRequest(request) => {
-                let protocol = protocol.clone();
-                let to_helper = to_helper.clone();
-                let (log, namespace) = (log.clone(), namespace.clone());
-                answering.spawn(async move {
-                    let response = protocol.answer(request.clone()).await;
-                    log.record(&namespace, &request, &response);
-                    let _ = to_helper.send(HostToWindow::ProtocolResponse(response));
-                });
-            }
-        }
-    }
-    if let Some(inner) = inner.upgrade() {
-        inner.window_gone(&namespace, generation);
     }
 }

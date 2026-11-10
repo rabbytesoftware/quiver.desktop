@@ -14,8 +14,6 @@ pub const SETTINGS_DESKTOP_UPDATE: Key = Key::new("screens.settings.desktopUpdat
 pub const SETTINGS_CORE_UPDATE: Key = Key::new("screens.settings.coreUpdate");
 pub const SETTINGS_DESKTOP_RESTARTS: Key = Key::new("screens.settings.desktopRestarts");
 pub const SETTINGS_DEVELOPER_NOTE: Key = Key::new("screens.settings.developerNote");
-pub const ARROWAPP_WINDOW_TITLE: Key = Key::new("screens.arrowApp.windowTitle");
-pub const ARROWAPP_WINDOW_BODY: Key = Key::new("screens.arrowApp.windowBody");
 pub const ARROWAPP_WINDOW_CLOSED: Key = Key::new("screens.arrowApp.windowClosed");
 pub const ARROWAPP_OPEN_WINDOW: Key = Key::new("screens.arrowApp.openWindow");
 pub const ARROWAPP_EVICTED: Key = Key::new("screens.arrowApp.evicted");
@@ -57,20 +55,10 @@ pub(super) const MESSAGES: &[(Key, Message)] = &[
         Message::Text("Tools for building and debugging Quiver."),
     ),
     (
-        ARROWAPP_WINDOW_TITLE,
-        Message::Text("Open in its own window"),
-    ),
-    (
-        ARROWAPP_WINDOW_BODY,
-        Message::Text(
-            "{name} runs in a separate window so its page keeps its state while you use Quiver.",
-        ),
-    ),
-    (
         ARROWAPP_WINDOW_CLOSED,
-        Message::Text("The window was closed. The app is still running."),
+        Message::Text("The page was closed. The app is still running."),
     ),
-    (ARROWAPP_OPEN_WINDOW, Message::Text("Open window")),
+    (ARROWAPP_OPEN_WINDOW, Message::Text("Open page")),
     (
         ARROWAPP_EVICTED,
         Message::Text("{name} was closed to keep at most {max} apps open."),

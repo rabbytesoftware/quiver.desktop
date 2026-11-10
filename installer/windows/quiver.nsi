@@ -49,7 +49,6 @@ Section "Install"
   !insertmacro NSIS_HOOK_PREINSTALL
   SetOutPath "$INSTDIR"
   File "${STAGE}\quiverdesktop.exe"
-  File "${STAGE}\quiver-arrow-window.exe"
   File "${STAGE}\quiver.exe"
   File "${STAGE}\icon.ico"
   WriteUninstaller "$INSTDIR\uninstall.exe"
@@ -68,7 +67,6 @@ SectionEnd
 
 Section "Uninstall"
   Delete "$INSTDIR\quiverdesktop.exe"
-  Delete "$INSTDIR\quiver-arrow-window.exe"
   Delete "$INSTDIR\quiver.exe"
   Delete "$INSTDIR\icon.ico"
   Delete "$INSTDIR\uninstall.exe"

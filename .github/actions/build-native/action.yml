@@ -173,6 +173,6 @@ runs:
       run: |
         # cargo writes target/release/ or target/<triple>/release/; only the shipped binaries, not build scripts.
         files=$(find target -maxdepth 3 -path '*release/*' -type f \
-          \( -name quiver -o -name quiverdesktop -o -name quiver-arrow-window -o -name 'quiver*.exe' \))
+          \( -name quiver -o -name quiverdesktop -o -name 'quiver*.exe' \))
         test -n "$files" || { echo "no release binaries found"; exit 1; }
         cargo xtask check-release-artifact $files

@@ -10,7 +10,7 @@
 #                 register an unstamped build at all and files a stamped one as quiver.core@stable.
 #
 #   quiver.desktop  the native app WITH the e2e bridge (`--features e2e-bridge`, the debug-only JSON-RPC control
-#                 surface, see docs/e2e.md) and the quiver-arrow-window helper, stamped DESK_V1 through
+#                 surface, see docs/e2e.md), stamped DESK_V1 through
 #                 QUIVER_DESKTOP_RELEASE_TAG (what the running app announces itself under). It is installed under
 #                 the names a real bundle has (quiverdesktop, quiver-arrow-window, sidecar quiver), see run-native.sh.
 #                 The bridge binary is for this box only; releases are built without it (cargo xtask
@@ -102,7 +102,6 @@ build_desktop_at() {
 	built="$(built_app_binary)" || fail "cargo produced neither quiverdesktop nor quiver in $CARGO_TARGET/release"
 	cp "$built" "$out"
 	chmod +x "$out"
-	cp "$CARGO_TARGET/release/quiver-arrow-window" "$BUILD_BIN/quiver-arrow-window"
 	grep -aq QUIVER_E2E_PORT "$out" || fail "$out was built without the e2e bridge: the scenarios cannot drive it"
 }
 

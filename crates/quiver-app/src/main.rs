@@ -8,6 +8,7 @@ use quiver_app::services::AppServices;
 use quiver_app::{app, demo};
 
 fn main() -> ExitCode {
+    quiver_app::display::prefer_x11();
     let demo_mode = std::env::args().any(|arg| arg == "--demo");
     let started = if demo_mode {
         // The demo owns its runtime for the whole process: leaked on purpose, the OS reclaims it.

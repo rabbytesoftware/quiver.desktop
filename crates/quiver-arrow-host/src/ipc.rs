@@ -1,8 +1,6 @@
-//! Messages between the main process and the helper process that shows one
-//! arrow app in a native webview (`quiver --arrow-window`). One JSON object
-//! per line over the helper's stdin (host to window) and stdout (window to
-//! host). The window never decides anything: it forwards every request of
-//! the `arrow-app` protocol and renders the answer.
+//! Messages between the host and the embedded webview that shows one arrow app inside the main window.
+//! The view never decides anything: it forwards every request of the `arrow-app` protocol and renders
+//! the answer. The messages serialise as one JSON object per line, so they can also cross a pipe.
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
@@ -48,8 +46,17 @@ pub struct ProtocolResponse {
     pub body: Vec<u8>,
 }
 
-/// Main process to window process.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// The rectangle of the main window the page covers.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct PageBounds {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+/// Host to embedded page.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum HostToWindow {
     /// Load this URL (see [`crate::app_url`]).
@@ -63,11 +70,21 @@ pub enum HostToWindow {
     Title {
         title: String,
     },
+    /// Where the page sits, in logical pixels from the main window's top-left corner.
+    Bounds(PageBounds),
+    /// Show or hide the page without closing it (it keeps its state while hidden).
+    Visible {
+        visible: bool,
+    },
     /// The answer to a [`WindowToHost::ProtocolRequest`] with the same `id`.
     ProtocolResponse(ProtocolResponse),
+    /// A message for the shim in the page (`window.__arrowShimReceive`), as JSON.
+    Deliver {
+        json: String,
+    },
 }
 
-/// Window process to main process.
+/// Embedded page to host.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum WindowToHost {
@@ -76,6 +93,10 @@ pub enum WindowToHost {
     /// The user closed the window (or the webview died).
     Closed,
     ProtocolRequest(ProtocolRequest),
+    /// What the shim in the page posted (`window.ipc.postMessage`), as JSON text.
+    Shim {
+        json: String,
+    },
 }
 
 /// One message as a single line (no trailing newline).
@@ -112,6 +133,16 @@ mod tests {
             HostToWindow::Title {
                 title: "Chat".into(),
             },
+            HostToWindow::Bounds(PageBounds {
+                x: 240.0,
+                y: 56.5,
+                width: 960.0,
+                height: 744.0,
+            }),
+            HostToWindow::Visible { visible: false },
+            HostToWindow::Deliver {
+                json: r#"{"type":"ws-open","id":"a"}"#.into(),
+            },
             HostToWindow::ProtocolResponse(ProtocolResponse {
                 id: 7,
                 status: 200,
@@ -131,6 +162,9 @@ mod tests {
         for msg in [
             WindowToHost::Ready,
             WindowToHost::Closed,
+            WindowToHost::Shim {
+                json: r#"{"type":"hello"}"#.into(),
+            },
             WindowToHost::ProtocolRequest(request()),
         ] {
             let line = encode_line(&msg).unwrap();

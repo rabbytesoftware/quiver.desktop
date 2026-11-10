@@ -2,8 +2,8 @@
 //!
 //! The installed names are deliberate and match what the shipped `ARROW.md` lifecycles, the quiver-core-client
 //! sidecar lookup (`quiver` next to the running executable) and the Windows/Linux detect commands already
-//! expect: the GPUI app is installed as `quiverdesktop[.exe]`, the daemon sidecar as `quiver[.exe]`, and the
-//! arrow-app helper as `quiver-arrow-window[.exe]`, all in one directory.
+//! expect: the GPUI app is installed as `quiverdesktop[.exe]` and the daemon sidecar as `quiver[.exe]`, side
+//! by side in one directory (arrow apps' webviews live inside the app, there is no helper binary).
 
 use crate::release_artifact;
 use crate::target::{exe_suffix, host_triple};
@@ -13,7 +13,6 @@ use std::path::{Path, PathBuf};
 pub const PRODUCT: &str = "Quiver";
 pub const IDENTIFIER: &str = "com.rabbytesoftware.quiver";
 pub const INSTALLED_APP: &str = "quiverdesktop";
-pub const INSTALLED_HELPER: &str = "quiver-arrow-window";
 pub const INSTALLED_SIDECAR: &str = "quiver";
 /// The cargo binary names the app may be built under (`quiverdesktop` after the bin rename, `quiver` before).
 const CARGO_APP_NAMES: &[&str] = &["quiverdesktop", "quiver"];
@@ -61,19 +60,14 @@ impl Inputs {
         })
     }
 
-    /// The three binaries, checked to exist.
+    /// The two binaries, checked to exist.
     pub fn pieces(&self) -> Result<Vec<Piece>> {
         let suffix = exe_suffix(&self.triple);
         let app = find_app(&self.bin_dir, suffix)?;
-        let helper = self.bin_dir.join(format!("quiver-arrow-window{suffix}"));
         let pieces = vec![
             Piece {
                 source: app,
                 installed_as: format!("{INSTALLED_APP}{suffix}"),
-            },
-            Piece {
-                source: helper,
-                installed_as: format!("{INSTALLED_HELPER}{suffix}"),
             },
             Piece {
                 source: self.sidecar.clone(),
@@ -89,7 +83,7 @@ impl Inputs {
             }
         }
         // The bundles are compressed images the scan cannot see into, so the raw binaries are checked here.
-        release_artifact::check_files(&[&pieces[0].source, &pieces[1].source])?;
+        release_artifact::check_files(&[&pieces[0].source])?;
         Ok(pieces)
     }
 }
@@ -145,7 +139,6 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let i = inputs(tmp.path());
         touch(&i.bin_dir.join("quiver"));
-        touch(&i.bin_dir.join("quiver-arrow-window"));
         touch(&i.sidecar);
         let names: Vec<_> = i
             .pieces()
@@ -153,7 +146,7 @@ mod tests {
             .into_iter()
             .map(|p| p.installed_as)
             .collect();
-        assert_eq!(names, ["quiverdesktop", "quiver-arrow-window", "quiver"]);
+        assert_eq!(names, ["quiverdesktop", "quiver"]);
     }
 
     #[test]
@@ -162,7 +155,7 @@ mod tests {
         let i = inputs(tmp.path());
         touch(&i.bin_dir.join("quiverdesktop"));
         let err = i.pieces().unwrap_err().to_string();
-        assert!(err.contains("quiver-arrow-window"), "{err}");
+        assert!(err.contains("core"), "{err}");
     }
 
     #[test]
@@ -170,7 +163,6 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let i = inputs(tmp.path());
         touch(&i.bin_dir.join("quiverdesktop"));
-        touch(&i.bin_dir.join("quiver-arrow-window"));
         touch(&i.sidecar);
         let dest = tmp.path().join("stage");
         copy_pieces(&i.pieces().unwrap(), &dest).unwrap();

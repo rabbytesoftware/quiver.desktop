@@ -7,7 +7,7 @@
       Hardened Runtime entitlements for Quiver, applied to every binary in the bundle by
       `cargo xtask package macos` when APPLE_SIGNING_IDENTITY is set.
 
-      Required for a notarized build to launch: the WKWebView that quiver-arrow-window hosts arrow apps in
+      Required for a notarized build to launch: the WKWebView that arrow apps are shown in
       JIT-compiles JavaScript and allocates executable memory, which the Hardened Runtime blocks by default.
       Without these keys the app notarizes and then crashes on first launch with a code-signing /
       EXC_BAD_ACCESS error, a failure that cannot be reproduced on an unsigned build.

@@ -42,7 +42,7 @@ def start_desktop():
 
 
 def kill_leftovers():
-    for name in ("quiverdesktop", "quiver", "quiver-arrow-window", "WebKitWebProces", "WebKitNetworkPr"):
+    for name in ("quiverdesktop", "quiver", "WebKitWebProces", "WebKitNetworkPr"):
         for pid in procstat.pids_named(name):
             try:
                 os.kill(pid, 9)

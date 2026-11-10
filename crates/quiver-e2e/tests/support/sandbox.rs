@@ -90,26 +90,93 @@ pub async fn ui_request(
     (status, body.to_string())
 }
 
-/// The X windows whose title contains `title` (`xdotool search --name`): the helper process opens one per app.
-pub fn windows(title: &str) -> Vec<String> {
-    let out = Command::new("xdotool")
-        .args(["search", "--name", title])
-        .output()
-        .expect("run xdotool");
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .map(|l| l.trim().to_string())
-        .filter(|l| !l.is_empty())
-        .collect()
+/// A window's rectangle on the display.
+#[derive(Debug, Clone, Copy)]
+pub struct PageRect {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
 }
 
-/// Moves the windows titled `title` off the right edge of the screen. The helper's window opens over the app's own
-/// (the window manager places it), and the bridge's clicks are real mouse events: the sidebar has to stay
-/// reachable for the scenarios that open several apps in turn.
-pub fn park_windows(title: &str) {
-    for id in windows(title) {
-        let _ = Command::new("xdotool")
-            .args(["windowmove", &id, "4000", "0"])
-            .status();
+/// The main window's position on the display and the mapped windows directly inside it that are big enough to
+/// be a page (the arrow apps' webviews are child windows of the main window).
+#[derive(Debug)]
+pub struct PageWindows {
+    pub main_x: i32,
+    pub main_y: i32,
+    pub pages: Vec<PageRect>,
+}
+
+/// Reads the X window tree (`xwininfo -root -tree`). Lines look like
+/// `     0x400003 "Quiver": ("quiver" "Quiver")  1200x800+0+0  +10+30`: id, name, class, size and position
+/// inside the parent, and the position on the display. Children are indented deeper than their parent.
+pub fn page_windows() -> PageWindows {
+    let out = Command::new("xwininfo")
+        .args(["-root", "-tree"])
+        .output()
+        .expect("run xwininfo");
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    let mut seen = PageWindows {
+        main_x: 0,
+        main_y: 0,
+        pages: Vec::new(),
+    };
+    let mut main_indent = None;
+    for line in text.lines() {
+        let indent = line.len() - line.trim_start().len();
+        let Some((id, rest)) = line.trim().split_once(' ') else {
+            continue;
+        };
+        if !id.starts_with("0x") {
+            continue;
+        }
+        let mut geometry = rest.split_whitespace().rev();
+        let (Some(absolute), Some(size)) = (geometry.next(), geometry.next()) else {
+            continue;
+        };
+        let parse = |s: &str| -> Option<(i32, i32, i32, i32)> {
+            let (wh, pos) = s.split_once('+')?;
+            let (w, h) = wh.split_once('x')?;
+            let (x, y) = pos.split_once('+')?;
+            Some((
+                x.parse().ok()?,
+                y.parse().ok()?,
+                w.parse().ok()?,
+                h.parse().ok()?,
+            ))
+        };
+        let Some((_, _, width, height)) = parse(size) else {
+            continue;
+        };
+        let Some((ax, ay, _, _)) = parse(&format!("0x0+{}", absolute.trim_start_matches('+')))
+        else {
+            continue;
+        };
+        match main_indent {
+            None if rest.contains("\"Quiver\"") && width >= 600 => {
+                main_indent = Some(indent);
+                seen.main_x = ax;
+                seen.main_y = ay;
+            }
+            Some(main) if indent <= main => main_indent = None,
+            Some(main) if indent == main + 3 && width >= 50 && height >= 50 => {
+                let viewable = Command::new("xwininfo")
+                    .args(["-id", id])
+                    .output()
+                    .map(|o| String::from_utf8_lossy(&o.stdout).contains("IsViewable"))
+                    .unwrap_or(false);
+                if viewable {
+                    seen.pages.push(PageRect {
+                        x: ax,
+                        y: ay,
+                        width,
+                        height,
+                    });
+                }
+            }
+            _ => {}
+        }
     }
+    seen
 }

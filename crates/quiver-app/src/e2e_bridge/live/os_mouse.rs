@@ -19,36 +19,42 @@ fn xdotool(args: &[&str]) -> Result<String, String> {
     }
 }
 
-/// Top-left of the app window on the display (window coordinates start there).
+/// The numbers `xwininfo` reports for one X window.
+fn window_info(id: &str) -> Result<std::collections::HashMap<String, i32>, String> {
+    let info = Command::new("xwininfo")
+        .args(["-id", id])
+        .output()
+        .map_err(|e| format!("xwininfo is required: {e}"))?;
+    Ok(String::from_utf8_lossy(&info.stdout)
+        .lines()
+        .filter_map(|l| {
+            let (key, value) = l.trim().split_once(':')?;
+            Some((key.to_owned(), value.trim().parse::<i32>().ok()?))
+        })
+        .collect())
+}
+
+/// Top-left of the app window on the display (window coordinates start there). The arrow apps' pages are
+/// child windows of the same process, so the main window is the biggest one the process shows.
 fn window_origin() -> Result<(i32, i32), String> {
     let pid = std::process::id().to_string();
     let ids = xdotool(&["search", "--onlyvisible", "--pid", &pid])?;
-    let id = ids
-        .lines()
-        .last()
-        .ok_or("no visible window for this process")?
-        .trim()
-        .to_string();
     // `xdotool getwindowgeometry` reports the position of the window's frame under a reparenting window manager
     // (openbox puts a 20px title bar above the client), which sent every click 20px too low; `xwininfo` reports
     // where the client area really is, and window coordinates start there.
-    let info = Command::new("xwininfo")
-        .args(["-id", &id])
-        .output()
-        .map_err(|e| format!("xwininfo is required: {e}"))?;
-    let info = String::from_utf8_lossy(&info.stdout).into_owned();
+    let main = ids
+        .lines()
+        .filter_map(|id| window_info(id.trim()).ok())
+        .max_by_key(|w| w.get("Width").unwrap_or(&0) * w.get("Height").unwrap_or(&0))
+        .ok_or("no visible window for this process")?;
     let read = |key: &str| {
-        info.lines()
-            .find_map(|l| {
-                l.trim()
-                    .strip_prefix(key)
-                    .and_then(|v| v.trim().parse::<i32>().ok())
-            })
+        main.get(key)
+            .copied()
             .ok_or_else(|| format!("no {key} in xwininfo output"))
     };
     Ok((
-        read("Absolute upper-left X:")?,
-        read("Absolute upper-left Y:")?,
+        read("Absolute upper-left X")?,
+        read("Absolute upper-left Y")?,
     ))
 }
 

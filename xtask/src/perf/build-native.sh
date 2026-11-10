@@ -4,14 +4,13 @@
 #             size, RSS, CPU and wake-ups.
 #   bridge  : release profile with LTO off + `--features e2e-bridge`, like the e2e box. Used for the first-frame
 #             signal and for scripted scrolling. Size/CPU of this build are NOT the shipped numbers.
-# Outputs: /perf/native/{release,bridge}/{quiverdesktop,quiver-arrow-window,quiver}
+# Outputs: /perf/native/{release,bridge}/{quiverdesktop,quiver}
 set -euo pipefail
 cd /work
 export CARGO_TARGET_DIR=/work/target
 install_to() { # <profile dir> <target subdir>
   mkdir -p "/perf/native/$1"
   install -m 0755 "$2/quiver" "/perf/native/$1/quiverdesktop"
-  install -m 0755 "$2/quiver-arrow-window" "/perf/native/$1/quiver-arrow-window"
   install -m 0755 /perf/bin/quiver "/perf/native/$1/quiver"
 }
 if [ "${1:-all}" != bridge ]; then

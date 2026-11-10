@@ -104,7 +104,7 @@ def one_startup(variant, idle_s, demo, extra_env):
 def sizes(variant):
     d = VARIANTS[variant]["dir"]
     out = {}
-    for name in ("quiverdesktop", "quiver-arrow-window", "quiver"):
+    for name in ("quiverdesktop", "quiver"):
         path = os.path.join(d, name)
         if os.path.exists(path):
             out[name + "_mb"] = round(os.path.getsize(path) / 1048576, 2)

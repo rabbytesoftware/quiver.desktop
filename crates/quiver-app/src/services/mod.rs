@@ -8,7 +8,7 @@
 //! * [`core_api`]: `quiver-state`'s `CoreApi` over the ACTIVE transport.
 //! * [`backend`]: `quiver-state`'s `Backend` over the connection manager.
 //! * [`release_vars`]: this app's own release asset and build stamp.
-//! * [`arrow_host`] / [`arrow_windows`]: arrow apps, one helper process each.
+//! * [`arrow_host`] / [`arrow_windows`]: arrow apps, one embedded webview each.
 //! * [`lifecycle`]: build everything, tear everything down.
 
 mod announce;
@@ -25,8 +25,7 @@ mod settings;
 
 pub use arrow_host::CoreUpstream;
 pub use arrow_windows::{
-    ArrowWindows, HelperArgs, HelperLauncher, HelperLink, ProcessLauncher, WindowEvent,
-    HELPER_BINARY,
+    ArrowWindows, EmbeddedPages, HelperArgs, HelperLauncher, HelperLink, WindowEvent,
 };
 pub use backend::NativeBackend;
 pub use core_api::TransportCoreApi;

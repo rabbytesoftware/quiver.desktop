@@ -28,7 +28,7 @@ pub fn services(
         data_dir: scratch.clone(),
         local: LocalConfig::new(scratch.to_str(), None),
         secrets: Arc::new(MemorySecretStore::default()),
-        launcher: None,
+        pages: None,
         release: Arc::new(NativeReleaseSource::new()),
         platform: quiver_platform::platform_key(),
     };

@@ -6,6 +6,7 @@
 pub mod app;
 pub mod bridge;
 pub mod demo;
+pub mod display;
 pub mod e2e_bridge;
 pub mod fonts;
 pub mod menu;

@@ -29,6 +29,10 @@ pub fn run(services: Arc<AppServices>, demo: bool, seed: Option<fn(&AppModel)>) 
         if let Some(seed) = seed {
             seed(model.read(cx));
         }
+        let pages = model.read(cx).services.pages.clone();
+        if let Some(pages) = pages {
+            pages.start(cx);
+        }
         cx.activate(true);
         let _window = open_main_window(cx);
         #[cfg(feature = "e2e-bridge")]

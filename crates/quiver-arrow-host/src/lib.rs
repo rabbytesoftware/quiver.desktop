@@ -22,6 +22,7 @@ mod registry;
 mod upstream;
 mod uri;
 mod ws;
+mod ws_session;
 
 pub use csp::{harden, ARROW_CSP};
 pub use error::{Error, Result};
@@ -29,7 +30,8 @@ pub use handler::handle_request;
 pub use hosts::{arrow_host, host_label, ArrowHosts};
 pub use inject::inject_shim;
 pub use ipc::{
-    decode_line, encode_line, HostToWindow, ProtocolRequest, ProtocolResponse, WindowToHost,
+    decode_line, encode_line, HostToWindow, PageBounds, ProtocolRequest, ProtocolResponse,
+    WindowToHost,
 };
 pub use message::{ArrowRequest, ArrowResponse, Headers};
 pub use protocol::ProtocolService;
@@ -37,6 +39,7 @@ pub use registry::{admit, ArrowAppRegistry, Shown, MAX_OPEN_APPS};
 pub use upstream::{ArrowUpstream, WsRelay};
 pub use uri::{app_url, daemon_path, encode_namespace, host_of, is_safe_ws_path};
 pub use ws::{ws_key, ws_target};
+pub use ws_session::WsSession;
 
 /// The custom URI scheme arrow interfaces are served from.
 pub const SCHEME: &str = "arrow-app";

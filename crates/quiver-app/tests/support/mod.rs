@@ -271,7 +271,7 @@ impl LocalSetup {
             secrets: Arc::new(KeyringSecrets::new(Arc::new(
                 quiver_platform::MemorySecretStore::new(),
             ))),
-            launcher: None,
+            pages: None,
             release: Arc::new(NativeReleaseSource::new()),
             platform: "linux/amd64".into(),
         }

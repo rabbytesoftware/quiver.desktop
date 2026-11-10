@@ -2,7 +2,7 @@
 //! release", runnable without a display (Linux AppImage or the `.tar.gz` fallback).
 //!
 //! It proves, for two real `cargo xtask package linux` outputs: both unpack to the expected layout
-//! (`quiverdesktop`, `quiver-arrow-window`, sidecar `quiver`), neither contains the e2e bridge, the two
+//! (`quiverdesktop`, sidecar `quiver`), neither contains the e2e bridge, the two
 //! builds actually differ, and the `ARROW.md` Linux update step (replace `Quiver.AppImage` in the XDG data
 //! dir, keep it executable) turns the old install into byte-for-byte the new one. It does NOT start the app
 //! or drive the in-app update; that is the box scenario (docs/release-checklist.md).
@@ -60,10 +60,7 @@ fn inspect(bundle: &Path, work: &Path, label: &str) -> Result<String> {
         );
     }
     let app = root.join("usr/bin/quiverdesktop");
-    check_files(&[
-        app.as_path(),
-        root.join("usr/bin/quiver-arrow-window").as_path(),
-    ])?;
+    check_files(&[app.as_path()])?;
     Ok(sha256_hex(&fs::read(&app)?))
 }
 

@@ -1,11 +1,13 @@
-//! Under the header: where the app's page is. The page itself is the helper window's; this says whether
-//! it is starting, open or closed, and carries the notices (eviction, a window that would not open).
+//! Under the header: the app's page. The page is a webview embedded in the main window that sits over
+//! this body; the body reports its rectangle to the supervisor on every paint so the page follows
+//! layout and resizes. While the app is starting, or after it closed, the body says so instead, and
+//! carries the notices (eviction, a page that would not open).
 
 use gpui::prelude::*;
-use gpui::{div, px, Context, FontWeight, IntoElement};
+use gpui::{canvas, div, px, Context, FontWeight, IntoElement};
+use quiver_arrow_host::PageBounds;
 use quiver_state::arrow_app::hosting::{pane_body, PaneBody};
 use quiver_state::i18n::en::{arrowapp, screens};
-use quiver_state::i18n::Params;
 use quiver_ui::inspect::{probe, Kind};
 use quiver_ui::{ActiveQuiver, Button, ButtonVariant, Spinner};
 
@@ -30,21 +32,35 @@ pub fn body(view: &mut ArrowAppView, cx: &mut Context<ArrowAppView>) -> impl Int
     let state = pane_body(ready, open);
     let name = entry.map_or_else(|| view.namespace.clone(), |a| a.name);
     let m = view.app.read(cx);
-    let (title, text) = match state {
-        PaneBody::Starting => (m.t(arrowapp::STARTING), None),
-        PaneBody::Open => (
-            m.t(screens::ARROWAPP_WINDOW_TITLE),
-            Some(m.translator.t_with(
-                screens::ARROWAPP_WINDOW_BODY,
-                &Params::new().with("name", name.as_str()),
-            )),
-        ),
-        PaneBody::Closed => (m.t(screens::ARROWAPP_WINDOW_CLOSED), None),
+    let title = match state {
+        PaneBody::Starting => m.t(arrowapp::STARTING),
+        // The page covers the body; this only shows while it loads (and in the demo, which has no page).
+        PaneBody::Open => name,
+        PaneBody::Closed => m.t(screens::ARROWAPP_WINDOW_CLOSED),
     };
     let open_label = m.t(screens::ARROWAPP_OPEN_WINDOW);
     let this = cx.entity();
+    let (reporter, namespace) = (windows.clone(), view.namespace.clone());
     div()
         .relative()
+        .child(
+            canvas(
+                move |bounds, _, _| {
+                    reporter.set_bounds(
+                        &namespace,
+                        PageBounds {
+                            x: f32::from(bounds.origin.x),
+                            y: f32::from(bounds.origin.y),
+                            width: f32::from(bounds.size.width),
+                            height: f32::from(bounds.size.height),
+                        },
+                    );
+                },
+                |_, (), _, _| {},
+            )
+            .absolute()
+            .size_full(),
+        )
         .flex_1()
         .min_h_0()
         .flex()
@@ -63,7 +79,6 @@ pub fn body(view: &mut ArrowAppView, cx: &mut Context<ArrowAppView>) -> impl Int
                 .text_color(p.foreground)
                 .child(title),
         )
-        .children(text.map(|t| div().max_w(px(420.)).text_size(px(13.)).child(t)))
         .when(state == PaneBody::Closed, |d| {
             d.child(
                 div().relative().child(

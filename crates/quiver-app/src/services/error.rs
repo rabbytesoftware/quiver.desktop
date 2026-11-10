@@ -4,7 +4,7 @@
 pub enum Error {
     #[error(transparent)]
     Platform(#[from] quiver_platform::Error),
-    #[error("arrow window helper: {0}")]
+    #[error("arrow app page: {0}")]
     Helper(String),
     #[error("could not start the async runtime: {0}")]
     Runtime(String),

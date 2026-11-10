@@ -82,7 +82,7 @@ gate:
 	@$(CARGO) xtask gate
 
 check-release:
-	@$(CARGO) xtask check-release-artifact $$(ls target/release/quiver target/release/quiverdesktop target/release/quiver-arrow-window target/release/*.exe 2>/dev/null)
+	@$(CARGO) xtask check-release-artifact $$(ls target/release/quiver target/release/quiverdesktop target/release/*.exe 2>/dev/null)
 
 # Release builds NEVER enable feature e2e-bridge; the package task re-checks the binaries it bundles.
 ifeq ($(shell uname -s),Darwin)

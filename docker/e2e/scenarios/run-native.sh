@@ -43,7 +43,7 @@ record ""
 # --- build -----------------------------------------------------------------
 
 needed=("$BUILD_BIN/quiver-$CORE_V1" "$BUILD_BIN/quiver-$CORE_V2" "$BUILD_BIN/quiver-$CORE_V3" "$BUILD_BIN/quiver-$CORE_V4"
-	"$BUILD_BIN/quiverdesktop-$DESK_V1" "$BUILD_BIN/quiver-arrow-window")
+	"$BUILD_BIN/quiverdesktop-$DESK_V1")
 missing=0
 for artifact in "${needed[@]}"; do [ -f "$artifact" ] || missing=1; done
 
@@ -68,7 +68,6 @@ record ""
 # <QUIVER_HOME>/self and is the build every later update replaces.
 mkdir -p "$APP_DIR"
 install -m 0755 "$BUILD_BIN/quiverdesktop-$DESK_V1" "$APP_DIR/quiverdesktop"
-install -m 0755 "$BUILD_BIN/quiver-arrow-window" "$APP_DIR/quiver-arrow-window"
 install -m 0755 "$BUILD_BIN/quiver-$CORE_V1" "$APP_DIR/quiver"
 
 # --- upstream --------------------------------------------------------------
@@ -164,7 +163,6 @@ export QUIVER_E2E_ECHO_NS="github.com/rabbytesoftware/e2e-echo-app"
 export QUIVER_E2E_SHORT_NS="github.com/rabbytesoftware/e2e-short-app"
 export QUIVER_E2E_STATIC_NS="github.com/rabbytesoftware/e2e-static-app-1 github.com/rabbytesoftware/e2e-static-app-2 github.com/rabbytesoftware/e2e-static-app-3 github.com/rabbytesoftware/e2e-static-app-4"
 export QUIVER_E2E_TCP_PORT=40299
-# The helper the app spawns for arrow apps sits next to the app binary already (APP_DIR above).
 export CARGO_TARGET_DIR="$CARGO_TARGET"
 
 # A desktop session has a Secret Service (the OS keyring the app keeps remote pairing tokens in: pairing with a
@@ -192,7 +190,6 @@ declare -a PASSED=() FAILED=()
 # Arrow processes a killed daemon leaves behind: the arrow-apps fixtures and the supervised fixture's sleep.
 kill_arrow_processes() {
 	pkill -f 'quiver-chat-linux-|server\.py |^sleep 3000$' 2>/dev/null || true
-	pkill -x quiver-arrow-window 2>/dev/null || true
 }
 
 # Test names, from the test binary itself. A name containing a filter passed on the command line selects it.

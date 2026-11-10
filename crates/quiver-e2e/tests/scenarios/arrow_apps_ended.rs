@@ -3,7 +3,7 @@
 use serde_json::json;
 
 use crate::support::app::App;
-use crate::support::arrow_windows::{wait_open, wait_windows};
+use crate::support::arrow_windows::{wait_embedded, wait_open, wait_pages};
 use crate::support::daemon::Daemon;
 use crate::support::env::{required, Env};
 use crate::support::home::Home;
@@ -27,13 +27,15 @@ async fn when_the_run_serving_the_interface_ends_the_pane_returns_to_the_arrow_p
         json!({"title": "E2E Short App", "mode": "static", "path": "/", "ready": true})
     );
     wait_open(&mut app, &[&ns]).await;
-    wait_windows("E2E Short App", 1).await;
+    wait_pages(&mut app, 1).await;
+    wait_embedded(&mut app, 1).await;
 
     // The run is `sleep 12`: nothing stops it.
     wait_no_surface(&core, &identity).await;
     app.node("screen.arrow").await;
     wait_open(&mut app, &[]).await;
-    wait_windows("E2E Short App", 0).await;
+    wait_pages(&mut app, 0).await;
+    wait_embedded(&mut app, 0).await;
     let (status, _) = ui_request(&home.socket(), &identity, "/", &[]).await;
     assert_eq!(status, 503);
     app.shot("short-ended").await;
@@ -42,5 +44,6 @@ async fn when_the_run_serving_the_interface_ends_the_pane_returns_to_the_arrow_p
     start_from_page(&mut app, &ns).await;
     wait_surface(&core, &identity, true).await;
     wait_open(&mut app, &[&ns]).await;
-    wait_windows("E2E Short App", 1).await;
+    wait_pages(&mut app, 1).await;
+    wait_embedded(&mut app, 1).await;
 }

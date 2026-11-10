@@ -40,7 +40,7 @@ async fn the_local_daemon_is_adopted_the_stores_fill_and_shutdown_is_idempotent(
 }
 
 #[tokio::test]
-async fn opening_an_arrow_app_without_the_helper_binary_fails_cleanly() {
+async fn opening_an_arrow_app_without_a_window_to_show_it_in_fails_cleanly() {
     let setup = LocalSetup::new();
     let _daemon = FakeDaemon::bind(&setup.socket, accept_everything());
     let services = AppServices::build(setup.config()).await;

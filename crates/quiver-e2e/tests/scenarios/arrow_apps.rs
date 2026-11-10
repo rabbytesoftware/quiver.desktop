@@ -1,19 +1,20 @@
 //! ARROW APPS -- an arrow that opens an interface (a `ui:` on a run step) is served by the daemon on a socket it
-//! provisions, proxied at `/v0/ui/<ns>`, and shown by the app in its own helper window (`quiver-arrow-window`,
-//! docs/decision-log.md). Driven with the repository's own fixture apps (docker/e2e/fixtures/arrows): e2e-echo-app
+//! provisions, proxied at `/v0/ui/<ns>`, and shown by the app in a webview embedded in its main window
+//! (docs/decision-log.md). Driven with the repository's own fixture apps (docker/e2e/fixtures/arrows): e2e-echo-app
 //! (binds its socket 5 s late and echoes request headers), e2e-static-app-1..3 (static files, run for a long
 //! time) and e2e-short-app (its run ends by itself after 12 s). quiver.chat's own test needs its checkout and
 //! skips with a message without it.
 //!
-//! The page itself lives in another process, so what is asserted is what the box can see around it:
+//! The page's DOM is not reachable from the bridge, so what is asserted is what the box can see around it:
 //!   * the daemon: the surface (`mode`, `ready`), the run directory (0700, one socket named from the namespace),
 //!     no new TCP listener, `/v0/ui` stripping Authorization/Cookie, 503 after the run ended;
 //!   * the app: `state.dump` > `arrowWindows` (open apps, remount keys, and each `arrow-app://` request the
-//!     helper made with the status and CSP of the answer), the pane header (`arrow-app.*` ids) and the route;
-//!   * the OS: the helper's X window by title (xdotool).
+//!     page made with the status and CSP of the answer), the pane header (`arrow-app.*` ids) and the route;
+//!   * the OS: the page is a mapped child window of the main window, exactly over the pane body, and the
+//!     main window is the only top-level one (xwininfo).
 //!
 //! NOT checked, because it needs the DOM of the page (the old spec ran it in the webview): the sandbox attribute
-//! of the iframe (there is none now: the page is a window), "no Tauri globals" in the page, a page navigating
+//! of the iframe (there is none: the page is a native webview), "no Tauri globals" in the page, a page navigating
 //! itself to `quiver://`, WebSocket frames crossing the shim, sessionStorage/localStorage per origin. The handler
 //! rules behind those (host allow-list, CSP, header stripping, ws scoping) are unit-tested in quiver-arrow-host.
 //! Also not ported: the 15-cycle execute/stop stress (A6, a daemon claim) and the tcp bearer checks (A4).
@@ -22,14 +23,14 @@ use serde_json::{json, Value};
 
 use crate::support::app::App;
 use crate::support::arrow_windows::{
-    open_apps, requests, until, wait_open, wait_windows, ARROW_CSP,
+    open_apps, requests, until, wait_embedded, wait_open, wait_pages, ARROW_CSP,
 };
 use crate::support::daemon::Daemon;
 use crate::support::env::{required, Env};
 use crate::support::home::Home;
 use crate::support::lifecycle::{open_in_app, runtime_of, surface, wait_no_surface, wait_surface};
 use crate::support::procs::alive;
-use crate::support::sandbox::{park_windows, run_dir, socket_name, tcp_listeners, ui_request};
+use crate::support::sandbox::{run_dir, socket_name, tcp_listeners, ui_request};
 
 fn statics() -> Vec<String> {
     required("QUIVER_E2E_STATIC_NS")
@@ -64,12 +65,13 @@ async fn a_late_binding_app_is_isolated_and_its_window_opens_only_when_ready() {
         open_apps(&mut app).await.is_empty(),
         "a window opened before the interface was ready"
     );
-    assert!(crate::support::sandbox::windows("E2E Echo App").is_empty());
+    wait_embedded(&mut app, 0).await;
     app.shot("echo-starting").await;
 
     wait_surface(&core, &identity, true).await;
     wait_open(&mut app, &[&echo]).await;
-    wait_windows("E2E Echo App", 1).await;
+    wait_pages(&mut app, 1).await;
+    wait_embedded(&mut app, 1).await;
     app.shot("echo-open").await;
 
     // The window's first page load went through the host's handler: 200, HTML, the CSP, nothing sensitive sent.
@@ -164,16 +166,10 @@ async fn the_window_cap_is_four_and_the_oldest_hidden_app_makes_room() {
         wait_surface(&core, &id, true).await;
         opened.push(ns);
         wait_open(&mut app, &opened).await;
-        let title = if opened.len() < 4 {
-            format!("E2E Static App {}", opened.len())
-        } else {
-            "E2E Echo App".to_string()
-        };
-        wait_windows(&title, 1).await;
-        park_windows(&title);
+        wait_pages(&mut app, opened.len()).await;
+        // Only the app on screen has a visible page; the others are kept alive hidden.
+        wait_embedded(&mut app, 1).await;
     }
-    wait_windows("E2E Static App", 3).await;
-    wait_windows("E2E Echo App", 1).await;
     let hosts: std::collections::BTreeSet<String> = {
         let dump = until(&mut app, "all four loaded", |d| {
             opened.iter().all(|ns| {
@@ -201,9 +197,9 @@ async fn the_window_cap_is_four_and_the_oldest_hidden_app_makes_room() {
     let notice = app.node("arrow-app.notice").await;
     assert!(notice.label.contains("E2E Static App 1"), "{notice:?}");
     app.shot("fifth-evicts-first").await;
-    wait_windows("E2E Static App 1", 0).await;
+    wait_pages(&mut app, 4).await;
 
-    // Closing the window did not stop the app: its run is still going.
+    // Closing the page did not stop the app: its run is still going.
     let evicted = runtime_of(&core, &identities[0]).await;
     assert_eq!(evicted["state"], "running");
     assert!(!surface(&core, &identities[0]).await.is_null());
@@ -222,7 +218,8 @@ async fn reload_remounts_the_page_and_stop_ends_the_window_and_the_process() {
     let identity = open_in_app(&mut app, &core, &ns).await;
     wait_surface(&core, &identity, true).await;
     wait_open(&mut app, &[&ns]).await;
-    wait_windows("E2E Static App 1", 1).await;
+    wait_pages(&mut app, 1).await;
+    wait_embedded(&mut app, 1).await;
     until(&mut app, "the first page load", |d| {
         d["protocol"]
             .as_array()
@@ -236,7 +233,6 @@ async fn reload_remounts_the_page_and_stop_ends_the_window_and_the_process() {
     );
 
     // Reload: the app's remount key moves, the helper is told, and the page is requested again.
-    park_windows("E2E Static App 1");
     app.click("arrow-app.reload").await;
     until(&mut app, "the remount key to move", |d| {
         d["reloadKeys"][&ns] == 1
@@ -249,7 +245,8 @@ async fn reload_remounts_the_page_and_stop_ends_the_window_and_the_process() {
     })
     .await;
     assert!(reloaded["open"].as_array().is_some_and(|a| a.len() == 1));
-    wait_windows("E2E Static App 1", 1).await;
+    wait_pages(&mut app, 1).await;
+    wait_embedded(&mut app, 1).await;
     app.shot("after-reload").await;
 
     // Stop: the window and the process go, the surface is gone, /v0/ui answers 503, the page is the arrow's again.
@@ -259,7 +256,8 @@ async fn reload_remounts_the_page_and_stop_ends_the_window_and_the_process() {
     app.click("arrow-app.stop").await;
     app.node("screen.arrow").await;
     wait_open(&mut app, &[]).await;
-    wait_windows("E2E Static App 1", 0).await;
+    wait_pages(&mut app, 0).await;
+    wait_embedded(&mut app, 0).await;
     wait_no_surface(&core, &identity).await;
     crate::support::wait::eventually(
         "the run's process to end",

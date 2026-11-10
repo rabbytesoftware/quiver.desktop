@@ -7,6 +7,7 @@ use tokio::sync::oneshot;
 
 use super::*;
 use crate::services::Error;
+use quiver_arrow_host::{PageBounds, WindowToHost};
 
 /// The test's end of one fake helper.
 struct FakeHelper {
@@ -17,6 +18,27 @@ struct FakeHelper {
     to_host: UnboundedSender<WindowToHost>,
     /// Resolves when the supervisor dropped the process handle (the helper "was killed").
     killed: oneshot::Receiver<()>,
+}
+
+impl FakeHelper {
+    /// The next message that is not a show/hide or a position (those are checked on their own).
+    async fn command(&mut self) -> Option<HostToWindow> {
+        loop {
+            match self.from_host.recv().await? {
+                HostToWindow::Visible { .. } | HostToWindow::Bounds(_) => {}
+                other => return Some(other),
+            }
+        }
+    }
+
+    /// Everything the supervisor sent so far, in order.
+    fn drain(&mut self) -> Vec<HostToWindow> {
+        let mut all = Vec::new();
+        while let Ok(m) = self.from_host.try_recv() {
+            all.push(m);
+        }
+        all
+    }
 }
 
 struct KillSignal(Option<oneshot::Sender<()>>);
@@ -134,7 +156,7 @@ async fn protocol_requests_are_answered_through_the_arrow_host_with_the_same_id(
         }))
         .unwrap();
 
-    let Some(HostToWindow::ProtocolResponse(resp)) = helper.from_host.recv().await else {
+    let Some(HostToWindow::ProtocolResponse(resp)) = helper.command().await else {
         panic!("expected a protocol response");
     };
     assert_eq!((resp.id, resp.status), (41, 200));
@@ -153,7 +175,7 @@ async fn the_fifth_app_closes_and_kills_the_least_recently_used_helper() {
 
     windows.show(&ns(5), "App").await.unwrap();
 
-    assert_eq!(oldest.from_host.recv().await, Some(HostToWindow::Close));
+    assert_eq!(oldest.command().await, Some(HostToWindow::Close));
     oldest.killed.await.unwrap();
     assert_eq!(
         events.recv().await,
@@ -177,8 +199,14 @@ async fn reload_tells_only_that_helper_and_bumps_its_key() {
 
     windows.reload(&ns(1));
 
-    assert_eq!(first.from_host.recv().await, Some(HostToWindow::Reload));
-    assert!(second.from_host.try_recv().is_err());
+    assert_eq!(first.command().await, Some(HostToWindow::Reload));
+    assert!(
+        second
+            .drain()
+            .iter()
+            .all(|m| matches!(m, HostToWindow::Visible { .. } | HostToWindow::Bounds(_))),
+        "the other app was not told to reload"
+    );
     assert_eq!(
         (windows.reload_key(&ns(1)), windows.reload_key(&ns(2))),
         (1, 0)
@@ -192,7 +220,7 @@ async fn stop_closes_and_kills_the_helper_and_forgets_the_app() {
     let mut helper = launcher.take(0);
 
     assert!(windows.stop(&ns(1)));
-    assert_eq!(helper.from_host.recv().await, Some(HostToWindow::Close));
+    assert_eq!(helper.command().await, Some(HostToWindow::Close));
     helper.killed.await.unwrap();
     assert!(windows.open_apps().is_empty());
     assert_eq!(windows.visible(), None);
@@ -214,7 +242,7 @@ async fn an_app_stopped_by_the_daemon_loses_its_window_but_live_ones_keep_theirs
         first.killed.try_recv().is_err(),
         "a live app's helper must not be killed"
     );
-    assert_eq!(second.from_host.recv().await, Some(HostToWindow::Close));
+    assert_eq!(second.command().await, Some(HostToWindow::Close));
     second.killed.await.unwrap();
     assert_eq!(windows.open_apps(), vec![ns(1)]);
 }
@@ -276,7 +304,7 @@ async fn shutdown_kills_every_helper_is_idempotent_and_opens_nothing_after() {
     windows.shutdown();
 
     for helper in [&mut a, &mut b] {
-        assert_eq!(helper.from_host.recv().await, Some(HostToWindow::Close));
+        assert_eq!(helper.command().await, Some(HostToWindow::Close));
     }
     a.killed.await.unwrap();
     b.killed.await.unwrap();
@@ -284,4 +312,44 @@ async fn shutdown_kills_every_helper_is_idempotent_and_opens_nothing_after() {
 
     windows.show(&ns(3), "C").await.unwrap();
     assert_eq!(launcher.count(), 0);
+}
+
+#[tokio::test]
+async fn only_the_visible_apps_page_is_shown_and_it_follows_the_reported_rectangle() {
+    let (windows, launcher) = windows();
+    let bounds = PageBounds {
+        x: 240.0,
+        y: 56.0,
+        width: 960.0,
+        height: 744.0,
+    };
+    windows.set_bounds("a@x", bounds);
+    windows.show("a@x", "A").await.unwrap();
+    windows.show("b@x", "B").await.unwrap();
+    let mut a = launcher.take(0);
+    let mut b = launcher.take(0);
+    assert_eq!(
+        a.drain(),
+        vec![
+            HostToWindow::Bounds(bounds),
+            HostToWindow::Visible { visible: true },
+            HostToWindow::Visible { visible: false },
+        ]
+    );
+    assert_eq!(b.drain(), vec![HostToWindow::Visible { visible: true }]);
+
+    let moved = PageBounds {
+        width: 800.0,
+        ..bounds
+    };
+    windows.set_bounds("b@x", moved);
+    windows.set_bounds("b@x", moved);
+    assert_eq!(
+        b.drain(),
+        vec![HostToWindow::Bounds(moved)],
+        "a repeat is not resent"
+    );
+
+    windows.hide();
+    assert_eq!(b.drain(), vec![HostToWindow::Visible { visible: false }]);
 }

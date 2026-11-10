@@ -17,16 +17,7 @@ path = "src/lib.rs"
 name = "quiver"
 path = "src/main.rs"
 
-# Arrow apps run in a separate WebView process so the GPUI main thread never has to host tao/wry
-# (macOS requires the main thread for both) and the main binary links no GTK/WebKit on Linux.
-[[bin]]
-name = "quiver-arrow-window"
-path = "src/bin/arrow_window/main.rs"
-required-features = ["arrow-window"]
-
 [features]
-default = ["arrow-window"]
-arrow-window = ["dep:wry", "dep:tao"]
 # Debug-only control bridge. Never enabled in release builds (CI checks the artifact).
 e2e-bridge = ["quiver-ui/inspect", "dep:quiver-e2e"]
 
@@ -52,8 +43,13 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tokio-tungstenite.workspace = true
-tao = { version = "0.34", optional = true }
-wry = { version = "0.53", optional = true }
+raw-window-handle = "0.6"
+wry = "0.53"
+
+# Arrow apps' webviews are children of the main window; on Linux wry's X11 backend runs on GTK, which
+# gets a thread of its own (services/arrow_windows/embedded).
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }

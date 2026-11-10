@@ -25,7 +25,7 @@ use tokio::runtime::{Handle, Runtime};
 
 use super::announce::{NoAnnounce, StoredRows};
 use super::arrow_host::CoreUpstream;
-use super::arrow_windows::{ArrowWindows, HelperLauncher, ProcessLauncher};
+use super::arrow_windows::{ArrowWindows, EmbeddedPages, HelperLauncher};
 use super::backend::NativeBackend;
 use super::core_api::TransportCoreApi;
 use super::events::ChannelEvents;
@@ -44,8 +44,8 @@ pub struct ServicesConfig {
     pub data_dir: PathBuf,
     pub local: LocalConfig,
     pub secrets: Arc<dyn SecretStore>,
-    /// `None` when the helper binary is missing: arrow apps then fail to open, nothing else.
-    pub launcher: Option<Arc<dyn HelperLauncher>>,
+    /// Where arrow apps' pages are made. `None` (tests, the demo): arrow apps fail to open, nothing else.
+    pub pages: Option<Arc<EmbeddedPages>>,
     pub release: Arc<dyn ReleaseSource>,
     /// This machine's `"os/arch"` key.
     pub platform: String,
@@ -62,8 +62,7 @@ impl ServicesConfig {
                 LocalConfig::bundled_next_to_current_exe(),
             ),
             secrets: Arc::new(KeyringSecrets::keyring()),
-            launcher: ProcessLauncher::next_to_current_exe()
-                .map(|launcher| Arc::new(launcher) as Arc<dyn HelperLauncher>),
+            pages: Some(Arc::new(EmbeddedPages::new())),
             release: Arc::new(NativeReleaseSource::new()),
             platform: platform_key(),
         })
@@ -99,6 +98,8 @@ pub struct AppServices {
     pub cache: Arc<EntityCache>,
     pub key_value: Arc<dyn KeyValueStore>,
     pub arrow_windows: ArrowWindows,
+    /// The arrow apps' pages live inside the main window; the window tells them where it is.
+    pub pages: Option<Arc<EmbeddedPages>>,
     pub release: Arc<dyn ReleaseSource>,
     pub console: Arc<ConsoleExecManager>,
     handle: Handle,
@@ -197,9 +198,10 @@ impl AppServices {
         tokio::spawn(async move { start.start().await });
 
         let upstream = Arc::new(CoreUpstream::new(manager.clone()));
-        let launcher = config
-            .launcher
-            .unwrap_or_else(|| Arc::new(MissingHelper) as Arc<dyn HelperLauncher>);
+        let launcher = config.pages.clone().map_or_else(
+            || Arc::new(NoPages) as Arc<dyn HelperLauncher>,
+            |pages| pages as Arc<dyn HelperLauncher>,
+        );
         let arrow_windows = ArrowWindows::new(launcher, Arc::new(ArrowHosts::new()), upstream);
 
         Self {
@@ -215,6 +217,7 @@ impl AppServices {
             cache,
             key_value,
             arrow_windows,
+            pages: config.pages,
             release: config.release,
             console: Arc::new(ConsoleExecManager::new()),
             handle: Handle::current(),
@@ -271,17 +274,16 @@ impl Drop for AppServices {
     }
 }
 
-/// The launcher when the helper binary is not installed.
-struct MissingHelper;
+/// The launcher when there is no main window to put pages in.
+struct NoPages;
 
-impl HelperLauncher for MissingHelper {
+impl HelperLauncher for NoPages {
     fn launch(
         &self,
         _: &super::arrow_windows::HelperArgs,
     ) -> Result<super::arrow_windows::HelperLink> {
-        Err(Error::Helper(format!(
-            "{} was not found next to the application",
-            super::arrow_windows::HELPER_BINARY
-        )))
+        Err(Error::Helper(
+            "there is no window to show the page in".into(),
+        ))
     }
 }

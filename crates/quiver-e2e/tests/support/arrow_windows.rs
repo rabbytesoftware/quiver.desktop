@@ -1,12 +1,13 @@
-//! The helper windows arrow apps open in. Their web content is another OS process, so the scenarios look at
-//! three things only: the app's own account of them (`state.dump` > `arrowWindows`: open apps, visible one,
-//! remount keys and the protocol requests the helpers made, with the CSP of each answer), the X windows
-//! (`xdotool`), and the daemon's `/v0/ui` proxy. The first two are not signalled, so they are re-read.
+//! The pages arrow apps show inside the main window. Their DOM is not reachable from the bridge, so the
+//! scenarios look at three things: the app's own account of them (`state.dump` > `arrowWindows`: open apps,
+//! visible one, remount keys and the protocol requests the pages made, with the CSP of each answer), the X
+//! window tree (the page is a child window of the main window, over the pane body, and never a window of its
+//! own), and the daemon's `/v0/ui` proxy. The first two are not signalled, so they are re-read.
 
 use serde_json::Value;
 
 use super::app::App;
-use super::sandbox::windows;
+use super::sandbox::page_windows;
 use super::wait::{eventually, SHORT};
 
 /// The CSP every `arrow-app://` answer carries (`quiver_arrow_host::ARROW_CSP`).
@@ -100,12 +101,38 @@ pub async fn requests(app: &mut App, namespace: &str) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-/// Waits until `count` X windows have `title` in their name.
-pub async fn wait_windows(title: &str, count: usize) {
+/// Waits until the app has exactly `count` live pages (the supervisor's `windows`, hidden ones included).
+pub async fn wait_pages(app: &mut App, count: usize) {
+    until(app, &format!("{count} live page(s)"), |d| {
+        d["windows"].as_array().is_some_and(|a| a.len() == count)
+    })
+    .await;
+}
+
+/// Waits until the X window tree shows `count` mapped page windows inside the main window, each exactly over
+/// the pane body (`arrow-app.body`),; a page that opened as a window of its own would not be found there.
+pub async fn wait_embedded(app: &mut App, count: usize) {
+    let body = if count > 0 {
+        let n = app.node("arrow-app.body").await;
+        Some((n.x, n.y, n.w, n.h))
+    } else {
+        None
+    };
     eventually(
-        &format!("{count} window(s) titled {title:?}"),
+        &format!("{count} page window(s) inside the main window"),
         SHORT,
-        || async { (windows(title).len() == count).then_some(()) },
+        || async {
+            let seen = page_windows();
+            let placed = body.is_none_or(|(x, y, w, h)| {
+                seen.pages.iter().all(|p| {
+                    (p.x - (seen.main_x + x as i32)).abs() <= 2
+                        && (p.y - (seen.main_y + y as i32)).abs() <= 2
+                        && (p.width - w as i32).abs() <= 2
+                        && (p.height - h as i32).abs() <= 2
+                })
+            });
+            (seen.pages.len() == count && placed).then_some(())
+        },
     )
     .await;
 }

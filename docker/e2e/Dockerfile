@@ -41,7 +41,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libzstd-dev libasound2-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# --- WebView of the arrow-app helper (quiver-arrow-window: tao + wry = WebKitGTK on Linux) ----------------
+# --- WebView of the arrow apps (wry = WebKitGTK on Linux, embedded in the main window) --------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev \
     && rm -rf /var/lib/apt/lists/*

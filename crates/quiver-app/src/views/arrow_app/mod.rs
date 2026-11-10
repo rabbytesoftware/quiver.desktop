@@ -1,8 +1,8 @@
-//! The Arrow-app route (`ArrowAppAfter`). The app's page renders in its own OS window
-//! (`quiver-arrow-window`, docs/decision-log.md), so this pane is the header the Tauri app drew over the
-//! iframe -- name, status, Reload, Details, the actions menu and Stop -- plus a body that says where the
-//! page is. It drives `services.arrow_windows`: showing the window when the surface answers, hiding it
-//! when the pane is left, closing it on Stop, and telling the user when the 4-app cap closed another.
+//! The Arrow-app route (`ArrowAppAfter`). The header the Tauri app drew over the iframe -- name, status,
+//! Reload, Details, the actions menu and Stop -- and, under it, the app's page: a webview embedded in the
+//! main window over the pane body (docs/decision-log.md). It drives `services.arrow_windows`: showing the
+//! page when the surface answers, hiding it when the pane is left, closing it on Stop, and telling the
+//! user when the 4-app cap closed another.
 
 mod parts;
 

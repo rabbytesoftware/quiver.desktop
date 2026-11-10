@@ -3,7 +3,7 @@
 use serde_json::json;
 
 use crate::support::app::App;
-use crate::support::arrow_windows::{wait_open, wait_windows};
+use crate::support::arrow_windows::{wait_embedded, wait_open, wait_pages};
 use crate::support::daemon::Daemon;
 use crate::support::env::{optional, Env};
 use crate::support::home::Home;
@@ -39,10 +39,11 @@ async fn quiver_chat_runs_sandboxed_in_its_window_and_stops() {
     let (mode, sockets) = run_dir(&home);
     assert_eq!((mode, sockets), (0o700, vec![socket_name(&identity)]));
     wait_open(&mut app, &[&chat]).await;
-    wait_windows("Quiver Chat", 1).await;
+    wait_pages(&mut app, 1).await;
+    wait_embedded(&mut app, 1).await;
     app.click("arrow-app.stop").await;
     wait_open(&mut app, &[]).await;
-    wait_windows("Quiver Chat", 0).await;
+    wait_pages(&mut app, 0).await;
     wait_no_surface(&core, &identity).await;
     let (status, _) = ui_request(&home.socket(), &identity, "/", &[]).await;
     assert_eq!(status, 503);
