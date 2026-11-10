@@ -13,7 +13,6 @@ members = [
     "xtask",
 ]
 # The old Tauri app stays untouched until the native app passes the definition of done.
-exclude = ["src-tauri"]
 
 [workspace.package]
 version = "0.1.0"

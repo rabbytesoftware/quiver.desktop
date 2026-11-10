@@ -131,6 +131,5 @@ cargo build -p quiver-e2e --bin quiver-mcp
 }
 ```
 
-Then ask the agent to `app_launch` with `binary` set to `target/debug/quiver` (or `quiverdesktop` once the bin is
-renamed) and an optional `env` such as `{"QUIVER_HOME": "/tmp/quiver-agent"}` to keep it away from your real
+Then ask the agent to `app_launch` with `binary` set to `target/debug/quiverdesktop` and an optional `env` such as `{"QUIVER_HOME": "/tmp/quiver-agent"}` to keep it away from your real
 home. On Linux without a display run it under `xvfb-run -a` with `ZED_ALLOW_EMULATED_GPU=1`, or inside the box.
