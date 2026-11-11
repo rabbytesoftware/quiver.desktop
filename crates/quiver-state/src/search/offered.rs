@@ -4,24 +4,26 @@ use super::narrow::{facets_for, Facet, FacetKind, Selection};
 use crate::domain::SearchEntry;
 
 const HOSTS: usize = 4;
-const TAGS: usize = 6;
+const TAGS: usize = 12;
 
-/// A facet every result carries filters nothing (and a one-host answer would always show its host), so
-/// it is not offered -- unless it is selected, when it must stay to be unselected.
+/// Below this the answer is readable as it stands and the row is just chrome.
+const MIN_TO_NARROW: usize = 4;
+
+/// Every host and (all but one-of-a-kind) tag of the whole answer, as the old results header offered
+/// them, host counts included even when every result carries the host. A chosen facet stays so it can
+/// be unchosen.
 pub fn offered_facets(
     answer: &[SearchEntry],
-    selection: &Selection,
+    _selection: &Selection,
 ) -> Vec<(FacetKind, Facet)> {
-    let selected = |kind: FacetKind, value: &str| match kind {
-        FacetKind::Host => selection.host.iter().any(|v| v == value),
-        FacetKind::Tag => selection.tag.iter().any(|v| v == value),
-    };
+    if answer.len() < MIN_TO_NARROW {
+        return Vec::new();
+    }
     [(FacetKind::Host, HOSTS), (FacetKind::Tag, TAGS)]
         .into_iter()
         .flat_map(|(kind, take)| {
             facets_for(answer, kind, take)
                 .into_iter()
-                .filter(move |f| f.count < answer.len() || selected(kind, &f.value))
                 .map(move |f| (kind, f))
         })
         .collect()
@@ -43,26 +45,40 @@ mod tests {
     }
 
     #[test]
-    fn a_facet_everything_carries_is_not_offered() {
-        let answer = [tagged("github.com/a/x", &[]), tagged("github.com/b/y", &[])];
+    fn a_short_answer_offers_nothing_to_narrow() {
+        let answer = [tagged("github.com/a/x", &[]), tagged("gitlab.com/b/y", &[])];
         assert!(offered_facets(&answer, &Selection::default()).is_empty());
     }
 
     #[test]
+    fn a_host_every_result_carries_is_still_offered_with_its_count() {
+        let answer: Vec<_> = (0..4)
+            .map(|i| tagged(&format!("github.com/a/x{i}"), &[]))
+            .collect();
+        let offered = offered_facets(&answer, &Selection::default());
+        assert_eq!(offered.len(), 1);
+        assert_eq!(offered[0].1.count, 4);
+    }
+
+    #[test]
     fn a_second_host_makes_hosts_a_choice_and_a_selected_one_stays() {
-        let answer = [tagged("github.com/a/x", &[]), tagged("gitlab.com/b/y", &[])];
+        let answer = [
+            tagged("github.com/a/x", &[]),
+            tagged("gitlab.com/b/y", &[]),
+            tagged("github.com/c/z", &[]),
+            tagged("github.com/d/w", &[]),
+        ];
         let offered = offered_facets(&answer, &Selection::default());
         assert_eq!(offered.len(), 2);
         let narrowed = Selection {
             host: vec!["github.com".into()],
             ..Selection::default()
         };
-        let only_github = [answer[0].clone()];
-        let kept = offered_facets(&only_github, &narrowed);
+        let kept = offered_facets(&answer, &narrowed);
         assert_eq!(
             kept.len(),
-            1,
-            "the selected host stays so it can be cleared"
+            2,
+            "the facets come from the whole answer, so a chosen one never leaves"
         );
     }
 }

@@ -5,7 +5,7 @@ use gpui::{div, px, uniform_list, Context, FontWeight, IntoElement, Window};
 use quiver_state::sidebar::{build_list, ArrowListState, CatalogPhase};
 use quiver_state::store::CatalogStatus;
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::{ActiveQuiver, FlickerSpinner};
+use quiver_ui::{ActiveQuiver, FlickerSpinner, TrackedText};
 
 use super::super::Sidebar;
 use super::row::arrow_row;
@@ -71,10 +71,8 @@ pub fn arrow_list(
             .px(px(10.))
             .py(px(10.))
             .child(
-                div()
-                    .text_size(px(13.))
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(app.t(notice.title)),
+                TrackedText::new(app.t(notice.title), 13., 21., -0.1, p.foreground)
+                    .weight(FontWeight::MEDIUM),
             )
             .child(
                 div()

@@ -43,10 +43,15 @@ impl HomeView {
 impl Render for HomeView {
     fn render(
         &mut self,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let p = cx.quiver().palette;
+        // The sections' width outright (the main area inside the 24px + 40px padding): GPUI leaves a column's
+        // children at their content width here, so a shelf with one tile shrank and its header's link sat
+        // against the title.
+        let sidebar = self.app.read(cx).shell.sidebar_width as f32;
+        let content = (f32::from(window.viewport_size().width) - sidebar - 64.).max(0.);
         let app = self.app.read(cx);
         let (arrows, catalog) = app
             .services
@@ -71,7 +76,7 @@ impl Render for HomeView {
         } else if model.empty {
             parts::empty_state(self, cx).into_any_element()
         } else {
-            parts::sections(self, &model, home.data.as_ref(), cx).into_any_element()
+            parts::sections(self, &model, home.data.as_ref(), content, cx).into_any_element()
         };
         div()
             .id("home")
@@ -83,6 +88,7 @@ impl Render for HomeView {
                     .fade_color(p.background)
                     .child(
                         div()
+                            .w_full()
                             .px(px(40.))
                             .pl(px(24.))
                             .pt(px(24.))

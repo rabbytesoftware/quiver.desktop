@@ -111,6 +111,21 @@ impl App {
         }
     }
 
+    /// Waits until no node matches the filter (a state that wears off: `lifted`, `focused`).
+    pub async fn gone_matching(
+        &mut self,
+        filter: serde_json::Value,
+    ) {
+        if let Err(e) = self
+            .bridge
+            .wait_matching(filter.clone(), false, WAIT_MS)
+            .await
+        {
+            self.fail(&format!("node {filter} never went away: {e}"))
+                .await;
+        }
+    }
+
     pub async fn gone(
         &mut self,
         id: &str,
@@ -186,6 +201,9 @@ impl App {
         name: &str,
     ) {
         let Some(dir) = &self.evidence else { return };
+        // The bridge reports a frame once it is painted; the window system shows it a moment later (a frame or
+        // two under Xvfb and software Vulkan). Evidence only: no assertion waits on this.
+        tokio::time::sleep(std::time::Duration::from_millis(600)).await;
         if let Ok(png) = self.bridge.screenshot_png().await {
             let _ = std::fs::write(dir.join(format!("{name}.png")), png);
         }

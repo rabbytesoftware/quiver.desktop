@@ -86,6 +86,17 @@ async fn the_action_row_follows_the_arrow_through_install_start_and_stop() {
         .and_then(|f| f.split_whitespace().next()?.parse().ok())
         .expect("a fraction");
     assert!((0.0..=1.0).contains(&fraction), "fraction {fraction}");
+    // The installing row (progress, ⌄, a disabled Remove from Library) wraps rather than run under the banner.
+    if let Some(banner) = app.find("arrow.banner").await {
+        let mut row = app.with_prefix("arrow.action.").await;
+        row.push(app.node("arrow.progress").await);
+        for node in row {
+            assert!(
+                node.x + node.w <= banner.x + 0.5,
+                "{node:?} runs under the banner {banner:?}"
+            );
+        }
+    }
     app.shot("page-installing-steps").await;
 
     // Installed: the progress button is gone, Start and Uninstall are there.
@@ -117,4 +128,99 @@ async fn the_action_row_follows_the_arrow_through_install_start_and_stop() {
     app.click("arrow.action.stop").await;
     app.node("arrow.action.start").await;
     wait_arrow(&core, &slow, "stopped", |a| a.state == "ready").await;
+}
+
+const UPDATABLE: &str = "github.com/rabbytesoftware/e2e-updatable";
+
+/// The page follows the AFTER board, not the old Hero: the version is the header's chip (the way to switch what the
+/// row follows), with no selector line, no Switch… button and no "last run" block of the old Activity tab. The
+/// "At a glance" rows keep their links inside the card.
+#[tokio::test]
+async fn the_page_follows_the_board_and_the_version_chip_switches() {
+    let Some(env) = Env::load("arrow_page_board") else {
+        return;
+    };
+    let home = Home::fresh(&env, "arrow_page_board");
+    let mut app = App::launch(&env, &home).await;
+    app.wait_ready().await;
+    let core = Daemon::unix(home.socket());
+    register(&core, UPDATABLE).await;
+
+    app.click(&format!("sidebar.row.{UPDATABLE}")).await;
+    app.node("screen.arrow").await;
+    app.node("arrow.title").await;
+    app.node("arrow.version").await;
+    for gone in [
+        "arrow.switch",
+        "arrow.activity",
+        "arrow.pick.channel",
+        "arrow.pick.version",
+    ] {
+        assert!(app.find(gone).await.is_none(), "{gone} is on the page");
+    }
+
+    // Every "At a glance" row sits inside the card the rows make up.
+    let rows = app.with_prefix("arrow.glance.").await;
+    if let Some(card) = rows.iter().map(|r| r.x + r.w).reduce(f32::max) {
+        for row in &rows {
+            assert!(row.x + row.w <= card + 0.5, "{row:?} runs past the card");
+        }
+    }
+
+    // The repository publishes channels (a branch and a tag): the chip opens the Switch dialog.
+    app.matching(json!({"id": "arrow.version", "state_contains": "switch=enabled"}))
+        .await;
+    app.shot("page-board").await;
+    app.click("arrow.version").await;
+    // In the library but not installed: switching re-registers, nothing is uninstalled, and the dialog says so.
+    app.matching(json!({"id": "arrow.switch-dialog", "state_contains": "mode=switch-idle"}))
+        .await;
+    app.shot("switch-dialog").await;
+    // A dropdown inside a dialog: both are layers over the page. GPUI aborts the app when one deferred layer
+    // draws another ("cannot call defer_draw during deferred drawing"), which is how the playground crashed.
+    app.click("arrow.switch-pick.channel").await;
+    app.matching(json!({"id": "arrow.switch-pick.channel", "state_contains": "open"}))
+        .await;
+    let option = app
+        .matching(json!({"prefix": "arrow.switch-pick.channel.option."}))
+        .await;
+    app.shot("switch-dialog-select-open").await;
+    app.click(&option.id).await;
+    app.gone_matching(json!({"id": "arrow.switch-pick.channel", "state_contains": "open"}))
+        .await;
+    app.node("arrow.switch-dialog").await;
+    app.bridge.key("escape").await.expect("escape");
+    app.gone("arrow.switch-dialog").await;
+
+    // Not in the library: the very same chip (`namespace@selector · version ⌄`), no pickers on the page, and the
+    // same dialog, which only chooses what Install / Add to Library will use.
+    // Reached the way the old app's search bar allowed: Enter on a full namespace goes straight to its page.
+    app.enter_text("sidebar.search", "github.com/rabbytesoftware/e2e-required")
+        .await;
+    app.matching(json!({"id": "arrow.namespace", "label_contains": "e2e-required"}))
+        .await;
+    app.matching(json!({"id": "arrow.version", "state_contains": "switch=enabled"}))
+        .await;
+    // The chip names what the pick resolves to (once crowbar's said nothing: the channels had landed before
+    // the selector, and the picker was never seeded again).
+    let chip = app.node("arrow.version").await;
+    assert!(
+        !chip.label.trim().is_empty(),
+        "the version chip is empty: {chip:?}"
+    );
+    for gone in ["arrow.pick.channel", "arrow.pick.version"] {
+        assert!(app.find(gone).await.is_none(), "{gone} is on the page");
+    }
+    let namespace = app.node("arrow.namespace").await;
+    assert!(
+        namespace.label.contains('@'),
+        "the namespace line does not say what it follows: {namespace:?}"
+    );
+    app.shot("page-not-in-library").await;
+    app.click("arrow.version").await;
+    app.matching(json!({"id": "arrow.switch-dialog", "state_contains": "mode=choose"}))
+        .await;
+    app.shot("choose-dialog").await;
+    app.bridge.key("escape").await.expect("escape");
+    app.gone("arrow.switch-dialog").await;
 }

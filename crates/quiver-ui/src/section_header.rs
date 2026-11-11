@@ -7,6 +7,7 @@ use gpui::{div, px, App, ClickEvent, CursorStyle, ElementId, FontWeight, SharedS
 
 use crate::inspect::{probe, Kind};
 use crate::theme::ActiveQuiver;
+use crate::tracked::TrackedText;
 
 type ClickFn = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
@@ -48,8 +49,13 @@ impl RenderOnce for SectionHeader {
         cx: &mut App,
     ) -> impl IntoElement {
         let p = cx.quiver().palette;
+        let probe_id = format!("section.{}", self.id);
         div()
             .id(self.id.clone())
+            .relative()
+            .child(probe(probe_id, Kind::Other, self.title.clone(), true, ""))
+            // The section's width, not its content's: a shelf with one tile must not pull the link next to the title.
+            .w_full()
             .flex()
             .justify_between()
             .items_end()
@@ -57,18 +63,18 @@ impl RenderOnce for SectionHeader {
             .mb(px(16.))
             .border_b_1()
             .border_color(p.border)
+            // The title takes the room the link leaves, so the link always ends the row.
             .child(
-                div()
-                    .text_size(px(18.))
-                    .line_height(px(22.))
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(p.foreground)
-                    .child(self.title),
+                div().flex_1().min_w_0().child(
+                    TrackedText::new(self.title, 18., 22., -0.3, p.foreground)
+                        .weight(FontWeight::SEMIBOLD),
+                ),
             )
             .when_some(self.link, |d, (label, on_click, probe_id)| {
                 d.child(
                     div()
                         .id((self.id, "link"))
+                        .flex_none()
                         .relative()
                         .text_size(px(12.))
                         .line_height(px(16.))

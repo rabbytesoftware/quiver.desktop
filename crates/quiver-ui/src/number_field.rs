@@ -270,6 +270,7 @@ impl RenderOnce for NumberField {
             .rounded(px(Radius::MD))
             .border_1()
             .border_color(p.input)
+            .bg(p.background)
             .shadow(shadow_xs(black().opacity(0.05)))
             .child(crate::edge::control_edge(&q, Radius::MD, 0.06))
             .when(self.disabled, |d| d.opacity(0.5))

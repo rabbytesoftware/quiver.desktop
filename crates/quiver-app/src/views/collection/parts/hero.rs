@@ -9,22 +9,115 @@ use quiver_state::tile::hue_for;
 use quiver_ui::inspect::{probe, Kind};
 use quiver_ui::{
     icon, ActiveQuiver, Badge, BadgeSize, BadgeVariant, Button, ButtonSize, ButtonVariant, Glyph,
+    TrackedText,
 };
 
 use crate::bridge::spawn_action;
 use crate::views::collection::CollectionView;
 
-fn follow_button(
+const FOLLOW_INFO: &str = "Following keeps this collection under Collections. Unfollowing only removes it from that list; the arrows you installed from it stay in your library.";
+
+fn corners<S: Styled>(
+    mut el: S,
+    left: f32,
+    right: f32,
+) -> S {
+    let radii = &mut el.style().corner_radii;
+    radii.top_left = Some(px(left).into());
+    radii.bottom_left = Some(px(left).into());
+    radii.top_right = Some(px(right).into());
+    radii.bottom_right = Some(px(right).into());
+    el
+}
+
+fn follow_group(
     view: &CollectionView,
     hero: &HeroModel,
     cx: &mut Context<CollectionView>,
 ) -> impl IntoElement {
     let p = cx.quiver().palette;
+    let tip = view
+        .app
+        .read(cx)
+        .t(quiver_state::i18n::en::arrow::ACTION_INFO);
+    let outline = hero.follow.outline;
+    let fg = if outline {
+        p.foreground
+    } else {
+        p.primary_foreground
+    };
+    let variant = if outline {
+        ButtonVariant::Outline
+    } else {
+        ButtonVariant::Default
+    };
+    let info = Button::new("collection-follow-info")
+        .variant(variant)
+        .size(ButtonSize::Xl)
+        .w(px(35.))
+        .px(px(0.))
+        .border_l_0()
+        .pressed(view.info_open)
+        .tooltip(quiver_ui::tooltip(tip.clone()))
+        .child(icon(Glyph::Info, 17., fg))
+        .on_click(cx.listener(|this, _, _, cx| {
+            this.info_open = !this.info_open;
+            cx.notify();
+        }))
+        .child(probe("collection.follow.info", Kind::Button, tip, true, ""));
+    div()
+        .relative()
+        .flex()
+        .child(corners(follow_button(view, hero, cx), 11., 0.))
+        .child(corners(info, 0., 11.))
+        .when(view.info_open, |d| {
+            d.child(
+                quiver_ui::layer(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .top(px(48.))
+                        .w(px(300.))
+                        .p(px(14.))
+                        .rounded(px(12.))
+                        .bg(p.popover)
+                        .text_color(p.popover_foreground)
+                        .text_size(px(12.5))
+                        .line_height(px(18.))
+                        .border_1()
+                        .border_color(p.border)
+                        .shadow(vec![gpui::BoxShadow {
+                            color: gpui::black().opacity(0.18),
+                            offset: gpui::point(px(0.), px(8.)),
+                            blur_radius: px(28.),
+                            spread_radius: px(0.),
+                        }])
+                        .child(FOLLOW_INFO)
+                        .child(probe(
+                            "collection.follow.popover",
+                            Kind::Other,
+                            "Info",
+                            true,
+                            "",
+                        )),
+                )
+                .with_priority(2),
+            )
+        })
+}
+
+fn follow_button(
+    view: &CollectionView,
+    hero: &HeroModel,
+    cx: &mut Context<CollectionView>,
+) -> Button {
+    let p = cx.quiver().palette;
     let label = view.app.read(cx).t(hero.follow.label);
     let was_followed = hero.follow.checked;
     let ns = view.id.clone();
     let mut button = Button::new("collection-follow")
-        .size(ButtonSize::Lg)
+        .size(ButtonSize::Xl)
+        .text_size(px(15.))
         .disabled(!hero.follow.enabled)
         .variant(if hero.follow.outline {
             ButtonVariant::Outline
@@ -118,7 +211,19 @@ pub fn hero(
                 .text_size(px(16.))
                 .font_weight(FontWeight::BOLD)
                 .text_color(gpui::white())
-                .child(initials),
+                .child(initials)
+                // Old `ArrowIcon`: `media.icon`, the monogram while it loads or if it cannot.
+                .relative()
+                .children(
+                    detail
+                        .media
+                        .icon
+                        .clone()
+                        .filter(|i| !i.is_empty())
+                        .map(|url| {
+                            quiver_ui::photo(url.into(), gpui::ObjectFit::Cover).rounded(px(10.))
+                        }),
+                ),
         )
         .child(
             div()
@@ -126,11 +231,8 @@ pub fn hero(
                 .flex_col()
                 .gap(px(3.))
                 .child(
-                    div()
-                        .text_size(px(17.))
-                        .line_height(px(22.))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .child(detail.item.name.clone()),
+                    TrackedText::new(detail.item.name.clone(), 17., 22., -0.2, p.foreground)
+                        .weight(FontWeight::SEMIBOLD),
                 )
                 .child(
                     div()
@@ -188,13 +290,19 @@ pub fn hero(
             div()
                 .mt(px(4.))
                 .flex()
-                .child(follow_button(view, &model, cx)),
+                .child(follow_group(view, &model, cx)),
         );
+    // Old `collection-banner`: the image as a cover background; the drawn block under it until it loads.
     let banner = detail
         .media
         .banner
-        .is_some()
-        .then(|| quiver_ui::banner_block(hue_for(&detail.item.namespace), 440.).h(px(218.)));
+        .clone()
+        .filter(|b| !b.is_empty())
+        .map(|url| {
+            quiver_ui::banner_block(hue_for(&detail.item.namespace), 440.)
+                .h(px(218.))
+                .child(quiver_ui::photo(url.into(), gpui::ObjectFit::Cover).rounded(px(12.)))
+        });
     div()
         .flex()
         .justify_between()

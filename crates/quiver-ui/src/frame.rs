@@ -17,7 +17,8 @@ part!(
 part!(
     /// `rounded-xl border bg-card p-5 shadow-xs`. Use [`FramePanel::table`] for the `has-[table]` look.
     FramePanel,
-    |p, d| d
+    |p, d, q| d
+        .child(crate::edge::control_edge(&q, Radius::XL, 0.08))
         .relative()
         .rounded(px(Radius::XL))
         .border_1()

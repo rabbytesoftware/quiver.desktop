@@ -32,10 +32,10 @@ impl Page {
                 platform: &platform,
                 // The native side knows its own platform: no user-agent guess to wait out.
                 platform_resolved: true,
-                has_channels: false,
-                channels_loading: false,
+                has_channels: !detail.channels.is_empty(),
+                channels_loading: view.load.read(|l| l.channels_loading),
                 last_run: last_run_facts(detail),
-                switching: false,
+                switching: view.switch_pending,
                 selector: &detail.selector,
             },
         );

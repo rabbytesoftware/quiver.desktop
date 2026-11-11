@@ -148,11 +148,18 @@ impl ArrowDetailsView {
             return;
         }
         let model = self.app.read(cx);
+        let identity = match self.selection.selector() {
+            Some(selector) if !detail.user_installed => {
+                quiver_state::namespace::with_selector(&detail.namespace, &selector)
+            }
+            _ => detail.namespace.clone(),
+        };
+        let moved = identity != detail.namespace;
         let job = Job {
             kind,
             mutations: Mutations::new(model.services.api.clone(), model.services.queries.clone()),
             release: model.services.release.clone(),
-            namespace: detail.namespace.clone(),
+            namespace: identity.clone(),
             user_installed: detail.user_installed,
             variables,
             resolved_ref: detail.resolved_ref.clone(),
@@ -161,7 +168,19 @@ impl ArrowDetailsView {
         let handle = model.handle().clone();
         cx.notify();
         spawn_action(cx, &handle, perform(job), move |this, done, cx| {
+            let ok = matches!(done, Done::Ok(_));
             this.settle(kind, done, cx);
+            if ok && moved {
+                let app = this.app.clone();
+                app.update(cx, |m, cx| {
+                    m.navigate(
+                        crate::model::Route::Arrow {
+                            namespace: identity.clone(),
+                        },
+                        cx,
+                    )
+                });
+            }
         });
     }
 

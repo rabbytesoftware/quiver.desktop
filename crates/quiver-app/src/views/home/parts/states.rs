@@ -5,7 +5,7 @@ use gpui::{div, px, Context, FontWeight, IntoElement};
 use quiver_state::i18n::en::{app, home as keys, sidebar};
 use quiver_state::queries::keys::home_key;
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::{ActiveQuiver, Button, ButtonVariant};
+use quiver_ui::{ActiveQuiver, Button, ButtonVariant, TrackedText};
 
 use crate::model::Route;
 use crate::views::home::HomeView;
@@ -26,10 +26,9 @@ fn notice(
         .gap(px(8.))
         .py(px(96.))
         .child(
-            div()
-                .text_size(px(18.))
-                .font_weight(FontWeight::SEMIBOLD)
-                .child(title),
+            // Old empty-home title: semibold, tracking -0.2px (line box kept at the default 1.618).
+            TrackedText::new(title, 18., 18. * 1.618, -0.2, p.foreground)
+                .weight(FontWeight::SEMIBOLD),
         )
         .child(
             div()

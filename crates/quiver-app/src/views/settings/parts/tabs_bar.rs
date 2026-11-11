@@ -21,47 +21,45 @@ pub fn tabs_bar(
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
     let p = cx.quiver().palette;
-    let tabs = visible_tabs(cfg!(debug_assertions))
-        .into_iter()
-        .map(|item| {
-            let selected = item.id == view.tab;
-            let label = view.app.read(cx).t(item.label);
-            let this = cx.entity();
-            let tab = item.id;
-            div()
-                .id(gpui::SharedString::from(format!(
-                    "settings-tab-{}",
-                    tab_name(tab)
-                )))
-                .relative()
-                .flex()
-                .items_center()
-                .justify_center()
-                .h(px(30.))
-                .px(px(16.))
-                .rounded(px(9.))
-                .text_size(px(14.))
-                .font_weight(FontWeight::MEDIUM)
-                .cursor_pointer()
-                .when(selected, |d| {
-                    d.bg(p.primary).text_color(p.primary_foreground)
-                })
-                .when(!selected, |d| d.text_color(p.foreground_subtle))
-                .on_click(move |_, _, cx| this.update(cx, |v, cx| v.set_tab(tab, cx)))
-                .child(label.clone())
-                .child(probe(
-                    format!("settings.tab.{}", tab_name(tab)),
-                    Kind::Tab,
-                    label,
-                    true,
-                    if selected { "selected" } else { "" },
-                ))
-        });
+    let tabs = visible_tabs().into_iter().map(|item| {
+        let selected = item.id == view.tab;
+        let label = view.app.read(cx).t(item.label);
+        let this = cx.entity();
+        let tab = item.id;
+        div()
+            .id(gpui::SharedString::from(format!(
+                "settings-tab-{}",
+                tab_name(tab)
+            )))
+            .relative()
+            .flex()
+            .items_center()
+            .justify_center()
+            .h(px(32.))
+            .px(px(10.))
+            .rounded(px(8.))
+            .text_size(px(14.))
+            .font_weight(FontWeight::MEDIUM)
+            .cursor_pointer()
+            .when(selected, |d| {
+                d.bg(p.primary).text_color(p.primary_foreground)
+            })
+            .when(!selected, |d| d.text_color(p.foreground_subtle))
+            .on_click(move |_, _, cx| this.update(cx, |v, cx| v.set_tab(tab, cx)))
+            .child(label.clone())
+            .child(probe(
+                format!("settings.tab.{}", tab_name(tab)),
+                Kind::Tab,
+                label,
+                true,
+                if selected { "selected" } else { "" },
+            ))
+    });
     div()
         .flex_none()
         .flex()
         .items_center()
-        .h(px(44.))
+        .h(px(45.))
         .pl(px(12.))
         .border_b_1()
         .border_color(p.border)
@@ -72,7 +70,7 @@ pub fn tabs_bar(
                 .gap(px(2.))
                 .p(px(2.))
                 .h(px(36.))
-                .rounded(px(11.))
+                .rounded(px(10.))
                 .bg(p.muted)
                 .children(tabs),
         )

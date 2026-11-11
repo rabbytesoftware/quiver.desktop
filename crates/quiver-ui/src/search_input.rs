@@ -7,7 +7,7 @@ use gpui::{black, div, px, App, CursorStyle, ElementId, Entity, Window};
 use gpui_component::input::Input as Editor;
 
 use crate::elevation::shadow_xs;
-use crate::icon::{icon, Glyph};
+use crate::icon::{icon, icon_with_stroke, Glyph};
 use crate::input::InputState;
 use crate::inspect::{probe, Kind};
 use crate::theme::ActiveQuiver;
@@ -81,7 +81,7 @@ impl RenderOnce for SearchInput {
             .relative()
             .flex()
             .items_center()
-            .gap(px(7.))
+            .gap(px(8.))
             .h(px(34.))
             .w_full()
             .pl(px(10.))
@@ -96,13 +96,19 @@ impl RenderOnce for SearchInput {
             .bg(p.background)
             .text_color(p.foreground)
             .shadow(shadow_xs(black().opacity(0.05)))
-            .child(icon(Glyph::Search, 15., p.muted_foreground))
+            .child(icon_with_stroke(
+                Glyph::SearchField,
+                13.,
+                p.muted_foreground,
+                1.68,
+            ))
             .child(
                 div().flex_1().min_w_0().child(
                     Editor::new(&self.state)
                         .appearance(false)
                         .bordered(false)
                         .focus_bordered(false)
+                        .px_0()
                         .text_size(px(13.)),
                 ),
             )

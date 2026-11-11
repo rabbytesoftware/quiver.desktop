@@ -68,12 +68,17 @@ impl Render for ArrowPageView {
                 self.namespace.clone(),
                 self.details.clone(),
             );
+            // Shown in the pane's Details dialog: the page takes the dialog's inner corner.
+            details.update(cx, |d, _| {
+                d.corner = Some(quiver_theme::Radius::XXL - 1.);
+            });
             self.app_view
                 .get_or_insert_with(|| cx.new(|cx| ArrowAppView::new(app, namespace, details, cx)))
                 .clone()
                 .into_any_element()
         } else {
             self.app_view = None;
+            self.details.update(cx, |d, _| d.corner = None);
             self.details.clone().into_any_element()
         };
         div().size_full().child(page)

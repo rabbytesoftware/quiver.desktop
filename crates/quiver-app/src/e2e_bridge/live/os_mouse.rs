@@ -87,6 +87,21 @@ pub fn click(
     xdotool(&["click", "--repeat", repeat, "--delay", "20", "1"]).map(drop)
 }
 
+pub fn right_click(
+    x: f32,
+    y: f32,
+) -> Result<(), String> {
+    move_to(x, y)?;
+    xdotool(&["click", "3"]).map(drop)
+}
+
+/// X11 keysyms (`"Down Return"`), each pressed and released in turn, to whichever window has the keyboard.
+pub fn key(keys: &str) -> Result<(), String> {
+    let mut args = vec!["key", "--delay", "80"];
+    args.extend(keys.split_whitespace());
+    xdotool(&args).map(drop)
+}
+
 /// Wheel notches: X11 buttons 4/5 are up/down, 6/7 left/right. One notch is about 40 logical pixels.
 pub fn scroll(
     x: f32,

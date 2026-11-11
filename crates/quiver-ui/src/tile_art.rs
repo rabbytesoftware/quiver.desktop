@@ -4,12 +4,14 @@
 
 use gpui::prelude::*;
 use gpui::{
-    div, hsla, linear_color_stop, linear_gradient, px, white, App, FontWeight, SharedString,
+    div, hsla, img, linear_color_stop, linear_gradient, px, white, App, FontWeight, ObjectFit,
+    SharedString,
 };
 use quiver_theme::FontFamily;
 
 use crate::icon::{icon_with_stroke, Glyph};
 use crate::theme::ActiveQuiver;
+use crate::tracked::TrackedText;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TileArtKind {
@@ -36,6 +38,7 @@ fn hue(
 pub(crate) fn art_children(
     kind: &TileArtKind,
     w: f32,
+    icon: Option<&SharedString>,
     cx: &App,
 ) -> Vec<gpui::AnyElement> {
     match kind {
@@ -45,7 +48,7 @@ pub(crate) fn art_children(
             name,
             publisher,
             hue: h,
-        } => drawn(initial, name, publisher, *h, w, cx),
+        } => drawn(initial, name, publisher, *h, w, icon, cx),
     }
 }
 
@@ -83,7 +86,9 @@ fn banner(
 ) -> Vec<gpui::AnyElement> {
     let mut out = Vec::new();
     let period = w * 0.1;
-    let mut x = 0.0;
+    // From the first period on: a stripe at x = 0 would run down the rounded left edge, which GPUI's
+    // rectangular clip does not cut, and square both left corners off.
+    let mut x = period;
     while x < w {
         out.push(
             div()
@@ -97,15 +102,15 @@ fn banner(
         );
         x += period;
     }
+    // The disc past the top-right corner, cut by the art's rounded corner (`clipped_disc`).
+    let r = w * 0.4333 / 2.;
     out.push(
-        div()
-            .absolute()
-            .rounded_full()
-            .size(px(w * 0.4333))
-            .left(px(w * 0.5833))
-            .top(px(-w * 0.1167))
-            .bg(hue(h, 0.46, 0.23 + lift(h)))
-            .into_any_element(),
+        crate::clipped_disc::clipped_disc(
+            (w * 0.5833 + r, -w * 0.1167 + r, r),
+            (w, w / 2.0, 12.),
+            hue(h, 0.46, 0.23 + lift(h)),
+        )
+        .into_any_element(),
     );
     let glyph = w * 0.4267;
     out.push(
@@ -119,12 +124,53 @@ fn banner(
     out
 }
 
+/// The arrow's mark: its hue's gradient square with the Quiver glyph, `size` wide (the drawn tile's icon, the
+/// strip under a lifted tile).
+pub(crate) fn mark(
+    h: u16,
+    size: f32,
+    image: Option<&SharedString>,
+) -> gpui::Div {
+    div()
+        .relative()
+        .flex_none()
+        .size(px(size))
+        .rounded(px(size * 0.24))
+        .flex()
+        .items_center()
+        .justify_center()
+        .bg(linear_gradient(
+            180.,
+            linear_color_stop(hue(h, 0.52, 0.38 + lift(h)), 0.),
+            linear_color_stop(hue(h, 0.48, 0.30 + lift(h)), 1.),
+        ))
+        .child(icon_with_stroke(Glyph::Mark, size * 0.6, white(), 1.9))
+        // The arrow's own icon over the drawn mark (old `drawn-mark`: `background-size: cover`); while it loads,
+        // or if it cannot, the drawn mark is what shows.
+        .children(image.map(|url| photo(url.clone(), ObjectFit::Cover).rounded(px(size * 0.24))))
+}
+
+/// A remote image filling its (relatively positioned) parent, as the old CSS backgrounds did: under it,
+/// whatever the parent draws stays the stand-in until it has loaded, and for good if it fails.
+pub fn photo(
+    url: SharedString,
+    fit: ObjectFit,
+) -> gpui::Img {
+    img(url)
+        .absolute()
+        .top_0()
+        .left_0()
+        .size_full()
+        .object_fit(fit)
+}
+
 fn drawn(
     initial: &SharedString,
     name: &SharedString,
     publisher: &SharedString,
     h: u16,
     w: f32,
+    image: Option<&SharedString>,
     cx: &App,
 ) -> Vec<gpui::AnyElement> {
     let p = cx.quiver().palette;
@@ -139,21 +185,7 @@ fn drawn(
         .font_weight(FontWeight::EXTRA_BOLD)
         .text_color(p.foreground.opacity(0.048))
         .child(initial.clone());
-    let mark = div()
-        .absolute()
-        .left(px(pad))
-        .top(px(pad))
-        .size(px(icon))
-        .rounded(px(icon * 0.24))
-        .flex()
-        .items_center()
-        .justify_center()
-        .bg(linear_gradient(
-            180.,
-            linear_color_stop(hue(h, 0.52, 0.38 + lift(h)), 0.),
-            linear_color_stop(hue(h, 0.48, 0.30 + lift(h)), 1.),
-        ))
-        .child(icon_with_stroke(Glyph::Mark, icon * 0.6, white(), 1.9));
+    let mark = mark(h, icon, image).absolute().left(px(pad)).top(px(pad));
     let title = div()
         .absolute()
         .left(px(pad))
@@ -162,24 +194,26 @@ fn drawn(
         .flex()
         .flex_col()
         .child(
-            div()
-                .text_size(px(w * 0.086))
-                .line_height(px(w * 0.086 * 1.15))
-                .font_weight(FontWeight::SEMIBOLD)
-                .text_color(p.foreground.opacity(0.88))
-                .truncate()
-                .child(name.clone()),
+            TrackedText::new(
+                name.clone(),
+                w * 0.086,
+                w * 0.086 * 1.15,
+                -0.03 * w * 0.086,
+                p.foreground.opacity(0.88),
+            )
+            .weight(FontWeight::SEMIBOLD),
         )
         .child(
-            div()
-                .mt(px(w * 0.013))
-                .min_h(px(w * 0.05))
-                .font_family(FontFamily::Mono.family())
-                .text_size(px(w * 0.0405))
-                .line_height(px(w * 0.0405 * 1.2))
-                .text_color(p.foreground.opacity(0.33))
-                .truncate()
-                .child(publisher.to_uppercase()),
+            div().mt(px(w * 0.013)).min_h(px(w * 0.05)).child(
+                TrackedText::new(
+                    publisher.to_uppercase(),
+                    w * 0.0405,
+                    w * 0.0405 * 1.2,
+                    0.05 * w * 0.0405,
+                    p.foreground.opacity(0.33),
+                )
+                .family(FontFamily::Mono.family()),
+            ),
         );
     vec![
         letter.into_any_element(),

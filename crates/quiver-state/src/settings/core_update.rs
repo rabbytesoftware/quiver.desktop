@@ -93,7 +93,25 @@ pub struct CoreUpdateInput<'a> {
     pub problem: Option<&'a ArrowProblem>,
 }
 
+/// `stable-26.5.91` and `v26.5.91` (or a tag that ends the resolved ref) name the same release.
+fn same_release(
+    available: &str,
+    resolved: &str,
+) -> bool {
+    let bare = |s: &str| {
+        let s = s.trim();
+        let s = s.rsplit_once('@').map_or(s, |(_, r)| r);
+        s.trim_start_matches(|c: char| !c.is_ascii_digit())
+            .to_owned()
+    };
+    !resolved.is_empty() && (available == resolved || bare(available) == bare(resolved))
+}
+
 pub fn build_core_update(input: &CoreUpdateInput<'_>) -> CoreUpdateRows {
+    // A release the daemon already runs (it just swapped to it) is not an update.
+    let available_ref = input
+        .available_ref
+        .filter(|a| !same_release(a, input.resolved_ref));
     let updating = input.state == RunState::Updating || input.update_pending;
     let failure = input.update_error.or(input.recheck_error);
     let failed_run = match input.problem {
@@ -113,12 +131,12 @@ pub fn build_core_update(input: &CoreUpdateInput<'_>) -> CoreUpdateRows {
     };
     CoreUpdateRows {
         installed: (!input.resolved_ref.is_empty()).then(|| input.resolved_ref.to_owned()),
-        available: input.available_ref.map(str::to_owned),
+        available: available_ref.map(str::to_owned),
         note,
         show_retry: failure.is_some_and(is_retryable),
         retry_is_update: input.update_error.is_some(),
         check_enabled: !(updating || input.recheck_pending),
-        show_update: input.available_ref.is_some(),
+        show_update: available_ref.is_some(),
         update_enabled: !updating,
     }
 }
@@ -182,6 +200,12 @@ mod tests {
         };
         let rows = build_core_update(&ahead);
         assert!(rows.show_update && rows.update_enabled);
+        let swapped = CoreUpdateInput {
+            available_ref: Some("stable-26.5"),
+            ..input()
+        };
+        let rows = build_core_update(&swapped);
+        assert!(!rows.show_update && rows.available.is_none());
     }
 
     #[test]

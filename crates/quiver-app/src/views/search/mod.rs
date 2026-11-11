@@ -26,6 +26,8 @@ pub struct SearchView {
     pub(super) session: Arc<SearchSession>,
     pub(super) sort: SortKey,
     pub(super) selection: Selection,
+    pub(super) inspector_open: bool,
+    pub(super) running_settings: Option<Vec<(String, String)>>,
 }
 
 impl SearchView {
@@ -59,6 +61,8 @@ impl SearchView {
             session,
             sort: DEFAULT_SORT,
             selection: Selection::default(),
+            inspector_open: false,
+            running_settings: None,
         }
     }
 }
@@ -99,12 +103,20 @@ impl Render for SearchView {
                 cx,
             )
             .into_any_element()
-        } else if model.total == 0 {
+        } else if model.total == 0 && model.discovering {
+            // Placeholders only while the network is being asked (the old grid's rule): before that, the
+            // header's count is all there is to say.
             skeleton("search", 4, width, cx).into_any_element()
+        } else if model.total == 0 {
+            div().into_any_element()
         } else {
             parts::shelves(self, &model, width, cx).into_any_element()
         };
         let facets = parts::facet_row(self, &model.answer, cx);
+        let header = model
+            .show_header
+            .then(|| parts::header(self, &model, facets, cx));
+        let inspector = parts::inspector(self, cx);
         div()
             .id("search")
             .relative()
@@ -117,12 +129,10 @@ impl Render for SearchView {
                     .flex()
                     .flex_col()
                     .pt(px(8.))
-                    .when(model.show_header, |d| {
-                        d.child(parts::header(self, &model, cx))
-                    })
-                    .children(facets)
+                    .children(header)
                     .child(body),
             ))
+            .children(inspector)
             .child(screen_probe("search"))
     }
 }

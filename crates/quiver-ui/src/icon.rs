@@ -1,10 +1,17 @@
-//! The few Lucide glyphs the components need, painted as stroked paths (GPUI draws no SVG without assets).
+//! The glyphs the components need: Lucide (24 box, stroked) and Phosphor (256 box, filled), drawn from the
+//! same path data the old app's icon packages ship (GPUI draws no SVG without assets, so they are tessellated).
 
 use gpui::prelude::*;
-use gpui::{canvas, point, px, App, Bounds, Hsla, IntoElement, Pixels, Window};
-use gpui::{PathBuilder, Point};
+use gpui::StrokeOptions;
+use gpui::{
+    canvas, px, App, Bounds, FillOptions, FillRule, Hsla, IntoElement, PathBuilder, PathStyle,
+    Pixels, Window,
+};
+use lyon_tessellation::{LineCap, LineJoin};
 
 use crate::error::{Error, Result};
+use crate::icon_paths as paths;
+use crate::svg_path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Glyph {
@@ -15,139 +22,245 @@ pub enum Glyph {
     Close,
     Search,
     Home,
+    HomeFill,
     Server,
+    ServerFill,
     Settings,
+    SettingsFill,
     Play,
     Terminal,
     ArrowLeft,
     ArrowRight,
     Ellipsis,
+    EllipsisVertical,
+    Plus,
+    Globe,
+    TriangleAlert,
+    ArrowRightLeft,
+    Pencil,
+    Trash,
+    Info,
+    RefreshCw,
+    Square,
+    Sparkles,
+    Monitor,
+    Code,
+    Eye,
+    EyeOff,
+    Cpu,
+    HardDrive,
+    Link,
+    MemoryStick,
+    ArrowUp,
+    Circle,
+    Package,
+    Radio,
+    Box,
+    CircleHelp,
+    Download,
+    ExternalLink,
+    List,
+    PackageOpen,
+    Usb,
+    Loader,
+    PhArrowLeft,
+    PhArrowCounterClockwise,
+    PhMagnifyingGlass,
+    PhPackage,
+    /// The search bar's own 13px magnifier (13 box, stroke 1.68).
+    SearchField,
+    /// The old search card's 5-point star (its stars count), filled.
+    Star,
     /// The Quiver arrow mark (an up chevron over a dot), as on the tile art.
     Mark,
     /// The same mark with the proportions of the arrow icon (a 512 box: chevron 144..368, dot at 392).
     ArrowIcon,
 }
 
-/// Points of a circle in the 24x24 view box.
-fn circle(
-    cx: f32,
-    cy: f32,
-    r: f32,
-) -> Vec<(f32, f32)> {
-    (0..=24)
-        .map(|i| {
-            let a = i as f32 / 24.0 * std::f32::consts::TAU;
-            (cx + r * a.cos(), cy + r * a.sin())
-        })
-        .collect()
+impl Glyph {
+    /// Every glyph, for the gallery.
+    pub const ALL: &[Glyph] = &[
+        Glyph::Check,
+        Glyph::ChevronDown,
+        Glyph::ChevronUp,
+        Glyph::ChevronsUpDown,
+        Glyph::Close,
+        Glyph::Search,
+        Glyph::Home,
+        Glyph::HomeFill,
+        Glyph::Server,
+        Glyph::ServerFill,
+        Glyph::Settings,
+        Glyph::SettingsFill,
+        Glyph::Play,
+        Glyph::Terminal,
+        Glyph::ArrowLeft,
+        Glyph::ArrowRight,
+        Glyph::Ellipsis,
+        Glyph::EllipsisVertical,
+        Glyph::Plus,
+        Glyph::Globe,
+        Glyph::TriangleAlert,
+        Glyph::ArrowRightLeft,
+        Glyph::Pencil,
+        Glyph::Trash,
+        Glyph::Info,
+        Glyph::RefreshCw,
+        Glyph::Square,
+        Glyph::Sparkles,
+        Glyph::Monitor,
+        Glyph::Code,
+        Glyph::Eye,
+        Glyph::EyeOff,
+        Glyph::Cpu,
+        Glyph::HardDrive,
+        Glyph::Link,
+        Glyph::MemoryStick,
+        Glyph::ArrowUp,
+        Glyph::Circle,
+        Glyph::Package,
+        Glyph::Radio,
+        Glyph::Box,
+        Glyph::CircleHelp,
+        Glyph::Download,
+        Glyph::ExternalLink,
+        Glyph::List,
+        Glyph::PackageOpen,
+        Glyph::Usb,
+        Glyph::Loader,
+        Glyph::PhArrowLeft,
+        Glyph::PhArrowCounterClockwise,
+        Glyph::PhMagnifyingGlass,
+        Glyph::PhPackage,
+        Glyph::SearchField,
+        Glyph::Star,
+        Glyph::Mark,
+        Glyph::ArrowIcon,
+    ];
 }
 
-/// A closed 8-tooth cog outline around (12, 12).
-fn cog() -> Vec<(f32, f32)> {
-    let mut pts = Vec::new();
-    for tooth in 0..8 {
-        let a = tooth as f32 * std::f32::consts::TAU / 8.0;
-        for (da, r) in [(-12.0_f32, 7.4), (-8.0, 9.8), (8.0, 9.8), (12.0, 7.4)] {
-            let t = a + da.to_radians();
-            pts.push((12.0 + r * t.cos(), 12.0 + r * t.sin()));
-        }
-    }
-    pts.push(pts[0]);
-    pts
+#[derive(Clone, Copy)]
+enum Paint {
+    Stroke,
+    Fill,
+    Stroke13,
 }
 
-/// Polylines in Lucide's 24x24 view box.
-fn strokes(glyph: Glyph) -> Vec<Vec<(f32, f32)>> {
+const SEARCH_FIELD: &[&str] = &[
+    "M9.48 5.35a4.13 4.13 0 1 0-8.26 0a4.13 4.13 0 1 0 8.26 0Z",
+    "M8.56 8.56l3.37 3.37",
+];
+/// `M6 1l1.4 3.1 …` of the old card's 12px star, scaled to the 256 box of the filled glyphs.
+const STAR: &[&str] = &["M128 21.33l29.87 66.13 72.53 8.53 -53.33 49.07 14.93 70.4L128 181.33 64 215.47l14.93 -70.4L25.6 96l72.53 -8.53z"];
+const MARK: &[&str] = &[
+    "M5.5 15.2L12 4.5L18.5 15.2",
+    "M11.3 19.6a.7.7 0 1 0 1.4 0a.7.7 0 1 0-1.4 0Z",
+];
+const ARROW_ICON: &[&str] = &[
+    "M6.75 17.25L12 7.125L17.25 17.25",
+    "M11.2 18.375a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0Z",
+];
+
+fn shape(glyph: Glyph) -> (Paint, &'static [&'static str]) {
     match glyph {
-        Glyph::Check => vec![vec![(5.252, 12.7), (10.2, 18.63), (18.748, 5.37)]],
-        Glyph::ChevronDown => vec![vec![(6.0, 9.0), (12.0, 15.0), (18.0, 9.0)]],
-        Glyph::ChevronUp => vec![vec![(18.0, 15.0), (12.0, 9.0), (6.0, 15.0)]],
-        Glyph::ChevronsUpDown => vec![
-            vec![(7.0, 15.0), (12.0, 20.0), (17.0, 15.0)],
-            vec![(7.0, 9.0), (12.0, 4.0), (17.0, 9.0)],
-        ],
-        Glyph::Close => vec![
-            vec![(18.0, 6.0), (6.0, 18.0)],
-            vec![(6.0, 6.0), (18.0, 18.0)],
-        ],
-        Glyph::Search => vec![circle(10.5, 10.5, 7.0), vec![(15.6, 15.6), (21.0, 21.0)]],
-        Glyph::Home => vec![
-            vec![(3.0, 11.0), (12.0, 3.0), (21.0, 11.0)],
-            vec![
-                (5.0, 10.0),
-                (5.0, 20.0),
-                (10.0, 20.0),
-                (10.0, 14.0),
-                (14.0, 14.0),
-                (14.0, 20.0),
-                (19.0, 20.0),
-                (19.0, 10.0),
-            ],
-        ],
-        Glyph::Server => vec![
-            vec![
-                (4.0, 4.0),
-                (20.0, 4.0),
-                (20.0, 11.0),
-                (4.0, 11.0),
-                (4.0, 4.0),
-            ],
-            vec![
-                (4.0, 13.0),
-                (20.0, 13.0),
-                (20.0, 20.0),
-                (4.0, 20.0),
-                (4.0, 13.0),
-            ],
-            circle(8.0, 7.5, 0.7),
-            circle(8.0, 16.5, 0.7),
-        ],
-        Glyph::Settings => vec![cog(), circle(12.0, 12.0, 3.0)],
-        Glyph::Play => vec![vec![(7.0, 4.5), (19.0, 12.0), (7.0, 19.5), (7.0, 4.5)]],
-        Glyph::Terminal => vec![
-            vec![(4.0, 17.0), (10.0, 11.0), (4.0, 5.0)],
-            vec![(12.0, 19.0), (20.0, 19.0)],
-        ],
-        Glyph::ArrowLeft => vec![
-            vec![(11.0, 6.0), (5.0, 12.0), (11.0, 18.0)],
-            vec![(5.0, 12.0), (19.0, 12.0)],
-        ],
-        Glyph::ArrowRight => vec![
-            vec![(13.0, 6.0), (19.0, 12.0), (13.0, 18.0)],
-            vec![(19.0, 12.0), (5.0, 12.0)],
-        ],
-        Glyph::Ellipsis => vec![
-            circle(5.0, 12.0, 0.7),
-            circle(12.0, 12.0, 0.7),
-            circle(19.0, 12.0, 0.7),
-        ],
-        Glyph::ArrowIcon => vec![
-            vec![(6.75, 17.25), (12.0, 7.125), (17.25, 17.25)],
-            circle(12.0, 18.375, 0.8),
-        ],
-        Glyph::Mark => vec![
-            vec![(5.5, 15.2), (12.0, 4.5), (18.5, 15.2)],
-            circle(12.0, 19.6, 0.7),
-        ],
+        Glyph::Check => (Paint::Stroke, paths::CHECK),
+        Glyph::ChevronDown => (Paint::Stroke, paths::CHEVRONDOWN),
+        Glyph::ChevronUp => (Paint::Stroke, paths::CHEVRONUP),
+        Glyph::ChevronsUpDown => (Paint::Stroke, paths::CHEVRONSUPDOWN),
+        Glyph::Close => (Paint::Stroke, paths::CLOSE),
+        Glyph::Search => (Paint::Stroke, paths::SEARCH),
+        Glyph::Home => (Paint::Fill, paths::HOME),
+        Glyph::HomeFill => (Paint::Fill, paths::HOMEFILL),
+        Glyph::Server => (Paint::Fill, paths::SERVER),
+        Glyph::ServerFill => (Paint::Fill, paths::SERVERFILL),
+        Glyph::Settings => (Paint::Fill, paths::SETTINGS),
+        Glyph::SettingsFill => (Paint::Fill, paths::SETTINGSFILL),
+        Glyph::Play => (Paint::Stroke, paths::PLAY),
+        Glyph::Terminal => (Paint::Stroke, paths::TERMINAL),
+        Glyph::ArrowLeft => (Paint::Stroke, paths::ARROWLEFT),
+        Glyph::ArrowRight => (Paint::Stroke, paths::ARROWRIGHT),
+        Glyph::Ellipsis => (Paint::Stroke, paths::ELLIPSIS),
+        Glyph::EllipsisVertical => (Paint::Stroke, paths::ELLIPSISVERTICAL),
+        Glyph::Plus => (Paint::Stroke, paths::PLUS),
+        Glyph::Globe => (Paint::Stroke, paths::GLOBE),
+        Glyph::TriangleAlert => (Paint::Stroke, paths::TRIANGLEALERT),
+        Glyph::ArrowRightLeft => (Paint::Stroke, paths::ARROWRIGHTLEFT),
+        Glyph::Pencil => (Paint::Stroke, paths::PENCIL),
+        Glyph::Trash => (Paint::Stroke, paths::TRASH),
+        Glyph::Info => (Paint::Stroke, paths::INFO),
+        Glyph::RefreshCw => (Paint::Stroke, paths::REFRESHCW),
+        Glyph::Square => (Paint::Stroke, paths::SQUARE),
+        Glyph::Sparkles => (Paint::Stroke, paths::SPARKLES),
+        Glyph::Monitor => (Paint::Stroke, paths::MONITOR),
+        Glyph::Code => (Paint::Stroke, paths::CODE),
+        Glyph::Eye => (Paint::Stroke, paths::EYE),
+        Glyph::EyeOff => (Paint::Stroke, paths::EYEOFF),
+        Glyph::Cpu => (Paint::Stroke, paths::CPU),
+        Glyph::HardDrive => (Paint::Stroke, paths::HARDDRIVE),
+        Glyph::Link => (Paint::Stroke, paths::LINK),
+        Glyph::MemoryStick => (Paint::Stroke, paths::MEMORYSTICK),
+        Glyph::ArrowUp => (Paint::Stroke, paths::ARROWUP),
+        Glyph::Circle => (Paint::Stroke, paths::CIRCLE),
+        Glyph::Package => (Paint::Stroke, paths::PACKAGE),
+        Glyph::Radio => (Paint::Stroke, paths::RADIO),
+        Glyph::Box => (Paint::Stroke, paths::BOX),
+        Glyph::CircleHelp => (Paint::Stroke, paths::CIRCLEHELP),
+        Glyph::Download => (Paint::Stroke, paths::DOWNLOAD),
+        Glyph::ExternalLink => (Paint::Stroke, paths::EXTERNALLINK),
+        Glyph::List => (Paint::Stroke, paths::LIST),
+        Glyph::PackageOpen => (Paint::Stroke, paths::PACKAGEOPEN),
+        Glyph::Usb => (Paint::Stroke, paths::USB),
+        Glyph::Loader => (Paint::Stroke, paths::LOADER),
+        Glyph::PhArrowLeft => (Paint::Fill, paths::PHARROWLEFT),
+        Glyph::PhArrowCounterClockwise => (Paint::Fill, paths::PHARROWCOUNTERCLOCKWISE),
+        Glyph::PhMagnifyingGlass => (Paint::Fill, paths::PHMAGNIFYINGGLASS),
+        Glyph::PhPackage => (Paint::Fill, paths::PHPACKAGE),
+        Glyph::SearchField => (Paint::Stroke13, SEARCH_FIELD),
+        Glyph::Star => (Paint::Fill, STAR),
+        Glyph::Mark => (Paint::Stroke, MARK),
+        Glyph::ArrowIcon => (Paint::Stroke, ARROW_ICON),
     }
 }
 
-fn paint_polyline(
+fn view_box(paint: Paint) -> f32 {
+    match paint {
+        Paint::Stroke => 24.0,
+        Paint::Fill => 256.0,
+        Paint::Stroke13 => 13.0,
+    }
+}
+
+/// A stroke builder with the round caps and joins every Lucide icon is drawn with.
+pub(crate) fn round_stroke(width: f32) -> PathBuilder {
+    PathBuilder::stroke(px(width)).with_style(PathStyle::Stroke(
+        StrokeOptions::default()
+            .with_line_width(width)
+            .with_line_cap(LineCap::Round)
+            .with_line_join(LineJoin::Round),
+    ))
+}
+
+fn paint_shape(
     window: &mut Window,
-    pts: &[Point<Pixels>],
-    width: f32,
+    bounds: Bounds<Pixels>,
+    glyph: Glyph,
+    size: f32,
+    stroke: f32,
     color: Hsla,
 ) -> Result<()> {
-    let mut b = PathBuilder::stroke(px(width));
-    let mut it = pts.iter();
-    if let Some(first) = it.next() {
-        b.move_to(*first);
+    let (paint, ds) = shape(glyph);
+    let k = size / view_box(paint);
+    for d in ds {
+        let mut b = match paint {
+            Paint::Stroke | Paint::Stroke13 => round_stroke(stroke * k),
+            Paint::Fill => PathBuilder::fill().with_style(PathStyle::Fill(
+                FillOptions::default().with_fill_rule(FillRule::NonZero),
+            )),
+        };
+        svg_path::append(&mut b, d, bounds.origin, k);
+        let path = b.build().map_err(|e| Error::Path(e.to_string()))?;
+        window.paint_path(path, color);
     }
-    for p in it {
-        b.line_to(*p);
-    }
-    let path = b.build().map_err(|e| Error::Path(e.to_string()))?;
-    window.paint_path(path, color);
     Ok(())
 }
 
@@ -160,7 +273,7 @@ pub fn icon(
     icon_with_stroke(glyph, size, color, 2.0)
 }
 
-/// [`icon`] with an explicit stroke width in the 24px view box.
+/// [`icon`] with an explicit stroke width in the 24px view box (ignored by the filled Phosphor glyphs).
 pub fn icon_with_stroke(
     glyph: Glyph,
     size: f32,
@@ -170,15 +283,8 @@ pub fn icon_with_stroke(
     canvas(
         |_, _, _| (),
         move |bounds: Bounds<Pixels>, _, window: &mut Window, _: &mut App| {
-            let k = size / 24.0;
-            for line in &strokes(glyph) {
-                let pts: Vec<Point<Pixels>> = line
-                    .iter()
-                    .map(|(x, y)| point(bounds.origin.x + px(x * k), bounds.origin.y + px(y * k)))
-                    .collect();
-                // A failed tessellation only drops one glyph for a frame; nothing to recover.
-                paint_polyline(window, &pts, stroke * k, color).ok();
-            }
+            // A failed tessellation only drops one glyph for a frame; nothing to recover.
+            paint_shape(window, bounds, glyph, size, stroke, color).ok();
         },
     )
     .size(px(size))

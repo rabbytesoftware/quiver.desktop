@@ -274,4 +274,80 @@ mod tests {
         assert!(!is_enabled(""));
         assert!(is_enabled("a"));
     }
+
+    /// Every arrow there is on the network (the `quiver-arrow` topic: crowbar and quiver.chat, plus Quiver's own
+    /// two), as quiver.core nightly-latest answered on 2026-11-11, through every read the arrow page makes.
+    /// Crowbar's page once said "Couldn't load this arrow.": core's methods carry no `name` (the map key is it).
+    #[tokio::test]
+    async fn every_real_arrow_loads_through_every_read_the_page_makes() {
+        fn fixture(file: &str) -> Option<serde_json::Value> {
+            let path = format!("{}/tests/fixtures/real/{file}", env!("CARGO_MANIFEST_DIR"));
+            let wrapped: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            (wrapped["ok"] == true).then(|| wrapped["data"].clone())
+        }
+        for (name, owner) in [
+            ("crowbar", "char2cs"),
+            ("quiver.chat", "rabbytesoftware"),
+            ("quiver.core", "rabbytesoftware"),
+            ("quiver.desktop", "rabbytesoftware"),
+        ] {
+            let namespace = format!("github.com/{owner}/{name}");
+            let seg = namespace_segment(&namespace);
+            let api = api();
+            for (read, suffix) in [
+                ("detail", ""),
+                ("manifest", "/manifest"),
+                ("readme", "/readme"),
+                ("channels", "/channels"),
+                ("dependencies", "/dependencies"),
+                ("dependents", "/dependents"),
+            ] {
+                let path = format!("/v0/arrow/{seg}{suffix}");
+                match fixture(&format!("{name}.{read}.json")) {
+                    Some(data) => api.route(Method::Get, &path, data),
+                    None => api.route_error(Method::Get, &path, 404, "not found"),
+                }
+            }
+            let detail = fetch_arrow_detail(&api, &namespace)
+                .await
+                .unwrap_or_else(|e| panic!("{namespace}: {e:?}"));
+            assert!(!detail.targets.is_empty(), "{namespace} has no targets");
+            for target in &detail.targets {
+                assert!(
+                    target.methods.iter().all(|m| !m.name.is_empty()),
+                    "{namespace} {}: an unnamed method",
+                    target.platform
+                );
+            }
+            fetch_readme(&api, &namespace)
+                .await
+                .unwrap_or_else(|e| panic!("{namespace} readme: {e:?}"));
+            fetch_channels(&api, &namespace)
+                .await
+                .unwrap_or_else(|e| panic!("{namespace} channels: {e:?}"));
+            fetch_dependencies(&api, &namespace)
+                .await
+                .unwrap_or_else(|e| panic!("{namespace} dependencies: {e:?}"));
+            fetch_dependents(&api, &namespace)
+                .await
+                .unwrap_or_else(|e| panic!("{namespace} dependents: {e:?}"));
+        }
+    }
+
+    #[test]
+    fn the_real_library_and_search_answers_decode() {
+        let read = |file: &str| -> serde_json::Value {
+            let path = format!("{}/tests/fixtures/real/{file}", env!("CARGO_MANIFEST_DIR"));
+            serde_json::from_str::<serde_json::Value>(&std::fs::read_to_string(path).unwrap())
+                .unwrap()["data"]
+                .clone()
+        };
+        let library: Vec<crate::dto::arrow::ArrowListResponseItemDto> =
+            serde_json::from_value(read("library.json")).unwrap();
+        assert!(!library.is_empty());
+        let search: Vec<crate::dto::search::SearchResultDto> =
+            serde_json::from_value(read("search.json")).unwrap();
+        assert!(search.iter().any(|r| r.namespace.contains("quiver")));
+    }
 }

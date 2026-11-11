@@ -14,9 +14,13 @@ use quiver_ui::{
 use crate::bridge::spawn_detached;
 use crate::views::arrow_app::ArrowAppView;
 
-fn hue(namespace: &str) -> f32 {
-    let sum: u32 = namespace.bytes().map(u32::from).sum();
-    (sum * 37 % 360) as f32 / 360.0
+/// The arrow's colour, as its sidebar row, tile and page draw it: hue, and the lightness lift.
+fn hue(namespace: &str) -> (f32, f32) {
+    let h = quiver_state::tile::hue_for(namespace);
+    (
+        f32::from(h % 360) / 360.0,
+        if h >= 360 { 0.09 } else { 0.0 },
+    )
 }
 
 fn menu(
@@ -91,8 +95,8 @@ pub fn header(
             m.t(arrowapp::STOP),
         )
     };
-    let h = hue(&view.namespace);
-    let tint = |s, l| hsla(h, s, l, 1.);
+    let (h, lift) = hue(&view.namespace);
+    let tint = |s, l: f32| hsla(h, s, l + lift, 1.);
     let status = if pane.ready { running } else { starting };
     let version = entry
         .as_ref()

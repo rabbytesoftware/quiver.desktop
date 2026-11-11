@@ -47,14 +47,27 @@ impl SourceLine {
         &self,
         tr: &Translator,
     ) -> String {
-        let searched = tr.t_count(design::SEARCH_SOURCES, self.sources);
-        if self.unavailable == 0 {
-            searched
-        } else {
-            let unavailable =
-                tr.t_with(design::SEARCH_UNAVAILABLE, &Params::count(self.unavailable));
-            format!("{searched} · {unavailable}")
+        match self.unavailable_part(tr) {
+            None => self.sources_part(tr),
+            Some(unavailable) => format!("{} · {unavailable}", self.sources_part(tr)),
         }
+    }
+
+    /// "Searched 2 sources": the pill's emphasised part (the old `font-medium text-foreground` span).
+    pub fn sources_part(
+        &self,
+        tr: &Translator,
+    ) -> String {
+        tr.t_count(design::SEARCH_SOURCES, self.sources)
+    }
+
+    /// "1 unavailable", only when a source refused.
+    pub fn unavailable_part(
+        &self,
+        tr: &Translator,
+    ) -> Option<String> {
+        (self.unavailable > 0)
+            .then(|| tr.t_with(design::SEARCH_UNAVAILABLE, &Params::count(self.unavailable)))
     }
 }
 

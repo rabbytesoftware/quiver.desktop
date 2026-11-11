@@ -1,17 +1,22 @@
 mod appearance;
 mod command_line;
+mod core_options;
 mod developer;
 mod engine;
 mod engine_actions;
 mod engine_ports;
 mod general;
+mod mock;
 mod notices;
 mod rows;
 mod tabs_bar;
 mod updates;
 
+pub use core_options::CoreInputs;
 pub use developer::developer;
 pub use engine::engine;
+pub use engine_ports::PortInputs;
 pub use general::general;
+pub use mock::{applied_scenario_label, DevMock};
 pub use tabs_bar::tabs_bar;
 pub use updates::UpdateCard;

@@ -1,0 +1,17 @@
+{
+ "ok": true,
+ "data": {
+  "namespace": "github.com/rabbytesoftware/quiver.desktop@stable",
+  "name": "Quiver Desktop",
+  "description": "The Quiver desktop application.",
+  "license": "GPL-3.0",
+  "state": "absent",
+  "tags": null,
+  "user_installed": true,
+  "selector_kind": "channel",
+  "resolved_ref": "stable-2026-10-13",
+  "installed_commit": "d7d2cd49ee21bfabf11014765f0db6d9aa5b202a",
+  "outdated": false,
+  "origin": "declared"
+ }
+}

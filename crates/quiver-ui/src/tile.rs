@@ -4,9 +4,12 @@
 //! only (two lines). On hover a banner tile shows its title and tags over the banner, and a tile with
 //! an action swaps the badge for the Start button. Plain props, no `quiver-state` types.
 //!
-//! GPUI has no CSS transitions, so the 150ms fade of the board is an instant switch.
+//! Hovering lifts the art 30px and uncovers a strip under it with the arrow's mark and a mono line (the old
+//! tiles' motion, kept by the boards: "tile art, size and animation are unchanged"); see `tile_lift`. The
+//! board's 150ms fade of the hover overlay is an instant switch.
 
 use std::rc::Rc;
+use std::time::Instant;
 
 use gpui::prelude::*;
 use gpui::{
@@ -19,8 +22,10 @@ use crate::elevation::shadow_xs;
 use crate::icon::{icon, Glyph};
 use crate::inspect::{probe, Kind};
 use crate::theme::ActiveQuiver;
-use crate::tile_art::{art_children, banner_background};
+use crate::tile_art::{art_children, banner_background, mark, photo};
 use crate::tile_badge::{badge_element, TileBadge};
+use crate::tile_lift::{Lift, TileReveal, REVEAL};
+use crate::tracked::TrackedText;
 
 pub use crate::tile_art::TileArtKind;
 
@@ -83,6 +88,9 @@ pub struct Tile {
     on_click: Option<ClickFn>,
     probe_id: Option<SharedString>,
     probe_label: SharedString,
+    reveal: TileReveal,
+    banner_image: Option<SharedString>,
+    icon_image: Option<SharedString>,
 }
 
 impl Tile {
@@ -103,7 +111,31 @@ impl Tile {
             on_click: None,
             probe_id: None,
             probe_label: SharedString::default(),
+            reveal: TileReveal::default(),
+            banner_image: None,
+            icon_image: None,
         }
+    }
+
+    /// The arrow's own images (`media.banner`, `media.icon`): the banner covers a banner tile's art, the icon
+    /// fills the drawn tile's mark and the strip's. Empty URLs count as none.
+    pub fn media(
+        mut self,
+        banner: Option<SharedString>,
+        icon: Option<SharedString>,
+    ) -> Self {
+        self.banner_image = banner.filter(|u| !u.is_empty());
+        self.icon_image = icon.filter(|u| !u.is_empty());
+        self
+    }
+
+    /// What the strip under the lifted art says.
+    pub fn reveal(
+        mut self,
+        reveal: TileReveal,
+    ) -> Self {
+        self.reveal = reveal;
+        self
     }
 
     pub fn size(
@@ -157,7 +189,7 @@ impl Tile {
         self
     }
 
-    /// The e2e id of the tile (`home.tile.<ns>`); the Start button reports `tile.<ns>.start`.
+    /// The e2e id of the tile (`home.library.tile.<ns>`); the Start button reports `tile.<ns>.start`.
     pub fn probe(
         mut self,
         id: impl Into<SharedString>,
@@ -172,12 +204,19 @@ impl Tile {
 impl RenderOnce for Tile {
     fn render(
         self,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut App,
     ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let w = self.size.width();
-        let group: SharedString = format!("tile-{}-{}", self.namespace, w).into();
+        let lift_state =
+            window.use_keyed_state((self.id.clone(), "lift"), cx, |_, _| Lift::default());
+        let frame = lift_state.read(cx).at(Instant::now());
+        if frame.moving {
+            window.request_animation_frame();
+        }
+        // Keyed by the tile, not the arrow: the same arrow on two shelves (Recents and Library) is two tiles.
+        let group: SharedString = format!("tile-group-{}", self.id).into();
         let pad = w * 0.0625;
         let is_banner = matches!(self.art, TileArtKind::Banner { .. });
         let has_start = self.start.is_some();
@@ -193,7 +232,11 @@ impl RenderOnce for Tile {
             TileArtKind::Banner { hue } => art.bg(banner_background(*hue)),
             TileArtKind::Drawn { .. } => art.bg(p.muted),
         };
-        art = art.children(art_children(&self.art, w, cx));
+        art = art.children(art_children(&self.art, w, self.icon_image.as_ref(), cx));
+        if let (true, Some(url)) = (is_banner, &self.banner_image) {
+            // Old `card-banner`: `bg-cover bg-center` over the tinted field.
+            art = art.child(photo(url.clone(), gpui::ObjectFit::Cover).rounded(px(12.)));
+        }
 
         if let (true, Some((title, tags))) = (is_banner, &self.hover) {
             let scrim = div()
@@ -201,6 +244,7 @@ impl RenderOnce for Tile {
                 .left_0()
                 .right_0()
                 .bottom_0()
+                .rounded_b(px(12.))
                 .h(px(w / 2.0 * 0.62))
                 .bg(linear_gradient(
                     180.,
@@ -232,14 +276,13 @@ impl RenderOnce for Tile {
                 .items_start()
                 .opacity(0.)
                 .group_hover(group.clone(), |s| s.opacity(1.))
-                .child(
-                    div()
-                        .text_size(px((w * 0.062).max(15.)))
-                        .line_height(px((w * 0.062).max(15.) * 1.15))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(white())
-                        .child(title.clone()),
-                )
+                .child({
+                    // Board: 620 max(15, w*.062)px/1.15, letter-spacing -.02em.
+                    let size = (w * 0.062).max(15.);
+                    TrackedText::new(title.clone(), size, size * 1.15, -0.02 * size, white())
+                        .weight(FontWeight::SEMIBOLD)
+                        .wrap()
+                })
                 .when(!tags.is_empty(), |d| {
                     d.child(
                         div()
@@ -300,6 +343,19 @@ impl RenderOnce for Tile {
             );
         }
 
+        let hue = match &self.art {
+            TileArtKind::Banner { hue } | TileArtKind::Drawn { hue, .. } => *hue,
+        };
+        let strip = strip(&self.reveal, hue, self.icon_image.as_ref(), frame.strip, cx);
+        // The card: the strip at its bottom, the art over it, lifted by the hover.
+        let card = div()
+            .relative()
+            .w(px(w))
+            .h(px(w / 2.0))
+            .flex_none()
+            .child(strip)
+            .child(art.absolute().left_0().top(px(-frame.lift)));
+
         let on_click = self.on_click;
         let mut root = div()
             .id(self.id)
@@ -308,24 +364,100 @@ impl RenderOnce for Tile {
             .w(px(w))
             .flex_none()
             .rounded(px(Radius::XL))
+            .on_hover(move |hovered, _, cx| {
+                lift_state.update(cx, |lift, cx| {
+                    lift.set_hovered(*hovered, Instant::now());
+                    cx.notify();
+                });
+            })
             .when_some(on_click, |d, f| {
                 d.cursor(CursorStyle::PointingHand)
                     .on_click(move |e, window, cx| f(e, window, cx))
             })
-            .child(art)
+            .child(card)
             .child(
                 div()
                     .pt(px(7.))
                     .px(px(2.))
-                    .text_size(px(11.5))
-                    .line_height(px(15.))
-                    .text_color(p.muted_foreground)
-                    .line_clamp(2)
-                    .child(self.caption),
+                    // `line-clamp-2`, measured per line (see `TrackedText::max_lines`).
+                    .child(
+                        TrackedText::new(self.caption, 11.5, 15., 0., p.muted_foreground)
+                            .max_lines(2),
+                    ),
             );
         if let Some(id) = self.probe_id {
-            root = root.child(probe(id, Kind::Button, self.probe_label, true, ""));
+            // `lifted` once the hover lift has fully risen (what the e2e checks the motion by).
+            let state = if frame.lift >= REVEAL - 0.5 {
+                "lifted"
+            } else {
+                ""
+            };
+            root = root.child(probe(id, Kind::Button, self.probe_label, true, state));
         }
         root
     }
+}
+
+/// The strip the lift uncovers (old `card-info`): the mark at 20px, the mono line, then for a search result the
+/// OS letters (L M W, dimmed where there is no build) and the stars.
+fn strip(
+    reveal: &TileReveal,
+    hue: u16,
+    image: Option<&SharedString>,
+    opacity: f32,
+    cx: &App,
+) -> gpui::Div {
+    let p = cx.quiver().palette;
+    let mono = quiver_theme::FontFamily::Mono.family();
+    let os = reveal.os.map(|has| {
+        div().flex().flex_none().gap(px(2.5)).children(
+            ["L", "M", "W"]
+                .into_iter()
+                .zip(has)
+                .map(|(letter, on)| div().opacity(if on { 0.85 } else { 0.25 }).child(letter)),
+        )
+    });
+    let stars = reveal.stars.clone().map(|count| {
+        div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .gap(px(3.))
+            .opacity(0.6)
+            .child(icon(Glyph::Star, 8., p.foreground))
+            .child(count)
+    });
+    div()
+        .absolute()
+        .left_0()
+        .right_0()
+        .bottom_0()
+        .h(px(REVEAL))
+        .px(px(2.))
+        .flex()
+        .items_center()
+        .gap(px(6.))
+        .opacity(opacity)
+        .text_color(p.foreground)
+        .font_family(mono)
+        .text_size(px(9.5))
+        .line_height(px(12.))
+        .child(mark(hue, 20., image).rounded(px(5.)))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .items_center()
+                .gap(px(6.))
+                .child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .opacity(0.9)
+                        .child(reveal.text.clone()),
+                )
+                .children(os),
+        )
+        .children(stars)
 }

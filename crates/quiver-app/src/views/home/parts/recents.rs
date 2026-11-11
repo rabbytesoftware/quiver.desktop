@@ -20,7 +20,7 @@ pub fn recents(
             policy: BadgePolicy::ActivityOnly,
             ..library_input(entry)
         };
-        tile("home", &input, TileSize::Shelf, &app, cx)
+        tile("home.recents", &input, TileSize::Shelf, &app, cx)
     });
     div()
         .child(SectionHeader::new("home-recents", title))

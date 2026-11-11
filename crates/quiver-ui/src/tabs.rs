@@ -15,6 +15,7 @@ use gpui::{
 };
 use quiver_theme::Radius;
 
+use crate::edge::inner_highlight;
 use crate::elevation::shadow_xs;
 use crate::focus::{keyed_focus, FocusableExt};
 use crate::ids::child_id;
@@ -242,6 +243,9 @@ impl RenderOnce for Tabs {
                                 .h(px(2.))
                                 .bg(p.primary),
                         )
+                    })
+                    .when(active && !underline, |d| {
+                        d.child(inner_highlight(Radius::LG, p.selected_edge))
                     })
                     .children(t.icon)
                     .child(t.label);

@@ -5,7 +5,7 @@ use gpui::{div, px, Context, FontWeight, IntoElement};
 use quiver_state::i18n::en::{remote, screens};
 use quiver_state::remote::ConnectionRowView;
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::{ActiveQuiver, Button, ButtonVariant, Frame, FramePanel, Spinner};
+use quiver_ui::{icon, ActiveQuiver, Button, ButtonVariant, Glyph, TrackedText};
 
 use super::add_modal::open_add;
 use super::row::connection_row;
@@ -30,8 +30,8 @@ pub fn header(
         .items_end()
         .justify_between()
         .gap(px(16.))
-        .mb(px(16.))
-        .pb(px(10.))
+        .mb(px(4.))
+        .pb(px(14.))
         .border_b_1()
         .border_color(p.border)
         .child(
@@ -39,11 +39,9 @@ pub fn header(
                 .flex()
                 .flex_col()
                 .child(
-                    div()
-                        .text_size(px(20.))
-                        .line_height(px(28.))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .child(title),
+                    // Board RemoteAfter: letter-spacing -.4px.
+                    TrackedText::new(title, 24., 28., -0.4, p.foreground)
+                        .weight(FontWeight::SEMIBOLD),
                 )
                 .child(
                     div()
@@ -56,7 +54,8 @@ pub fn header(
         .child(
             Button::new("remote-add")
                 .variant(ButtonVariant::Default)
-                .label(format!("+ {add}"))
+                .child(icon(Glyph::Plus, 16., p.primary_foreground))
+                .label(add.clone())
                 .on_click(move |_, window, cx| open_add(this.clone(), window, cx))
                 .child(probe("remote.add", Kind::Button, add, true, "")),
         )
@@ -64,12 +63,33 @@ pub fn header(
 
 pub fn loading(cx: &Context<RemoteView>) -> impl IntoElement {
     let p = cx.quiver().palette;
+    let line = move |width: f32| div().h(px(10.)).w(px(width)).rounded(px(2.)).bg(p.muted);
     div()
         .flex()
-        .justify_center()
-        .py(px(64.))
-        .text_color(p.muted_foreground)
-        .child(Spinner::new("remote-loading").size(20.))
+        .flex_col()
+        .children(
+            [96., 132., 112.]
+                .into_iter()
+                .enumerate()
+                .map(move |(i, w)| {
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(16.))
+                        .py(px(12.))
+                        .when(i < 2, |d| d.border_b_1().border_color(p.border))
+                        .child(div().flex_none().size(px(28.)).rounded(px(7.)).bg(p.muted))
+                        .child(
+                            div()
+                                .flex_1()
+                                .flex()
+                                .flex_col()
+                                .gap(px(6.))
+                                .child(line(w))
+                                .child(line(w * 1.3)),
+                        )
+                }),
+        )
 }
 
 pub fn empty(
@@ -91,28 +111,45 @@ pub fn empty(
         .flex()
         .flex_col()
         .items_center()
-        .gap(px(8.))
-        .py(px(72.))
+        .gap(px(4.))
+        .px(px(20.))
+        .pt(px(36.))
+        .pb(px(8.))
         .child(
             div()
-                .text_size(px(16.))
-                .font_weight(FontWeight::SEMIBOLD)
+                .mb(px(10.))
+                .size(px(44.))
+                .rounded(px(12.))
+                .border_1()
+                .border_color(p.border)
+                .bg(p.muted)
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(icon(Glyph::Globe, 20., p.muted_foreground)),
+        )
+        .child(
+            div()
+                .text_size(px(14.))
+                .font_weight(FontWeight::MEDIUM)
                 .child(title),
         )
         .child(
             div()
-                .text_size(px(13.))
+                .mb(px(16.))
+                .max_w(px(320.))
+                .text_center()
+                .text_size(px(12.))
+                .line_height(px(19.5))
                 .text_color(p.muted_foreground)
                 .child(body),
         )
         .child(
-            div().mt(px(8.)).child(
-                Button::new("remote-empty-add")
-                    .variant(ButtonVariant::Outline)
-                    .label(add.clone())
-                    .on_click(move |_, window, cx| open_add(this.clone(), window, cx))
-                    .child(probe("remote.empty.add", Kind::Button, add, true, "")),
-            ),
+            Button::new("remote-empty-add")
+                .variant(ButtonVariant::Outline)
+                .label(add.clone())
+                .on_click(move |_, window, cx| open_add(this.clone(), window, cx))
+                .child(probe("remote.empty.add", Kind::Button, add, true, "")),
         )
         .child(probe("remote.empty", Kind::Other, "empty", true, ""))
 }
@@ -128,11 +165,6 @@ pub fn rows(
         .enumerate()
         .map(|(i, row)| connection_row(view, row, i == last, cx))
         .collect();
-    Frame::new().child(
-        FramePanel::new()
-            .py(px(8.))
-            .flex()
-            .flex_col()
-            .children(items),
-    )
+    let hint = (!rows.iter().any(|row| row.is_remote)).then(|| empty(view, cx));
+    div().flex().flex_col().children(items).children(hint)
 }

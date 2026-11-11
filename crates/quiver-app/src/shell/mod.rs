@@ -1,5 +1,7 @@
-//! The root view: the sidebar, the page the router points at, and the modal layer on top.
+//! The root view: the sidebar, the page the router points at (with the mock footer under it in demo
+//! mode), and on top the modal layer, the command palette and the toasts.
 
+mod mock_indicator;
 mod outlet;
 
 use gpui::prelude::*;
@@ -10,12 +12,15 @@ use quiver_ui::ActiveQuiver;
 
 use crate::model::{AppModel, Route};
 use crate::views::console::ConsoleDock;
+use crate::views::remote::{toasts, CommandPalette};
+use crate::views::settings::DevMock;
 use crate::views::sidebar::Sidebar;
 
 pub struct AppShell {
     app: Entity<AppModel>,
     sidebar: Entity<Sidebar>,
     console: Entity<ConsoleDock>,
+    palette: Entity<CommandPalette>,
     /// The page view and the route it was built for.
     page: Option<(Route, AnyView)>,
 }
@@ -28,11 +33,15 @@ impl AppShell {
     ) -> Self {
         let sidebar = cx.new(|cx| Sidebar::new(app.clone(), window, cx));
         let console = cx.new(|cx| ConsoleDock::new(app.clone(), window, cx));
+        let palette = cx.new(|cx| CommandPalette::new(app.clone(), window, cx));
         cx.observe(&app, |_, _, cx| cx.notify()).detach();
+        // The mock footer names the applied scenario, which the Developer tab's Apply changes.
+        cx.observe_global::<DevMock>(|_, cx| cx.notify()).detach();
         Self {
             app,
             sidebar,
             console,
+            palette,
             page: None,
         }
     }
@@ -53,6 +62,12 @@ impl Render for AppShell {
         let page = match &self.page {
             Some((built_for, view)) if *built_for == route => view.clone(),
             _ => {
+                // A new page takes the keyboard from whatever had it (a browser moves focus to what was clicked;
+                // GPUI leaves it where it was, so typing after clicking a sidebar row still went into the search
+                // field). Search itself is reached by typing in that field, which keeps it.
+                if !matches!(route, crate::model::Route::Search { .. }) {
+                    window.blur();
+                }
                 let view = outlet::page_for(&route, &self.app, window, cx);
                 self.page = Some((route, view.clone()));
                 view
@@ -65,6 +80,7 @@ impl Render for AppShell {
             .flex()
             .flex_col()
             .child(div().flex_1().min_h_0().child(page))
+            .children(mock_indicator::mock_indicator(self.app.read(cx), cx))
             .child(self.console.clone());
         let rail = self.sidebar.clone();
         let root = div()
@@ -77,7 +93,11 @@ impl Render for AppShell {
             .text_size(px(TypeScale::BODY))
             .child(rail)
             .child(content)
-            .children(self.app.read(cx).modals.views().cloned());
+            .children(self.app.read(cx).modals.views().cloned())
+            .child(self.palette.clone())
+            .when(!self.app.read(cx).toasts.toasts().is_empty(), |d| {
+                d.child(toasts(&self.app.read(cx).toasts, window, cx))
+            });
         // The last thing painted in a frame: tells the e2e bridge the frame is complete.
         #[cfg(feature = "e2e-bridge")]
         let root = root.child(crate::e2e_bridge::settle_marker());

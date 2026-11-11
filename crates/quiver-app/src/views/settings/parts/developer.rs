@@ -199,6 +199,7 @@ fn auto_register_row(
 
 pub fn developer(
     view: &mut SettingsView,
+    window: &mut gpui::Window,
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
     let p = cx.quiver().palette;
@@ -219,10 +220,17 @@ pub fn developer(
             .child(loading)
             .into_any_element()],
     };
+    // Fletcher's neighbours: core's own subsystems.
+    let core = super::core_options::core_sections(view, window, cx);
     div()
         .flex()
         .flex_col()
-        .child(section(&p, builds, true, build_section(view, cx)))
+        // The mock daemon is a development tool: a release build has no use for it.
+        .when(cfg!(debug_assertions), |d| {
+            d.children(super::mock::mock_sections(view, cx))
+        })
+        .child(section(&p, builds, false, build_section(view, cx)))
         .child(section(&p, library, false, catalog_section(view, cx)))
         .child(section(&p, arrows, false, fletcher))
+        .children(core)
 }

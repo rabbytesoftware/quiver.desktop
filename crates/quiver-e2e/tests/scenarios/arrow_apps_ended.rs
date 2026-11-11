@@ -40,6 +40,30 @@ async fn when_the_run_serving_the_interface_ends_the_pane_returns_to_the_arrow_p
     assert_eq!(status, 503);
     app.shot("short-ended").await;
 
+    // Its run completed, so Home shows it twice: under Recents and under Library. Two tiles of one arrow, and
+    // only the hovered one lifts (they shared their hover state when both were `home-tile-<ns>`).
+    app.click("sidebar.tab.home").await;
+    let (recent, library) = (
+        format!("home.recents.tile.{ns}"),
+        format!("home.library.tile.{ns}"),
+    );
+    app.node(&recent).await;
+    app.node(&library).await;
+    app.bridge
+        .hover(&recent)
+        .await
+        .expect("hover the Recents tile");
+    app.matching(json!({"id": recent, "state_contains": "lifted"}))
+        .await;
+    app.shot("twin-tiles-one-lifted").await;
+    let twin = app.node(&library).await;
+    assert!(
+        !twin.state.contains("lifted"),
+        "{library} lifted with {recent}: {twin:?}"
+    );
+    app.click(&library).await;
+    app.node("screen.arrow").await;
+
     // And it starts again.
     start_from_page(&mut app, &ns).await;
     wait_surface(&core, &identity, true).await;

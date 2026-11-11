@@ -1,0 +1,7 @@
+{
+ "ok": true,
+ "data": {
+  "namespace": "github.com/rabbytesoftware/quiver.chat",
+  "dependencies": []
+ }
+}

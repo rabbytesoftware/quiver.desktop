@@ -6,10 +6,13 @@ set -uo pipefail
 MODE=${1:-both}
 OUT=${OUT:-docker/native/evidence}
 MC=github.com/rabbyte/minecraft
-# name|route|actions (capture.sh syntax)
+# name|route|actions (capture.sh syntax). `palette` clicks the top row's connection chip, which opens the command palette;
+# `row-menu` right-clicks the Minecraft row, which opens the OS's own (GTK) context menu.
 SCREENS=(
   "home||"
   "home-scrolled||:scroll=800"
+  "palette||:click=130,17"
+  "row-menu||:rclick=110,298"
   "recommended|recommended|"
   "search|search:server|"
   "library|library|"
@@ -21,6 +24,7 @@ SCREENS=(
   "arrow-running|arrow:$MC|"
   "arrow-activity|arrow:github.com/rabbyte/caddy|"
   "arrow-nobanner|arrow:github.com/rabbyte/terraria|"
+  "arrow-narrow|arrow:$MC|:resize=1000,800"
   "arrow-methods|arrow:$MC:methods|"
   "arrow-settings|arrow:$MC:settings|"
   "arrow-app|arrow-app|"

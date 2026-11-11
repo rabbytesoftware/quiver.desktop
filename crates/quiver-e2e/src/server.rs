@@ -27,6 +27,22 @@ pub trait Driver: Send + Sync + 'static {
         &self,
         id: &str,
     ) -> std::result::Result<(), String>;
+    /// The secondary button, through the window system (it opens the OS's own context menu).
+    async fn right_click(
+        &self,
+        id: &str,
+    ) -> std::result::Result<(), String> {
+        Err(format!(
+            "right-click on {id} is not supported by this driver"
+        ))
+    }
+    /// Keys through the window system rather than the app's dispatcher.
+    async fn os_key(
+        &self,
+        keys: &str,
+    ) -> std::result::Result<(), String> {
+        Err(format!("OS keys {keys:?} are not supported by this driver"))
+    }
     async fn type_text(
         &self,
         id: Option<&str>,
@@ -146,6 +162,12 @@ async fn dispatch<D: Driver>(
         "ui.click" => d.click(id, false).await.map(|_| json!({})).map_err(app_err),
         "ui.double_click" => d.click(id, true).await.map(|_| json!({})).map_err(app_err),
         "ui.hover" => d.hover(id).await.map(|_| json!({})).map_err(app_err),
+        "ui.right_click" => d.right_click(id).await.map(|_| json!({})).map_err(app_err),
+        "os.key" => d
+            .os_key(p["keys"].as_str().unwrap_or_default())
+            .await
+            .map(|_| json!({}))
+            .map_err(app_err),
         "ui.type" => d
             .type_text(p["id"].as_str(), p["text"].as_str().unwrap_or_default())
             .await

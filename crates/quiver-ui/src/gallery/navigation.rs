@@ -7,7 +7,7 @@ use super::layout::{row, section};
 use super::state::Gallery;
 use crate::{
     tooltip, Button, ButtonSize, ButtonVariant, Menu, MenuAlign, MenuItem, Orientation, TabItem,
-    Tabs, TabsVariant,
+    Tabs, TabsVariant, TipExt,
 };
 
 pub(super) fn page(
@@ -111,7 +111,7 @@ pub(super) fn page(
                 .px(gpui::px(10.))
                 .py(gpui::px(6.))
                 .child("Hover me")
-                .tooltip(tooltip("Settings"))
+                .tip(tooltip("Settings"))
                 .into_any_element(),
             Button::new("g-tip-b")
                 .variant(ButtonVariant::Ghost)

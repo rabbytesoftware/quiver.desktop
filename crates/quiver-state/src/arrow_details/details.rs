@@ -42,6 +42,7 @@ pub enum DetailsSection {
     Maintainers,
     Credits,
     Links,
+    RequiredBy,
 }
 
 /// The sections to draw, in order. Requirements need at least one non-zero figure.
@@ -66,6 +67,9 @@ pub fn visible_sections(d: &DetailsFacts) -> Vec<DetailsSection> {
     }
     if !d.url.is_empty() {
         out.push(DetailsSection::Links);
+    }
+    if d.required_by > 0 {
+        out.push(DetailsSection::RequiredBy);
     }
     out
 }
@@ -150,6 +154,19 @@ mod tests {
                 Credits,
                 Links
             ]
+        );
+    }
+
+    #[test]
+    fn what_depends_on_this_arrow_is_listed_last() {
+        let d = DetailsFacts {
+            url: "github.com/x".into(),
+            required_by: 2,
+            ..DetailsFacts::default()
+        };
+        assert_eq!(
+            visible_sections(&d),
+            [DetailsSection::Links, DetailsSection::RequiredBy]
         );
     }
 

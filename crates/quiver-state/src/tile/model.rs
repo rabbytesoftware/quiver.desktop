@@ -32,6 +32,32 @@ pub struct TileInput {
     /// A badge text the caller owns (a collection's "12 arrows"); wins over the status badge.
     pub custom_badge: Option<String>,
     pub policy: BadgePolicy,
+    /// What the hover lift uncovers under the art (the old tiles' 30px strip).
+    pub reveal: RevealFacts,
+}
+
+/// The strip under a lifted tile (old `ArrowTile` / search `ArrowCard`): the arrow's mark, then a mono line. A
+/// library arrow says its version; a search result says how the catalog holds it and the newest version, the OS
+/// families it publishes for, and its stars; a collection says how many arrows it has.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RevealFacts {
+    /// The mono line as given (a version, "12 arrows").
+    pub text: String,
+    /// Prefixed to `text` as `<held> · <text>` (search: "installed").
+    pub held_as: Option<Key>,
+    /// Linux, macOS, Windows: whether a build exists for each (search results only).
+    pub os: Option<[bool; 3]>,
+    pub stars: Option<u64>,
+}
+
+/// `compatible_os` is a list of `os/arch` pairs; the family is the half before the slash.
+pub fn os_families(compatible: &[String]) -> [bool; 3] {
+    let has = |family: &str| {
+        compatible
+            .iter()
+            .any(|v| v.split('/').next() == Some(family))
+    };
+    [has("linux"), has("darwin"), has("windows")]
 }
 
 impl TileInput {
@@ -64,6 +90,7 @@ impl TileInput {
             start_label: None,
             custom_badge: None,
             policy: BadgePolicy::ActivityOnly,
+            reveal: RevealFacts::default(),
         }
     }
 }
@@ -108,11 +135,17 @@ pub struct TileModel {
     pub caption: String,
     pub hover: Option<HoverContent>,
     pub hover_action: Option<TileAction>,
+    /// `media.icon`, for the strip under the lifted art of any tile (a drawn tile also puts it in its mark).
+    pub icon: Option<String>,
 }
 
 /// The mock world's swatch for a namespace (`media.ts`): one of 24 hues, 15 degrees apart, in the range
 /// 0..360, plus 360 when the swatch is the lighter of its two lightnesses. `hue % 360` is the hue.
+///
+/// The arrow, not the identity: `ns@stable` and `ns` get the same art, so an arrow keeps its colour across the
+/// sidebar (which lists identities), its tile and its page.
 pub fn hue_for(namespace: &str) -> u16 {
+    let namespace = crate::namespace::bare_namespace(namespace);
     let mut hash: u32 = 5381;
     for unit in namespace.encode_utf16() {
         hash = hash.wrapping_mul(33) ^ u32::from(unit);
@@ -185,6 +218,7 @@ pub fn build_tile(input: &TileInput) -> TileModel {
             tags: input.tags.clone(),
         }),
         hover_action: hover_action(input),
+        icon: input.icon.clone().filter(|i| !i.is_empty()),
     }
 }
 

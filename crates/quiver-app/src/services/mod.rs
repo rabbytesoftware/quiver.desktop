@@ -9,6 +9,7 @@
 //! * [`backend`]: `quiver-state`'s `Backend` over the connection manager.
 //! * [`release_vars`]: this app's own release asset and build stamp.
 //! * [`arrow_host`] / [`arrow_windows`]: arrow apps, one embedded webview each.
+//! * [`native_menu`]: the OS's own context menu.
 //! * [`lifecycle`]: build everything, tear everything down.
 
 mod announce;
@@ -18,14 +19,19 @@ mod backend;
 mod core_api;
 mod error;
 mod events;
+#[cfg(target_os = "linux")]
+mod gtk_thread;
+pub mod http;
 mod lifecycle;
+pub mod native_menu;
 mod release_vars;
 mod secrets;
 mod settings;
 
 pub use arrow_host::CoreUpstream;
 pub use arrow_windows::{
-    ArrowWindows, EmbeddedPages, HelperArgs, HelperLauncher, HelperLink, WindowEvent,
+    cover as page_cover, ArrowWindows, EmbeddedPages, HelperArgs, HelperLauncher, HelperLink,
+    WindowEvent,
 };
 pub use backend::NativeBackend;
 pub use core_api::TransportCoreApi;

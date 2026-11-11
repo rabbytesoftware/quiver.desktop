@@ -305,7 +305,7 @@ fn thumb(
         .border_1()
         .border_color(color)
         .bg(color)
-        .shadow_sm()
+        .shadow(crate::elevation::shadow_sm(gpui::black().opacity(0.1)))
         .when(!disabled, |d| {
             d.track_focus(focus)
                 .tab_stop(true)

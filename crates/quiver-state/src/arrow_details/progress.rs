@@ -124,6 +124,34 @@ fn progress_step(
     }
 }
 
+/// Each run step's declared step. Same count: by position. Otherwise the daemon added steps the method does
+/// not declare (resolving dependencies), and pairing by position would show one step's code under another's
+/// name, so they are matched in order by title (then kind); a run step with no match gets no code.
+fn pair_declared<'a>(
+    run: &[RunStepFacts],
+    declared: &'a [StepSpec],
+) -> Vec<Option<&'a StepSpec>> {
+    if run.len() == declared.len() {
+        return declared.iter().map(Some).collect();
+    }
+    let mut cursor = 0;
+    run.iter()
+        .map(|step| {
+            let found = declared[cursor.min(declared.len())..]
+                .iter()
+                .position(|d| d.title == step.title)
+                .or_else(|| {
+                    declared[cursor.min(declared.len())..]
+                        .iter()
+                        .position(|d| d.title.is_empty() && d.step_type == step.step_type)
+                })?;
+            let ix = cursor + found;
+            cursor = ix + 1;
+            declared.get(ix)
+        })
+        .collect()
+}
+
 /// Builds the control from the active run. `declared` are the steps the action's method declares (for
 /// the step code); the fill counts a running step as half done so a long first step does not look stuck.
 pub fn build_progress(
@@ -142,11 +170,12 @@ pub fn build_progress(
         };
     };
     let total = run.steps.len();
+    let paired = pair_declared(&run.steps, declared);
     let steps: Vec<ProgressStep> = run
         .steps
         .iter()
-        .enumerate()
-        .map(|(i, step)| progress_step(step, declared.get(i)))
+        .zip(paired)
+        .map(|(step, spec)| progress_step(step, spec))
         .collect();
     let current = run
         .steps
@@ -287,6 +316,33 @@ mod tests {
         );
         assert_eq!(control.steps[1].code, "verify: sha");
         assert_eq!(control.steps[0].plain_text, design::PLAIN_FETCH);
+    }
+
+    #[test]
+    fn an_undeclared_step_does_not_shift_the_code_of_the_others() {
+        use StepStatus::*;
+        let spec = |title: &str, code: &str| StepSpec {
+            title: title.into(),
+            code: code.into(),
+            ..StepSpec::default()
+        };
+        let declared = [
+            spec("Prepare", "title: Prepare"),
+            spec("Settle", "title: Settle"),
+        ];
+        let mut active = run(&[Completed, Running, Pending]);
+        for (step, title) in
+            active
+                .steps
+                .iter_mut()
+                .zip(["Resolve dependencies", "Prepare", "Settle"])
+        {
+            step.title = title.into();
+        }
+        let control = build_progress(design::VERB_INSTALLING, Some(&active), &declared);
+        assert_eq!(control.steps[0].code, "");
+        assert_eq!(control.steps[1].code, "title: Prepare");
+        assert_eq!(control.steps[2].code, "title: Settle");
     }
 
     #[test]

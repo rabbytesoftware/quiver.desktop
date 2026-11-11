@@ -155,10 +155,10 @@ fn labelled(
         .flex()
         .flex_col()
         .gap(px(6.))
-        .mb(px(12.))
+        .mb(px(14.))
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(px(12.5))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(p.foreground)
                 .child(label.clone()),
@@ -187,6 +187,74 @@ fn button(
         .child(probe(id.to_owned(), Kind::Button, label, enabled, ""))
 }
 
+impl AddModal {
+    /// Six boxes with a dash after the third, drawn from the pairing code; the real field is a one-pixel
+    /// input behind them that takes the typing and the paste.
+    fn code_slots(
+        &self,
+        focused: bool,
+        cx: &Context<AddModal>,
+    ) -> impl IntoElement {
+        let p = cx.quiver().palette;
+        let input = self.code.clone();
+        let filled = (0..6).filter(|i| self.form.code.slot(*i).is_some()).count();
+        let active = filled.min(5);
+        let slot = |i: usize| {
+            let digit = self.form.code.slot(i);
+            div()
+                .flex_none()
+                .w(px(36.))
+                .h(px(42.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(6.))
+                .border_1()
+                .border_color(if focused && i == active {
+                    p.ring
+                } else {
+                    p.input
+                })
+                .font_family(quiver_theme::FontFamily::Mono.family())
+                .text_size(px(18.))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(if digit.is_some() {
+                    p.foreground
+                } else {
+                    p.muted_foreground
+                })
+                .child(digit.map_or_else(|| "•".to_owned(), String::from))
+        };
+        let mut row = div().relative().flex().items_center().gap(px(6.));
+        for i in 0..6 {
+            if i == 3 {
+                row = row.child(div().text_color(p.muted_foreground).child("–"));
+            }
+            row = row.child(slot(i));
+        }
+        row.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+            input.update(cx, |state, cx| state.focus(window, cx));
+        })
+        .child(
+            div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .size(px(1.))
+                .overflow_hidden()
+                .opacity(0.)
+                .child(Input::new("remote-add-code", &self.code)),
+        )
+        .child(probe(
+            "remote.add.code",
+            Kind::Input,
+            "code",
+            true,
+            if focused { "[focused]" } else { "" },
+        ))
+    }
+}
+
 impl Render for AddModal {
     fn render(
         &mut self,
@@ -207,16 +275,20 @@ impl Render for AddModal {
             let (back, submit) = (this.clone(), this.clone());
             (
                 div()
-                    .child(labelled(
-                        cx,
-                        t(remote::ADD_CODE_LABEL),
-                        Input::new("remote-add-code", &self.code),
-                        "remote.add.code",
-                        code_focus,
-                    ))
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.))
                     .child(
                         div()
-                            .text_size(px(12.))
+                            .text_size(px(12.5))
+                            .font_weight(FontWeight::MEDIUM)
+                            .child(t(remote::ADD_CODE_LABEL)),
+                    )
+                    .child(self.code_slots(code_focus, cx))
+                    .child(
+                        div()
+                            .text_size(px(11.5))
+                            .line_height(px(18.4))
                             .text_color(p.muted_foreground)
                             .child(t(remote::ADD_CODE_HINT)),
                     )
@@ -268,7 +340,9 @@ impl Render for AddModal {
                     .when(self.form.health_error, |d| {
                         d.child(
                             div()
-                                .text_size(px(12.))
+                                .mt(px(-8.))
+                                .text_size(px(11.5))
+                                .line_height(px(18.4))
                                 .text_color(p.destructive)
                                 .child(t(remote::ADD_HEALTH_ERROR)),
                         )

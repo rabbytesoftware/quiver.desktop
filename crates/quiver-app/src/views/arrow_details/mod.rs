@@ -4,16 +4,18 @@
 //! `quiver_state::arrow_details`; this view holds the scroll, the open popovers and the form values.
 
 mod actions;
-mod demo;
+pub(crate) mod demo;
 mod load;
 mod methods_modal;
 mod page;
 mod parts;
 mod settings_modal;
+mod switch;
 mod values;
 
 use gpui::prelude::*;
 use gpui::{div, Context, Entity, Render, Subscription, Window};
+use quiver_state::arrow_details::channel::ChannelSelection;
 use quiver_state::arrow_details::invoke::InvokeState;
 use quiver_state::arrow_details::ArrowActionKind;
 use quiver_state::domain::ArrowDetail;
@@ -26,6 +28,14 @@ use crate::model::AppModel;
 use crate::views::screen_probe;
 use load::{Load, ReadTask};
 use values::FormValues;
+
+/// The library row a route's namespace names: the identity itself, or the bare namespace of one.
+fn is_row_of(
+    row: &str,
+    route: &str,
+) -> bool {
+    row == route || (!route.contains('@') && bare_namespace(row) == route)
+}
 
 pub struct ArrowDetailsView {
     pub(super) app: Entity<AppModel>,
@@ -42,8 +52,20 @@ pub struct ArrowDetailsView {
     /// The ⓘ popover of an action button.
     pub(super) info_open: Option<ArrowActionKind>,
     pub(super) problem_open: bool,
+    /// The Channel and Version pickers of an arrow that is not in the library yet: the identity Add registers.
+    pub(super) selection: ChannelSelection,
+    /// The selector and channel count the picker was last seeded from: either changing re-seeds it (the
+    /// channels can land before the detail says which selector the page follows).
+    pub(super) selection_seen: Option<(String, usize)>,
+    /// The Switch dialog's own pick, while it is open.
+    pub(super) switch_selection: Option<ChannelSelection>,
+    pub(super) switch_pending: bool,
+    pub(super) register_error: Option<String>,
     /// The run's interface was already open when the page was entered (or has been seen): only a surface that
     /// opens while the person is here takes them to the app pane, so Details in the pane does not bounce back.
+    /// Rounded corners when the page is shown inside a dialog (the app pane's Details): its background would
+    /// square the dialog's corners off, GPUI clipping to rectangles.
+    pub(crate) corner: Option<f32>,
     /// `--demo` only: the modal the route asked for, opened once the page has its detail.
     demo_modal: Option<&'static str>,
     _read: Option<ReadTask>,
@@ -67,7 +89,7 @@ impl ArrowDetailsView {
             .arrows
             .entries()
             .into_iter()
-            .find(|e| bare_namespace(&e.namespace) == namespace);
+            .find(|e| is_row_of(&e.namespace, &namespace));
         let mut read = None;
         if demo {
             load.update(|l| match &entry {
@@ -95,6 +117,12 @@ impl ArrowDetailsView {
             inspected_step: None,
             info_open: None,
             problem_open: false,
+            selection: ChannelSelection::default(),
+            selection_seen: None,
+            switch_selection: None,
+            switch_pending: false,
+            register_error: None,
+            corner: None,
             demo_modal: demo
                 .then(crate::demo::route::arrow_modal_from_environment)
                 .flatten(),
@@ -115,7 +143,7 @@ impl ArrowDetailsView {
         let entry = model.services.arrows.store().read(|s| {
             s.arrows
                 .values()
-                .find(|e| bare_namespace(&e.namespace) == self.namespace)
+                .find(|e| is_row_of(&e.namespace, &self.namespace))
                 .cloned()
         });
         if let Some(entry) = entry {
@@ -157,6 +185,7 @@ impl Render for ArrowDetailsView {
         let body = match self.merged(cx) {
             Some(detail) => {
                 self.seed_values(&detail, cx);
+                self.sync_selection(&detail.selector, &detail.channels);
                 if let Some(modal) = self.demo_modal.take() {
                     let this = cx.entity();
                     cx.defer(move |cx| {
@@ -179,6 +208,7 @@ impl Render for ArrowDetailsView {
             .id("arrow")
             .relative()
             .size_full()
+            .when_some(self.corner, |d, r| d.rounded(gpui::px(r)))
             .bg(p.background)
             .child(
                 ScrollArea::new("arrow.scroll")

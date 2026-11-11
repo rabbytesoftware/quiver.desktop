@@ -4,10 +4,11 @@
 mod steps;
 
 use gpui::prelude::*;
-use gpui::{black, deferred, div, px, AnyElement, Context, FontWeight, IntoElement};
+use gpui::{black, div, px, AnyElement, Context, FontWeight, IntoElement};
 use quiver_state::arrow_details::progress::plain_text_for;
 use quiver_state::i18n::en::arrow;
 use quiver_ui::inspect::{probe, Kind};
+use quiver_ui::layer;
 use quiver_ui::{ActiveQuiver, Button, ButtonSize, ButtonVariant, Palette};
 
 use crate::views::arrow_details::page::Page;
@@ -150,13 +151,13 @@ pub fn popovers(
     if view.steps_open {
         if let Some(control) = page.row.progress() {
             out.push(
-                deferred(steps::steps_card(view, control, cx))
+                layer(steps::steps_card(view, control, cx))
                     .with_priority(2)
                     .into_any_element(),
             );
         }
     } else if let Some(card) = info_card(view, page, cx) {
-        out.push(deferred(card).with_priority(2).into_any_element());
+        out.push(layer(card).with_priority(2).into_any_element());
     }
     out
 }

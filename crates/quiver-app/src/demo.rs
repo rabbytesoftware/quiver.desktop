@@ -245,12 +245,8 @@ fn generated_records(count: usize) -> Vec<ArrowCatalogRecord> {
         .collect()
 }
 
-/// Fills the arrow store and the home query.
-pub fn seed(model: &AppModel) {
-    screens::seed(model);
-    let rows = library();
-    let records: Vec<ArrowCatalogRecord> = rows
-        .iter()
+fn library_records(rows: &[Row]) -> Vec<ArrowCatalogRecord> {
+    rows.iter()
         .map(|r| ArrowCatalogRecord {
             connection_id: "local".into(),
             namespace: format!("github.com/rabbyte/{}", r.slug),
@@ -264,7 +260,44 @@ pub fn seed(model: &AppModel) {
             origin: None,
             confidence: None,
         })
-        .collect();
+        .collect()
+}
+
+/// The Developer tab's mock scenarios: `normal` is the seeded library, `extreme` 200 generated arrows,
+/// `empty` a first run.
+pub fn apply_scenario(
+    model: &AppModel,
+    scenario: &str,
+) {
+    let rows = library();
+    let (catalog, states): (Vec<ArrowCatalogRecord>, Vec<ArrowState>) = match scenario {
+        "empty" => (Vec::new(), Vec::new()),
+        "extreme" => {
+            let records = generated_records(200);
+            let states = vec![ArrowState::Ready; records.len()];
+            (records, states)
+        }
+        _ => (
+            library_records(&rows),
+            rows.iter().map(|r| r.state).collect(),
+        ),
+    };
+    model.services.arrows.set_catalog(&catalog);
+    for (record, state) in catalog.iter().zip(states) {
+        model.services.arrows.seed_initial_state(RuntimeUpdate {
+            namespace: record.namespace.clone(),
+            state,
+            active_run: None,
+            last_return: None,
+        });
+    }
+}
+
+/// Fills the arrow store and the home query.
+pub fn seed(model: &AppModel) {
+    screens::seed(model);
+    let rows = library();
+    let records = library_records(&rows);
     // A long-list measurement must not include spinners: every busy arrow animates at the display rate.
     let calm = generated_count() > 0;
     let generated = generated_records(generated_count());
@@ -376,6 +409,21 @@ pub fn seed(model: &AppModel) {
                 "Act Runner",
                 "Run your CI workflows on this machine.",
                 &["developer-tools"],
+            ),
+            // Two more than a page (12), so Popular ends in the board's Load more.
+            popular(
+                "sparkdev",
+                "devbox",
+                "Devbox",
+                "Reproducible shell environments for every project.",
+                &["developer-tools"],
+            ),
+            popular(
+                "pearline",
+                "minio",
+                "MinIO",
+                "S3-compatible object storage for your own machines.",
+                &["database", "server"],
             ),
         ],
     };

@@ -9,11 +9,11 @@ use quiver_state::domain::CollectionDetail;
 use quiver_state::queries::collection::fetch_collection_detail;
 use quiver_state::queries::keys::collection_key;
 use quiver_state::queries::Query;
-use quiver_ui::{ActiveQuiver, TileSize};
+use quiver_ui::{ActiveQuiver, TileSize, TrackedText};
 
 use crate::bridge::observe_store;
 use crate::model::AppModel;
-use crate::views::grid_page::{back_link, error_state, page, skeleton, start_feed, Feed};
+use crate::views::grid_page::{error_state, page, skeleton, start_feed, Feed};
 use crate::views::screen_probe;
 
 pub struct CollectionView {
@@ -23,6 +23,8 @@ pub struct CollectionView {
     pub(super) detail: Query<CollectionDetail>,
     /// A follow / unfollow request is in flight.
     pub(super) follow_pending: bool,
+    /// The ⓘ popover of the Follow button.
+    pub(super) info_open: bool,
     pub(super) demo: bool,
     _feed: Option<Feed>,
 }
@@ -61,6 +63,7 @@ impl CollectionView {
             id,
             detail,
             follow_pending: false,
+            info_open: false,
             demo,
             _feed: feed,
         }
@@ -85,7 +88,6 @@ impl Render for CollectionView {
         let p = cx.quiver().palette;
         let app = self.app.clone();
         let state = self.detail.snapshot();
-        let header = back_link(&app, "collection", cx);
         let body = match &state.data {
             None if state.error.is_some() => {
                 error_state("collection", &app, collection_key(&self.id), cx).into_any_element()
@@ -102,11 +104,8 @@ impl Render for CollectionView {
                         .flex_col()
                         .gap(px(16.))
                         .child(
-                            div()
-                                .text_size(px(18.))
-                                .line_height(px(22.))
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .child("Arrows"),
+                            TrackedText::new("Arrows", 18., 22., -0.3, p.foreground)
+                                .weight(FontWeight::SEMIBOLD),
                         )
                         .child(div().h(px(1.)).bg(p.border))
                         .child(parts::members(self, detail, window, cx)),
@@ -121,12 +120,7 @@ impl Render for CollectionView {
             .child(page(
                 "collection.scroll",
                 p.background,
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(8.))
-                    .child(header)
-                    .child(body),
+                div().flex().flex_col().gap(px(8.)).child(body),
             ))
             .child(screen_probe("collection"))
     }

@@ -5,6 +5,7 @@
 //! visible app's page at the rectangle the pane reports, and ends every page on Stop and on
 //! shutdown, so no page outlives its host.
 
+pub mod cover;
 mod embedded;
 mod launcher;
 mod pump;
@@ -324,6 +325,11 @@ impl ArrowWindows {
     /// Open apps, least recently used first.
     pub fn open_apps(&self) -> Vec<String> {
         self.inner.state().registry.order().to_vec()
+    }
+
+    /// Whether a GPUI menu or dialog is over the visible page (it stepped aside).
+    pub fn covered(&self) -> bool {
+        self.inner.state().covered
     }
 
     pub fn visible(&self) -> Option<String> {

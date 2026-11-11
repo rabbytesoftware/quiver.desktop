@@ -12,7 +12,7 @@ use quiver_theme::FontFamily;
 use quiver_ui::inspect::{probe, Kind};
 use quiver_ui::{
     ActiveQuiver, Badge, BadgeVariant, Button, ButtonSize, ButtonVariant, Dialog,
-    DialogDescription, DialogHeader, DialogPanel, DialogTitle,
+    DialogDescription, DialogHeader, DialogPanel, DialogTitle, TrackedText,
 };
 
 use super::parts::icons::{pict, Pict};
@@ -178,14 +178,17 @@ impl MethodsModal {
         div()
             .mt(px(16.))
             .child(
-                div()
-                    .pb(px(8.))
-                    .border_b_1()
-                    .border_color(p.border)
-                    .text_size(px(10.5))
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(p.muted_foreground)
-                    .child(label.to_uppercase()),
+                div().pb(px(8.)).border_b_1().border_color(p.border).child(
+                    // Board ArrowMethodsAfter: 600 10.5px, letter-spacing 0.7px.
+                    TrackedText::new(
+                        label.to_uppercase(),
+                        10.5,
+                        10.5 * 1.618,
+                        0.7,
+                        p.muted_foreground,
+                    )
+                    .weight(FontWeight::SEMIBOLD),
+                ),
             )
             .children(rows)
     }

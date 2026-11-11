@@ -75,6 +75,24 @@ impl Driver for GpuiDriver {
         self.ask(|reply| Command::Hover { id, reply }).await
     }
 
+    async fn right_click(
+        &self,
+        id: &str,
+    ) -> Result<(), String> {
+        let id = id.to_string();
+        self.ask(|reply| Command::RightClick { id, reply }).await
+    }
+
+    async fn os_key(
+        &self,
+        keys: &str,
+    ) -> Result<(), String> {
+        let keys = keys.to_string();
+        tokio::task::spawn_blocking(move || super::os_mouse::key(&keys))
+            .await
+            .map_err(|e| e.to_string())?
+    }
+
     async fn type_text(
         &self,
         id: Option<&str>,

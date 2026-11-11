@@ -1,6 +1,6 @@
 # Native Quiver Desktop (GPUI, Rust workspace). The Tauri/bun Makefile is kept as Makefile.tauri until the
 # final cleanup commit removes it.
-.PHONY: help dev dev-local build test play-box gate fmt clippy fetch-sidecar fetch-sidecar-local package \
+.PHONY: help dev dev-local build test play-box play-box-online gate fmt clippy fetch-sidecar fetch-sidecar-local package \
 	test-e2e-box check-release clean
 
 .DEFAULT_GOAL := help
@@ -109,6 +109,12 @@ NIGHTLY_DATE ?= $(shell git -C $(QUIVER_CORE_DEV_PATH) log -1 --format=%cd --dat
 play-box:
 	@if [ -z "$(QUIVER_CORE_DEV_PATH)" ]; then echo "set QUIVER_CORE_DEV_PATH to a quiver.core checkout"; exit 1; fi
 	@QUIVER_CORE_DEV_PATH="$(QUIVER_CORE_DEV_PATH)" docker compose -f docker/e2e/docker-compose.yml run --rm --service-ports -e PLAYGROUND=1 -e CORE_V1=nightly-$(NIGHTLY_DATE) -e CORE_V2=nightly-$(NIGHTLY_DATE)b -e CORE_V3=nightly-$(NIGHTLY_DATE)c -e CORE_V4=nightly-$(NIGHTLY_DATE)d -e CORE_V5=nightly-$(NIGHTLY_DATE)e -e DESK_V1=nightly-$(NIGHTLY_DATE) -e SKIP_BUILD="$(SKIP_BUILD)" e2e scenarios/run-native.sh
+
+# Like play-box, but on the real internet: no GitHub stand-in, so any published arrow can be found and installed.
+# E2E_NOVNC_BIND / E2E_NOVNC_PORT pick where noVNC is published (default 127.0.0.1:6080).
+play-box-online:
+	@if [ -z "$(QUIVER_CORE_DEV_PATH)" ]; then echo "set QUIVER_CORE_DEV_PATH to a quiver.core checkout"; exit 1; fi
+	@QUIVER_CORE_DEV_PATH="$(QUIVER_CORE_DEV_PATH)" docker compose -f docker/e2e/docker-compose.yml run --rm --service-ports -e PLAYGROUND=online -e SKIP_BUILD="$(SKIP_BUILD)" e2e scenarios/run-native.sh
 
 clean:
 	@$(CARGO) clean

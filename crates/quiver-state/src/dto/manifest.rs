@@ -31,8 +31,11 @@ pub struct ArrowMediaDto {
 /// Core's wire step is already the full raw definition, nothing to rename or reshape on the way in.
 pub type StepDto = ArrowStepDefinition;
 
+/// Core's `domain.Method` is `{available_in, steps}` under its name as the map key (`methods.add_service`):
+/// no `name` of its own, so it is taken from the key (`to_targets`).
 #[derive(Debug, Clone, Deserialize)]
 pub struct MethodDto {
+    #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub description: String,
@@ -151,9 +154,9 @@ pub(super) fn to_targets(dto: IndexMap<String, TargetManifestDto>) -> Vec<ArrowT
             methods: target
                 .methods
                 .unwrap_or_default()
-                .into_values()
-                .map(|m| ArrowMethod {
-                    name: m.name,
+                .into_iter()
+                .map(|(key, m)| ArrowMethod {
+                    name: if m.name.is_empty() { key } else { m.name },
                     description: m.description,
                     available_in: m.available_in,
                     steps: m.steps,

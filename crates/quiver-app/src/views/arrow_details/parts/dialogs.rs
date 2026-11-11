@@ -192,5 +192,6 @@ pub fn dialogs(
             cx,
         ));
     }
+    out.extend(super::switch_dialog(view, cx));
     out
 }

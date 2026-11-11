@@ -16,6 +16,10 @@ pub enum Command {
         id: String,
         reply: Reply,
     },
+    RightClick {
+        id: String,
+        reply: Reply,
+    },
     Type {
         id: Option<String>,
         text: String,
@@ -46,10 +50,51 @@ pub fn run(
 ) {
     cx.spawn(async move |cx: &mut AsyncApp| {
         while let Some(command) = rx.recv().await {
+            // Typing into a field clicks it through the window system first; GPUI only sees that click on a later
+            // turn of its event loop. Typed at once, the text went in ahead of the click, which then moved the
+            // cursor into the middle of it ("daemo" + Enter + "n"). So the click lands before the first key.
+            let command = match command {
+                Command::Type {
+                    id: Some(id),
+                    text,
+                    reply,
+                } => {
+                    if let Err(e) = input::click(cx, window, &id, false) {
+                        let _ = reply.send(Err(e));
+                        continue;
+                    }
+                    settle_click(cx, &id).await;
+                    Command::Type {
+                        id: None,
+                        text,
+                        reply,
+                    }
+                }
+                other => other,
+            };
             execute(cx, window, command);
         }
     })
     .detach();
+}
+
+/// Waits (up to a second) for the clicked field to report focus, then one more frame for the click's own
+/// cursor placement.
+async fn settle_click(
+    cx: &mut AsyncApp,
+    id: &str,
+) {
+    let timer = |cx: &mut AsyncApp| {
+        cx.background_executor()
+            .timer(std::time::Duration::from_millis(25))
+    };
+    for _ in 0..40 {
+        if quiver_ui::inspect::find(id).is_some_and(|n| n.state.contains("[focused]")) {
+            break;
+        }
+        timer(cx).await;
+    }
+    timer(cx).await;
 }
 
 fn execute(
@@ -60,6 +105,7 @@ fn execute(
     let (result, reply) = match command {
         Command::Click { id, double, reply } => (input::click(cx, window, &id, double), reply),
         Command::Hover { id, reply } => (input::hover(cx, window, &id), reply),
+        Command::RightClick { id, reply } => (input::right_click(&id), reply),
         Command::Type { id, text, reply } => {
             (input::type_text(cx, window, id.as_deref(), &text), reply)
         }

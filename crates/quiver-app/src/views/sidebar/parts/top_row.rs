@@ -9,10 +9,10 @@ use quiver_state::domain::ConnectionStatus;
 use quiver_state::shell::rail_owns_controls;
 use quiver_theme::FontFamily;
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::{icon, ActiveQuiver, Glyph};
+use quiver_ui::{icon, ActiveQuiver, Glyph, TrackedText};
 
 use super::super::Sidebar;
-use crate::model::{AppModel, Route};
+use crate::model::AppModel;
 
 fn nav_button(
     id: &'static str,
@@ -97,7 +97,6 @@ pub fn top_row(
             ConnectionStatus::Starting => dot.bg(p.foreground_subtle),
             ConnectionStatus::Disconnected => dot.border_1().border_color(p.destructive),
         };
-        let app_entity = sidebar.app.clone();
         div()
             .id("sidebar-connection")
             .relative()
@@ -106,6 +105,7 @@ pub fn top_row(
             .items_center()
             .gap(px(6.))
             .mr(px(4.))
+            .max_w(px(98.))
             .h(px(24.))
             .px(px(6.))
             .rounded_full()
@@ -113,20 +113,24 @@ pub fn top_row(
             .text_size(px(11.5))
             .font_weight(FontWeight::MEDIUM)
             .hover(|s| s.bg(p.sidebar_element_hover))
-            .on_click(move |_, _, cx| {
-                app_entity.update(cx, |m, cx| m.navigate(Route::Remote, cx));
-            })
+            // The old `ConnectionSwitcher`: the chip opens the command palette.
+            .on_click(|_, _, cx| crate::views::remote::open_palette(cx))
             .child(dot)
-            .child(div().max_w(px(74.)).truncate().child(name.clone()))
+            // Painted by `TrackedText` so a long name ends in "…": gpui only ellipsizes text whose box
+            // has a definite width, and this one is flex-shrunk.
+            .child(
+                TrackedText::inherit_color(name.clone(), 11.5, 14., 0.).weight(FontWeight::MEDIUM),
+            )
             .child(probe("sidebar.connection", Kind::Text, name, true, ""))
     });
     let line = |label: &'static str, value: String| {
         div()
             .flex()
+            .min_w_0()
             .gap(px(8.))
             .whitespace_nowrap()
             .child(div().w(px(26.)).flex_none().opacity(0.7).child(label))
-            .child(div().min_w_0().truncate().child(value))
+            .child(TrackedText::inherit_color(value, 10., 12., 0.).family(mono))
     };
     div()
         .flex_none()

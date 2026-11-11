@@ -1,0 +1,7 @@
+{
+ "ok": true,
+ "data": {
+  "namespace": "github.com/rabbytesoftware/quiver.core",
+  "readme": "# Quiver Core\n\n<p align=\"center\">\n  <img src=\"https://raw.githubusercontent.com/rabbytesoftware/quiver.core/develop/.github/quiver.svg\" alt=\"Quiver\" width=\"450\" />\n  <br/>\n  <em>The engine running quietly underneath everything else.</em>\n</p>\n\nThis is Quiver's own engine: the background service that actually installs, runs, and manages every application in your library, including the desktop app you're browsing this catalog with. It's listed here so it can report its own version alongside everyone else's, the same way it tracks updates for anything else on your machine.\n\nThere's nothing to install here: it's already running, since it's what's showing you this page."
+ }
+}

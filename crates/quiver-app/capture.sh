@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Screenshot the app (--demo) under Xvfb, client area only. Run through the container:
 #   QUIVER_BOX_SLOT=views scripts/box.sh bash crates/quiver-app/capture.sh home home-scrolled:scroll=800
-# Each argument is name[:action...] (actions separated by ':'): scroll=<px>, click=<x>,<y>, hover=<x>,<y>, key=<xdotool key>.
+# Each argument is name[:action...] (actions separated by ':'): scroll=<px>, click=<x>,<y>, hover=<x>,<y>, key=<xdotool key>,
+# resize=<w>,<h> (the window, before the shot).
 # PNGs (1200x800, the window's client area) land in docker/native/evidence/<name>.png
 set -euo pipefail
 OUT=${OUT:-docker/native/evidence}
@@ -31,6 +32,10 @@ for spec in "$@"; do
       hover) IFS=, read -r cx cy <<<"$arg"; xdotool mousemove $((X + cx)) $((Y + cy)) ;;
       rclick) IFS=, read -r cx cy <<<"$arg"; xdotool mousemove $((X + cx)) $((Y + cy)) click 3 ;;
       key) xdotool key "$arg" ;;
+      resize) IFS=, read -r rw rh <<<"$arg"; xdotool windowsize "$win" "$rw" "$rh"; sleep 1
+        info=$(xwininfo -id "$win")
+        X=$(awk '/Absolute upper-left X/ {print $4}' <<<"$info"); Y=$(awk '/Absolute upper-left Y/ {print $4}' <<<"$info")
+        WIDTH=$(awk '/Width:/ {print $2}' <<<"$info"); HEIGHT=$(awk '/Height:/ {print $2}' <<<"$info") ;;
     esac
     sleep 1.5
   done

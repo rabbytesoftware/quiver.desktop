@@ -7,7 +7,8 @@ use std::sync::Arc;
 use quiver_state::domain::{ArrowDetail, ConnectionStatus};
 use quiver_state::observable::Store;
 use quiver_state::queries::arrow::{
-    fetch_arrow_detail, fetch_dependencies, fetch_dependents, fetch_readme, is_enabled,
+    fetch_arrow_detail, fetch_channels, fetch_dependencies, fetch_dependents, fetch_readme,
+    is_enabled,
 };
 use quiver_state::queries::keys::arrow_detail_key;
 use tokio::task::JoinHandle;
@@ -21,6 +22,8 @@ pub struct Load {
     /// The daemon answered 404: this arrow does not resolve.
     pub not_found: bool,
     pub loading: bool,
+    /// The channels read is still in flight: the Channel picker shows Loading instead of nothing.
+    pub channels_loading: bool,
 }
 
 /// Stops the read loop with the view that started it.
@@ -60,20 +63,29 @@ pub fn start(
                     Ok(detail) => {
                         load.update(|l| {
                             l.loading = false;
+                            l.channels_loading = true;
                             l.not_found = false;
                             // The slow fields of the last read stay until the new ones land.
                             let slow = l.detail.take();
                             l.detail = Some(keep_slow_fields(detail, slow));
                         });
-                        let (readme, deps, dependents) = tokio::join!(
+                        let (readme, deps, dependents, channels) = tokio::join!(
                             fetch_readme(api.as_ref(), &namespace),
                             fetch_dependencies(api.as_ref(), &namespace),
-                            fetch_dependents(api.as_ref(), &namespace)
+                            fetch_dependents(api.as_ref(), &namespace),
+                            fetch_channels(
+                                api.as_ref(),
+                                quiver_state::namespace::bare_namespace(&namespace)
+                            )
                         );
                         load.update(|l| {
+                            l.channels_loading = false;
                             if let Some(d) = &mut l.detail {
                                 if let Ok(readme) = readme {
                                     d.readme = readme;
+                                }
+                                if let Ok(channels) = channels {
+                                    d.channels = channels;
                                 }
                                 if let Ok(deps) = deps {
                                     d.dependencies = deps;

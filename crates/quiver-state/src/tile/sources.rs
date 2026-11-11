@@ -1,7 +1,7 @@
 //! Filling a [`TileInput`] from the records each screen holds.
 
 use super::badge::BadgePolicy;
-use super::model::{TileInput, TileKind};
+use super::model::{os_families, RevealFacts, TileInput, TileKind};
 use crate::arrow_details::RunState;
 use crate::domain::{ArrowEntry, CollectionListItem, SearchEntry};
 use crate::i18n::en::arrow;
@@ -19,6 +19,10 @@ impl TileInput {
             state: Some(entry.state.into()),
             user_installed: true,
             start_label: Some(arrow::ACTION_START),
+            reveal: RevealFacts {
+                text: entry.version.clone(),
+                ..RevealFacts::default()
+            },
             ..Self::arrow(&entry.namespace, &entry.name)
         }
     }
@@ -39,6 +43,7 @@ impl TileInput {
             state: Some(state),
             user_installed: entry.installed,
             policy: BadgePolicy::WithLibraryState,
+            reveal: search_reveal(entry),
             ..Self::arrow(&entry.namespace, &entry.name)
         }
     }
@@ -52,9 +57,33 @@ impl TileInput {
             kind: TileKind::Collection,
             description: item.description.clone(),
             tags: item.tags.clone(),
+            reveal: RevealFacts {
+                text: count_label.clone(),
+                ..RevealFacts::default()
+            },
             custom_badge: Some(count_label),
             ..Self::arrow(&item.namespace, &item.name)
         }
+    }
+}
+
+/// The search card's strip: a held result says how the catalog holds it, then the newest version; one from the
+/// network says the newest version and the OS families; both end on the stars. Refs arrive sorted ascending.
+pub fn search_reveal(entry: &SearchEntry) -> RevealFacts {
+    use crate::domain::SearchProvenance;
+    use crate::i18n::en::search;
+    let held = entry.installed || entry.provenance.is_some();
+    let held_as = held.then_some(match entry.provenance {
+        Some(SearchProvenance::Dependency) => search::PROVENANCE_DEPENDENCY,
+        Some(SearchProvenance::Collection) => search::PROVENANCE_COLLECTION,
+        Some(SearchProvenance::Seen) => search::PROVENANCE_SEEN,
+        _ => search::PROVENANCE_INSTALLED,
+    });
+    RevealFacts {
+        text: entry.versions.last().cloned().unwrap_or_default(),
+        held_as,
+        os: (!held).then(|| os_families(&entry.compatible_os)),
+        stars: Some(entry.stars),
     }
 }
 

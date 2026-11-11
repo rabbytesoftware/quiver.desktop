@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use gpui::{
     canvas, div, point, px, Animation, AnimationExt, App, Bounds, ElementId, Hsla, IntoElement,
-    PathBuilder, Pixels, Point, RenderOnce, Window,
+    Pixels, Point, RenderOnce, Window,
 };
 
 /// The arc `M21 12a9 9 0 1 1-6.219-8.56` of the 24x24 icon: 0 to 288 degrees clockwise.
@@ -38,7 +38,7 @@ fn arc(
         |_, _, _| (),
         move |bounds: Bounds<Pixels>, _, window: &mut Window, _: &mut App| {
             let color = color.unwrap_or_else(|| window.text_style().color);
-            let mut b = PathBuilder::stroke(px(2.0 * size / 24.0));
+            let mut b = crate::icon::round_stroke(2.0 * size / 24.0);
             let pts = arc_points(bounds.origin, size, rotation_deg);
             if let Some((first, rest)) = pts.split_first() {
                 b.move_to(*first);

@@ -120,6 +120,19 @@ pub fn page(cx: &App) -> Vec<AnyElement> {
         ]
     })
     .collect();
+    let icon_rows = |size: f32| -> Vec<Vec<AnyElement>> {
+        Glyph::ALL
+            .chunks(20)
+            .map(|chunk| {
+                chunk
+                    .iter()
+                    .map(|g| icon(*g, size, p.foreground).into_any_element())
+                    .collect()
+            })
+            .collect()
+    };
+    let icons_24 = icon_rows(24.);
+    let icons_14 = icon_rows(14.);
     let spinners = vec![
         Spinner::new("g-spin").into_any_element(),
         Spinner::new("g-spin-24").size(24.).into_any_element(),
@@ -150,6 +163,15 @@ pub fn page(cx: &App) -> Vec<AnyElement> {
         section(
             "Spinner / FlickerSpinner",
             vec![row("spinners", spinners, cx)],
+            cx,
+        ),
+        section(
+            "Icons (24px, 14px)",
+            icons_24
+                .into_iter()
+                .map(|r| row("24", r, cx))
+                .chain(icons_14.into_iter().map(|r| row("14", r, cx)))
+                .collect(),
             cx,
         ),
         section(

@@ -5,10 +5,12 @@
 use gpui::prelude::*;
 use gpui::{div, px, AnyElement, Context};
 use quiver_state::arrow_details::invoke::ActionFailure;
-use quiver_state::arrow_details::RunState;
+use quiver_state::arrow_details::status::{problem_message, LastRunFacts};
+use quiver_state::arrow_details::{last_run_facts, RunState};
 use quiver_state::domain::QUIVER_CORE_NAMESPACE;
 use quiver_state::i18n::en::{arrow, settings as keys};
 use quiver_state::namespace::bare_namespace;
+use quiver_state::queries::arrow::fetch_arrow_detail;
 use quiver_state::queries::mutations::{Mutations, UpdateOutcome, Variables};
 use quiver_state::settings::core_update::{build_core_update, CoreUpdateInput, CoreUpdateNote};
 use quiver_ui::ActiveQuiver;
@@ -26,6 +28,11 @@ pub struct UpdateCard {
     recheck_pending: bool,
     update_error: Option<ActionFailure>,
     recheck_error: Option<ActionFailure>,
+    /// The arrow's last run, from its detail: an update Core accepted can still fail afterwards (a checksum
+    /// that does not match, a build rolled back), and only that run says why.
+    last_run: Option<LastRunFacts>,
+    /// The (state, version) the last run was read for: a new one is read when either changes.
+    last_run_for: Option<(RunState, String)>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -48,6 +55,36 @@ impl Which {
 }
 
 impl SettingsView {
+    /// Reads the arrow's detail for its last run once per (state, version): after an update ends, failed
+    /// or not, the state changes and the note follows.
+    fn read_last_run(
+        &mut self,
+        which: Which,
+        identity: String,
+        key: (RunState, String),
+        cx: &mut Context<Self>,
+    ) {
+        if self.card(which).last_run_for.as_ref() == Some(&key) {
+            return;
+        }
+        self.card(which).last_run_for = Some(key);
+        let (api, handle) = {
+            let m = self.app.read(cx);
+            (m.services.api.clone(), m.handle().clone())
+        };
+        spawn_action(
+            cx,
+            &handle,
+            async move { fetch_arrow_detail(api.as_ref(), &identity).await },
+            move |this: &mut Self, result, cx| {
+                if let Ok(detail) = result {
+                    this.card(which).last_run = last_run_facts(&detail);
+                    cx.notify();
+                }
+            },
+        );
+    }
+
     fn card(
         &mut self,
         which: Which,
@@ -152,13 +189,25 @@ pub fn update_rows(
     cx: &mut Context<SettingsView>,
 ) -> Vec<AnyElement> {
     let p = cx.quiver().palette;
-    let app = view.app.read(cx);
-    let entry = app
+    let entry = view
+        .app
+        .read(cx)
         .services
         .arrows
         .entries()
         .into_iter()
         .find(|a| bare_namespace(&a.namespace) == which.namespace());
+    let Some(found) = &entry else {
+        return Vec::new();
+    };
+    let state = RunState::from(found.state);
+    view.read_last_run(
+        which,
+        found.namespace.clone(),
+        (state, found.version.clone()),
+        cx,
+    );
+    let app = view.app.read(cx);
     let t = |key| app.t(key);
     let card = match which {
         Which::Core => &view.core,
@@ -177,7 +226,7 @@ pub fn update_rows(
         recheck_pending: card.recheck_pending,
         update_error: card.update_error.as_ref(),
         recheck_error: card.recheck_error.as_ref(),
-        problem: None,
+        problem: problem_message(state, card.last_run.as_ref()).as_ref(),
     });
     let description = match &rows.note {
         CoreUpdateNote::Failure(message) => Some(message.clone()),

@@ -2,10 +2,11 @@
 //!
 //! GPUI has no backdrop blur, so `bg-black/32 backdrop-blur-sm` is the dim only.
 
+use crate::layer::layer;
 use gpui::prelude::*;
 use gpui::{
-    anchored, black, deferred, div, point, px, relative, Animation, AnimationExt, AnyElement, App,
-    ElementId, FocusHandle, KeyDownEvent, MouseButton, Window,
+    anchored, black, div, point, px, relative, Animation, AnimationExt, AnyElement, App, ElementId,
+    FocusHandle, KeyDownEvent, MouseButton, Window,
 };
 use std::rc::Rc;
 use std::time::Duration;
@@ -104,7 +105,7 @@ impl ModalLayer {
             Placement::Top => base.flex_col().justify_start().child(self.popup),
             Placement::Bottom => base.flex_col().justify_end().child(self.popup),
         };
-        let layer = base
+        let backdrop = base
             .id(child_id(&self.id, "backdrop"))
             .occlude()
             .on_mouse_down(MouseButton::Left, move |_, window, cx| {
@@ -117,10 +118,10 @@ impl ModalLayer {
                 Animation::new(ENTER),
                 |el, t| el.opacity(t),
             );
-        deferred(
+        layer(
             anchored()
                 .position(point(px(0.), px(0.)))
-                .child(div().w(vw).h(vh).child(layer)),
+                .child(div().w(vw).h(vh).child(backdrop)),
         )
         .with_priority(10)
         .into_any_element()

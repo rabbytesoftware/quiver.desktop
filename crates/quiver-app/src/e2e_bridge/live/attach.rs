@@ -49,6 +49,7 @@ pub fn attach(
             "connections": connections.connections.iter().map(|c| &c.id).collect::<Vec<_>>(),
             "arrows": arrows,
             "arrowWindows": for_state.arrow_windows.snapshot(),
+            "nativeMenu": crate::services::native_menu::record(),
         })
     });
     start(cx, window, runtime.clone(), state);

@@ -41,6 +41,11 @@ pub fn body(
         PaneBody::Open => name,
         PaneBody::Closed => m.t(screens::ARROWAPP_WINDOW_CLOSED),
     };
+    // Covered by a menu or dialog: the page stepped aside and its photograph stands in.
+    let cover = (windows.covered()
+        && windows.visible().as_deref() == Some(view.namespace.as_str()))
+    .then(crate::services::page_cover::current)
+    .flatten();
     let (reporter, namespace) = (windows.clone(), view.namespace.clone());
     div()
         .relative()
@@ -88,6 +93,19 @@ pub fn body(
                 .text_color(p.warning)
                 .child(n.clone())
                 .child(probe("arrow-app.notice", Kind::Text, n, true, ""))
+        }))
+        .children(cover.map(|image| {
+            div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .size_full()
+                .child(
+                    gpui::img(image)
+                        .size_full()
+                        .object_fit(gpui::ObjectFit::Fill),
+                )
+                .child(probe("arrow-app.cover", Kind::Other, "cover", true, ""))
         }))
         .child(probe(
             "arrow-app.body",

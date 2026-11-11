@@ -289,7 +289,16 @@ impl RenderOnce for ScrollArea {
                     .overflow_y_scroll()
                     .when(self.horizontal, |d| d.overflow_x_scroll())
                     .on_scroll_wheel(move |_, window, _| window.refresh())
-                    .child(div().min_w_0().children(self.children)),
+                    // The content is the viewport's width (at least, when it also scrolls sideways): sized to
+                    // its own content instead, a page with little in it (one tile on a shelf) shrinks, and rows
+                    // meant to span the page (a header with its link at the right) end where the content ends.
+                    .child(
+                        div()
+                            .min_w_0()
+                            .when(!self.horizontal, |d| d.w_full())
+                            .when(self.horizontal, |d| d.min_w(gpui::relative(1.)))
+                            .children(self.children),
+                    ),
             )
             .child(tracker)
             .children(fade_top)

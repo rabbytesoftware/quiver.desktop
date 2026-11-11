@@ -4,9 +4,11 @@
 //! - `app.ping` -> [`Ping`]
 //! - `ui.tree` -> [`Tree`] (every element painted in the last frame, with its stable id)
 //! - `ui.find` `{id}` -> `Node | null`
-//! - `ui.click` `{id}`, `ui.hover` `{id}`, `ui.double_click` `{id}`
+//! - `ui.click` `{id}`, `ui.hover` `{id}`, `ui.double_click` `{id}`, `ui.right_click` `{id}`
 //! - `ui.type` `{id?, text}` focuses `id` (when given) and types `text`
 //! - `ui.key` `{keys}` presses a chord such as `"enter"`, `"cmd-k"`, `"ctrl-shift-p"`
+//! - `os.key` `{keys}` presses keys through the window system (X11 keysyms such as `"Down Return"`), for
+//!   what the app does not draw itself: the OS's own context menu takes the keyboard while it is up
 //! - `ui.scroll` `{id, dx, dy}` (logical pixels)
 //! - `wait.signal` `{signal, timeout_ms}` waits for a named signal raised by the app (latched: a signal
 //!   that already fired returns at once). Never a sleep.

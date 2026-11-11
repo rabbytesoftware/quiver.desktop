@@ -22,12 +22,18 @@ pub fn library(
                 .t_count(keys::VIEW_ALL_ARROWS, model.library_total),
         )
     };
-    let tiles = model
-        .library_preview
-        .iter()
-        .map(|entry| tile("home", &library_input(entry), TileSize::Compact, &app, cx));
+    let tiles = model.library_preview.iter().map(|entry| {
+        tile(
+            "home.library",
+            &library_input(entry),
+            TileSize::Compact,
+            &app,
+            cx,
+        )
+    });
     let go = app.clone();
     div()
+        .w_full()
         .child(SectionHeader::new("home-library", title).link(
             link,
             "home.library.view-all",

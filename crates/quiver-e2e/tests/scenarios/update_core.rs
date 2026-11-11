@@ -73,6 +73,13 @@ async fn update_from_settings_swaps_the_daemon_and_settings_shows_the_new_versio
     s.run().swapped_to(&v2).await;
     value(&mut s.app, "installed", &v2).await;
     // The "available" row after a swap without leaving Settings is covered by the second-update test below.
+    // No Update offered for the release now running, and the rail names the new build.
+    s.app.gone("settings.core.update").await;
+    s.app
+        .matching(
+            serde_json::json!({"id": "sidebar.build", "state_contains": v2.replacen('-', " ", 1)}),
+        )
+        .await;
     s.app.shot("07-settings-after-swap").await;
 }
 
@@ -121,6 +128,9 @@ async fn a_release_whose_checksum_does_not_match_is_refused_and_nothing_changes(
     assert_eq!(sha256(&s.home.self_binary()), binary);
     assert!(leftovers(&s.home).is_empty());
     assert!(alive(s.supervised_pid));
+    // Settings says why: the failed run's own error under "Check for updates", as the old card did.
+    let note = s.app.node("settings.core.actions.description").await;
+    assert!(!note.label.is_empty(), "no failure note: {note:?}");
     s.app.shot("08-settings-wrong-checksum").await;
     s.app.click(&format!("sidebar.row.{NS_CORE}")).await;
     s.app.node("arrow.problem").await;
@@ -182,7 +192,9 @@ async fn closing_the_window_stops_the_daemon_and_leaves_no_quiver_process() {
         .status()
         .expect("wmctrl")
         .success());
-    s.app.proc.wait_exit().await.expect("the app to exit");
+    let exit = s.app.proc.wait_exit().await.expect("the app to exit");
+    // A clean quit, not a panic on the way out (GPUI's X11 close re-entering `quit`).
+    assert!(exit.success(), "the app ended with {exit}");
     eventually("the daemon to stop with the app", LONG, || async {
         (daemons().is_empty() && !alive(current[0])).then_some(())
     })

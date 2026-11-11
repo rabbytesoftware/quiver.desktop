@@ -17,6 +17,7 @@ use quiver_state::domain::Home;
 use quiver_state::i18n::{Key, Locale, Translator};
 use quiver_state::observable::Store;
 use quiver_state::queries::Query;
+use quiver_state::remote::{RemoteOverlays, ToastStack, TOAST_DURATION_MS};
 use quiver_state::shell::{ShellSettings, ThemePreference};
 use tokio::runtime::Handle;
 
@@ -47,6 +48,11 @@ pub struct AppModel {
     pub show_self_components: bool,
     /// The console dock is open. It is a dock, not a route.
     pub console_open: bool,
+    /// The Remote feature's app-wide overlays: the command palette (`cmd_*`). The Add / Rename / Remove
+    /// dialogs are modals in [`ModalStack`]; the row menus own their open state.
+    pub remote: RemoteOverlays,
+    /// The Remote feature's toasts, drawn at the window's bottom-right whatever the route.
+    pub toasts: ToastStack,
     pub demo: bool,
 }
 
@@ -75,6 +81,8 @@ impl AppModel {
             theme,
             show_self_components,
             console_open: false,
+            remote: RemoteOverlays::default(),
+            toasts: ToastStack::default(),
             demo,
         }
     }
@@ -171,6 +179,49 @@ impl AppModel {
         cx: &mut Context<Self>,
     ) {
         if self.modals.close(id) {
+            cx.notify();
+        }
+    }
+
+    /// Shows a toast; it goes away by itself after [`TOAST_DURATION_MS`].
+    pub fn push_toast(
+        &mut self,
+        message: String,
+        cx: &mut Context<Self>,
+    ) {
+        let id = self.toasts.push(message);
+        cx.spawn(async move |model, cx| {
+            cx.background_executor()
+                .timer(std::time::Duration::from_millis(TOAST_DURATION_MS))
+                .await;
+            model
+                .update(cx, |model, cx| {
+                    model.toasts.dismiss(id);
+                    cx.notify();
+                })
+                .ok();
+        })
+        .detach();
+        cx.notify();
+    }
+
+    /// Opens the command palette with an empty query (a no-op while it is open).
+    pub fn open_cmd(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.remote.cmd_open {
+            self.remote.open_cmd();
+            cx.notify();
+        }
+    }
+
+    pub fn close_cmd(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
+        if self.remote.cmd_open {
+            self.remote.close_cmd();
             cx.notify();
         }
     }

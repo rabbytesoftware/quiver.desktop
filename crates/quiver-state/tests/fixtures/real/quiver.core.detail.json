@@ -1,0 +1,17 @@
+{
+ "ok": true,
+ "data": {
+  "namespace": "github.com/rabbytesoftware/quiver.core@nightly-latest",
+  "name": "Quiver Core",
+  "description": "The Quiver package manager's own engine daemon.",
+  "license": "GPL-3.0",
+  "state": "ready",
+  "tags": null,
+  "user_installed": true,
+  "selector_kind": "channel",
+  "resolved_ref": "nightly-latest",
+  "installed_commit": "078d82b1cab05ee2e5cbb46c4ee738569d6e9c20",
+  "outdated": false,
+  "origin": "declared"
+ }
+}

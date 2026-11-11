@@ -40,14 +40,24 @@ pub fn click(
     os_mouse::click(x, y, double)
 }
 
+/// The element's centre with the secondary button, through the window system.
+pub fn right_click(id: &str) -> Result<(), String> {
+    let (x, y) = target(id)?;
+    os_mouse::right_click(x, y)
+}
+
 pub fn press(
     cx: &mut AsyncApp,
     window: AnyWindowHandle,
     keys: &str,
 ) -> Result<(), String> {
     for chord in keys.split_whitespace() {
-        let keystroke =
+        let mut keystroke =
             Keystroke::parse(chord).map_err(|e| format!("bad key chord {chord:?}: {e}"))?;
+        // GPUI's parsed `enter` carries a "\n" a field would insert as text; the window system's Return does not.
+        if keystroke.key == "enter" {
+            keystroke.key_char = None;
+        }
         cx.update_window(window, |_, window, cx| {
             window.dispatch_keystroke(keystroke, cx)
         })

@@ -8,16 +8,34 @@ mod dialogs;
 mod header;
 pub(super) mod icons;
 mod popovers;
+mod selector;
 mod states;
 
 use gpui::prelude::*;
 use gpui::{div, px, Context, IntoElement, Window};
 
 pub(super) use dialogs::dialogs;
+pub(super) use selector::switch_dialog;
 pub(super) use states::{load_error, not_found, skeleton};
 
 use super::page::Page;
 use super::ArrowDetailsView;
+
+/// Below this content width the Details card goes under the body (the old page's `RAIL_MIN_WIDTH`).
+const RAIL_MIN_WIDTH: f32 = 860.;
+/// Below this window width the banner goes above the header's text (the old hero's `lg` breakpoint).
+const BANNER_BESIDE_MIN_VIEWPORT: f32 = 1024.;
+const PAD_LEFT: f32 = 44.;
+const PAD_RIGHT: f32 = 60.;
+
+/// How the page lays out at the window's width.
+#[derive(Clone, Copy)]
+pub(super) struct Fit {
+    /// The page's content width, inside its padding.
+    pub content: f32,
+    /// The banner beside the header's text (wide) or above it.
+    pub banner_beside: bool,
+}
 
 /// Header, then README (or the glance) beside the Details card.
 pub(super) fn page(
@@ -26,20 +44,39 @@ pub(super) fn page(
     window: &mut Window,
     cx: &mut Context<ArrowDetailsView>,
 ) -> impl IntoElement {
+    let viewport = f32::from(window.viewport_size().width);
+    let sidebar = view.app.read(cx).shell.sidebar_width as f32;
+    let fit = Fit {
+        content: (viewport - sidebar - PAD_LEFT - PAD_RIGHT).max(0.),
+        banner_beside: viewport >= BANNER_BESIDE_MIN_VIEWPORT,
+    };
+    // The old page's rule (`RAIL_MIN_WIDTH`), measured as it did: the main area inside its `px-11` (44px each
+    // side). Narrower, the Details card goes under the body.
+    let beside = viewport - sidebar - 2. * 44. >= RAIL_MIN_WIDTH;
+    let body = body::body(view, page, window, cx);
+    let details = details::details(view, page, cx);
+    let row = if beside {
+        div()
+            .flex()
+            .items_start()
+            .gap(px(60.))
+            .child(body)
+            .children(details)
+    } else {
+        // Stacked, every block gets the width outright: the README's lists and code blocks size against it.
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(40.))
+            .child(div().flex().w(px(fit.content.min(560.))).child(body))
+            .children(details)
+    };
     div()
         .w_full()
-        .pl(px(44.))
-        .pr(px(60.))
+        .pl(px(PAD_LEFT))
+        .pr(px(PAD_RIGHT))
         .pt(px(25.))
         .pb(px(48.))
-        .child(header::header(view, page, cx))
-        .child(
-            div()
-                .mt(px(41.))
-                .flex()
-                .items_start()
-                .gap(px(60.))
-                .child(body::body(view, page, window, cx))
-                .child(details::details(view, page, cx)),
-        )
+        .child(header::header(view, page, fit, cx))
+        .child(row.mt(px(41.)))
 }

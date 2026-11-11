@@ -19,7 +19,8 @@ fn entry(
         description: description.into(),
         tags: tags.iter().map(|t| (*t).into()).collect(),
         icon: None,
-        banner: None,
+        // The library's Minecraft row has the banner (the old mock's only one), so its search card does too.
+        banner: (namespace == "github.com/rabbyte/minecraft").then(|| "demo".into()),
         versions: vec!["v1".into()],
         compatible_os: vec![],
         provenance: None,

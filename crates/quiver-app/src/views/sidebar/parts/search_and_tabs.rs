@@ -6,16 +6,24 @@ use gpui::{div, px, Context, FontWeight, IntoElement};
 use quiver_state::settings::SettingsTab;
 use quiver_state::sidebar::{active_destination, Destination, DESTINATIONS};
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::{icon, inner_highlight, shadow_xs, tooltip, ActiveQuiver, Glyph, SearchInput};
+use quiver_ui::{
+    icon, inner_highlight, shadow_xs, tooltip, ActiveQuiver, Glyph, SearchInput, TipExt,
+};
 
 use super::super::Sidebar;
 use crate::model::Route;
 
-fn glyph(destination: Destination) -> Glyph {
-    match destination {
-        Destination::Home => Glyph::Home,
-        Destination::Remote => Glyph::Server,
-        Destination::Settings => Glyph::Settings,
+fn glyph(
+    destination: Destination,
+    active: bool,
+) -> Glyph {
+    match (destination, active) {
+        (Destination::Home, false) => Glyph::Home,
+        (Destination::Home, true) => Glyph::HomeFill,
+        (Destination::Remote, false) => Glyph::Server,
+        (Destination::Remote, true) => Glyph::ServerFill,
+        (Destination::Settings, false) => Glyph::Settings,
+        (Destination::Settings, true) => Glyph::SettingsFill,
     }
 }
 
@@ -61,7 +69,7 @@ pub fn search_and_tabs(
             .justify_center()
             .gap(px(4.))
             .h(px(32.))
-            .rounded(px(6.))
+            .rounded(px(8.))
             .flex_basis(px(0.))
             .flex_grow()
             .flex_shrink()
@@ -70,7 +78,7 @@ pub fn search_and_tabs(
             .on_click(move |_, _, cx| {
                 app.update(cx, |m, cx| m.navigate(route(destination), cx));
             })
-            .child(icon(glyph(destination), 14., color))
+            .child(icon(glyph(destination, is_active), 14., color))
             .child(probe(
                 tab_id(destination),
                 Kind::Tab,
@@ -84,7 +92,7 @@ pub fn search_and_tabs(
                 .px(px(12.))
                 .bg(p.primary)
                 .shadow(shadow_xs(gpui::black().opacity(0.10)))
-                .child(inner_highlight(6., p.selected_edge))
+                .child(inner_highlight(8., p.selected_edge))
                 .child(
                     div()
                         .text_size(px(14.))
@@ -93,7 +101,7 @@ pub fn search_and_tabs(
                 );
         } else {
             tab = tab
-                .tooltip(tooltip(label))
+                .tip(tooltip(label))
                 .hover(|s| s.text_color(p.muted_foreground));
         }
         tab
@@ -107,8 +115,10 @@ pub fn search_and_tabs(
         .pt(px(2.))
         .pb(px(4.))
         .child(
-            SearchInput::new("sidebar-search", &sidebar.search)
-                .probes("sidebar.search", "sidebar.search.clear"),
+            div().h(px(36.)).flex().items_center().child(
+                SearchInput::new("sidebar-search", &sidebar.search)
+                    .probes("sidebar.search", "sidebar.search.clear"),
+            ),
         )
         .child(
             div()

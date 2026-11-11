@@ -226,7 +226,7 @@ impl RenderOnce for Select {
                 p.input
             })
             .bg(if q.is_dark() {
-                p.input.opacity(0.32)
+                p.background.blend(p.input.opacity(0.32))
             } else {
                 p.background
             })
@@ -243,7 +243,7 @@ impl RenderOnce for Select {
                     } else {
                         p.muted_foreground.opacity(0.72)
                     })
-                    .child(shown.unwrap_or(self.placeholder)),
+                    .child(shown.unwrap_or(self.placeholder.clone())),
             )
             .child(div().opacity(0.8).mr(px(-4.)).child(icon(
                 Glyph::ChevronsUpDown,
@@ -339,7 +339,15 @@ impl RenderOnce for Select {
                                 },
                             )
                         })))
-                        .child(div().min_w_0().child(o.label.clone()));
+                        .child(div().min_w_0().child(o.label.clone()))
+                        .relative()
+                        .child(crate::inspect::probe(
+                            format!("{}.option.{}", self.id, o.value),
+                            crate::inspect::Kind::MenuItem,
+                            o.label.clone(),
+                            !o.disabled,
+                            if chosen { "checked" } else { "" },
+                        ));
                     if o.disabled {
                         return row.opacity(0.64).into_any_element();
                     }
@@ -404,7 +412,18 @@ impl RenderOnce for Select {
                 )
                 .into_any_element()
         });
-        let mut el = floating(trigger.into_any_element(), popup, false);
+        let label = selected_index
+            .and_then(|i| self.options.get(i))
+            .map(|o| o.label.clone())
+            .unwrap_or_else(|| self.placeholder.clone());
+        let mut el =
+            floating(trigger.into_any_element(), popup, false).child(crate::inspect::probe(
+                self.id.to_string(),
+                crate::inspect::Kind::Select,
+                label,
+                !self.disabled,
+                if open { "open" } else { "" },
+            ));
         el.style().refine(&self.style);
         el
     }

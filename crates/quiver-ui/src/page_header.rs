@@ -4,6 +4,7 @@ use gpui::prelude::*;
 use gpui::{div, px, AnyElement, App, FontWeight, SharedString, Window};
 
 use crate::theme::ActiveQuiver;
+use crate::tracked::TrackedText;
 
 #[derive(IntoElement)]
 pub struct PageHeader {
@@ -60,12 +61,8 @@ impl RenderOnce for PageHeader {
                     .gap(px(4.))
                     .min_w_0()
                     .child(
-                        div()
-                            .text_size(px(24.))
-                            .line_height(px(30.))
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(p.foreground)
-                            .child(self.title),
+                        TrackedText::new(self.title, 24., 30., -0.4, p.foreground)
+                            .weight(FontWeight::SEMIBOLD),
                     )
                     .when_some(self.description, |d, text| {
                         d.child(

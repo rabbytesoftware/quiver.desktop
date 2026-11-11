@@ -1,19 +1,47 @@
 //! What the Remote screen does: each flow runs on the tokio runtime and its outcome comes back as a
 //! toast (and, for the successes, closes the dialog that asked).
 
-use std::time::Duration;
-
-use gpui::Context;
+use gpui::{App, Context, Entity};
 use quiver_state::remote::flows::{add, connect, remove, rename};
-use quiver_state::remote::{toast_for, AddSubmission, ConnectionOutcome, TOAST_DURATION_MS};
+use quiver_state::remote::{toast_for, AddSubmission, ConnectionOutcome};
 
 use super::RemoteView;
 use crate::bridge::spawn_action;
-use crate::model::close_modal;
+use crate::model::{close_modal, AppModel};
 
 pub(super) const ADD_MODAL: &str = "remote-add";
 pub(super) const RENAME_MODAL: &str = "remote-rename";
 pub(super) const REMOVE_MODAL: &str = "remote-remove";
+
+/// The Remote dialogs the command palette closes when it opens (`CLOSE_OTHER_OVERLAYS`).
+pub(super) const DIALOGS: [&str; 3] = [ADD_MODAL, RENAME_MODAL, REMOVE_MODAL];
+
+/// Switches to connection `id` and toasts what the status became (or that the switch failed). Shared by
+/// the Remote rows and the command palette, so "switch and toast" is written once.
+pub(crate) fn connect_to(
+    app: &Entity<AppModel>,
+    id: String,
+    name: String,
+    cx: &mut App,
+) {
+    app.update(cx, |m, cx| {
+        let (backend, connections, status, handle) = (
+            m.services.backend.clone(),
+            m.services.connections.clone(),
+            m.services.status.clone(),
+            m.handle().clone(),
+        );
+        spawn_action(
+            cx,
+            &handle,
+            async move { connect(backend.as_ref(), &connections, &id, || status.status()).await },
+            move |m: &mut AppModel, outcome, cx| {
+                let message = toast_for(&m.translator, outcome, &name);
+                m.push_toast(message, cx);
+            },
+        );
+    });
+}
 
 impl RemoteView {
     fn finish(
@@ -26,19 +54,10 @@ impl RemoteView {
         if outcome.closes_dialog() {
             close_modal(cx, modal);
         }
-        let message = toast_for(&self.app.read(cx).translator, outcome, name);
-        let id = self.toasts.push(message);
-        cx.spawn(async move |view, cx| {
-            cx.background_executor()
-                .timer(Duration::from_millis(TOAST_DURATION_MS))
-                .await;
-            view.update(cx, |view, cx| {
-                view.toasts.dismiss(id);
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
+        self.app.update(cx, |m, cx| {
+            let message = toast_for(&m.translator, outcome, name);
+            m.push_toast(message, cx);
+        });
         cx.notify();
     }
 
@@ -48,21 +67,7 @@ impl RemoteView {
         name: String,
         cx: &mut Context<Self>,
     ) {
-        let (backend, connections, status, handle) = {
-            let m = self.app.read(cx);
-            (
-                m.services.backend.clone(),
-                m.services.connections.clone(),
-                m.services.status.clone(),
-                m.handle().clone(),
-            )
-        };
-        spawn_action(
-            cx,
-            &handle,
-            async move { connect(backend.as_ref(), &connections, &id, || status.status()).await },
-            move |this: &mut Self, outcome, cx| this.finish(outcome, &name, "", cx),
-        );
+        connect_to(&self.app.clone(), id, name, cx);
     }
 
     pub(crate) fn add(

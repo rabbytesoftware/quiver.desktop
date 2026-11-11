@@ -6,8 +6,8 @@ use quiver_state::i18n::en::remote;
 use quiver_state::i18n::Params;
 use quiver_ui::inspect::{probe, Kind};
 use quiver_ui::{
-    ActiveQuiver, Button, ButtonVariant, Dialog, DialogDescription, DialogFooter, DialogHeader,
-    DialogPanel, DialogTitle, Input, InputEvent, InputState,
+    Button, ButtonVariant, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogPanel,
+    DialogTitle, Input, InputEvent, InputState,
 };
 
 use crate::model::{app_model, close_modal, open_modal};
@@ -124,7 +124,12 @@ impl Render for RenameModal {
                         .flex()
                         .flex_col()
                         .gap(px(6.))
-                        .child(div().text_size(px(13.)).child(label.clone()))
+                        .child(
+                            div()
+                                .text_size(px(12.5))
+                                .font_weight(gpui::FontWeight::MEDIUM)
+                                .child(label.clone()),
+                        )
                         .child(Input::new("remote-rename-input", &self.input))
                         .child(probe("remote.rename.input", Kind::Input, label, true, "")),
                 ),
@@ -162,7 +167,6 @@ impl Render for RemoveModal {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let p = cx.quiver().palette;
         let m = app_model(cx).read(cx);
         let title = m.translator.t_with(
             remote::REMOVE_TITLE,
@@ -183,12 +187,7 @@ impl Render for RemoveModal {
                     .child(DialogTitle::new().child(title))
                     .child(DialogDescription::new().child(description))
                     .when(self.active, |d| {
-                        d.child(
-                            div()
-                                .text_size(px(13.))
-                                .text_color(p.destructive)
-                                .child(warning),
-                        )
+                        d.child(DialogDescription::new().child(warning))
                     }),
             )
             .child(

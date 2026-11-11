@@ -73,7 +73,7 @@ fn logs(
     let level = model.logs.level;
     let level_this = this.clone();
     let level_controls = vec![probed(
-        div().w(px(120.)).child(
+        div().w(px(144.)).child(
             Select::new("settings-logs-level")
                 .options(level_options(view, cx))
                 .value(Some(level.as_str().into()))
@@ -144,7 +144,7 @@ fn channel_row(
         Some(Err(_)) => {
             let retry = small_button(
                 "settings.engine.channel.retry",
-                m.t(keys::ENGINE_RETRY),
+                m.t(keys::ENGINE_CHANNEL_RETRY),
                 ButtonVariant::Outline,
                 true,
                 move |_, cx| this.update(cx, |v, cx| v.load_channels(cx)),
@@ -219,6 +219,7 @@ fn channel_row(
 
 pub fn engine(
     view: &mut SettingsView,
+    window: &mut gpui::Window,
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
     let p = cx.quiver().palette;
@@ -246,17 +247,40 @@ pub fn engine(
                 move |_, cx| this.update(cx, |v, cx| v.load_engine(cx)),
             )
         });
+        // As the old tab: a failed load is the text and Retry at the content's inset; loading is a
+        // centred spinner and line (`engine.tsx`).
+        if let Some(retry) = retry {
+            return div()
+                .px(px(4.))
+                .py(px(8.))
+                .flex()
+                .flex_col()
+                .items_start()
+                .gap(px(8.))
+                .text_size(px(12.))
+                .text_color(p.muted_foreground)
+                .child(text)
+                .child(retry)
+                .into_any_element();
+        }
         return div()
+            .px(px(4.))
+            .py(px(40.))
             .flex()
-            .flex_col()
-            .items_start()
-            .gap(px(12.))
-            .text_size(px(13.))
+            .items_center()
+            .justify_center()
+            .gap(px(8.))
+            .text_size(px(12.))
             .text_color(p.muted_foreground)
+            .child(
+                quiver_ui::Spinner::new("settings.engine.loading")
+                    .size(16.)
+                    .color(p.muted_foreground),
+            )
             .child(text)
-            .children(retry)
             .into_any_element();
     };
+    view.sync_port_inputs(&model, window, cx);
     let mut notices: Vec<AnyElement> = Vec::new();
     if model.restart_required {
         notices.push(banner(&p, restart).into_any_element());

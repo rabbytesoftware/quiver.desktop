@@ -8,9 +8,9 @@ use quiver_state::i18n::en::arrow;
 use quiver_state::namespace::bare_namespace;
 use quiver_state::queries::mutations::{Mutations, Variables};
 use quiver_state::tile::{
-    build_tile, BadgePolicy, TileArt, TileBadgeKind, TileInput, TileKind, TileModel,
+    build_tile, BadgePolicy, RevealFacts, TileArt, TileBadgeKind, TileInput, TileKind, TileModel,
 };
-use quiver_ui::{Tile, TileArtKind, TileBadge, TileSize, TileStart, TileStatus};
+use quiver_ui::{Tile, TileArtKind, TileBadge, TileReveal, TileSize, TileStart, TileStatus};
 
 use crate::bridge::spawn_detached;
 use crate::model::{AppModel, Route};
@@ -41,6 +41,10 @@ pub fn library_input(entry: &ArrowEntry) -> TileInput {
         state: Some(RunState::from(entry.state)),
         user_installed: true,
         start_label: Some(arrow::ACTION_START),
+        reveal: RevealFacts {
+            text: entry.version.clone(),
+            ..RevealFacts::default()
+        },
         ..TileInput::arrow(bare_namespace(&entry.namespace), &entry.name)
     }
 }
@@ -64,6 +68,11 @@ pub fn discovered_input(
         user_installed: entry.installed,
         start_label: entry.installed.then_some(arrow::ACTION_START),
         policy,
+        // A shelf tile (old `shelf-section.tsx`) says the newest version only.
+        reveal: RevealFacts {
+            text: entry.versions.last().cloned().unwrap_or_default(),
+            ..RevealFacts::default()
+        },
         ..TileInput::arrow(bare_namespace(&entry.namespace), &entry.name)
     }
 }
@@ -86,7 +95,9 @@ fn run_action(
     });
 }
 
-/// A tile for `input`. `screen` namespaces the e2e id: `<screen>.tile.<namespace>`.
+/// A tile for `input`. `screen` namespaces the e2e id: `<screen>.tile.<namespace>`. It must be unique per shelf
+/// (`home.recents`, `home.library`): it also keys the tile's hover state, so two tiles of one arrow would
+/// otherwise lift together.
 pub fn tile(
     screen: &str,
     input: &TileInput,
@@ -95,7 +106,44 @@ pub fn tile(
     cx: &App,
 ) -> Tile {
     let model = build_tile(input);
-    tile_from_model(screen, &model, &input.name, size, app, cx)
+    let reveal = reveal(&input.reveal, app, cx);
+    tile_from_model(screen, &model, &input.name, size, app, cx).reveal(reveal)
+}
+
+/// The strip's line: `<held> · <text>`, or `<text>` alone.
+fn reveal(
+    facts: &RevealFacts,
+    app: &Entity<AppModel>,
+    cx: &App,
+) -> TileReveal {
+    let text = match facts.held_as {
+        Some(key) if !facts.text.is_empty() => format!("{} · {}", app.read(cx).t(key), facts.text),
+        Some(key) => app.read(cx).t(key),
+        None => facts.text.clone(),
+    };
+    TileReveal {
+        text: text.into(),
+        os: facts.os,
+        stars: facts.stars.map(|n| compact(n).into()),
+    }
+}
+
+/// `Intl.NumberFormat(…, { notation: 'compact' })` for the stars: 950, 1.2K, 34K, 1.5M.
+fn compact(n: u64) -> String {
+    let scaled = |v: f64, unit: &str| {
+        if v < 10. {
+            let s = format!("{v:.1}");
+            format!("{}{unit}", s.trim_end_matches(".0"))
+        } else {
+            format!("{}{unit}", v.floor())
+        }
+    };
+    match n {
+        0..=999 => n.to_string(),
+        1_000..=999_999 => scaled(n as f64 / 1e3, "K"),
+        1_000_000..=999_999_999 => scaled(n as f64 / 1e6, "M"),
+        _ => scaled(n as f64 / 1e9, "B"),
+    }
 }
 
 fn tile_from_model(
@@ -133,7 +181,12 @@ fn tile_from_model(
     });
     let namespace = model.namespace.clone();
     let id = format!("{screen}-tile-{namespace}");
+    let banner = match &model.art {
+        TileArt::Banner { url } => Some(gpui::SharedString::from(url.clone())),
+        TileArt::Drawn { .. } => None,
+    };
     let mut tile = Tile::new(gpui::SharedString::from(id), namespace.clone(), art)
+        .media(banner, model.icon.clone().map(Into::into))
         .size(size)
         .caption(model.caption.clone())
         .badge(badge)

@@ -615,6 +615,9 @@ name = "bitflags"
 version = "2.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
+dependencies = [
+ "serde_core",
+]
 
 [[package]]
 name = "bitstream-io"
@@ -3717,6 +3720,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "keyboard-types"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b750dcadc39a09dbadd74e118f6dd6598df77fa01df0cfcdc52c28dece74528a"
+dependencies = [
+ "bitflags 2.13.2",
+ "serde",
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "keyring"
 version = "3.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4222,6 +4236,25 @@ checksum = "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b"
 dependencies = [
  "num-traits",
  "pxfm",
+]
+
+[[package]]
+name = "muda"
+version = "0.17.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c9fec5a4e89860383d778d10563a605838f8f0b2f9303868937e5ff32e86177"
+dependencies = [
+ "crossbeam-channel",
+ "dpi",
+ "keyboard-types",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-core-foundation",
+ "objc2-foundation",
+ "once_cell",
+ "png 0.17.16",
+ "thiserror 2.0.21",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5456,7 +5489,9 @@ dependencies = [
  "gpui-component",
  "gtk",
  "http",
+ "image",
  "log",
+ "muda",
  "quiver-arrow-host",
  "quiver-core-client",
  "quiver-e2e",
@@ -5466,12 +5501,14 @@ dependencies = [
  "quiver-theme",
  "quiver-ui",
  "raw-window-handle",
+ "reqwest",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-tungstenite",
+ "webkit2gtk",
  "wiremock",
  "wry",
  "x11-dl",
@@ -5575,6 +5612,7 @@ version = "0.1.0"
 dependencies = [
  "gpui",
  "gpui-component",
+ "lyon_tessellation",
  "quiver-theme",
  "thiserror 1.0.69",
 ]

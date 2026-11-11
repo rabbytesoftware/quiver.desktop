@@ -63,19 +63,24 @@ pub fn start_versions_feed(
     services: &Arc<AppServices>,
     versions: Store<Option<CoreVersions>>,
 ) {
-    let api = services.api.clone();
+    let (api, queries) = (services.api.clone(), services.queries.clone());
     let status = services.status.store().clone();
     services.handle().spawn(async move {
         let mut changes = status.subscribe();
+        // A core self-update swaps the daemon behind a connection that may never leave Ready; the swap
+        // invalidates the arrow queries, so any invalidation re-reads the build too.
+        let mut invalidations = queries.subscribe();
         loop {
             if status.snapshot() == ConnectionStatus::Ready {
-                let read = api.get_json("/versions").await;
-                versions.set(read.ok().as_ref().and_then(parse_versions));
+                if let Ok(read) = api.get_json("/versions").await {
+                    versions.set(parse_versions(&read));
+                }
             } else {
                 versions.set(None);
             }
-            if changes.changed().await.is_err() {
-                break;
+            tokio::select! {
+                changed = changes.changed() => if changed.is_err() { break },
+                changed = invalidations.changed() => if changed.is_err() { break },
             }
         }
     });

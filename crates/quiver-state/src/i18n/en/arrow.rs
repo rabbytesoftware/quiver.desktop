@@ -144,6 +144,12 @@ pub const SELECTOR_FAILED_REMOVE: Key = Key::new("arrow.selector.failed.remove")
 pub const SELECTOR_FAILED_INSTALL: Key = Key::new("arrow.selector.failed.install");
 pub const SELECTOR_OPEN_OLD: Key = Key::new("arrow.selector.openOld");
 pub const SELECTOR_DISMISS: Key = Key::new("arrow.selector.dismiss");
+pub const SELECTOR_SWITCH_TITLE_IDLE: Key = Key::new("arrow.selector.switchTitleIdle");
+pub const SELECTOR_SWITCH_NOTE_IDLE: Key = Key::new("arrow.selector.switchNoteIdle");
+pub const SELECTOR_SWITCH_CONFIRM_IDLE: Key = Key::new("arrow.selector.switchConfirmIdle");
+pub const SELECTOR_CHOOSE_TITLE: Key = Key::new("arrow.selector.chooseTitle");
+pub const SELECTOR_CHOOSE_PICK: Key = Key::new("arrow.selector.choosePick");
+pub const SELECTOR_CHOOSE_CONFIRM: Key = Key::new("arrow.selector.chooseConfirm");
 
 pub(super) const MESSAGES: &[(Key, Message)] = &[
     (ICON_FALLBACK, Message::Text("{name} icon")),
@@ -241,7 +247,7 @@ pub(super) const MESSAGES: &[(Key, Message)] = &[
     (DETAILS_TITLE, Message::Text("Details")),
     (DETAILS_REQUIREMENTS, Message::Text("Requirements")),
     (DETAILS_REQUIREMENTS_CPU, Message::Text("CPU")),
-    (DETAILS_REQUIREMENTS_CPU_VALUE, Message::Text("{count} cores")),
+    (DETAILS_REQUIREMENTS_CPU_VALUE, Message::Plural { one: "{count} core", other: "{count} cores" }),
     (DETAILS_REQUIREMENTS_MEMORY, Message::Text("Memory")),
     (DETAILS_REQUIREMENTS_MEMORY_VALUE, Message::Text("{count} GB")),
     (DETAILS_REQUIREMENTS_DISK, Message::Text("Disk")),
@@ -285,4 +291,10 @@ pub(super) const MESSAGES: &[(Key, Message)] = &[
     (SELECTOR_FAILED_INSTALL, Message::Text("{to} replaced {from} in your library, but installing it failed, so nothing is installed. Install it from this page.")),
     (SELECTOR_OPEN_OLD, Message::Text("Open the old version")),
     (SELECTOR_DISMISS, Message::Text("Dismiss")),
+    (SELECTOR_SWITCH_TITLE_IDLE, Message::Text("Switch version")),
+    (SELECTOR_SWITCH_NOTE_IDLE, Message::Text("{from} will be removed from your library and {to} added in its place. Nothing is installed, so nothing is uninstalled.")),
+    (SELECTOR_SWITCH_CONFIRM_IDLE, Message::Text("Switch")),
+    (SELECTOR_CHOOSE_TITLE, Message::Text("Choose a version")),
+    (SELECTOR_CHOOSE_PICK, Message::Text("Pick what {from} follows when you install it or add it to your library.")),
+    (SELECTOR_CHOOSE_CONFIRM, Message::Text("Use this version")),
 ];

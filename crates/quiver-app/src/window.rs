@@ -77,7 +77,10 @@ pub fn open_main_window(cx: &mut App) -> Option<gpui::AnyWindowHandle> {
     }
     cx.on_window_closed(|cx| {
         if cx.windows().is_empty() {
-            cx.quit();
+            // Not from inside this callback: on X11 it runs while GPUI holds the client's state (the
+            // WM_DELETE_WINDOW handler), and `quit` borrows it again, a "RefCell already borrowed" panic on
+            // every close. A task runs once the event handler has returned.
+            cx.spawn(async |cx| cx.update(|cx| cx.quit()).ok()).detach();
         }
     })
     .detach();

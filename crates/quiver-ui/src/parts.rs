@@ -3,6 +3,9 @@
 
 macro_rules! part {
     ($(#[$m:meta])* $name:ident, |$p:ident, $d:ident| $body:expr) => {
+        $crate::parts::part!($(#[$m])* $name, |$p, $d, _q| $body);
+    };
+    ($(#[$m:meta])* $name:ident, |$p:ident, $d:ident, $q:ident| $body:expr) => {
         $(#[$m])*
         #[derive(gpui::IntoElement, Default)]
         pub struct $name {
@@ -30,7 +33,8 @@ macro_rules! part {
 
         impl gpui::RenderOnce for $name {
             fn render(self, _: &mut gpui::Window, cx: &mut gpui::App) -> impl gpui::IntoElement {
-                let $p: $crate::Palette = $crate::theme::ActiveQuiver::quiver(cx).palette;
+                let $q: $crate::QuiverTheme = *$crate::theme::ActiveQuiver::quiver(cx);
+                let $p: $crate::Palette = $q.palette;
                 let $d = gpui::div();
                 let mut el = gpui::ParentElement::children($body, self.children);
                 gpui::Styled::style(&mut el).refine(&self.style);

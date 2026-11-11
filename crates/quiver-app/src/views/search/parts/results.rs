@@ -7,7 +7,7 @@ use quiver_state::i18n::en::{app, search as keys};
 use quiver_state::search::{EmptyState, ResultsModel};
 use quiver_state::tile::TileInput;
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::{ActiveQuiver, Button, ButtonVariant};
+use quiver_ui::{ActiveQuiver, Button, ButtonVariant, TrackedText};
 
 use crate::views::grid_page::{notice, skeleton, tile_grid};
 use crate::views::search::SearchView;
@@ -28,11 +28,15 @@ fn shelf_label(
         .gap(px(10.))
         .mb(px(14.))
         .child(
-            div()
-                .font_family("JetBrains Mono")
-                .text_size(px(9.))
-                .text_color(p.muted_foreground)
-                .child(label.to_uppercase()),
+            // Board SearchAfter: 9px mono, letter-spacing 1.4px (line box kept at the default 1.618).
+            TrackedText::new(
+                label.to_uppercase(),
+                9.,
+                9. * 1.618,
+                1.4,
+                p.muted_foreground,
+            )
+            .family("JetBrains Mono"),
         )
         .child(
             div()

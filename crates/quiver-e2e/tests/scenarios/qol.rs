@@ -48,6 +48,11 @@ async fn the_pre_playtest_qol_fixes() {
         .expect("resize");
     app.click(&format!("sidebar.row.{updatable}")).await;
     app.node("screen.arrow").await;
+    // Too narrow for the Details rail (the old page's 860px rule): the README keeps a readable column instead of
+    // being squeezed beside the card, and an arrow whose manifest has no details shows no empty card.
+    let readme = app.node("arrow.readme").await;
+    assert!(readme.w >= 500., "the README column is {}px wide", readme.w);
+    app.gone("arrow.details").await;
     let title = app.node("arrow.title").await;
     app.bridge
         .scroll("arrow.title", 0.0, 300.0)
@@ -94,6 +99,12 @@ async fn the_pre_playtest_qol_fixes() {
     // 3. An update finishing drops its button on its own.
     app.click(&format!("sidebar.row.{updatable}")).await;
     app.node("screen.arrow").await;
+    // Leaving the results takes the keyboard from the search field: typing now must not go into it.
+    let search = app.node("sidebar.search").await;
+    assert!(
+        !search.state.contains("[focused]"),
+        "the search field kept the focus on the arrow page: {search:?}"
+    );
     assert!(
         app.find("arrow.action.update").await.is_none(),
         "Update shown before a newer release exists"

@@ -70,6 +70,14 @@ impl ArrowAppView {
                 }
             }
         });
+        let mut covers = crate::services::page_cover::subscribe();
+        let cover_task = cx.spawn(async move |this, cx| {
+            while covers.changed().await.is_ok() {
+                if this.update(cx, |_, cx| cx.notify()).is_err() {
+                    break;
+                }
+            }
+        });
         let mut view = Self {
             app,
             namespace,
@@ -77,7 +85,7 @@ impl ArrowAppView {
             details,
             details_open: false,
             services,
-            _watchers: vec![store_task, window_task],
+            _watchers: vec![store_task, window_task, cover_task],
         };
         view.sync(cx);
         view

@@ -6,6 +6,7 @@
 
 pub mod auto_register;
 pub mod catalog_visibility;
+pub mod core_options;
 pub mod core_update;
 pub mod engine;
 pub mod engine_io;

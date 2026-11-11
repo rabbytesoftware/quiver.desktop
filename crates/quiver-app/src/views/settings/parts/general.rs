@@ -28,7 +28,7 @@ fn choice(
         .value(Some(value.to_owned().into()))
         .on_change(on_change);
     probed(
-        div().w(px(width)).child(select),
+        div().w(px(width.max(144.))).child(select),
         format!("settings.{id}"),
         Kind::Select,
         label,

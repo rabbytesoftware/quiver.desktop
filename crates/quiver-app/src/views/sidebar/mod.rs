@@ -7,8 +7,7 @@ use std::time::Duration;
 
 use gpui::prelude::*;
 use gpui::{
-    div, px, App, Context, Entity, Pixels, Point, Render, Subscription, Task,
-    UniformListScrollHandle, Window,
+    div, px, App, Context, Entity, Render, Subscription, Task, UniformListScrollHandle, Window,
 };
 use quiver_state::search::{
     commit_target, needs_namespace_lookup, resolve_namespace, submit_action, CommitTarget,
@@ -24,8 +23,10 @@ pub struct Sidebar {
     pub(super) app: Entity<AppModel>,
     pub(super) search: Entity<InputState>,
     pub(super) list_scroll: UniformListScrollHandle,
-    /// Right-clicked row: its namespace and where the menu opens.
-    pub(super) context: Option<(String, Point<Pixels>)>,
+    /// The in-app row menu, shown only when the OS's own could not be (see `parts::context_menu`).
+    pub(super) context: Option<parts::RowMenu>,
+    /// A native row menu is up.
+    pub(super) menu_busy: bool,
     debounce: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
 }
@@ -52,6 +53,7 @@ impl Sidebar {
             search,
             list_scroll: UniformListScrollHandle::new(),
             context: None,
+            menu_busy: false,
             debounce: None,
             _subscriptions: subscriptions,
         }

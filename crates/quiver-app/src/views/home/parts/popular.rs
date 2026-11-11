@@ -102,7 +102,7 @@ pub fn popular(
     }
     let tiles = recommended.arrows.iter().take(shown).map(|entry| {
         let input = discovered_input(entry, BadgePolicy::ActivityOnly);
-        tile("home", &input, TileSize::Wide, &app, cx)
+        tile("home.popular", &input, TileSize::Wide, &app, cx)
     });
     div()
         .child(SectionHeader::new("home-popular", title).link(

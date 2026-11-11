@@ -4,17 +4,17 @@ use std::rc::Rc;
 
 use gpui::prelude::*;
 use gpui::{
-    div, px, transparent_black, AnyElement, App, ClickEvent, CursorStyle, ElementId, FontWeight,
-    SharedString, StyleRefinement, Window,
+    black, div, px, transparent_black, AnyElement, App, ClickEvent, CursorStyle, ElementId,
+    FontWeight, SharedString, StyleRefinement, Window,
 };
 
 use crate::button_style::{ButtonEdge, ButtonSize, ButtonVariant};
 use crate::edge::{control_edge, inner_highlight};
-use crate::focus::{keyed_focus, offset_ring, FocusableExt};
+use crate::focus::{keyed_focus, FocusableExt};
 use crate::spinner::Spinner;
 use crate::theme::ActiveQuiver;
+use crate::tooltip::Tip;
 
-type TooltipFn = Rc<dyn Fn(&mut Window, &mut App) -> gpui::AnyView>;
 type ClickFn = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
 #[derive(IntoElement)]
@@ -26,7 +26,7 @@ pub struct Button {
     disabled: bool,
     selected: bool,
     on_click: Option<ClickFn>,
-    tooltip: Option<TooltipFn>,
+    tooltip: Option<Tip>,
     children: Vec<AnyElement>,
     style: StyleRefinement,
 }
@@ -89,12 +89,12 @@ impl Button {
         self
     }
 
-    /// Hover tooltip, e.g. `.tooltip(quiver_ui::tooltip("Settings"))`.
+    /// Hover tooltip centred above the button, e.g. `.tooltip(quiver_ui::tooltip("Settings"))`.
     pub fn tooltip(
         mut self,
-        f: impl Fn(&mut Window, &mut App) -> gpui::AnyView + 'static,
+        tip: Tip,
     ) -> Self {
-        self.tooltip = Some(Rc::new(f));
+        self.tooltip = Some(tip);
         self
     }
 
@@ -145,8 +145,12 @@ impl RenderOnce for Button {
         let inert = self.disabled || self.loading;
         let focus = keyed_focus(&self.id, window, cx);
 
-        let mut ring = offset_ring(cx);
-        ring.extend(v.shadow.clone());
+        // `ring-2 ring-offset-1`, drawn as two outline-only overlays rather than box-shadow spreads:
+        // GPUI paints a spread as a filled box under the element, so a transparent (ghost) button
+        // would show the offset colour across its whole face.
+        let focused = !inert && focus.is_focused(window);
+        let ring_color = q.palette.ring;
+        let offset_color = q.palette.background;
         let hover = v.hover_bg;
         let hover_border = v.hover_border;
         let underline = v.underline_on_hover;
@@ -204,25 +208,75 @@ impl RenderOnce for Button {
                             s
                         }
                     })
-                    .focus(move |mut s| {
-                        s.box_shadow = Some(ring.clone());
-                        s
-                    })
                     .when_some(self.on_click.clone(), |d, f| {
                         d.on_click(move |e, w, cx| f(e, w, cx))
                     })
             })
             .when(self.selected, |d| d.bg(hover))
-            .when_some(self.tooltip, |d, f| d.tooltip(move |w, cx| f(w, cx)))
-            .children(children);
-        if !self.disabled {
+            .when_some(self.tooltip, |d, tip| {
+                d.child(tip.probe()).tooltip(tip.builder())
+            })
+            .children(children)
+            .when(focused, |d| {
+                // Insets are from the padding box, so the 1px border is added to each.
+                let band = |outset: f32, width: f32, color| {
+                    div()
+                        .absolute()
+                        .top(px(-(outset + 1.)))
+                        .left(px(-(outset + 1.)))
+                        .right(px(-(outset + 1.)))
+                        .bottom(px(-(outset + 1.)))
+                        .rounded(px(spec.radius + outset))
+                        .border(px(width))
+                        .border_color(color)
+                };
+                d.child(band(1., 1., offset_color))
+                    .child(band(3., 2., ring_color))
+            });
+        let group = SharedString::from(format!("button-{}", self.id));
+        // Corners the caller squared (the halves of a split button) are square on the edge layer too, or its
+        // rounded line leaves a notch at the seam.
+        let squared = self.style.corner_radii.clone();
+        let square = move |mut edge: gpui::Div| {
+            let zero = |c: &Option<gpui::AbsoluteLength>| matches!(c, Some(gpui::AbsoluteLength::Pixels(v)) if f32::from(*v) == 0.);
+            let radii = &mut edge.style().corner_radii;
+            for (set, from) in [
+                (&mut radii.top_left, &squared.top_left),
+                (&mut radii.top_right, &squared.top_right),
+                (&mut radii.bottom_left, &squared.bottom_left),
+                (&mut radii.bottom_right, &squared.bottom_right),
+            ] {
+                if zero(from) {
+                    *set = Some(px(0.).into());
+                }
+            }
+            edge
+        };
+        if !inert {
+            el = el.group(group.clone());
             el = match v.edge {
                 ButtonEdge::None => el,
-                ButtonEdge::Highlight => {
-                    el.child(inner_highlight(spec.radius, gpui::white().opacity(0.16)))
-                }
-                ButtonEdge::Control => el.child(control_edge(&q, spec.radius, 0.06)),
+                ButtonEdge::Highlight => el.child(
+                    square(inner_highlight(spec.radius, gpui::white().opacity(0.16)))
+                        .id((self.id.clone(), "edge"))
+                        .group_active(group.clone(), |s| s.border_color(black().opacity(0.08))),
+                ),
+                ButtonEdge::Control => el.child(
+                    square(control_edge(&q, spec.radius, 0.06))
+                        .id((self.id.clone(), "edge"))
+                        .group_active(group.clone(), |s| s.border_color(transparent_black())),
+                ),
             };
+            if !matches!(v.edge, ButtonEdge::None) {
+                el = el.active(|mut s| {
+                    s.box_shadow = Some(Vec::new());
+                    s
+                });
+            }
+            if self.variant == ButtonVariant::Secondary {
+                let pressed = q.palette.secondary.opacity(0.8);
+                el = el.active(move |s| s.bg(pressed));
+            }
         }
         if self.loading {
             let spinner = Spinner::new((self.id.clone(), "spinner"))
@@ -238,7 +292,9 @@ impl RenderOnce for Button {
                     .child(spinner),
             );
         }
-        el.style().box_shadow = Some(v.shadow);
+        if !inert {
+            el.style().box_shadow = Some(v.shadow);
+        }
         el.style().refine(&self.style);
         el
     }

@@ -3,6 +3,7 @@
 
 use gpui::prelude::*;
 use gpui::{div, px, Context, Focusable as _, IntoElement, Window};
+use quiver_state::console::entries::StreamState;
 use quiver_state::console::Support;
 use quiver_theme::FontFamily;
 use quiver_ui::inspect::{probe, Kind};
@@ -20,6 +21,13 @@ pub fn prompt(
     let p = cx.quiver().palette;
     let colors = super::Colors::of(&quiver_theme::Tokens::for_mode(cx.quiver().mode));
     let enabled = dock.controller.state.support != Support::Unsupported;
+    let reconnecting = dock.controller.state.stream == StreamState::Reconnecting;
+    let reconnecting_label = dock
+        .app
+        .read(cx)
+        .t(quiver_state::i18n::en::console::STREAM_RECONNECTING);
+    let hover = colors.hover;
+    let dim = colors.dim;
     div()
         .relative()
         .flex_none()
@@ -30,6 +38,7 @@ pub fn prompt(
         .px(px(16.))
         .border_t_1()
         .border_color(p.border)
+        .when(focused, |d| d.bg(hover))
         .font_family(FontFamily::Mono.family())
         .text_size(px(13.))
         .text_color(colors.foreground)
@@ -53,6 +62,14 @@ pub fn prompt(
                     if focused { "[focused]" } else { "" },
                 )),
         )
+        .when(reconnecting, |d| {
+            d.child(
+                div()
+                    .text_size(px(11.))
+                    .text_color(dim)
+                    .child(reconnecting_label),
+            )
+        })
         .child(div().relative().child(div().size_0()).child(probe(
             "console.run",
             Kind::Button,

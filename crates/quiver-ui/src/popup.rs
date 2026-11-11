@@ -1,9 +1,8 @@
 //! What Menu and Select share: open state, keyboard navigation, the popup surface and its placement.
 
+use crate::layer::layer;
 use gpui::prelude::*;
-use gpui::{
-    anchored, black, deferred, div, px, AnyElement, App, Corner, ElementId, FocusHandle, Window,
-};
+use gpui::{anchored, black, div, px, AnyElement, App, Corner, ElementId, FocusHandle, Window};
 use quiver_theme::Radius;
 
 use crate::elevation::shadow_lg;
@@ -169,7 +168,7 @@ pub(crate) fn floating(
             .when(!align_end, |d| d.left_0())
             .min_w_full();
         holder.child(
-            deferred(
+            layer(
                 anchored()
                     .anchor(corner)
                     .snap_to_window_with_margin(px(8.))

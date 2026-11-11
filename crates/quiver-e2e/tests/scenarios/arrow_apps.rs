@@ -74,11 +74,21 @@ async fn a_late_binding_app_is_isolated_and_its_window_opens_only_when_ready() {
     wait_embedded(&mut app, 1).await;
     app.shot("echo-open").await;
 
+    // The "⋯" menu over the app: GPUI draws it, so the native page steps aside, and its photograph stays in the
+    // pane under the menu (hiding it bare left an empty, on dark pages black, pane).
+    app.click("arrow-app.menu").await;
+    wait_embedded(&mut app, 0).await;
+    app.node("arrow-app.cover").await;
+    app.shot("echo-menu-open").await;
+    app.bridge.key("escape").await.expect("press escape");
+    wait_embedded(&mut app, 1).await;
+
     // Details opens the arrow's own page in a dialog over the app, as in Tauri (docs/arrow-apps.md). The page
     // stays alive but steps aside while the dialog is open, and is back when it closes.
     app.click("arrow-app.details").await;
     app.node("screen.arrow").await;
     wait_embedded(&mut app, 0).await;
+    app.node("arrow-app.cover").await;
     assert_eq!(
         open_apps(&mut app).await,
         vec![echo.clone()],
@@ -88,6 +98,7 @@ async fn a_late_binding_app_is_isolated_and_its_window_opens_only_when_ready() {
     app.bridge.key("escape").await.expect("press escape");
     app.gone("screen.arrow").await;
     wait_embedded(&mut app, 1).await;
+    app.gone("arrow-app.cover").await;
 
     // The window's first page load went through the host's handler: 200, HTML, the CSP, nothing sensitive sent.
     let loaded = until(&mut app, "the page was requested", |d| {

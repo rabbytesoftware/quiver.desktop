@@ -92,9 +92,9 @@ impl RenderOnce for Input {
             .border_1()
             .border_color(border)
             .bg(if q.is_dark() {
-                p.input.opacity(0.3)
+                p.background.blend(p.input.opacity(0.3))
             } else {
-                gpui::transparent_black()
+                p.background
             })
             .text_size(px(14.))
             .text_color(p.foreground)
@@ -118,6 +118,7 @@ impl RenderOnce for Input {
                     .bordered(false)
                     .focus_bordered(false)
                     .disabled(self.disabled)
+                    .px(px(10.))
                     .h_full(),
             );
         el.style().refine(&self.style);

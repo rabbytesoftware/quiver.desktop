@@ -35,8 +35,23 @@ fn linux() -> Result<Vec<u8>, String> {
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .and_then(|s| s.lines().last().map(str::to_string))
         .unwrap_or_else(|| "root".to_string());
+    // An OS context menu is a window of its own (GTK's popup), so a shot of ours alone would not show it: while
+    // one is up, the screen is captured and cut to our window's rectangle.
+    let mut args = vec!["-window".to_string(), target.clone()];
+    if crate::services::native_menu::record().open && target != "root" {
+        if let Some(rect) = geometry(&target) {
+            args = vec![
+                "-window".into(),
+                "root".into(),
+                "-crop".into(),
+                rect,
+                "+repage".into(),
+            ];
+        }
+    }
+    args.push("png:-".into());
     let out = Command::new("import")
-        .args(["-window", &target, "png:-"])
+        .args(&args)
         .output()
         .map_err(|e| format!("ImageMagick `import` is required for screenshots: {e}"))?;
     if out.status.success() && !out.stdout.is_empty() {
@@ -44,6 +59,28 @@ fn linux() -> Result<Vec<u8>, String> {
     } else {
         Err(String::from_utf8_lossy(&out.stderr).into_owned())
     }
+}
+
+/// `WxH+X+Y` of an X window, from `xdotool getwindowgeometry --shell`.
+#[cfg(target_os = "linux")]
+fn geometry(window: &str) -> Option<String> {
+    let out = Command::new("xdotool")
+        .args(["getwindowgeometry", "--shell", window])
+        .output()
+        .ok()?;
+    let text = String::from_utf8(out.stdout).ok()?;
+    let get = |key: &str| {
+        text.lines()
+            .find_map(|l| l.strip_prefix(&format!("{key}=")))
+            .map(str::to_owned)
+    };
+    Some(format!(
+        "{}x{}+{}+{}",
+        get("WIDTH")?,
+        get("HEIGHT")?,
+        get("X")?,
+        get("Y")?
+    ))
 }
 
 #[cfg(target_os = "macos")]

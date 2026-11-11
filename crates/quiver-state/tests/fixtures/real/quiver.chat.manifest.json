@@ -1,0 +1,1003 @@
+{
+ "ok": true,
+ "data": {
+  "namespace": "github.com/rabbytesoftware/quiver.chat@main",
+  "name": "rabbytesoftware.quiver-chat",
+  "description": "Real-time chat that opens inside Quiver and is also reachable on a TCP port.",
+  "tags": [
+   "chat",
+   "arrow-app"
+  ],
+  "variables": [],
+  "targets": {
+   "darwin/amd64": {
+    "requirements": {
+     "cpu_cores": 0,
+     "memory_gb": 0,
+     "disk_gb": 0
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [
+      {
+       "type": "fetch",
+       "title": "Downloading Quiver Chat",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-macos-amd64.tar.gz",
+       "to": "${INSTALL_PATH}/quiver-chat.archive",
+       "checksum": "",
+       "timeout": "5m"
+      },
+      {
+       "type": "extract",
+       "title": "Unpacking Quiver Chat",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/quiver-chat.archive",
+       "to": "${INSTALL_PATH}",
+       "timeout": "1m"
+      }
+     ],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Downloading Quiver Chat",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-macos-amd64.tar.gz",
+       "to": "${INSTALL_PATH}/quiver-chat.archive",
+       "checksum": "",
+       "timeout": "5m"
+      },
+      {
+       "type": "extract",
+       "title": "Unpacking Quiver Chat",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/quiver-chat.archive",
+       "to": "${INSTALL_PATH}",
+       "timeout": "1m"
+      }
+     ],
+     "execute": [
+      {
+       "type": "run",
+       "title": "Starting Quiver Chat",
+       "exit_on_failure": true,
+       "command": "./quiver-chat-macos-amd64 -listen \"${ARROW_UI_LISTEN}\" -port 8686",
+       "elevated": false,
+       "timeout": "",
+       "ui": {
+        "title": "Quiver Chat",
+        "path": "/",
+        "listen": [
+         "unix"
+        ]
+       }
+      }
+     ],
+     "stop": [
+      {
+       "type": "signal",
+       "title": "",
+       "exit_on_failure": false,
+       "signal": "graceful",
+       "timeout": "10s"
+      }
+     ],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {},
+    "expose": {}
+   },
+   "darwin/arm64": {
+    "requirements": {
+     "cpu_cores": 0,
+     "memory_gb": 0,
+     "disk_gb": 0
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [
+      {
+       "type": "fetch",
+       "title": "Downloading Quiver Chat",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-macos-arm64.tar.gz",
+       "to": "${INSTALL_PATH}/quiver-chat.archive",
+       "checksum": "",
+       "timeout": "5m"
+      },
+      {
+       "type": "extract",
+       "title": "Unpacking Quiver Chat",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/quiver-chat.archive",
+       "to": "${INSTALL_PATH}",
+       "timeout": "1m"
+      }
+     ],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Downloading Quiver Chat",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-macos-arm64.tar.gz",
+       "to": "${INSTALL_PATH}/quiver-chat.archive",
+       "checksum": "",
+       "timeout": "5m"
+      },
+      {
+       "type": "extract",
+       "title": "Unpacking Quiver Chat",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/quiver-chat.archive",
+       "to": "${INSTALL_PATH}",
+       "timeout": "1m"
+      }
+     ],
+     "execute": [
+      {
+       "type": "run",
+       "title": "Starting Quiver Chat",
+       "exit_on_failure": true,
+       "command": "./quiver-chat-macos-arm64 -listen \"${ARROW_UI_LISTEN}\" -port 8686",
+       "elevated": false,
+       "timeout": "",
+       "ui": {
+        "title": "Quiver Chat",
+        "path": "/",
+        "listen": [
+         "unix"
+        ]
+       }
+      }
+     ],
+     "stop": [
+      {
+       "type": "signal",
+       "title": "",
+       "exit_on_failure": false,
+       "signal": "graceful",
+       "timeout": "10s"
+      }
+     ],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {},
+    "expose": {}
+   },
+   "linux/amd64": {
+    "requirements": {
+     "cpu_cores": 0,
+     "memory_gb": 0,
+     "disk_gb": 0
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [
+      {
+       "type": "fetch",
+       "title": "Downloading Quiver Chat",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-linux-amd64.tar.gz",
+       "to": "${INSTALL_PATH}/quiver-chat.archive",
+       "checksum": "",
+       "timeout": "5m"
+      },
+      {
+       "type": "extract",
+       "title": "Unpacking Quiver Chat",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/quiver-chat.archive",
+       "to": "${INSTALL_PATH}",
+       "timeout": "1m"
+      }
+     ],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Downloading Quiver Chat",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-linux-amd64.tar.gz",
+       "to": "${INSTALL_PATH}/quiver-chat.archive",
+       "checksum": "",
+       "timeout": "5m"
+      },
+      {
+       "type": "extract",
+       "title": "Unpacking Quiver Chat",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/quiver-chat.archive",
+       "to": "${INSTALL_PATH}",
+       "timeout": "1m"
+      }
+     ],
+     "execute": [
+      {
+       "type": "run",
+       "title": "Starting Quiver Chat",
+       "exit_on_failure": true,
+       "command": "./quiver-chat-linux-amd64 -listen \"${ARROW_UI_LISTEN}\" -port 8686",
+       "elevated": false,
+       "timeout": "",
+       "ui": {
+        "title": "Quiver Chat",
+        "path": "/",
+        "listen": [
+         "unix"
+        ]
+       }
+      }
+     ],
+     "stop": [
+      {
+       "type": "signal",
+       "title": "",
+       "exit_on_failure": false,
+       "signal": "graceful",
+       "timeout": "10s"
+      }
+     ],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {},
+    "expose": {}
+   },
+   "linux/arm64": {
+    "requirements": {
+     "cpu_cores": 0,
+     "memory_gb": 0,
+     "disk_gb": 0
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [
+      {
+       "type": "fetch",
+       "title": "Downloading Quiver Chat",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-linux-arm64.tar.gz",
+       "to": "${INSTALL_PATH}/quiver-chat.archive",
+       "checksum": "",
+       "timeout": "5m"
+      },
+      {
+       "type": "extract",
+       "title": "Unpacking Quiver Chat",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/quiver-chat.archive",
+       "to": "${INSTALL_PATH}",
+       "timeout": "1m"
+      }
+     ],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Downloading Quiver Chat",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-linux-arm64.tar.gz",
+       "to": "${INSTALL_PATH}/quiver-chat.archive",
+       "checksum": "",
+       "timeout": "5m"
+      },
+      {
+       "type": "extract",
+       "title": "Unpacking Quiver Chat",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/quiver-chat.archive",
+       "to": "${INSTALL_PATH}",
+       "timeout": "1m"
+      }
+     ],
+     "execute": [
+      {
+       "type": "run",
+       "title": "Starting Quiver Chat",
+       "exit_on_failure": true,
+       "command": "./quiver-chat-linux-arm64 -listen \"${ARROW_UI_LISTEN}\" -port 8686",
+       "elevated": false,
+       "timeout": "",
+       "ui": {
+        "title": "Quiver Chat",
+        "path": "/",
+        "listen": [
+         "unix"
+        ]
+       }
+      }
+     ],
+     "stop": [
+      {
+       "type": "signal",
+       "title": "",
+       "exit_on_failure": false,
+       "signal": "graceful",
+       "timeout": "10s"
+      }
+     ],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {},
+    "expose": {}
+   },
+   "windows/amd64": {
+    "requirements": {
+     "cpu_cores": 0,
+     "memory_gb": 0,
+     "disk_gb": 0
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [
+      {
+       "type": "fetch",
+       "title": "Downloading Quiver Chat",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-windows-amd64.zip",
+       "to": "${INSTALL_PATH}/quiver-chat.archive",
+       "checksum": "",
+       "timeout": "5m"
+      },
+      {
+       "type": "extract",
+       "title": "Unpacking Quiver Chat",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/quiver-chat.archive",
+       "to": "${INSTALL_PATH}",
+       "timeout": "1m"
+      }
+     ],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Downloading Quiver Chat",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-windows-amd64.zip",
+       "to": "${INSTALL_PATH}/quiver-chat.archive",
+       "checksum": "",
+       "timeout": "5m"
+      },
+      {
+       "type": "extract",
+       "title": "Unpacking Quiver Chat",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/quiver-chat.archive",
+       "to": "${INSTALL_PATH}",
+       "timeout": "1m"
+      }
+     ],
+     "execute": [
+      {
+       "type": "run",
+       "title": "Starting Quiver Chat",
+       "exit_on_failure": true,
+       "command": ".\\quiver-chat-windows-amd64.exe -listen \"${ARROW_UI_LISTEN}\" -port 8686",
+       "elevated": false,
+       "timeout": "",
+       "ui": {
+        "title": "Quiver Chat",
+        "path": "/",
+        "listen": [
+         "unix"
+        ]
+       }
+      }
+     ],
+     "stop": [
+      {
+       "type": "signal",
+       "title": "",
+       "exit_on_failure": false,
+       "signal": "graceful",
+       "timeout": "10s"
+      }
+     ],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {},
+    "expose": {}
+   },
+   "windows/arm64": {
+    "requirements": {
+     "cpu_cores": 0,
+     "memory_gb": 0,
+     "disk_gb": 0
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [
+      {
+       "type": "fetch",
+       "title": "Downloading Quiver Chat",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-windows-arm64.zip",
+       "to": "${INSTALL_PATH}/quiver-chat.archive",
+       "checksum": "",
+       "timeout": "5m"
+      },
+      {
+       "type": "extract",
+       "title": "Unpacking Quiver Chat",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/quiver-chat.archive",
+       "to": "${INSTALL_PATH}",
+       "timeout": "1m"
+      }
+     ],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Downloading Quiver Chat",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-windows-arm64.zip",
+       "to": "${INSTALL_PATH}/quiver-chat.archive",
+       "checksum": "",
+       "timeout": "5m"
+      },
+      {
+       "type": "extract",
+       "title": "Unpacking Quiver Chat",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/quiver-chat.archive",
+       "to": "${INSTALL_PATH}",
+       "timeout": "1m"
+      }
+     ],
+     "execute": [
+      {
+       "type": "run",
+       "title": "Starting Quiver Chat",
+       "exit_on_failure": true,
+       "command": ".\\quiver-chat-windows-arm64.exe -listen \"${ARROW_UI_LISTEN}\" -port 8686",
+       "elevated": false,
+       "timeout": "",
+       "ui": {
+        "title": "Quiver Chat",
+        "path": "/",
+        "listen": [
+         "unix"
+        ]
+       }
+      }
+     ],
+     "stop": [
+      {
+       "type": "signal",
+       "title": "",
+       "exit_on_failure": false,
+       "signal": "graceful",
+       "timeout": "10s"
+      }
+     ],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {},
+    "expose": {}
+   }
+  },
+  "manifest": {
+   "metadata": {
+    "name": "rabbytesoftware.quiver-chat",
+    "description": "Real-time chat that opens inside Quiver and is also reachable on a TCP port.",
+    "license": "MIT",
+    "url": "https://github.com/rabbytesoftware/quiver.chat",
+    "maintainers": [
+     {
+      "name": "rabbytesoftware",
+      "url": "https://github.com/rabbytesoftware"
+     }
+    ],
+    "credits": [],
+    "tags": [
+     "chat",
+     "arrow-app"
+    ],
+    "media": {
+     "icon": "https://raw.githubusercontent.com/rabbytesoftware/quiver.chat/main/docs/quiver-icon.svg",
+     "banner": "https://raw.githubusercontent.com/rabbytesoftware/quiver.chat/main/docs/quiver-banner.svg"
+    }
+   },
+   "variables": [],
+   "netbridge": [],
+   "targets": {
+    "darwin/amd64": {
+     "requirements": {
+      "cpu_cores": 0,
+      "memory_gb": 0,
+      "disk_gb": 0
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [
+       {
+        "type": "fetch",
+        "title": "Downloading Quiver Chat",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-macos-amd64.tar.gz",
+        "to": "${INSTALL_PATH}/quiver-chat.archive",
+        "checksum": "",
+        "timeout": "5m"
+       },
+       {
+        "type": "extract",
+        "title": "Unpacking Quiver Chat",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/quiver-chat.archive",
+        "to": "${INSTALL_PATH}",
+        "timeout": "1m"
+       }
+      ],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Downloading Quiver Chat",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-macos-amd64.tar.gz",
+        "to": "${INSTALL_PATH}/quiver-chat.archive",
+        "checksum": "",
+        "timeout": "5m"
+       },
+       {
+        "type": "extract",
+        "title": "Unpacking Quiver Chat",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/quiver-chat.archive",
+        "to": "${INSTALL_PATH}",
+        "timeout": "1m"
+       }
+      ],
+      "execute": [
+       {
+        "type": "run",
+        "title": "Starting Quiver Chat",
+        "exit_on_failure": true,
+        "command": "./quiver-chat-macos-amd64 -listen \"${ARROW_UI_LISTEN}\" -port 8686",
+        "elevated": false,
+        "timeout": "",
+        "ui": {
+         "title": "Quiver Chat",
+         "path": "/",
+         "listen": [
+          "unix"
+         ]
+        }
+       }
+      ],
+      "stop": [
+       {
+        "type": "signal",
+        "title": "",
+        "exit_on_failure": false,
+        "signal": "graceful",
+        "timeout": "10s"
+       }
+      ],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {},
+     "expose": {}
+    },
+    "darwin/arm64": {
+     "requirements": {
+      "cpu_cores": 0,
+      "memory_gb": 0,
+      "disk_gb": 0
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [
+       {
+        "type": "fetch",
+        "title": "Downloading Quiver Chat",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-macos-arm64.tar.gz",
+        "to": "${INSTALL_PATH}/quiver-chat.archive",
+        "checksum": "",
+        "timeout": "5m"
+       },
+       {
+        "type": "extract",
+        "title": "Unpacking Quiver Chat",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/quiver-chat.archive",
+        "to": "${INSTALL_PATH}",
+        "timeout": "1m"
+       }
+      ],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Downloading Quiver Chat",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-macos-arm64.tar.gz",
+        "to": "${INSTALL_PATH}/quiver-chat.archive",
+        "checksum": "",
+        "timeout": "5m"
+       },
+       {
+        "type": "extract",
+        "title": "Unpacking Quiver Chat",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/quiver-chat.archive",
+        "to": "${INSTALL_PATH}",
+        "timeout": "1m"
+       }
+      ],
+      "execute": [
+       {
+        "type": "run",
+        "title": "Starting Quiver Chat",
+        "exit_on_failure": true,
+        "command": "./quiver-chat-macos-arm64 -listen \"${ARROW_UI_LISTEN}\" -port 8686",
+        "elevated": false,
+        "timeout": "",
+        "ui": {
+         "title": "Quiver Chat",
+         "path": "/",
+         "listen": [
+          "unix"
+         ]
+        }
+       }
+      ],
+      "stop": [
+       {
+        "type": "signal",
+        "title": "",
+        "exit_on_failure": false,
+        "signal": "graceful",
+        "timeout": "10s"
+       }
+      ],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {},
+     "expose": {}
+    },
+    "linux/amd64": {
+     "requirements": {
+      "cpu_cores": 0,
+      "memory_gb": 0,
+      "disk_gb": 0
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [
+       {
+        "type": "fetch",
+        "title": "Downloading Quiver Chat",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-linux-amd64.tar.gz",
+        "to": "${INSTALL_PATH}/quiver-chat.archive",
+        "checksum": "",
+        "timeout": "5m"
+       },
+       {
+        "type": "extract",
+        "title": "Unpacking Quiver Chat",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/quiver-chat.archive",
+        "to": "${INSTALL_PATH}",
+        "timeout": "1m"
+       }
+      ],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Downloading Quiver Chat",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-linux-amd64.tar.gz",
+        "to": "${INSTALL_PATH}/quiver-chat.archive",
+        "checksum": "",
+        "timeout": "5m"
+       },
+       {
+        "type": "extract",
+        "title": "Unpacking Quiver Chat",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/quiver-chat.archive",
+        "to": "${INSTALL_PATH}",
+        "timeout": "1m"
+       }
+      ],
+      "execute": [
+       {
+        "type": "run",
+        "title": "Starting Quiver Chat",
+        "exit_on_failure": true,
+        "command": "./quiver-chat-linux-amd64 -listen \"${ARROW_UI_LISTEN}\" -port 8686",
+        "elevated": false,
+        "timeout": "",
+        "ui": {
+         "title": "Quiver Chat",
+         "path": "/",
+         "listen": [
+          "unix"
+         ]
+        }
+       }
+      ],
+      "stop": [
+       {
+        "type": "signal",
+        "title": "",
+        "exit_on_failure": false,
+        "signal": "graceful",
+        "timeout": "10s"
+       }
+      ],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {},
+     "expose": {}
+    },
+    "linux/arm64": {
+     "requirements": {
+      "cpu_cores": 0,
+      "memory_gb": 0,
+      "disk_gb": 0
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [
+       {
+        "type": "fetch",
+        "title": "Downloading Quiver Chat",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-linux-arm64.tar.gz",
+        "to": "${INSTALL_PATH}/quiver-chat.archive",
+        "checksum": "",
+        "timeout": "5m"
+       },
+       {
+        "type": "extract",
+        "title": "Unpacking Quiver Chat",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/quiver-chat.archive",
+        "to": "${INSTALL_PATH}",
+        "timeout": "1m"
+       }
+      ],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Downloading Quiver Chat",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-linux-arm64.tar.gz",
+        "to": "${INSTALL_PATH}/quiver-chat.archive",
+        "checksum": "",
+        "timeout": "5m"
+       },
+       {
+        "type": "extract",
+        "title": "Unpacking Quiver Chat",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/quiver-chat.archive",
+        "to": "${INSTALL_PATH}",
+        "timeout": "1m"
+       }
+      ],
+      "execute": [
+       {
+        "type": "run",
+        "title": "Starting Quiver Chat",
+        "exit_on_failure": true,
+        "command": "./quiver-chat-linux-arm64 -listen \"${ARROW_UI_LISTEN}\" -port 8686",
+        "elevated": false,
+        "timeout": "",
+        "ui": {
+         "title": "Quiver Chat",
+         "path": "/",
+         "listen": [
+          "unix"
+         ]
+        }
+       }
+      ],
+      "stop": [
+       {
+        "type": "signal",
+        "title": "",
+        "exit_on_failure": false,
+        "signal": "graceful",
+        "timeout": "10s"
+       }
+      ],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {},
+     "expose": {}
+    },
+    "windows/amd64": {
+     "requirements": {
+      "cpu_cores": 0,
+      "memory_gb": 0,
+      "disk_gb": 0
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [
+       {
+        "type": "fetch",
+        "title": "Downloading Quiver Chat",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-windows-amd64.zip",
+        "to": "${INSTALL_PATH}/quiver-chat.archive",
+        "checksum": "",
+        "timeout": "5m"
+       },
+       {
+        "type": "extract",
+        "title": "Unpacking Quiver Chat",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/quiver-chat.archive",
+        "to": "${INSTALL_PATH}",
+        "timeout": "1m"
+       }
+      ],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Downloading Quiver Chat",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-windows-amd64.zip",
+        "to": "${INSTALL_PATH}/quiver-chat.archive",
+        "checksum": "",
+        "timeout": "5m"
+       },
+       {
+        "type": "extract",
+        "title": "Unpacking Quiver Chat",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/quiver-chat.archive",
+        "to": "${INSTALL_PATH}",
+        "timeout": "1m"
+       }
+      ],
+      "execute": [
+       {
+        "type": "run",
+        "title": "Starting Quiver Chat",
+        "exit_on_failure": true,
+        "command": ".\\quiver-chat-windows-amd64.exe -listen \"${ARROW_UI_LISTEN}\" -port 8686",
+        "elevated": false,
+        "timeout": "",
+        "ui": {
+         "title": "Quiver Chat",
+         "path": "/",
+         "listen": [
+          "unix"
+         ]
+        }
+       }
+      ],
+      "stop": [
+       {
+        "type": "signal",
+        "title": "",
+        "exit_on_failure": false,
+        "signal": "graceful",
+        "timeout": "10s"
+       }
+      ],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {},
+     "expose": {}
+    },
+    "windows/arm64": {
+     "requirements": {
+      "cpu_cores": 0,
+      "memory_gb": 0,
+      "disk_gb": 0
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [
+       {
+        "type": "fetch",
+        "title": "Downloading Quiver Chat",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-windows-arm64.zip",
+        "to": "${INSTALL_PATH}/quiver-chat.archive",
+        "checksum": "",
+        "timeout": "5m"
+       },
+       {
+        "type": "extract",
+        "title": "Unpacking Quiver Chat",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/quiver-chat.archive",
+        "to": "${INSTALL_PATH}",
+        "timeout": "1m"
+       }
+      ],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Downloading Quiver Chat",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.chat/releases/download/${REF}/quiver-chat-windows-arm64.zip",
+        "to": "${INSTALL_PATH}/quiver-chat.archive",
+        "checksum": "",
+        "timeout": "5m"
+       },
+       {
+        "type": "extract",
+        "title": "Unpacking Quiver Chat",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/quiver-chat.archive",
+        "to": "${INSTALL_PATH}",
+        "timeout": "1m"
+       }
+      ],
+      "execute": [
+       {
+        "type": "run",
+        "title": "Starting Quiver Chat",
+        "exit_on_failure": true,
+        "command": ".\\quiver-chat-windows-arm64.exe -listen \"${ARROW_UI_LISTEN}\" -port 8686",
+        "elevated": false,
+        "timeout": "",
+        "ui": {
+         "title": "Quiver Chat",
+         "path": "/",
+         "listen": [
+          "unix"
+         ]
+        }
+       }
+      ],
+      "stop": [
+       {
+        "type": "signal",
+        "title": "",
+        "exit_on_failure": false,
+        "signal": "graceful",
+        "timeout": "10s"
+       }
+      ],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {},
+     "expose": {}
+    }
+   },
+   "readme": "# Quiver Chat\n\nA small real-time chat. Its interface opens inside the Quiver app, and the same\nchat room is also served on TCP port 8686, so anyone who can reach the machine\ncan join from a browser at `http://<machine>:8686`."
+  }
+ }
+}

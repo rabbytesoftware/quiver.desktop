@@ -11,7 +11,23 @@ pub fn chip<V: 'static>(
     cx: &mut Context<V>,
     on_click: impl Fn(&mut V, &mut Context<V>) + 'static,
 ) -> impl IntoElement {
+    counted_chip(probe_id, label, None, active, cx, on_click)
+}
+
+/// [`chip`] with a muted count after the label (`github.com 11`).
+pub fn counted_chip<V: 'static>(
+    probe_id: String,
+    label: String,
+    count: Option<usize>,
+    active: bool,
+    cx: &mut Context<V>,
+    on_click: impl Fn(&mut V, &mut Context<V>) + 'static,
+) -> impl IntoElement {
     let p = cx.quiver().palette;
+    let spoken = match count {
+        Some(n) => format!("{label} {n}"),
+        None => label.clone(),
+    };
     div()
         .id(SharedString::from(probe_id.replace('.', "-")))
         .relative()
@@ -31,11 +47,21 @@ pub fn chip<V: 'static>(
                 .border_color(p.foreground.opacity(0.17))
         })
         .on_click(cx.listener(move |this, _, _, cx| on_click(this, cx)))
-        .child(label.clone())
+        .child(label)
+        .children(count.map(|n| {
+            div()
+                .ml(px(6.))
+                .text_color(if active {
+                    p.primary_foreground.opacity(0.64)
+                } else {
+                    p.muted_foreground
+                })
+                .child(n.to_string())
+        }))
         .child(probe(
             probe_id,
             Kind::Button,
-            label,
+            spoken,
             true,
             if active { "selected" } else { "" },
         ))

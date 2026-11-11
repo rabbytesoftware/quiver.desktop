@@ -88,6 +88,31 @@ impl Bridge {
         self.call("ui.click", json!({ "id": id })).await.map(drop)
     }
 
+    /// Moves the pointer over the element's centre through the window system.
+    pub async fn hover(
+        &mut self,
+        id: &str,
+    ) -> Result<()> {
+        self.call("ui.hover", json!({ "id": id })).await.map(drop)
+    }
+
+    pub async fn right_click(
+        &mut self,
+        id: &str,
+    ) -> Result<()> {
+        self.call("ui.right_click", json!({ "id": id }))
+            .await
+            .map(drop)
+    }
+
+    /// Keys through the window system (X11 keysyms, space separated), for the OS's own menus.
+    pub async fn os_key(
+        &mut self,
+        keys: &str,
+    ) -> Result<()> {
+        self.call("os.key", json!({ "keys": keys })).await.map(drop)
+    }
+
     pub async fn type_text(
         &mut self,
         id: Option<&str>,

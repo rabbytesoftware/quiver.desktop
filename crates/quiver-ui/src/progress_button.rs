@@ -148,15 +148,13 @@ impl RenderOnce for ProgressButton {
             .overflow_hidden()
             .rounded(px(RADIUS))
             .bg(p.muted)
-            .child(
-                div()
-                    .absolute()
-                    .top_0()
-                    .left_0()
-                    .h_full()
-                    .w(px(fill_width(self.fraction, self.width)))
-                    .bg(p.foreground.opacity(0.12)),
-            )
+            // Painted already cut to the track's rounded ends: `overflow_hidden` clips to the rectangle only, and a
+            // plain fill showed square corners outside the track.
+            .child(crate::clipped_rect(
+                (0., 0., fill_width(self.fraction, self.width), HEIGHT),
+                (self.width, HEIGHT, RADIUS),
+                p.foreground.opacity(0.12),
+            ))
             .child(
                 div()
                     .absolute()

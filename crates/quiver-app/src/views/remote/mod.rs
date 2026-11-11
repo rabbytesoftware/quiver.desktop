@@ -2,12 +2,16 @@
 //! dialogs. The flows and their outcomes are `quiver_state::remote`'s; this draws them.
 
 mod actions;
+mod palette;
 mod parts;
+
+pub use palette::{open_palette, CommandPalette};
+pub use parts::toasts;
 
 use gpui::prelude::*;
 use gpui::{div, px, Context, Entity, Render, Window};
 use quiver_state::domain::ConnectionStatus;
-use quiver_state::remote::{connection_rows, ToastStack};
+use quiver_state::remote::connection_rows;
 use quiver_ui::{ActiveQuiver, ScrollArea};
 
 use crate::bridge::observe_store;
@@ -16,7 +20,6 @@ use crate::views::screen_probe;
 
 pub struct RemoteView {
     pub(super) app: Entity<AppModel>,
-    pub(super) toasts: ToastStack,
     /// An Add is in flight: the dialog's submit is disabled meanwhile.
     pub(super) add_busy: bool,
 }
@@ -31,7 +34,6 @@ impl RemoteView {
         observe_store(cx, services.status.store());
         Self {
             app,
-            toasts: ToastStack::default(),
             add_busy: false,
         }
     }
@@ -54,8 +56,6 @@ impl Render for RemoteView {
         let rows = connection_rows(&state.connections, &state.active_id, status);
         let body = if loading {
             parts::loading(cx).into_any_element()
-        } else if rows.is_empty() {
-            parts::empty(self, cx).into_any_element()
         } else {
             parts::rows(self, &rows, cx).into_any_element()
         };
@@ -68,18 +68,17 @@ impl Render for RemoteView {
                 ScrollArea::new("remote.scroll")
                     .fade_color(p.background)
                     .child(
-                        div().w_full().flex().justify_center().child(
-                            div()
-                                .w_full()
-                                .max_w(px(720.))
-                                .px(px(24.))
-                                .py(px(24.))
-                                .child(parts::header(self, cx))
-                                .child(body),
-                        ),
+                        // Board RemoteAfter: the page runs the full width (24 left, 40 right), and the rows sit
+                        // flat under the header's hairline, with no centred column and no card around them.
+                        div()
+                            .w_full()
+                            .pl(px(24.))
+                            .pr(px(40.))
+                            .py(px(24.))
+                            .child(parts::header(self, cx))
+                            .child(body),
                     ),
             )
-            .child(parts::toasts(self, cx))
             .child(screen_probe("remote"))
     }
 }

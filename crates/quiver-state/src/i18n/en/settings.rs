@@ -69,10 +69,14 @@ pub const DEVELOPER_FAULTS_HEALTH: Key = Key::new("settings.developer.faults.hea
 pub const DEVELOPER_FAULTS_CONFIG: Key = Key::new("settings.developer.faults.config");
 pub const DEVELOPER_FAULTS_PATH: Key = Key::new("settings.developer.faults.path");
 pub const DEVELOPER_FAULTS_CONSOLE: Key = Key::new("settings.developer.faults.console");
+pub const DEVELOPER_NATIVE_FORCED: Key = Key::new("settings.developer.native.forced");
+pub const DEVELOPER_NATIVE_OFF: Key = Key::new("settings.developer.native.off");
+pub const DEVELOPER_NATIVE_CHAOS_NOTE: Key = Key::new("settings.developer.native.chaosNote");
 pub const ENGINE_LOADING: Key = Key::new("settings.engine.loading");
 pub const ENGINE_RESTART: Key = Key::new("settings.engine.restart");
 pub const ENGINE_CORRECTED: Key = Key::new("settings.engine.corrected");
 pub const ENGINE_RETRY: Key = Key::new("settings.engine.retry");
+pub const ENGINE_CHANNEL_RETRY: Key = Key::new("settings.engine.channelRetry");
 pub const ENGINE_PORTS_TITLE: Key = Key::new("settings.engine.ports.title");
 pub const ENGINE_PORTS_LABEL: Key = Key::new("settings.engine.ports.label");
 pub const ENGINE_PORTS_DESCRIPTION: Key = Key::new("settings.engine.ports.description");
@@ -106,6 +110,35 @@ pub const ENGINE_AUTO_REGISTER_LABEL: Key = Key::new("settings.engine.autoRegist
 pub const ENGINE_AUTO_REGISTER_DESCRIPTION: Key =
     Key::new("settings.engine.autoRegister.description");
 pub const ENGINE_AUTO_REGISTER_PENDING: Key = Key::new("settings.engine.autoRegister.pending");
+pub const CORE_UPDATES_TITLE: Key = Key::new("settings.core.updates.title");
+pub const CORE_VERSION_CHECK_LABEL: Key = Key::new("settings.core.versionCheck.label");
+pub const CORE_VERSION_CHECK_DESCRIPTION: Key = Key::new("settings.core.versionCheck.description");
+pub const CORE_MANIFESTS_TITLE: Key = Key::new("settings.core.manifests.title");
+pub const CORE_FETCH_TIMEOUT_LABEL: Key = Key::new("settings.core.fetchTimeout.label");
+pub const CORE_FETCH_TIMEOUT_DESCRIPTION: Key = Key::new("settings.core.fetchTimeout.description");
+pub const CORE_AUTO_RETRY_LABEL: Key = Key::new("settings.core.autoRetry.label");
+pub const CORE_AUTO_RETRY_DESCRIPTION: Key = Key::new("settings.core.autoRetry.description");
+pub const CORE_RETRIES_LABEL: Key = Key::new("settings.core.retries.label");
+pub const CORE_RETRIES_DESCRIPTION: Key = Key::new("settings.core.retries.description");
+pub const CORE_SEARCH_TITLE: Key = Key::new("settings.core.search.title");
+pub const CORE_PER_SOURCE_LABEL: Key = Key::new("settings.core.perSource.label");
+pub const CORE_PER_SOURCE_DESCRIPTION: Key = Key::new("settings.core.perSource.description");
+pub const CORE_SOURCE_TIMEOUT_LABEL: Key = Key::new("settings.core.sourceTimeout.label");
+pub const CORE_SOURCE_TIMEOUT_DESCRIPTION: Key =
+    Key::new("settings.core.sourceTimeout.description");
+pub const CORE_MIN_STARS_LABEL: Key = Key::new("settings.core.minStars.label");
+pub const CORE_MIN_STARS_DESCRIPTION: Key = Key::new("settings.core.minStars.description");
+pub const CORE_RECOMMENDATIONS_TITLE: Key = Key::new("settings.core.recommendations.title");
+pub const CORE_RECOMMENDATIONS_LABEL: Key = Key::new("settings.core.recommendations.label");
+pub const CORE_RECOMMENDATIONS_DESCRIPTION: Key =
+    Key::new("settings.core.recommendations.description");
+pub const CORE_REFRESH_LABEL: Key = Key::new("settings.core.refresh.label");
+pub const CORE_REFRESH_DESCRIPTION: Key = Key::new("settings.core.refresh.description");
+pub const CORE_NETWORK_TITLE: Key = Key::new("settings.core.network.title");
+pub const CORE_PORT_FORWARDING_LABEL: Key = Key::new("settings.core.portForwarding.label");
+pub const CORE_PORT_FORWARDING_DESCRIPTION: Key =
+    Key::new("settings.core.portForwarding.description");
+pub const CORE_PENDING_RESTART: Key = Key::new("settings.core.pendingRestart");
 pub const ENGINE_PATH_TITLE: Key = Key::new("settings.engine.path.title");
 pub const ENGINE_PATH_LABEL: Key = Key::new("settings.engine.path.label");
 pub const ENGINE_PATH_LOADING: Key = Key::new("settings.engine.path.loading");
@@ -179,10 +212,14 @@ pub(super) const MESSAGES: &[(Key, Message)] = &[
     (DEVELOPER_FAULTS_CONFIG, Message::Text("Daemon config")),
     (DEVELOPER_FAULTS_PATH, Message::Text("Command line PATH")),
     (DEVELOPER_FAULTS_CONSOLE, Message::Text("Console")),
+    (DEVELOPER_NATIVE_FORCED, Message::Text("Forced on for this run — Quiver was started with --demo, so every screen shows seeded data and no daemon is contacted. Restart without it to use a real daemon.")),
+    (DEVELOPER_NATIVE_OFF, Message::Text("Quiver is talking to a real daemon. Start it with --demo to use the seeded mock data instead; which backend is in use is decided once at startup.")),
+    (DEVELOPER_NATIVE_CHAOS_NOTE, Message::Text("The demo data is served from memory, so latency, error rate and the fault rates are only recorded for this session: nothing is delayed or refused. Daemon unreachable does take effect, it drops the connection to Disconnected.")),
     (ENGINE_LOADING, Message::Text("Loading engine settings")),
     (ENGINE_RESTART, Message::Text("These settings take effect the next time quiver.core restarts.")),
     (ENGINE_CORRECTED, Message::Text("The daemon could not use these settings and fell back to their defaults: {settings}.")),
     (ENGINE_RETRY, Message::Text("Try again")),
+    (ENGINE_CHANNEL_RETRY, Message::Text("Retry")),
     (ENGINE_PORTS_TITLE, Message::Text("Ports")),
     (ENGINE_PORTS_LABEL, Message::Text("Ports for servers")),
     (ENGINE_PORTS_DESCRIPTION, Message::Text("Range Quiver may use for arrows that serve. Match your router’s forwarding rules.")),
@@ -214,6 +251,32 @@ pub(super) const MESSAGES: &[(Key, Message)] = &[
     (ENGINE_AUTO_REGISTER_LABEL, Message::Text("Auto-register arrows from repositories without an ARROW.md")),
     (ENGINE_AUTO_REGISTER_DESCRIPTION, Message::Text("Builds an arrow from a repository’s release downloads when it ships no manifest.")),
     (ENGINE_AUTO_REGISTER_PENDING, Message::Text("Restart quiver.core to apply this change.")),
+    (CORE_UPDATES_TITLE, Message::Text("Updates")),
+    (CORE_VERSION_CHECK_LABEL, Message::Text("Check installed arrows for updates every")),
+    (CORE_VERSION_CHECK_DESCRIPTION, Message::Text("Soon after quiver.core starts, then this often, so an arrow shows it is outdated without being opened. 0s turns it off.")),
+    (CORE_MANIFESTS_TITLE, Message::Text("Manifests")),
+    (CORE_FETCH_TIMEOUT_LABEL, Message::Text("Download timeout")),
+    (CORE_FETCH_TIMEOUT_DESCRIPTION, Message::Text("How long quiver.core waits for an ARROW.md or a release file before giving up.")),
+    (CORE_AUTO_RETRY_LABEL, Message::Text("Retry manifests of followed collections")),
+    (CORE_AUTO_RETRY_DESCRIPTION, Message::Text("When following a collection, a member whose manifest fails to load is tried again.")),
+    (CORE_RETRIES_LABEL, Message::Text("Retries")),
+    (CORE_RETRIES_DESCRIPTION, Message::Text("How many more times a member is tried. 0 means a single attempt.")),
+    (CORE_SEARCH_TITLE, Message::Text("Search")),
+    (CORE_PER_SOURCE_LABEL, Message::Text("Results per source")),
+    (CORE_PER_SOURCE_DESCRIPTION, Message::Text("The most results one search takes from each source.")),
+    (CORE_SOURCE_TIMEOUT_LABEL, Message::Text("Source timeout")),
+    (CORE_SOURCE_TIMEOUT_DESCRIPTION, Message::Text("How long a search waits for each source before counting it as unavailable.")),
+    (CORE_MIN_STARS_LABEL, Message::Text("Stars needed without a manifest")),
+    (CORE_MIN_STARS_DESCRIPTION, Message::Text("A repository with no ARROW.md shows up in search only with at least this many stars.")),
+    (CORE_RECOMMENDATIONS_TITLE, Message::Text("Recommendations")),
+    (CORE_RECOMMENDATIONS_LABEL, Message::Text("Recommend arrows on Home")),
+    (CORE_RECOMMENDATIONS_DESCRIPTION, Message::Text("Fills Home's shelves from the network.")),
+    (CORE_REFRESH_LABEL, Message::Text("Refresh recommendations every")),
+    (CORE_REFRESH_DESCRIPTION, Message::Text("How often the shelves are read again from the network.")),
+    (CORE_NETWORK_TITLE, Message::Text("Network")),
+    (CORE_PORT_FORWARDING_LABEL, Message::Text("Open ports on the router")),
+    (CORE_PORT_FORWARDING_DESCRIPTION, Message::Text("Asks the router (UPnP / NAT-PMP) to forward the ports arrows serve on. Off, the ports are still given out, just not opened on the router.")),
+    (CORE_PENDING_RESTART, Message::Text("Saved. Restart quiver.core to apply it.")),
     (ENGINE_PATH_TITLE, Message::Text("Command line")),
     (ENGINE_PATH_LABEL, Message::Text("Use Quiver commands in a terminal")),
     (ENGINE_PATH_LOADING, Message::Text("Checking your PATH…")),

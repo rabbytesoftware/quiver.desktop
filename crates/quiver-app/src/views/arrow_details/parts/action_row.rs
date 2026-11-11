@@ -39,13 +39,15 @@ fn picture(
 ) -> Option<Pict> {
     Some(match kind {
         ArrowActionKind::AddToLibrary => Pict::Plus,
-        ArrowActionKind::Install | ArrowActionKind::Reinstall => Pict::Download,
+        ArrowActionKind::Install => Pict::Download,
         ArrowActionKind::Execute if opens_app => Pict::External,
-        ArrowActionKind::Update => Pict::Upload,
-        ArrowActionKind::Uninstall | ArrowActionKind::RemoveFromLibrary => Pict::Trash,
+        ArrowActionKind::Execute => Pict::Play,
+        ArrowActionKind::Update | ArrowActionKind::Reinstall | ArrowActionKind::Restart => {
+            Pict::Refresh
+        }
+        ArrowActionKind::Uninstall => Pict::Trash,
         ArrowActionKind::Stop => Pict::Stop,
-        ArrowActionKind::Restart => Pict::Restart,
-        ArrowActionKind::Execute => return None,
+        ArrowActionKind::RemoveFromLibrary => return None,
     })
 }
 
@@ -256,9 +258,24 @@ pub fn action_row(
         .relative()
         .flex()
         .items_center()
-        .child(div().flex().items_center().gap(px(10.)).children(slots))
+        .gap(px(10.))
+        // The old hero's `pt-4`: room under the description when the row wraps and the column fills up.
+        .pt(px(16.))
+        // The old hero's `flex flex-wrap gap-2.5`: a row too wide for the column (an install's progress next to
+        // a disabled Remove from Library, beside the banner) goes on a second line instead of under the art.
         .child(
             div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .flex_wrap()
+                .items_center()
+                .gap(px(10.))
+                .children(slots),
+        )
+        .child(
+            div()
+                .flex_none()
                 .ml_auto()
                 .flex()
                 .items_center()

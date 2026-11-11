@@ -20,7 +20,9 @@ pub fn run(
     // keeps one forgotten site from taking the app down.
     let _runtime = services.handle().clone();
     let _in_runtime = _runtime.enter();
-    Application::new().run(move |cx| {
+    // Remote images (arrow icons, banners, README images) need a client; GPUI has none of its own.
+    let http = crate::services::http::ReqwestHttp::new(services.handle().clone());
+    Application::new().with_http_client(http).run(move |cx| {
         crate::fonts::load(cx);
         crate::menu::install(cx);
         let model = AppModel::install(cx, services, demo);

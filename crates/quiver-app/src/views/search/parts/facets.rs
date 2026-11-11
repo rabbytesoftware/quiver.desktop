@@ -4,8 +4,10 @@ use gpui::prelude::*;
 use gpui::{div, Context, IntoElement};
 use quiver_state::i18n::en::search as keys;
 use quiver_state::search::{is_narrowed, offered_facets, toggle, FacetKind};
+use quiver_ui::inspect::{probe, Kind};
+use quiver_ui::ActiveQuiver;
 
-use crate::views::grid_page::chip;
+use crate::views::grid_page::counted_chip;
 use crate::views::search::SearchView;
 
 pub fn facet_row(
@@ -17,7 +19,13 @@ pub fn facet_row(
     if offered.is_empty() && !is_narrowed(&view.selection) {
         return None;
     }
-    let mut row = div().flex().flex_wrap().gap_2().pb(px_gap());
+    let mut row = div()
+        .flex()
+        .flex_1()
+        .min_w_0()
+        .items_center()
+        .gap(gpui::px(6.))
+        .overflow_hidden();
     for (kind, facet) in offered {
         let chosen = match kind {
             FacetKind::Host => view.selection.host.contains(&facet.value),
@@ -29,9 +37,10 @@ pub fn facet_row(
             "tag"
         };
         let value = facet.value.clone();
-        row = row.child(chip(
+        row = row.child(counted_chip(
             format!("search.facet.{kind_id}.{}", facet.value),
-            format!("{} {}", facet.value, facet.count),
+            facet.value.clone(),
+            Some(facet.count),
             chosen,
             cx,
             move |this: &mut SearchView, cx| {
@@ -40,22 +49,33 @@ pub fn facet_row(
             },
         ));
     }
-    if is_narrowed(&view.selection) {
-        let clear = view.app.read(cx).t(keys::NARROW_CLEAR);
-        row = row.child(chip(
-            "search.facets.clear".into(),
-            clear,
-            false,
-            cx,
-            |this: &mut SearchView, cx| {
+    let p = cx.quiver().palette;
+    let clear = is_narrowed(&view.selection).then(|| {
+        let text = view.app.read(cx).t(keys::NARROW_CLEAR);
+        div()
+            .id("search-facets-clear")
+            .relative()
+            .flex_none()
+            .cursor_pointer()
+            .text_size(gpui::px(11.5))
+            .text_color(p.muted_foreground)
+            .hover(|s| s.text_color(p.foreground))
+            .underline()
+            .on_click(cx.listener(|this, _, _, cx| {
                 this.selection = Default::default();
                 cx.notify();
-            },
-        ));
-    }
-    Some(row)
-}
-
-fn px_gap() -> gpui::Pixels {
-    gpui::px(16.)
+            }))
+            .child(text.clone())
+            .child(probe("search.facets.clear", Kind::Button, text, true, ""))
+    });
+    Some(
+        div()
+            .flex()
+            .flex_1()
+            .min_w_0()
+            .items_center()
+            .gap(gpui::px(12.))
+            .child(row)
+            .children(clear),
+    )
 }

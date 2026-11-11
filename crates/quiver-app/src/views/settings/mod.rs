@@ -15,7 +15,7 @@ use crate::bridge::observe_store;
 use crate::model::AppModel;
 use crate::views::screen_probe;
 
-pub use parts::UpdateCard;
+pub use parts::{applied_scenario_label, DevMock, UpdateCard};
 
 pub struct SettingsView {
     pub(super) app: Entity<AppModel>,
@@ -25,6 +25,8 @@ pub struct SettingsView {
     /// quiver.core's release channels; `None` until the fetch answered, `Err` when it failed.
     pub(super) channels: Option<Result<Vec<ArrowChannel>, ActionFailure>>,
     pub(super) core: UpdateCard,
+    pub(super) ports: Option<parts::PortInputs>,
+    pub(super) core_inputs: parts::CoreInputs,
     loaded: bool,
 }
 
@@ -43,6 +45,8 @@ impl SettingsView {
             path: PathStore::default(),
             channels: None,
             core: UpdateCard::default(),
+            ports: None,
+            core_inputs: parts::CoreInputs::default(),
             loaded: false,
         };
         view.ensure_loaded(cx);
@@ -112,14 +116,14 @@ impl SettingsView {
 impl Render for SettingsView {
     fn render(
         &mut self,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let p = cx.quiver().palette;
         let body = match self.tab {
             SettingsTab::General => parts::general(self, cx).into_any_element(),
-            SettingsTab::Engine => parts::engine(self, cx).into_any_element(),
-            SettingsTab::Developer => parts::developer(self, cx).into_any_element(),
+            SettingsTab::Engine => parts::engine(self, window, cx).into_any_element(),
+            SettingsTab::Developer => parts::developer(self, window, cx).into_any_element(),
         };
         div()
             .id("settings")

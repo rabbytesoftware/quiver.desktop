@@ -72,10 +72,13 @@ install -m 0755 "$BUILD_BIN/quiver-$CORE_V1" "$APP_DIR/quiver"
 
 # --- upstream --------------------------------------------------------------
 
-say "Standing up the local GitHub stand-in"
-: >"$RESULTS/upstream.log"
-bash "$E2E_DIR/fixtures/upstream-up.sh" 2>&1 | tee "$RESULTS/upstream-up.log"
-[ "${PIPESTATUS[0]}" = "0" ] || { record "upstream: FAILED"; exit 1; }
+# `make play-box-online` keeps the real github.com: no stand-in, no hosts entries, no local CA.
+if [ "${PLAYGROUND:-0}" != "online" ]; then
+	say "Standing up the local GitHub stand-in"
+	: >"$RESULTS/upstream.log"
+	bash "$E2E_DIR/fixtures/upstream-up.sh" 2>&1 | tee "$RESULTS/upstream-up.log"
+	[ "${PIPESTATUS[0]}" = "0" ] || { record "upstream: FAILED"; exit 1; }
+fi
 
 ASSETS="$RUN_DIR/native-assets"
 for tag in "$CORE_V1" "$CORE_V2" "$CORE_V3" "$CORE_V4"; do
@@ -209,6 +212,44 @@ RELAUNCH
 	exec sleep infinity
 }
 [ "${PLAYGROUND:-0}" = "1" ] && play
+
+# `make play-box-online`: the same hand-driven box, but on the real internet. Nothing is seeded: the app talks to
+# the real github.com, so any arrow published there (and runnable on linux) can be searched for and installed.
+play_online() {
+	local play_home=/tmp/quiver-play
+	if ! curl -fsS -o /dev/null --max-time 10 https://api.github.com/zen; then
+		record "WARNING: github.com is not reachable from the box; searching and installing will fail"
+	fi
+	# The sidecar is the latest published quiver.core nightly, not the checkout built for the tests (which can be
+	# weeks old): the release asset, checked against the release's own checksums.txt.
+	local base="https://github.com/rabbytesoftware/quiver.core/releases/download/${CORE_PLAY_TAG:-nightly-latest}"
+	local fetched=/tmp/quiver-core-nightly
+	mkdir -p "$fetched"
+	if curl -fsSL --max-time 120 -o "$fetched/$CORE_ASSET" "$base/$CORE_ASSET" \
+		&& curl -fsSL --max-time 30 -o "$fetched/checksums.txt" "$base/checksums.txt" \
+		&& (cd "$fetched" && grep " \./$CORE_ASSET\$\| $CORE_ASSET\$" checksums.txt | sed 's# \./# #' | sha256sum -c -); then
+		install -m 0755 "$fetched/$CORE_ASSET" "$APP_DIR/quiver"
+		record "quiver.core: $("$APP_DIR/quiver" version --short 2>/dev/null || "$APP_DIR/quiver" --version 2>/dev/null | head -1) (${CORE_PLAY_TAG:-nightly-latest}, sha256 checked)"
+	else
+		record "WARNING: could not fetch quiver.core ${CORE_PLAY_TAG:-nightly-latest}; keeping the locally built $CORE_V1"
+	fi
+	cat >/usr/local/bin/relaunch <<RELAUNCH
+#!/usr/bin/env bash
+pkill -x quiverdesktop 2>/dev/null; pkill -f 'quiver[^ ]* daemon' 2>/dev/null; sleep 2
+[ "\$1" = "--fresh" ] && rm -rf $play_home
+mkdir -p $play_home
+cd $play_home
+HOME=$play_home QUIVER_HOME=$play_home/.quiver nohup $APP_DIR/quiverdesktop >$play_home.log 2>&1 &
+echo "started; log: $play_home.log"
+RELAUNCH
+	chmod +x /usr/local/bin/relaunch
+	relaunch --fresh
+	record "online playground up: open http://<this host>:${E2E_NOVNC_PORT:-6080}/vnc.html"
+	record "  real internet, real github.com: any linux-compatible arrow can be installed"
+	record "  relaunch [--fresh]   restart the app (fresh = wipe its home)"
+	exec sleep infinity
+}
+[ "${PLAYGROUND:-0}" = "online" ] && play_online
 
 declare -a PASSED=() FAILED=()
 

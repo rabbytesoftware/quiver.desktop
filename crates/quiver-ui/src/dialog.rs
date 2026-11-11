@@ -195,9 +195,11 @@ part!(
 );
 
 part!(
-    /// `p-6` (the scrolling body between header and footer).
+    /// `p-6` (the scrolling body between header and footer), `pt-1` under a header. Its 24px bottom stays above
+    /// the bordered footer; only a bare footer (which brings its own `pt-4`) drops it to `pb-1` in the old CSS,
+    /// and no panel here sits on one.
     DialogPanel,
-    |_p, d| d.px(px(24.)).py(px(4.))
+    |_p, d| d.px(px(24.)).pt(px(4.)).pb(px(24.))
 );
 
 part!(

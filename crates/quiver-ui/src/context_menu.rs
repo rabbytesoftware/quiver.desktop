@@ -4,10 +4,9 @@
 
 use std::rc::Rc;
 
+use crate::layer::layer;
 use gpui::prelude::*;
-use gpui::{
-    anchored, deferred, div, px, App, Corner, ElementId, KeyDownEvent, Pixels, Point, Window,
-};
+use gpui::{anchored, div, px, App, Corner, ElementId, KeyDownEvent, Pixels, Point, Window};
 use quiver_theme::Radius;
 
 use crate::ids::child_id;
@@ -138,7 +137,7 @@ impl RenderOnce for ContextMenu {
             .collect();
         let on_out = dismiss.clone();
         let on_key = dismiss;
-        deferred(
+        layer(
             anchored()
                 .position(self.position)
                 .anchor(Corner::TopLeft)

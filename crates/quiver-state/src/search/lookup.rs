@@ -38,7 +38,13 @@ pub async fn resolve_namespace(
     };
     let (is_collection, is_arrow) =
         tokio::join!(collection, exists(api, format!("/v0/arrow/{encoded}")));
-    Ok(pick_target(namespace, is_collection?, is_arrow?))
+    // An arrow's repository answers `/v0/collection` with a 500 rather than a 404 (core tries to read a
+    // COLLECTION.md that is not there): an arrow that does exist is not hidden behind that failure.
+    let is_collection = match (is_collection, &is_arrow) {
+        (Err(_), Ok(true)) => false,
+        (other, _) => other?,
+    };
+    Ok(pick_target(namespace, is_collection, is_arrow?))
 }
 
 #[cfg(test)]
@@ -85,6 +91,14 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(err.status, 500);
+    }
+
+    #[tokio::test]
+    async fn an_arrow_that_exists_is_not_hidden_by_a_failing_collection_lookup() {
+        let target = resolve_namespace(&api(Some(500), Some(200)), NS)
+            .await
+            .unwrap();
+        assert_eq!(target.unwrap().kind, TargetKind::Arrow);
     }
 
     #[tokio::test]

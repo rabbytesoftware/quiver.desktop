@@ -9,7 +9,7 @@ use quiver_state::console::Support;
 use quiver_state::i18n::en::console;
 use quiver_theme::{Color, FontFamily, Tokens};
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::ActiveQuiver;
+use quiver_ui::{ActiveQuiver, TrackedText};
 
 use crate::views::console::ConsoleDock;
 
@@ -109,6 +109,20 @@ fn kind_of(entry: &ConsoleEntry) -> String {
     }
 }
 
+fn clock(
+    ms: i64,
+    offset_minutes: i32,
+) -> String {
+    let day_ms = (ms + i64::from(offset_minutes) * 60_000).rem_euclid(86_400_000);
+    format!(
+        "{:02}:{:02}:{:02}.{:03}",
+        day_ms / 3_600_000,
+        day_ms % 3_600_000 / 60_000,
+        day_ms % 60_000 / 1000,
+        day_ms % 1000
+    )
+}
+
 fn level_label(level: LogLevel) -> &'static str {
     match level {
         LogLevel::Debug => "DEBUG",
@@ -175,12 +189,18 @@ fn log_row(
                 .child(format_log_time(&record.iso, offset)),
         )
         .child(
-            div()
-                .flex_none()
-                .w(px(44.))
-                .font_weight(FontWeight::SEMIBOLD)
-                .text_color(c.level(record.level))
-                .child(level_label(record.level)),
+            div().flex_none().w(px(44.)).child(
+                // Old log row: font-semibold tracking-[0.04em] on the 12px mono line.
+                TrackedText::new(
+                    level_label(record.level),
+                    12.,
+                    18.,
+                    0.04 * 12.,
+                    c.level(record.level),
+                )
+                .weight(FontWeight::SEMIBOLD)
+                .family(FontFamily::Mono.family()),
+            ),
         )
         .child(message);
     let mut block = div().flex().flex_col().child(line);
@@ -233,13 +253,30 @@ fn entry_row(
     match &entry.body {
         NewEntry::Log(record) => log_row(c, entry.id, record, expanded, offset, this),
         NewEntry::Raw(text) => output_row(text.clone(), c.dim),
-        NewEntry::Cmd { text, .. } => div()
+        NewEntry::Cmd { text, at } => div()
+            .flex()
+            .gap(px(10.))
             .px(px(16.))
             .pt(px(8.))
             .pb(px(2.))
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(c.foreground)
-            .child(format!("› {text}"))
+            .text_size(px(12.5))
+            .child(
+                div()
+                    .flex_none()
+                    .w(px(88.))
+                    .text_size(px(12.))
+                    .whitespace_nowrap()
+                    .text_color(c.dim)
+                    .child(clock(*at, offset)),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(c.foreground)
+                    .child(format!("› {text}")),
+            )
             .into_any_element(),
         NewEntry::Out { stream, text } => output_row(
             text.clone(),

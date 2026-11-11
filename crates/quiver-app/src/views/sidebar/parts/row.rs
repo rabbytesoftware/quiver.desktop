@@ -13,10 +13,12 @@ use quiver_ui::inspect::{probe, Kind};
 
 use quiver_ui::{
     icon_with_stroke, inner_highlight, shadow_xs, ActiveQuiver, Glyph, GlyphKind, StatusGlyph,
+    TrackedText,
 };
 
 use super::super::Sidebar;
 use crate::model::Route;
+use crate::services::native_menu::MenuAnchor;
 
 fn glyph_kind(glyph: StateGlyph) -> Option<GlyphKind> {
     match glyph {
@@ -38,16 +40,11 @@ fn glyph_name(kind: GlyphKind) -> &'static str {
     }
 }
 
+/// The arrow's art colour, the same one its tile and page draw (`hue_for`: hue plus a lift bit).
 fn mock_palette(namespace: &str) -> (f32, f32) {
-    let mut hash: u32 = 5381;
-    for unit in namespace.encode_utf16() {
-        hash = hash.wrapping_mul(33) ^ u32::from(unit);
-    }
-    hash = (hash ^ (hash >> 16)).wrapping_mul(0x7feb_352d);
-    hash = (hash ^ (hash >> 15)).wrapping_mul(0x846c_a68b);
-    hash ^= hash >> 16;
-    let hue = f32::from((hash % 24) as u8) * 15.0 / 360.0;
-    let lift = f32::from(((hash >> 8) % 2) as u8) * 0.09;
+    let h = quiver_state::tile::hue_for(namespace);
+    let hue = f32::from(h % 360) / 360.0;
+    let lift = if h >= 360 { 0.09 } else { 0.0 };
     (hue, lift)
 }
 
@@ -60,6 +57,8 @@ pub fn arrow_row(
     let p = cx.quiver().palette;
     let namespace = bare_namespace(&entry.namespace).to_owned();
     let (hue, lift) = mock_palette(&entry.namespace);
+    let icon_url: Option<gpui::SharedString> =
+        entry.icon.clone().filter(|u| !u.is_empty()).map(Into::into);
     let glyph = glyph_kind(StateGlyph::for_state(
         RunState::from(entry.state),
         true,
@@ -112,12 +111,24 @@ pub fn arrow_row(
                 let route = Route::Arrow { namespace };
                 app.update(cx, |m, cx| m.navigate(route, cx));
             })
-            .on_mouse_down(MouseButton::Right, move |e, _, cx| {
-                let target = (ns_menu.clone(), e.position);
-                menu_state.update(cx, |s, cx| {
-                    s.context = Some(target);
-                    cx.notify();
-                });
+            // The OS's own menu. macOS opens it on press; elsewhere on release, which also leaves the
+            // pointer ungrabbed for GTK's popup on X11.
+            .on_mouse_down(MouseButton::Right, {
+                let (ns, state) = (ns_menu.clone(), menu_state.clone());
+                move |e, window, cx| {
+                    if cfg!(target_os = "macos") {
+                        let anchor = MenuAnchor::of(window);
+                        let (ns, at) = (ns.clone(), e.position);
+                        state.update(cx, |s, cx| s.open_row_menu(ns, at, anchor, cx));
+                    }
+                }
+            })
+            .on_mouse_up(MouseButton::Right, move |e, window, cx| {
+                if !cfg!(target_os = "macos") {
+                    let anchor = MenuAnchor::of(window);
+                    let (ns, at) = (ns_menu.clone(), e.position);
+                    menu_state.update(cx, |s, cx| s.open_row_menu(ns, at, anchor, cx));
+                }
             })
             .child(
                 div()
@@ -138,34 +149,50 @@ pub fn arrow_row(
                         20.,
                         white().opacity(0.92),
                         1.6,
-                    )),
+                    ))
+                    // Old `ArrowIcon`: the arrow's own icon, the drawn chip while it loads or if it cannot.
+                    .relative()
+                    .children(
+                        icon_url.clone().map(|url| {
+                            quiver_ui::photo(url, gpui::ObjectFit::Cover).rounded(px(4.))
+                        }),
+                    ),
             )
             .child(
                 div()
+                    .relative()
+                    .top(px(2.))
                     .flex_1()
                     .min_w_0()
                     .flex()
                     .flex_col()
                     .justify_center()
                     .child(
-                        div()
-                            .text_size(px(13.))
-                            .line_height(px(16.))
-                            .font_weight(FontWeight::MEDIUM)
-                            .truncate()
-                            .child(entry.name.clone()),
+                        TrackedText::new(entry.name.clone(), 13., 16., -0.1, fg)
+                            .weight(FontWeight::MEDIUM),
                     )
                     .when(active, |d| {
+                        let meta = p.primary_foreground.opacity(0.6);
                         d.child(
                             div()
                                 .flex()
                                 .min_w_0()
-                                .font_family(mono)
-                                .text_size(px(10.5))
-                                .line_height(px(13.))
-                                .text_color(p.primary_foreground.opacity(0.6))
-                                .child(div().min_w_0().truncate().child(namespace.clone()))
-                                .child(div().flex_none().child(format!("@{}", entry.version))),
+                                .child(
+                                    TrackedText::new(namespace.clone(), 10.5, 13., -0.2, meta)
+                                        .family(mono),
+                                )
+                                .child(
+                                    div().flex_none().child(
+                                        TrackedText::new(
+                                            followed(&entry.namespace, &entry.version),
+                                            10.5,
+                                            13.,
+                                            -0.2,
+                                            meta,
+                                        )
+                                        .family(mono),
+                                    ),
+                                ),
                         )
                     }),
             )
@@ -194,4 +221,38 @@ pub fn arrow_row(
                 if active { "selected" } else { "" },
             )),
     )
+}
+
+/// What the row follows, as the arrow page says it (old `arrow-row.tsx`): `@selector`, then `· version` when the
+/// selector resolved to something else (`@stable · v27.7.15`); `@version` when there is no selector.
+fn followed(
+    namespace: &str,
+    version: &str,
+) -> String {
+    match namespace.split_once('@').map(|(_, s)| s) {
+        Some(selector) if !selector.is_empty() => {
+            if version.is_empty() || version == selector {
+                format!("@{selector}")
+            } else {
+                format!("@{selector} · {version}")
+            }
+        }
+        _ => format!("@{version}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::followed;
+
+    #[test]
+    fn the_row_names_what_it_follows_then_what_that_resolved_to() {
+        assert_eq!(
+            followed("github.com/a/b@stable", "v27.7.15"),
+            "@stable · v27.7.15"
+        );
+        assert_eq!(followed("github.com/a/b@v1.2", "v1.2"), "@v1.2");
+        assert_eq!(followed("github.com/a/b@stable", ""), "@stable");
+        assert_eq!(followed("github.com/a/b", "v3"), "@v3");
+    }
 }

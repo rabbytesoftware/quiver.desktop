@@ -2,13 +2,9 @@
 //! the control on the right (SettingsAfter / SettingsEngineAfter).
 
 use gpui::prelude::*;
-use gpui::PathBuilder;
-use gpui::{
-    canvas, div, point, px, AnyElement, App, Bounds, FontWeight, IntoElement, Pixels, SharedString,
-    Window,
-};
+use gpui::{div, px, AnyElement, FontWeight, IntoElement, SharedString};
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::Palette;
+use quiver_ui::{Palette, TrackedText};
 
 /// A section: its heading, then the rows. The first section's heading is left out, as in the old app.
 pub fn section(
@@ -25,16 +21,10 @@ pub fn section(
         .flex_col()
         .when(!first, |d| {
             d.child(
-                div()
-                    .mb(px(8.))
-                    .px(px(4.))
-                    .pt(px(16.))
-                    .pb(px(6.))
-                    .text_size(px(11.))
-                    .line_height(px(16.))
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(p.muted_foreground)
-                    .child(title.to_uppercase()),
+                div().mb(px(8.)).px(px(4.)).pt(px(16.)).pb(px(6.)).child(
+                    TrackedText::new(title.to_uppercase(), 11., 16., 0.7, p.muted_foreground)
+                        .weight(FontWeight::SEMIBOLD),
+                ),
             )
         })
         .child(div().flex().flex_col().gap(px(8.)).children(rows))
@@ -83,13 +73,13 @@ pub fn row_with_reset(
                         .flex()
                         .items_center()
                         .gap(px(6.))
-                        .child(
-                            div()
-                                .text_size(px(13.))
-                                .line_height(px(16.25))
-                                .text_color(p.foreground)
-                                .child(label.clone()),
-                        )
+                        .child(TrackedText::new(
+                            label.clone(),
+                            13.,
+                            16.25,
+                            -0.1,
+                            p.foreground,
+                        ))
                         .children(reset),
                 )
                 .when_some(description, |d, text| {
@@ -182,44 +172,11 @@ pub fn reset_button(
         .cursor_pointer()
         .hover(move |s| s.bg(hover))
         .on_click(move |_, window, cx| on_click(window, cx))
-        .child(reset_glyph(12., color))
+        .child(quiver_ui::icon(
+            quiver_ui::Glyph::PhArrowCounterClockwise,
+            12.,
+            color,
+        ))
         .child(probe(probe_id.to_owned(), Kind::Button, label, true, ""))
         .into_any_element()
-}
-
-fn reset_glyph(
-    size: f32,
-    color: gpui::Hsla,
-) -> impl IntoElement {
-    canvas(
-        |_, _, _| (),
-        move |bounds: Bounds<Pixels>, _, window: &mut Window, _: &mut App| {
-            let k = size / 24.0;
-            let at =
-                |x: f32, y: f32| point(bounds.origin.x + px(x * k), bounds.origin.y + px(y * k));
-            let mut arc = PathBuilder::stroke(px(2.0 * k));
-            let steps = 20;
-            for i in 0..=steps {
-                let a = (-40.0_f32 + 290.0 * i as f32 / steps as f32).to_radians();
-                let (x, y) = (12.0 + 8.0 * a.cos(), 12.0 - 8.0 * a.sin());
-                if i == 0 {
-                    arc.move_to(at(x, y));
-                } else {
-                    arc.line_to(at(x, y));
-                }
-            }
-            if let Ok(path) = arc.build() {
-                window.paint_path(path, color);
-            }
-            let mut head = PathBuilder::stroke(px(2.0 * k));
-            head.move_to(at(3.0, 3.0));
-            head.line_to(at(3.0, 8.5));
-            head.line_to(at(8.5, 8.5));
-            if let Ok(path) = head.build() {
-                window.paint_path(path, color);
-            }
-        },
-    )
-    .size(px(size))
-    .flex_none()
 }

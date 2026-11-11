@@ -1,0 +1,12 @@
+{
+ "ok": true,
+ "data": {
+  "channels": [
+   {
+    "name": "nightly",
+    "kind": "pointer",
+    "latest": "nightly"
+   }
+  ]
+ }
+}

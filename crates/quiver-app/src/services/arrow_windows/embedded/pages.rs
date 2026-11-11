@@ -20,6 +20,8 @@ type Pending = Arc<Mutex<HashMap<u64, RequestAsyncResponder>>>;
 struct Page {
     view: WebView,
     pending: Pending,
+    /// Bumped on every show/hide: a photograph that lands after the page was shown again is dropped.
+    turn: u64,
 }
 
 #[derive(Default)]
@@ -83,7 +85,14 @@ impl Pages {
             .with_url(url)
             .build_as_child(parent)
             .map_err(|e| e.to_string())?;
-        self.views.insert(id, Page { view, pending });
+        self.views.insert(
+            id,
+            Page {
+                view,
+                pending,
+                turn: 0,
+            },
+        );
         Ok(())
     }
 
@@ -93,7 +102,7 @@ impl Pages {
         id: u64,
         message: HostToWindow,
     ) -> bool {
-        let Some(page) = self.views.get(&id) else {
+        let Some(page) = self.views.get_mut(&id) else {
             return false;
         };
         match message {
@@ -108,9 +117,12 @@ impl Pages {
                 let _ = page.view.set_bounds(rect(b));
             }
             HostToWindow::Visible { visible } => {
-                let _ = page.view.set_visible(visible);
-                if !visible {
-                    let _ = page.view.focus_parent();
+                page.turn += 1;
+                if visible {
+                    let _ = page.view.set_visible(true);
+                    crate::services::arrow_windows::cover::publish(None);
+                } else if !photograph_then_hide(id, page) {
+                    hide(page);
                 }
             }
             HostToWindow::ProtocolResponse(response) => respond(&page.pending, response),
@@ -127,6 +139,18 @@ impl Pages {
             }
         }
         true
+    }
+
+    /// The photograph is on screen: the page may step aside, unless it was shown again meanwhile.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    fn hide_after_photograph(
+        &mut self,
+        id: u64,
+        turn: u64,
+    ) {
+        if let Some(page) = self.views.get(&id).filter(|p| p.turn == turn) {
+            hide(page);
+        }
     }
 
     pub fn destroy(
@@ -164,4 +188,55 @@ fn respond(
                 .unwrap_or_default(),
         ),
     }
+}
+
+fn hide(page: &Page) {
+    let _ = page.view.set_visible(false);
+    let _ = page.view.focus_parent();
+}
+
+/// Photographs the page for the pane to draw while it is covered ([`crate::services::arrow_windows::cover`]),
+/// then hides it. False when no photograph can be taken: the caller hides it at once.
+#[cfg(target_os = "linux")]
+fn photograph_then_hide(
+    id: u64,
+    page: &Page,
+) -> bool {
+    use std::time::Duration;
+    use webkit2gtk::{SnapshotOptions, SnapshotRegion, WebViewExt as _};
+    use wry::WebViewExtUnix as _;
+
+    let turn = page.turn;
+    page.view.webview().snapshot(
+        SnapshotRegion::Visible,
+        SnapshotOptions::NONE,
+        None::<&gtk::gio::Cancellable>,
+        move |shot| {
+            let image = shot
+                .ok()
+                .and_then(|s| crate::services::arrow_windows::cover::from_cairo(&s));
+            let Some(image) = image else {
+                super::thread_gtk::with_pages(|pages| pages.hide_after_photograph(id, turn));
+                return;
+            };
+            super::thread_gtk::with_pages(|pages| {
+                if pages.views.get(&id).is_some_and(|p| p.turn == turn) {
+                    crate::services::arrow_windows::cover::publish(Some(Arc::new(image)));
+                }
+            });
+            // A frame or two for GPUI to draw the photograph under the page before the page goes.
+            gtk::glib::timeout_add_local_once(Duration::from_millis(48), move || {
+                super::thread_gtk::with_pages(|pages| pages.hide_after_photograph(id, turn));
+            });
+        },
+    );
+    true
+}
+
+#[cfg(not(target_os = "linux"))]
+fn photograph_then_hide(
+    _id: u64,
+    _page: &Page,
+) -> bool {
+    false
 }
