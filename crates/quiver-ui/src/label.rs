@@ -53,7 +53,7 @@ impl RenderOnce for Label {
             .text_color(cx.quiver().palette.foreground)
             .when(self.disabled, |d| d.opacity(0.5))
             .child(self.text);
-        el.style().refine(&self.style);
+        crate::style_merge::apply(el.style(), &self.style);
         el
     }
 }

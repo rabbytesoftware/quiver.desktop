@@ -7,19 +7,27 @@ use super::layout::{row, section};
 use super::state::Gallery;
 use crate::tile_art::TileArtKind;
 use crate::{
-    PageHeader, SearchInput, SectionHeader, Tile, TileBadge, TileSize, TileStart, TileStatus,
+    CardArt, PageHeader, SearchInput, SectionHeader, Tile, TileBadge, TileSize, TileStart,
+    TileStatus,
 };
 
-fn drawn(
+fn card(
     name: &str,
     hue: u16,
-) -> TileArtKind {
-    TileArtKind::Drawn {
+) -> CardArt {
+    CardArt {
         initial: name[..1].to_string().into(),
         name: name.to_string().into(),
         publisher: "rabbyte".into(),
         hue,
     }
+}
+
+fn drawn(
+    name: &str,
+    hue: u16,
+) -> TileArtKind {
+    TileArtKind::Drawn(card(name, hue))
 }
 
 fn tile(
@@ -38,13 +46,17 @@ pub(super) fn page(
     g: &mut Gallery,
     cx: &mut Context<Gallery>,
 ) -> Vec<AnyElement> {
-    let banner = Tile::new("t-mc", "t-mc", TileArtKind::Banner { hue: 62 })
-        .caption("Vanilla Minecraft dedicated server with automatic world backups.")
-        .badge(Some(TileBadge::new(TileStatus::Running, "Running")))
-        .hover(
-            "Minecraft Server",
-            vec!["game".into(), "server".into(), "java".into()],
-        );
+    let banner = Tile::new(
+        "t-mc",
+        "t-mc",
+        TileArtKind::Banner(card("Minecraft Server", 62)),
+    )
+    .caption("Vanilla Minecraft dedicated server with automatic world backups.")
+    .badge(Some(TileBadge::new(TileStatus::Running, "Running")))
+    .hover(
+        "Minecraft Server",
+        vec!["game".into(), "server".into(), "java".into()],
+    );
     let start = Tile::new("t-pg", "t-pg", drawn("PostgreSQL", 255))
         .caption("PostgreSQL 17 with the timescale extension preinstalled.")
         .start(Some(TileStart::new("Start", |_, _, _| {})));

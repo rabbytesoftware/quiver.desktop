@@ -424,7 +424,7 @@ impl RenderOnce for Select {
                 !self.disabled,
                 if open { "open" } else { "" },
             ));
-        el.style().refine(&self.style);
+        crate::style_merge::apply(el.style(), &self.style);
         el
     }
 }

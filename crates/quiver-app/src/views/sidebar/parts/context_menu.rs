@@ -3,7 +3,8 @@
 //! that needs input (variables) is routed to the page instead of guessed at. The items are built from the
 //! arrow's detail, fetched first as the Tauri app did, so they match the page exactly.
 //!
-//! When no native menu can be shown (no GTK on this display), the same items appear as an in-app menu.
+//! On Linux, when no native menu can be shown (no GTK on this display), the same items appear as an in-app
+//! menu. On macOS and Windows there is no in-app menu: the OS's own is the only one.
 
 use gpui::{Context, IntoElement, Pixels, Point};
 use quiver_platform::platform_key;
@@ -149,13 +150,18 @@ impl Sidebar {
                     Picked::Item(0) => choose(&app, &namespace, None, cx),
                     Picked::Item(ix) => choose(&app, &namespace, items.get(ix - 2), cx),
                     Picked::Dismissed => {}
-                    Picked::Unavailable => {
+                    // The in-app menu exists for Linux without GTK only. On macOS and Windows the OS's own
+                    // menu is the only one there is: if it cannot be shown, nothing is, never this look-alike.
+                    Picked::Unavailable if cfg!(target_os = "linux") => {
                         sidebar.context = Some(RowMenu {
                             namespace,
                             items,
                             position,
                         });
                         cx.notify();
+                    }
+                    Picked::Unavailable => {
+                        log::warn!("the native context menu could not be shown for {namespace}");
                     }
                 }
             })

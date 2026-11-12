@@ -78,7 +78,9 @@ impl MenuAnchor {
     #[cfg(not(target_os = "linux"))]
     pub fn of(window: &gpui::Window) -> Self {
         Self {
-            raw: window.window_handle().ok().map(|h| h.as_raw()),
+            raw: HasWindowHandle::window_handle(window)
+                .ok()
+                .map(|h| h.as_raw()),
         }
     }
 

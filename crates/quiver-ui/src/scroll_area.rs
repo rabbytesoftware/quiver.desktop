@@ -305,7 +305,7 @@ impl RenderOnce for ScrollArea {
             .children(fade_bottom)
             .children(bar(Axis::Vertical, v_thumb))
             .children(bar(Axis::Horizontal, h_thumb));
-        el.style().refine(&self.style);
+        crate::style_merge::apply(el.style(), &self.style);
         el
     }
 }

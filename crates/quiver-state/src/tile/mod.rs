@@ -10,6 +10,6 @@ mod sources;
 
 pub use badge::{badge_for, BadgePolicy, TileBadge, TileBadgeKind};
 pub use model::{
-    build_tile, hue_for, os_families, HoverContent, RevealFacts, TileAction, TileArt, TileInput,
-    TileKind, TileModel,
+    build_tile, hue_for, os_families, DrawnArt, HoverContent, RevealFacts, TileAction, TileArt,
+    TileInput, TileKind, TileModel,
 };

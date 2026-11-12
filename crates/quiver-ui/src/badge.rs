@@ -239,10 +239,10 @@ impl RenderOnce for Badge {
                     el = el.on_click(move |e, w, cx| f(e, w, cx));
                 }
             }
-            el.style().refine(&self.style);
+            crate::style_merge::apply(el.style(), &self.style);
             return el.into_any_element();
         }
-        el.style().refine(&self.style);
+        crate::style_merge::apply(el.style(), &self.style);
         el.into_any_element()
     }
 }

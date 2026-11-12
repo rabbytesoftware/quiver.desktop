@@ -27,7 +27,11 @@ pub fn sections(
             HomeSection::LeadShelf | HomeSection::TrailingShelves => {
                 // The lead shelf and the shelves after it are one "Popular" block on Home.
                 if matches!(section, HomeSection::LeadShelf) {
-                    out.child(div().w(px(width)).child(popular::popular(view, home, cx)))
+                    out.child(
+                        div()
+                            .w(px(width))
+                            .child(popular::popular(view, home, width, cx)),
+                    )
                 } else {
                     out
                 }

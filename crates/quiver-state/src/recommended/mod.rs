@@ -1,11 +1,10 @@
 //! The Popular page that "View all" on Home's lead shelf leads to (port of `src/features/recommended`):
-//! the shelf's arrows, category chips from their tags and a Load more button.
+//! the shelf's arrows and category chips from their tags. Core's snapshot has no paging (a shelf's size is
+//! its own config), so everything it holds is shown.
 
 use crate::domain::{Home, SearchEntry};
 use crate::home::visible_shelves;
 
-/// One page of tiles; the board's "6 loaded" is a sample, not a size.
-pub const PAGE_SIZE: usize = 12;
 /// Category chips offered above the grid.
 pub const CATEGORY_TAKE: usize = 8;
 
@@ -17,16 +16,13 @@ pub struct RecommendedModel {
     /// "N loaded".
     pub loaded: usize,
     pub arrows: Vec<SearchEntry>,
-    pub can_load_more: bool,
     pub show_skeleton: bool,
 }
 
-/// `category` is a tag chip (None is "All"); `pages` is how many times Load more has been pressed
-/// plus one.
+/// `category` is a tag chip (None is "All").
 pub fn build_recommended(
     home: Option<&Home>,
     category: Option<&str>,
-    pages: usize,
 ) -> RecommendedModel {
     let all: Vec<SearchEntry> = visible_shelves(home)
         .into_iter()
@@ -38,14 +34,11 @@ pub fn build_recommended(
         .filter(|a| category.is_none_or(|c| a.tags.iter().any(|t| t == c)))
         .cloned()
         .collect();
-    let limit = PAGE_SIZE * pages.max(1);
-    let loaded = matching.len().min(limit);
     RecommendedModel {
         total: all.len(),
         categories,
-        loaded,
-        can_load_more: matching.len() > loaded,
-        arrows: matching.into_iter().take(limit).collect(),
+        loaded: matching.len(),
+        arrows: matching,
         show_skeleton: all.is_empty() && home.is_some_and(|h| h.refreshing),
     }
 }
@@ -93,15 +86,10 @@ mod tests {
     }
 
     #[test]
-    fn pages_grow_with_load_more_and_the_count_says_what_is_loaded() {
+    fn everything_the_snapshot_holds_is_shown_and_the_count_says_how_many() {
         let h = home((0..30).map(|i| open(i, &[])).collect());
-        let first = build_recommended(Some(&h), None, 1);
-        assert_eq!(
-            (first.loaded, first.total, first.can_load_more),
-            (12, 30, true)
-        );
-        let last = build_recommended(Some(&h), None, 3);
-        assert_eq!((last.loaded, last.can_load_more), (30, false));
+        let all = build_recommended(Some(&h), None);
+        assert_eq!((all.loaded, all.total, all.arrows.len()), (30, 30, 30));
     }
 
     #[test]
@@ -111,7 +99,7 @@ mod tests {
             open(1, &["chat", "game"]),
             open(2, &["database"]),
         ]);
-        let model = build_recommended(Some(&h), Some("game"), 1);
+        let model = build_recommended(Some(&h), Some("game"));
         assert_eq!(model.arrows.len(), 2);
         assert_eq!(model.categories, ["game", "chat", "database"]);
         assert_eq!(model.total, 3);
@@ -123,12 +111,12 @@ mod tests {
             installed: true,
             ..entry("h", "h")
         };
-        assert_eq!(build_recommended(Some(&home(vec![held])), None, 1).total, 0);
+        assert_eq!(build_recommended(Some(&home(vec![held])), None).total, 0);
         let refreshing = Home {
             shelves: vec![],
             refreshing: true,
         };
-        assert!(build_recommended(Some(&refreshing), None, 1).show_skeleton);
-        assert!(!build_recommended(None, None, 1).show_skeleton);
+        assert!(build_recommended(Some(&refreshing), None).show_skeleton);
+        assert!(!build_recommended(None, None).show_skeleton);
     }
 }

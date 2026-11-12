@@ -1,12 +1,9 @@
 //! The header's art: the banner at the right and the arrow's app icon.
 
 use gpui::prelude::*;
-use gpui::{
-    div, hsla, img, linear_color_stop, linear_gradient, px, white, IntoElement, ObjectFit,
-    StyledImage,
-};
+use gpui::{div, hsla, linear_color_stop, linear_gradient, px, white, IntoElement};
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::{icon_with_stroke, Glyph};
+use quiver_ui::{icon_with_stroke, CardArt, Glyph};
 
 pub(super) const BANNER_W: f32 = 440.0;
 pub(super) const HEIGHT: f32 = 218.0;
@@ -47,79 +44,33 @@ fn hue(
 }
 
 /// The banner art `w` wide, at the 440×218 board's proportions (beside the header's text, `BANNER_W`; above
-/// it on a narrow window, the content's width).
+/// it on a narrow window, the content's width). The arrow's own banner covers it once loaded; until then, and
+/// when the arrow has none or it cannot load, the drawn card shows.
 pub(super) fn banner_art(
-    h: Art,
+    card: &CardArt,
     w: f32,
     image: Option<&str>,
-    muted: gpui::Hsla,
+    icon: Option<&gpui::SharedString>,
+    cx: &gpui::App,
 ) -> gpui::AnyElement {
-    let probe_it = |el: gpui::Div| el.child(probe("arrow.banner", Kind::Other, "banner", true, ""));
-    let Some(url) = image.filter(|u| !u.is_empty()) else {
-        return probe_it(drawn_banner(h, w)).into_any_element();
-    };
-    // Old hero: `bg-muted bg-contain bg-center` on the 2:1 box. Muted while it loads; the drawn banner if it
-    // cannot load.
-    let url = gpui::SharedString::from(url.to_owned());
-    probe_it(
-        div()
-            .relative()
-            .flex_none()
-            .w(px(w))
-            .h(px(w * HEIGHT / BANNER_W))
-            .rounded(px(12.))
-            .bg(muted)
-            .child(
-                img(url)
-                    .size_full()
-                    .rounded(px(12.))
-                    .object_fit(ObjectFit::Contain)
-                    .with_fallback(move || drawn_banner(h, w).into_any_element()),
-            ),
-    )
-    .into_any_element()
-}
-
-fn drawn_banner(
-    h: Art,
-    w: f32,
-) -> gpui::Div {
     let height = w * HEIGHT / BANNER_W;
-    let period = w * 0.1;
-    let stripes = (1..11).map(move |i| {
-        div()
-            .absolute()
-            .top_0()
-            .bottom_0()
-            .left(px(period * i as f32 - w / 1200.0))
-            .w(px(w / 600.0))
-            .bg(hue(h, 0.40, 24.0))
-    });
-    div()
-        .relative()
-        .flex_none()
-        .w(px(w))
-        .h(px(height))
-        .overflow_hidden()
-        .rounded(px(12.))
-        .bg(hue(h, 0.40, 17.0))
-        .children(stripes)
-        .child({
-            // Cut by the banner's rounded corner: GPUI's clip is rectangular.
-            let r = w * 260.0 / 1200.0;
-            quiver_ui::clipped_disc(
-                (w * 700.0 / 1200.0 + r, w * -140.0 / 1200.0 + r, r),
-                (w, height, 12.),
-                hue(h, 0.46, 23.0),
-            )
-        })
-        .child(
+    let probe_it = |el: gpui::Div| el.child(probe("arrow.banner", Kind::Other, "banner", true, ""));
+    match image.filter(|u| !u.is_empty()) {
+        Some(url) => {
+            probe_it(quiver_ui::banner_photo(url.to_owned(), card, w, icon, cx).h(px(height)))
+        }
+        None => probe_it(
             div()
-                .absolute()
-                .left(px(w * 149.6 / BANNER_W))
-                .top(px(w * 38.6 / BANNER_W))
-                .child(icon_with_stroke(Glyph::Mark, w * 0.32, white(), 1.6)),
-        )
+                .relative()
+                .flex_none()
+                .w(px(w))
+                .h(px(height))
+                .overflow_hidden()
+                .rounded(px(12.))
+                .child(quiver_ui::card_stand_in(card, w, icon, cx)),
+        ),
+    }
+    .into_any_element()
 }
 
 pub(super) fn app_icon(
@@ -136,14 +87,13 @@ pub(super) fn app_icon_sized(
     size: f32,
     image: Option<&str>,
 ) -> impl IntoElement {
-    let photo = image.filter(|u| !u.is_empty()).map(|u| {
-        quiver_ui::photo(u.to_owned().into(), ObjectFit::Cover).rounded(px(size * 10. / 44.))
-    });
-    div()
-        .relative()
-        .flex_none()
-        .size(px(size))
-        .rounded(px(size * 10. / 44.))
+    let radius = size * 10. / 44.;
+    let drawn = div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .size_full()
+        .rounded(px(radius))
         .flex()
         .items_center()
         .justify_center()
@@ -157,6 +107,18 @@ pub(super) fn app_icon_sized(
             size * 27. / 44.,
             white(),
             1.9,
-        ))
-        .children(photo)
+        ));
+    // The arrow's icon replaces the drawn mark once it has loaded; until then, or if it cannot, the mark shows.
+    div()
+        .relative()
+        .flex_none()
+        .size(px(size))
+        .rounded(px(radius))
+        .child(match image.filter(|u| !u.is_empty()) {
+            Some(u) => quiver_ui::Photo::new(u.to_owned())
+                .radius(radius)
+                .stand_in(drawn)
+                .into_any_element(),
+            None => drawn.into_any_element(),
+        })
 }

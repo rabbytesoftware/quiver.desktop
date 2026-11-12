@@ -276,7 +276,7 @@ impl RenderOnce for Slider {
                 },
             );
         }
-        el.style().refine(&self.style);
+        crate::style_merge::apply(el.style(), &self.style);
         el
     }
 }

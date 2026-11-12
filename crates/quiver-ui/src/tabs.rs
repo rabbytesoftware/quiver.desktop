@@ -319,7 +319,7 @@ impl RenderOnce for Tabs {
             .when(!vertical, |d| d.flex_col())
             .child(div().flex().child(list))
             .children(self.panel.map(|panel| div().flex_1().child(panel)));
-        el.style().refine(&self.style);
+        crate::style_merge::apply(el.style(), &self.style);
         el
     }
 }

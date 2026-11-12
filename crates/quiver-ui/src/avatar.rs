@@ -111,7 +111,7 @@ impl RenderOnce for Avatar {
             ),
             None => el.child(fallback_circle(text, muted, fg)),
         };
-        el.style().refine(&self.style);
+        crate::style_merge::apply(el.style(), &self.style);
         el
     }
 }

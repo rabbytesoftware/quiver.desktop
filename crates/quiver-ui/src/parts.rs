@@ -37,7 +37,7 @@ macro_rules! part {
                 let $p: $crate::Palette = $q.palette;
                 let $d = gpui::div();
                 let mut el = gpui::ParentElement::children($body, self.children);
-                gpui::Styled::style(&mut el).refine(&self.style);
+                crate::style_merge::apply(gpui::Styled::style(&mut el), &self.style);
                 el
             }
         }

@@ -72,7 +72,7 @@ The shell draws the stack in opening order (last on top). Opening an id twice re
 Every interactive element and every screen reports a stable id with `quiver_ui::inspect::probe(id, Kind,
 label, enabled, state)`, added as the LAST child of the element it describes (the parent must be `relative`).
 Convention `<screen>.<element>[.<key>]`, lower-case, dashes: `sidebar.search`, `sidebar.tab.home`,
-`sidebar.row.<namespace>`, `home.tile.<namespace>`, `tile.<namespace>.start`, `home.popular.load-more`.
+`sidebar.row.<namespace>`, `home.tile.<namespace>`, `tile.<namespace>.start`, `home.popular.browse-all`.
 Screens: `views::screen_probe("home")` as the last child of the page root (id `screen.home`). `state` carries
 `"selected"`, `"checked"`, `"value=..."`. Ids are part of the contract with the e2e driver: never rename one
 without telling it. The shell calls `inspect::begin_frame()` once per root render; views do not.

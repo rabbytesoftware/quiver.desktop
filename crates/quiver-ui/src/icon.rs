@@ -13,7 +13,7 @@ use crate::error::{Error, Result};
 use crate::icon_paths as paths;
 use crate::svg_path;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Glyph {
     Check,
     ChevronDown,
@@ -248,18 +248,33 @@ fn paint_shape(
     stroke: f32,
     color: Hsla,
 ) -> Result<()> {
-    let (paint, ds) = shape(glyph);
-    let k = size / view_box(paint);
-    for d in ds {
-        let mut b = match paint {
-            Paint::Stroke | Paint::Stroke13 => round_stroke(stroke * k),
-            Paint::Fill => PathBuilder::fill().with_style(PathStyle::Fill(
-                FillOptions::default().with_fill_rule(FillRule::NonZero),
-            )),
-        };
-        svg_path::append(&mut b, d, bounds.origin, k);
-        let path = b.build().map_err(|e| Error::Path(e.to_string()))?;
-        window.paint_path(path, color);
+    // The tessellation is the expensive part and depends on everything but the colour: build it once per
+    // (glyph, size, stroke, origin) and repaint the stored paths on every later frame.
+    let key = (
+        glyph,
+        size.to_bits(),
+        stroke.to_bits(),
+        f32::from(bounds.origin.x).to_bits(),
+        f32::from(bounds.origin.y).to_bits(),
+    );
+    let paths = crate::path_cache::cached(key, || {
+        let (paint, ds) = shape(glyph);
+        let k = size / view_box(paint);
+        ds.iter()
+            .map(|d| {
+                let mut b = match paint {
+                    Paint::Stroke | Paint::Stroke13 => round_stroke(stroke * k),
+                    Paint::Fill => PathBuilder::fill().with_style(PathStyle::Fill(
+                        FillOptions::default().with_fill_rule(FillRule::NonZero),
+                    )),
+                };
+                svg_path::append(&mut b, d, bounds.origin, k);
+                b.build().map_err(|e| Error::Path(e.to_string()))
+            })
+            .collect()
+    })?;
+    for path in paths.iter() {
+        window.paint_path(path.clone(), color);
     }
     Ok(())
 }

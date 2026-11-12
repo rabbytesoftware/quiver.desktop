@@ -1,5 +1,5 @@
 //! Recommended (`RecommendedAfter`): "Popular" in full. Header with "N loaded", category chips, the
-//! tiles and "Load more" on a wavy line. The decisions come from `quiver_state::recommended`.
+//! and the tiles. The decisions come from `quiver_state::recommended`.
 
 use gpui::prelude::*;
 use gpui::{div, Context, Entity, Render, Window};
@@ -13,7 +13,7 @@ use quiver_ui::{ActiveQuiver, TileSize};
 use crate::bridge::observe_store;
 use crate::model::AppModel;
 use crate::views::grid_page::{
-    chip, error_state, grid_tile_width, load_more, notice, page, page_header, skeleton, tile_grid,
+    chip, error_state, grid_tile_width, notice, page, page_header, skeleton, tile_grid,
 };
 use crate::views::screen_probe;
 use crate::views::tiles::{discovered_input, tile};
@@ -21,8 +21,6 @@ use crate::views::tiles::{discovered_input, tile};
 pub struct RecommendedView {
     app: Entity<AppModel>,
     category: Option<String>,
-    /// Presses of "Load more".
-    presses: usize,
 }
 
 impl RecommendedView {
@@ -35,7 +33,6 @@ impl RecommendedView {
         Self {
             app,
             category: None,
-            presses: 0,
         }
     }
 
@@ -45,7 +42,6 @@ impl RecommendedView {
         cx: &mut Context<Self>,
     ) {
         self.category = category;
-        self.presses = 0;
         cx.notify();
     }
 }
@@ -59,20 +55,15 @@ impl Render for RecommendedView {
         let p = cx.quiver().palette;
         let app = self.app.clone();
         let home = app.read(cx).home.snapshot();
-        let model = build_recommended(
-            home.data.as_ref(),
-            self.category.as_deref(),
-            self.presses + 1,
-        );
+        let model = build_recommended(home.data.as_ref(), self.category.as_deref());
         let first_load = home.data.is_none() && home.error.is_none();
-        let (title, subtitle, all, more) = {
+        let (title, subtitle, all) = {
             let a = app.read(cx);
             (
                 a.t(design::POPULAR_TITLE),
                 a.translator
                     .t_with(design::POPULAR_LOADED, &Params::count(model.loaded)),
                 a.t(design::POPULAR_ALL),
-                a.t(design::POPULAR_LOAD_MORE),
             )
         };
         let header = page_header(&app, "recommended", title, Some(subtitle), vec![], cx);
@@ -110,17 +101,6 @@ impl Render for RecommendedView {
             div()
                 .child(chips)
                 .child(tile_grid(tiles))
-                .when(model.can_load_more, |d| {
-                    d.child(load_more(
-                        "recommended.load-more",
-                        more,
-                        cx,
-                        |this: &mut Self, cx| {
-                            this.presses += 1;
-                            cx.notify();
-                        },
-                    ))
-                })
                 .into_any_element()
         };
         div()
@@ -143,19 +123,18 @@ mod tests {
     use crate::views::grid_page::testing::demo_app;
 
     #[gpui::test]
-    fn a_chip_resets_load_more_and_load_more_grows_the_page(cx: &mut gpui::TestAppContext) {
+    fn a_chip_narrows_the_grid_to_its_tag(cx: &mut gpui::TestAppContext) {
         let app = demo_app(cx);
         let view = cx.new(|cx| RecommendedView::new(app.clone(), cx));
         view.update(cx, |v, cx| {
-            v.presses = 2;
             v.select(Some("game".into()), cx);
-            assert_eq!((v.category.as_deref(), v.presses), (Some("game"), 0));
+            assert_eq!(v.category.as_deref(), Some("game"));
             v.select(None, cx);
+            assert_eq!(v.category, None);
         });
         let model = app.read_with(cx, |m, _| {
-            build_recommended(m.home.snapshot().data.as_ref(), Some("game"), 1)
+            build_recommended(m.home.snapshot().data.as_ref(), Some("game"))
         });
         assert_eq!(model.arrows.len(), 5, "the demo shelf has five game arrows");
-        assert!(!model.can_load_more);
     }
 }

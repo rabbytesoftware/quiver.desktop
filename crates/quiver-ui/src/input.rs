@@ -121,7 +121,7 @@ impl RenderOnce for Input {
                     .px(px(10.))
                     .h_full(),
             );
-        el.style().refine(&self.style);
+        crate::style_merge::apply(el.style(), &self.style);
         el
     }
 }

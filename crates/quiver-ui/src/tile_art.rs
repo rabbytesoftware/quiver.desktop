@@ -4,26 +4,38 @@
 
 use gpui::prelude::*;
 use gpui::{
-    div, hsla, img, linear_color_stop, linear_gradient, px, white, App, FontWeight, ObjectFit,
-    SharedString,
+    div, hsla, linear_color_stop, linear_gradient, px, white, App, FontWeight, SharedString,
 };
 use quiver_theme::FontFamily;
 
 use crate::icon::{icon_with_stroke, Glyph};
+use crate::photo::Photo;
 use crate::theme::ActiveQuiver;
 use crate::tracked::TrackedText;
 
+/// What a tile's drawn card says: ghost initial, icon, title and publisher.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CardArt {
+    pub initial: SharedString,
+    pub name: SharedString,
+    pub publisher: SharedString,
+    pub hue: u16,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TileArtKind {
-    /// A banner tile: a dark tinted field with stripes, a circle and the arrow mark.
-    Banner { hue: u16 },
-    /// No banner: ghost initial, icon, title and publisher drawn on the tile.
-    Drawn {
-        initial: SharedString,
-        name: SharedString,
-        publisher: SharedString,
-        hue: u16,
-    },
+    /// The arrow has a banner: the card shows only until it has loaded (and for good if it cannot).
+    Banner(CardArt),
+    /// No banner: the card is the art.
+    Drawn(CardArt),
+}
+
+impl TileArtKind {
+    pub(crate) fn card(&self) -> &CardArt {
+        match self {
+            Self::Banner(card) | Self::Drawn(card) => card,
+        }
+    }
 }
 
 fn hue(
@@ -36,20 +48,37 @@ fn hue(
 
 /// The art's children (the container is built by the tile, which owns size, radius and clipping).
 pub(crate) fn art_children(
-    kind: &TileArtKind,
+    card: &CardArt,
     w: f32,
     icon: Option<&SharedString>,
     cx: &App,
 ) -> Vec<gpui::AnyElement> {
-    match kind {
-        TileArtKind::Banner { hue: h } => banner(*h, w),
-        TileArtKind::Drawn {
-            initial,
-            name,
-            publisher,
-            hue: h,
-        } => drawn(initial, name, publisher, *h, w, icon, cx),
-    }
+    drawn(
+        &card.initial,
+        &card.name,
+        &card.publisher,
+        card.hue,
+        w,
+        icon,
+        cx,
+    )
+}
+
+/// The card as a layer filling its parent: what a banner's [`Photo`] draws until the banner has loaded.
+pub fn card_stand_in(
+    card: &CardArt,
+    w: f32,
+    icon: Option<&SharedString>,
+    cx: &App,
+) -> gpui::Div {
+    div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .size_full()
+        .debug_selector(|| "tile-card".into())
+        .bg(cx.quiver().palette.muted)
+        .children(art_children(card, w, icon, cx))
 }
 
 fn lift(h: u16) -> f32 {
@@ -60,14 +89,13 @@ fn lift(h: u16) -> f32 {
     }
 }
 
-pub(crate) fn banner_background(h: u16) -> gpui::Hsla {
-    hue(h, 0.40, 0.17 + lift(h))
-}
-
-/// The banner as a free-standing block (a collection header), `w` wide and half as tall.
-pub fn banner_block(
-    h: u16,
+/// A free-standing banner block showing `url`, the card until it has loaded.
+pub fn banner_photo(
+    url: impl Into<SharedString>,
+    card: &CardArt,
     w: f32,
+    icon: Option<&SharedString>,
+    cx: &App,
 ) -> gpui::Div {
     div()
         .relative()
@@ -76,52 +104,11 @@ pub fn banner_block(
         .w(px(w))
         .h(px(w / 2.0))
         .flex_none()
-        .bg(banner_background(h))
-        .children(banner(h, w))
-}
-
-fn banner(
-    h: u16,
-    w: f32,
-) -> Vec<gpui::AnyElement> {
-    let mut out = Vec::new();
-    let period = w * 0.1;
-    // From the first period on: a stripe at x = 0 would run down the rounded left edge, which GPUI's
-    // rectangular clip does not cut, and square both left corners off.
-    let mut x = period;
-    while x < w {
-        out.push(
-            div()
-                .absolute()
-                .top_0()
-                .bottom_0()
-                .left(px(x))
-                .w(px((w * 0.00167).max(1.0)))
-                .bg(hue(h, 0.40, 0.24 + lift(h)))
-                .into_any_element(),
-        );
-        x += period;
-    }
-    // The disc past the top-right corner, cut by the art's rounded corner (`clipped_disc`).
-    let r = w * 0.4333 / 2.;
-    out.push(
-        crate::clipped_disc::clipped_disc(
-            (w * 0.5833 + r, -w * 0.1167 + r, r),
-            (w, w / 2.0, 12.),
-            hue(h, 0.46, 0.23 + lift(h)),
+        .child(
+            Photo::new(url.into())
+                .radius(12.)
+                .stand_in(card_stand_in(card, w, icon, cx)),
         )
-        .into_any_element(),
-    );
-    let glyph = w * 0.4267;
-    out.push(
-        div()
-            .absolute()
-            .left(px(w * 0.2867))
-            .top(px(w * 0.0733))
-            .child(icon_with_stroke(Glyph::Mark, glyph, white(), 1.6))
-            .into_any_element(),
-    );
-    out
 }
 
 /// The arrow's mark: its hue's gradient square with the Quiver glyph, `size` wide (the drawn tile's icon, the
@@ -131,37 +118,37 @@ pub(crate) fn mark(
     size: f32,
     image: Option<&SharedString>,
 ) -> gpui::Div {
+    let radius = size * 0.24;
+    let drawn = || {
+        div()
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full()
+            .rounded(px(radius))
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(linear_gradient(
+                180.,
+                linear_color_stop(hue(h, 0.52, 0.38 + lift(h)), 0.),
+                linear_color_stop(hue(h, 0.48, 0.30 + lift(h)), 1.),
+            ))
+            .child(icon_with_stroke(Glyph::Mark, size * 0.6, white(), 1.9))
+    };
+    // The arrow's own icon replaces the drawn mark once it has loaded (old `drawn-mark`: `background-size:
+    // cover`); until then, or if it cannot, the drawn mark is what shows.
     div()
         .relative()
         .flex_none()
         .size(px(size))
-        .rounded(px(size * 0.24))
-        .flex()
-        .items_center()
-        .justify_center()
-        .bg(linear_gradient(
-            180.,
-            linear_color_stop(hue(h, 0.52, 0.38 + lift(h)), 0.),
-            linear_color_stop(hue(h, 0.48, 0.30 + lift(h)), 1.),
-        ))
-        .child(icon_with_stroke(Glyph::Mark, size * 0.6, white(), 1.9))
-        // The arrow's own icon over the drawn mark (old `drawn-mark`: `background-size: cover`); while it loads,
-        // or if it cannot, the drawn mark is what shows.
-        .children(image.map(|url| photo(url.clone(), ObjectFit::Cover).rounded(px(size * 0.24))))
-}
-
-/// A remote image filling its (relatively positioned) parent, as the old CSS backgrounds did: under it,
-/// whatever the parent draws stays the stand-in until it has loaded, and for good if it fails.
-pub fn photo(
-    url: SharedString,
-    fit: ObjectFit,
-) -> gpui::Img {
-    img(url)
-        .absolute()
-        .top_0()
-        .left_0()
-        .size_full()
-        .object_fit(fit)
+        .child(match image {
+            Some(url) => Photo::new(url.clone())
+                .radius(radius)
+                .stand_in(drawn())
+                .into_any_element(),
+            None => drawn().into_any_element(),
+        })
 }
 
 fn drawn(

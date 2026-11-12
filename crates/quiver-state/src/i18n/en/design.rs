@@ -50,7 +50,6 @@ pub const LIBRARY_FILTER_UPDATES: Key = Key::new("library.filter.updates");
 pub const POPULAR_TITLE: Key = Key::new("popular.title");
 pub const POPULAR_LOADED: Key = Key::new("popular.loaded");
 pub const POPULAR_ALL: Key = Key::new("popular.all");
-pub const POPULAR_LOAD_MORE: Key = Key::new("popular.loadMore");
 pub const COLLECTION_ARROWS: Key = Key::new("collection.arrowCount");
 pub const COLLECTION_ALL_INSTALLED: Key = Key::new("collection.allInstalled");
 pub const COLLECTION_UNRESOLVED_TITLE: Key = Key::new("collection.unresolved.title");
@@ -147,7 +146,6 @@ pub(super) const MESSAGES: &[(Key, Message)] = &[
     (POPULAR_TITLE, Message::Text("Popular")),
     (POPULAR_LOADED, Message::Text("{count} loaded")),
     (POPULAR_ALL, Message::Text("All")),
-    (POPULAR_LOAD_MORE, Message::Text("Load more")),
     (
         COLLECTION_ARROWS,
         Message::Plural {

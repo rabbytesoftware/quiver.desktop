@@ -1,5 +1,5 @@
 //! Home (`HomeAfter` / `HomeLowerAfter`): Recents, Library, then Popular with category chips and
-//! "Load more". The decisions come from `quiver_state::home::build_home` and
+//! every tile its shelf holds. The decisions come from `quiver_state::home::build_home` and
 //! `quiver_state::recommended::build_recommended`.
 
 mod parts;
@@ -18,8 +18,6 @@ use crate::views::screen_probe;
 pub struct HomeView {
     pub(super) app: Entity<AppModel>,
     pub(super) category: Option<String>,
-    /// Presses of "Load more".
-    pub(super) extra: usize,
 }
 
 impl HomeView {
@@ -35,7 +33,6 @@ impl HomeView {
         Self {
             app,
             category: None,
-            extra: 0,
         }
     }
 }

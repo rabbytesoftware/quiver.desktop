@@ -100,25 +100,41 @@ impl RenderOnce for WavyLine {
         let mut el = canvas(
             |_, _, _| (),
             move |bounds: Bounds<Pixels>, _, window: &mut Window, _: &mut App| {
-                let pts = wave_points(f32::from(bounds.size.width), amp, len);
-                let mid = bounds.origin.y + bounds.size.height / 2.0;
-                let mut b = PathBuilder::stroke(px(thick));
-                for (i, (x, y)) in pts.iter().enumerate() {
-                    let pt = point(bounds.origin.x + px(*x), mid + px(*y));
-                    if i == 0 {
-                        b.move_to(pt)
-                    } else {
-                        b.line_to(pt)
+                let width = f32::from(bounds.size.width);
+                let key = (
+                    width.to_bits(),
+                    amp.to_bits(),
+                    len.to_bits(),
+                    thick.to_bits(),
+                    f32::from(bounds.origin.x).to_bits(),
+                    f32::from(bounds.origin.y).to_bits(),
+                    f32::from(bounds.size.height).to_bits(),
+                );
+                // Tessellated once per geometry, not once per frame (see `path_cache`).
+                let built = crate::path_cache::cached(key, || {
+                    let pts = wave_points(width, amp, len);
+                    let mid = bounds.origin.y + bounds.size.height / 2.0;
+                    let mut b = PathBuilder::stroke(px(thick));
+                    for (i, (x, y)) in pts.iter().enumerate() {
+                        let pt = point(bounds.origin.x + px(*x), mid + px(*y));
+                        if i == 0 {
+                            b.move_to(pt)
+                        } else {
+                            b.line_to(pt)
+                        }
                     }
-                }
-                if let Ok(path) = b.build() {
-                    window.paint_path(path, color);
+                    b.build().map(|path| vec![path])
+                });
+                if let Ok(paths) = built {
+                    for path in paths.iter() {
+                        window.paint_path(path.clone(), color);
+                    }
                 }
             },
         )
         .w_full()
         .h(px(2.0 * amp + thick + 2.0));
-        el.style().refine(&self.style);
+        crate::style_merge::apply(el.style(), &self.style);
         el
     }
 }

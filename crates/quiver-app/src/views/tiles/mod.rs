@@ -10,7 +10,9 @@ use quiver_state::queries::mutations::{Mutations, Variables};
 use quiver_state::tile::{
     build_tile, BadgePolicy, RevealFacts, TileArt, TileBadgeKind, TileInput, TileKind, TileModel,
 };
-use quiver_ui::{Tile, TileArtKind, TileBadge, TileReveal, TileSize, TileStart, TileStatus};
+use quiver_ui::{
+    CardArt, Tile, TileArtKind, TileBadge, TileReveal, TileSize, TileStart, TileStatus,
+};
 
 use crate::bridge::spawn_detached;
 use crate::model::{AppModel, Route};
@@ -155,22 +157,15 @@ fn tile_from_model(
     cx: &App,
 ) -> Tile {
     let t = |key| app.read(cx).t(key);
+    let card = |drawn: &quiver_state::tile::DrawnArt| CardArt {
+        initial: drawn.initial.clone().into(),
+        name: drawn.name.clone().into(),
+        publisher: drawn.publisher.clone().into(),
+        hue: drawn.hue,
+    };
     let art = match &model.art {
-        TileArt::Banner { .. } => TileArtKind::Banner {
-            hue: quiver_state::tile::hue_for(&model.namespace),
-        },
-        TileArt::Drawn {
-            initial,
-            name,
-            publisher,
-            hue,
-            ..
-        } => TileArtKind::Drawn {
-            initial: initial.clone().into(),
-            name: name.clone().into(),
-            publisher: publisher.clone().into(),
-            hue: *hue,
-        },
+        TileArt::Banner { drawn, .. } => TileArtKind::Banner(card(drawn)),
+        TileArt::Drawn(drawn) => TileArtKind::Drawn(card(drawn)),
     };
     let badge = model.badge.as_ref().map(|b| {
         let label = match &b.kind {
@@ -182,8 +177,8 @@ fn tile_from_model(
     let namespace = model.namespace.clone();
     let id = format!("{screen}-tile-{namespace}");
     let banner = match &model.art {
-        TileArt::Banner { url } => Some(gpui::SharedString::from(url.clone())),
-        TileArt::Drawn { .. } => None,
+        TileArt::Banner { url, .. } => Some(gpui::SharedString::from(url.clone())),
+        TileArt::Drawn(_) => None,
     };
     let mut tile = Tile::new(gpui::SharedString::from(id), namespace.clone(), art)
         .media(banner, model.icon.clone().map(Into::into))

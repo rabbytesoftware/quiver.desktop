@@ -11,7 +11,7 @@ use quiver_state::namespace::{bare_namespace, with_selector};
 use quiver_theme::FontFamily;
 use quiver_ui::inspect::{probe, Kind};
 use quiver_ui::{
-    icon, ActiveQuiver, Badge, BadgeVariant, Glyph, GlyphKind, StatusGlyph, TrackedText,
+    icon, ActiveQuiver, Badge, BadgeVariant, CardArt, Glyph, GlyphKind, StatusGlyph, TrackedText,
 };
 
 use super::action_row::action_row;
@@ -161,6 +161,23 @@ pub fn header(
     let h = &page.header;
     let namespace = shown_namespace(view, page);
     let bare = quiver_state::namespace::bare_namespace(&h.namespace);
+    let card = CardArt {
+        initial: h
+            .name
+            .chars()
+            .next()
+            .map(|c| c.to_uppercase().collect::<String>())
+            .unwrap_or_else(|| "?".into())
+            .into(),
+        name: h.name.clone().into(),
+        publisher: quiver_state::namespace::owner_of(bare).to_owned().into(),
+        hue: quiver_state::tile::hue_for(bare),
+    };
+    let icon_url = h
+        .icon
+        .clone()
+        .filter(|u| !u.is_empty())
+        .map(gpui::SharedString::from);
     let hue_value = if model.demo {
         Art::mock(bare)
     } else {
@@ -348,7 +365,7 @@ pub fn header(
         .child(left)
         .children(
             (banner && fit.banner_beside)
-                .then(|| banner_art(hue_value, BANNER_W, h.banner.as_deref(), p.muted)),
+                .then(|| banner_art(&card, BANNER_W, h.banner.as_deref(), icon_url.as_ref(), cx)),
         )
         .children(popovers(view, page, cx));
     if banner && !fit.banner_beside {
@@ -358,10 +375,11 @@ pub fn header(
             .flex_col()
             .gap(px(24.))
             .child(banner_art(
-                hue_value,
+                &card,
                 fit.content,
                 h.banner.as_deref(),
-                p.muted,
+                icon_url.as_ref(),
+                cx,
             ))
             .child(text)
             .into_any_element()

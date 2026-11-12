@@ -99,16 +99,22 @@ impl TileInput {
 /// the icon, the name and the publisher.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum TileArt {
-    Banner {
-        url: String,
-    },
-    Drawn {
-        initial: String,
-        icon: Option<String>,
-        name: String,
-        publisher: String,
-        hue: u16,
-    },
+    /// The arrow published a banner: it covers the art once loaded. Until then (and if it cannot load) the
+    /// drawn card is what shows.
+    Banner { url: String, drawn: DrawnArt },
+    /// No banner: the drawn card.
+    Drawn(DrawnArt),
+}
+
+/// The card drawn on a tile with no banner, and under one whose banner has not loaded: ghost initial, icon,
+/// title and publisher.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DrawnArt {
+    pub initial: String,
+    pub icon: Option<String>,
+    pub name: String,
+    pub publisher: String,
+    pub hue: u16,
 }
 
 /// Shown over a banner on hover (a drawn tile already carries its title on the art).
@@ -179,20 +185,21 @@ fn hover_action(input: &TileInput) -> Option<TileAction> {
 
 pub fn build_tile(input: &TileInput) -> TileModel {
     let banner = input.banner.clone().filter(|b| !b.is_empty());
-    let art = match &banner {
-        Some(url) => TileArt::Banner { url: url.clone() },
-        None => TileArt::Drawn {
-            initial: input
-                .name
-                .chars()
-                .next()
-                .map(|c| c.to_uppercase().collect())
-                .unwrap_or_else(|| "?".into()),
-            icon: input.icon.clone(),
-            name: input.name.clone(),
-            publisher: owner_of(bare_namespace(&input.namespace)).to_owned(),
-            hue: hue_for(&input.namespace),
-        },
+    let drawn = DrawnArt {
+        initial: input
+            .name
+            .chars()
+            .next()
+            .map(|c| c.to_uppercase().collect())
+            .unwrap_or_else(|| "?".into()),
+        icon: input.icon.clone(),
+        name: input.name.clone(),
+        publisher: owner_of(bare_namespace(&input.namespace)).to_owned(),
+        hue: hue_for(&input.namespace),
+    };
+    let art = match banner.clone() {
+        Some(url) => TileArt::Banner { url, drawn },
+        None => TileArt::Drawn(drawn),
     };
     let badge = match (&input.custom_badge, input.state) {
         (Some(label), _) => Some(TileBadge {
@@ -263,12 +270,10 @@ mod tests {
             ..installed(RunState::Ready)
         };
         let tile = build_tile(&input);
-        assert_eq!(
-            tile.art,
-            TileArt::Banner {
-                url: "https://x/b.png".into()
-            }
-        );
+        assert!(matches!(
+            &tile.art,
+            TileArt::Banner { url, drawn } if url == "https://x/b.png" && drawn.name == "PostgreSQL"
+        ));
         assert_eq!(
             tile.hover,
             Some(HoverContent {
@@ -281,12 +286,12 @@ mod tests {
     #[test]
     fn a_tile_without_a_banner_draws_itself_and_has_no_hover_card() {
         let tile = build_tile(&installed(RunState::Ready));
-        let TileArt::Drawn {
+        let TileArt::Drawn(DrawnArt {
             initial,
             publisher,
             name,
             ..
-        } = tile.art
+        }) = tile.art
         else {
             panic!("expected a drawn tile")
         };
@@ -299,7 +304,7 @@ mod tests {
             banner: Some(String::new()),
             ..installed(RunState::Ready)
         };
-        assert!(matches!(build_tile(&empty).art, TileArt::Drawn { .. }));
+        assert!(matches!(build_tile(&empty).art, TileArt::Drawn(_)));
     }
 
     #[test]

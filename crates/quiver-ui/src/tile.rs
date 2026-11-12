@@ -21,8 +21,9 @@ use quiver_theme::Radius;
 use crate::elevation::shadow_xs;
 use crate::icon::{icon, Glyph};
 use crate::inspect::{probe, Kind};
+use crate::photo::Photo;
 use crate::theme::ActiveQuiver;
-use crate::tile_art::{art_children, banner_background, mark, photo};
+use crate::tile_art::{art_children, card_stand_in, mark};
 use crate::tile_badge::{badge_element, TileBadge};
 use crate::tile_lift::{Lift, TileReveal, REVEAL};
 use crate::tracked::TrackedText;
@@ -218,7 +219,7 @@ impl RenderOnce for Tile {
         // Keyed by the tile, not the arrow: the same arrow on two shelves (Recents and Library) is two tiles.
         let group: SharedString = format!("tile-group-{}", self.id).into();
         let pad = w * 0.0625;
-        let is_banner = matches!(self.art, TileArtKind::Banner { .. });
+        let is_banner = matches!(self.art, TileArtKind::Banner(_));
         let has_start = self.start.is_some();
 
         let mut art = div()
@@ -228,15 +229,22 @@ impl RenderOnce for Tile {
             .w(px(w))
             .h(px(w / 2.0))
             .flex_none();
-        art = match &self.art {
-            TileArtKind::Banner { hue } => art.bg(banner_background(*hue)),
-            TileArtKind::Drawn { .. } => art.bg(p.muted),
+        let card = self.art.card();
+        art = match (&self.art, &self.banner_image) {
+            // Old `card-banner`: `bg-cover bg-center`. The card is drawn only until the image has loaded,
+            // never under it.
+            (TileArtKind::Banner(_), Some(url)) => {
+                art.child(Photo::new(url.clone()).radius(12.).stand_in(card_stand_in(
+                    card,
+                    w,
+                    self.icon_image.as_ref(),
+                    cx,
+                )))
+            }
+            _ => art
+                .bg(p.muted)
+                .children(art_children(card, w, self.icon_image.as_ref(), cx)),
         };
-        art = art.children(art_children(&self.art, w, self.icon_image.as_ref(), cx));
-        if let (true, Some(url)) = (is_banner, &self.banner_image) {
-            // Old `card-banner`: `bg-cover bg-center` over the tinted field.
-            art = art.child(photo(url.clone(), gpui::ObjectFit::Cover).rounded(px(12.)));
-        }
 
         if let (true, Some((title, tags))) = (is_banner, &self.hover) {
             let scrim = div()
@@ -255,6 +263,7 @@ impl RenderOnce for Tile {
                 .group_hover(group.clone(), |s| s.opacity(1.));
             let pills = tags.iter().map(|t| {
                 div()
+                    .debug_selector(|| "tile-tag".into())
                     .flex()
                     .items_center()
                     .h(px(20.))
@@ -283,7 +292,8 @@ impl RenderOnce for Tile {
                         .weight(FontWeight::SEMIBOLD)
                         .wrap()
                 })
-                .when(!tags.is_empty(), |d| {
+                // Tags are for the big variants only: a small tile has no room for them.
+                .when(!tags.is_empty() && w >= TileSize::Wide.width(), |d| {
                     d.child(
                         div()
                             .flex()
@@ -344,7 +354,7 @@ impl RenderOnce for Tile {
         }
 
         let hue = match &self.art {
-            TileArtKind::Banner { hue } | TileArtKind::Drawn { hue, .. } => *hue,
+            TileArtKind::Banner(card) | TileArtKind::Drawn(card) => card.hue,
         };
         let strip = strip(&self.reveal, hue, self.icon_image.as_ref(), frame.strip, cx);
         // The card: the strip at its bottom, the art over it, lifted by the hover.

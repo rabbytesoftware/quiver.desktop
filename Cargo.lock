@@ -5612,6 +5612,7 @@ version = "0.1.0"
 dependencies = [
  "gpui",
  "gpui-component",
+ "image",
  "lyon_tessellation",
  "quiver-theme",
  "thiserror 1.0.69",

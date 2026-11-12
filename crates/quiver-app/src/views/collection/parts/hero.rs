@@ -9,7 +9,7 @@ use quiver_state::tile::hue_for;
 use quiver_ui::inspect::{probe, Kind};
 use quiver_ui::{
     icon, ActiveQuiver, Badge, BadgeSize, BadgeVariant, Button, ButtonSize, ButtonVariant, Glyph,
-    TrackedText,
+    Photo, TrackedText,
 };
 
 use crate::bridge::spawn_action;
@@ -195,35 +195,39 @@ pub fn hero(
         .take(2)
         .flat_map(char::to_uppercase)
         .collect();
+    let monogram = div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .size_full()
+        .rounded(px(10.))
+        .bg(hsla(hue, 0.55, 0.42, 1.))
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_size(px(16.))
+        .font_weight(FontWeight::BOLD)
+        .text_color(gpui::white())
+        .child(initials);
+    // Old `ArrowIcon`: `media.icon` replaces the monogram once it has loaded; until then, or if it cannot, the
+    // monogram shows.
+    let icon_url = detail.media.icon.clone().filter(|i| !i.is_empty());
     let identity = div()
         .flex()
         .items_center()
         .gap(px(16.))
         .child(
             div()
+                .relative()
                 .flex_none()
                 .size(px(44.))
-                .rounded(px(10.))
-                .bg(hsla(hue, 0.55, 0.42, 1.))
-                .flex()
-                .items_center()
-                .justify_center()
-                .text_size(px(16.))
-                .font_weight(FontWeight::BOLD)
-                .text_color(gpui::white())
-                .child(initials)
-                // Old `ArrowIcon`: `media.icon`, the monogram while it loads or if it cannot.
-                .relative()
-                .children(
-                    detail
-                        .media
-                        .icon
-                        .clone()
-                        .filter(|i| !i.is_empty())
-                        .map(|url| {
-                            quiver_ui::photo(url.into(), gpui::ObjectFit::Cover).rounded(px(10.))
-                        }),
-                ),
+                .child(match icon_url {
+                    Some(url) => Photo::new(url)
+                        .radius(10.)
+                        .stand_in(monogram)
+                        .into_any_element(),
+                    None => monogram.into_any_element(),
+                }),
         )
         .child(
             div()
@@ -292,17 +296,26 @@ pub fn hero(
                 .flex()
                 .child(follow_group(view, &model, cx)),
         );
-    // Old `collection-banner`: the image as a cover background; the drawn block under it until it loads.
+    // Old `collection-banner`: the image as a cover background; the drawn card only until it loads.
+    let card = quiver_ui::CardArt {
+        initial: detail
+            .item
+            .name
+            .chars()
+            .next()
+            .map(|c| c.to_uppercase().collect::<String>())
+            .unwrap_or_else(|| "?".into())
+            .into(),
+        name: detail.item.name.clone().into(),
+        publisher: detail.item.namespace.clone().into(),
+        hue: hue_for(&detail.item.namespace),
+    };
     let banner = detail
         .media
         .banner
         .clone()
         .filter(|b| !b.is_empty())
-        .map(|url| {
-            quiver_ui::banner_block(hue_for(&detail.item.namespace), 440.)
-                .h(px(218.))
-                .child(quiver_ui::photo(url.into(), gpui::ObjectFit::Cover).rounded(px(12.)))
-        });
+        .map(|url| quiver_ui::banner_photo(url, &card, 440., None, cx).h(px(218.)));
     div()
         .flex()
         .justify_between()

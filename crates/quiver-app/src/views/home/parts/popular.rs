@@ -1,14 +1,14 @@
-//! Popular: category chips, the shelf's tiles and "Load more" on a wavy line.
+//! Popular: category chips and every tile the shelf holds.
 
 use gpui::prelude::*;
 use gpui::{div, px, Context, CursorStyle, FontWeight, IntoElement};
 use quiver_state::domain::Home;
-use quiver_state::home::popular_slice;
 use quiver_state::i18n::en::{design, home as keys};
 use quiver_state::recommended::build_recommended;
+use quiver_state::search::tile_width;
 use quiver_state::tile::BadgePolicy;
 use quiver_ui::inspect::{probe, Kind};
-use quiver_ui::{ActiveQuiver, SectionHeader, TileSize, WavyLine};
+use quiver_ui::{ActiveQuiver, SectionHeader, TileSize};
 
 use crate::model::Route;
 use crate::views::home::HomeView;
@@ -55,13 +55,11 @@ fn chip(
 pub fn popular(
     view: &mut HomeView,
     home: Option<&Home>,
+    content: f32,
     cx: &mut Context<HomeView>,
 ) -> impl IntoElement {
-    let p = cx.quiver().palette;
     let app = view.app.clone();
-    let recommended = build_recommended(home, view.category.as_deref(), 1);
-    let slice = popular_slice(recommended.arrows.len(), view.extra);
-    let (shown, can_more) = (slice.shown, slice.can_load_more);
+    let recommended = build_recommended(home, view.category.as_deref());
     let (title, link, all) = {
         let a = app.read(cx);
         (
@@ -80,7 +78,6 @@ pub fn popular(
         cx,
         |this, cx| {
             this.category = None;
-            this.extra = 0;
             cx.notify();
         },
     ));
@@ -95,14 +92,16 @@ pub fn popular(
             cx,
             move |this, cx| {
                 this.category = Some(value.clone());
-                this.extra = 0;
                 cx.notify();
             },
         ));
     }
-    let tiles = recommended.arrows.iter().take(shown).map(|entry| {
+    // The tile size follows the room there is, as on every grid page: a window too narrow for two wide tiles
+    // gets the smaller ones, several to a row, not one wide tile and a gap.
+    let width = tile_width(recommended.arrows.len(), content);
+    let tiles = recommended.arrows.iter().map(|entry| {
         let input = discovered_input(entry, BadgePolicy::ActivityOnly);
-        tile("home.popular", &input, TileSize::Wide, &app, cx)
+        tile("home.popular", &input, TileSize::Custom(width), &app, cx)
     });
     div()
         .child(SectionHeader::new("home-popular", title).link(
@@ -121,59 +120,4 @@ pub fn popular(
                 .gap_y(px(20.))
                 .children(tiles),
         )
-        .when(can_more, |d| {
-            let label = app.read(cx).t(design::POPULAR_LOAD_MORE);
-            d.child(
-                div()
-                    .relative()
-                    .h(px(64.))
-                    .mt(px(26.))
-                    .child(
-                        div().absolute().left_0().right_0().top(px(21.)).child(
-                            WavyLine::new()
-                                .color(p.border)
-                                .amplitude(3.)
-                                .wavelength(14.),
-                        ),
-                    )
-                    .child(
-                        div()
-                            .absolute()
-                            .left_0()
-                            .right_0()
-                            .top(px(17.))
-                            .flex()
-                            .justify_center()
-                            .child(
-                                div()
-                                    .id("home-load-more")
-                                    .relative()
-                                    .flex()
-                                    .items_center()
-                                    .justify_center()
-                                    .w(px(124.))
-                                    .h(px(30.))
-                                    .rounded(px(15.))
-                                    .bg(p.background)
-                                    .border_1()
-                                    .border_color(p.foreground.opacity(0.17))
-                                    .text_size(px(12.5))
-                                    .font_weight(FontWeight::MEDIUM)
-                                    .cursor(CursorStyle::PointingHand)
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.extra += 1;
-                                        cx.notify();
-                                    }))
-                                    .child(label.clone())
-                                    .child(probe(
-                                        "home.popular.load-more",
-                                        Kind::Button,
-                                        label,
-                                        true,
-                                        "",
-                                    )),
-                            ),
-                    ),
-            )
-        })
 }

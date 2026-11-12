@@ -67,7 +67,12 @@ fn typed_text_is_clamped_on_enter(cx: &mut TestAppContext) {
     let (host, cx) = open(cx, |_, _| Host { value: Some(10.0) });
     let field = centre(cx, "num");
     cx.simulate_click(field, Modifiers::none());
-    cx.simulate_keystrokes("ctrl-a");
+    // Select all is cmd-a on macOS; there ctrl-a is "move to line start".
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-a"
+    } else {
+        "ctrl-a"
+    });
     cx.simulate_input("999");
     cx.simulate_keystrokes("enter");
     assert_eq!(host.read_with(cx, |h, _| h.value), Some(100.0));

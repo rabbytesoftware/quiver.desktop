@@ -78,3 +78,9 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
+
+# The dev build runs GPUI, taffy and the image decoders on every frame; unoptimized they cost several times
+# the frame budget (a 35-card page drew at ~18 fps). Dependencies are optimized, our own crates stay
+# quick to rebuild.
+[profile.dev.package."*"]
+opt-level = 3

@@ -166,7 +166,7 @@ impl RenderOnce for Sheet {
                     )),
             )
         });
-        popup.style().refine(&self.style);
+        crate::style_merge::apply(popup.style(), &self.style);
         let animated = popup.with_animation(
             child_id(&self.id, "enter"),
             Animation::new(ENTER),

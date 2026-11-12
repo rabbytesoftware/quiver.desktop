@@ -4,10 +4,12 @@
 
 mod button;
 mod number_field;
+mod photo;
 mod select;
 mod slider;
 mod switch;
 mod tabs;
+mod tile;
 
 use gpui::{AppContext, Entity, TestAppContext, VisualTestContext};
 use gpui_component::Root;

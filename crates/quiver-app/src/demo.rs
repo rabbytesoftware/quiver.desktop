@@ -410,7 +410,6 @@ pub fn seed(model: &AppModel) {
                 "Run your CI workflows on this machine.",
                 &["developer-tools"],
             ),
-            // Two more than a page (12), so Popular ends in the board's Load more.
             popular(
                 "sparkdev",
                 "devbox",

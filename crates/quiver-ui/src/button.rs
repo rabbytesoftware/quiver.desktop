@@ -295,7 +295,7 @@ impl RenderOnce for Button {
         if !inert {
             el.style().box_shadow = Some(v.shadow);
         }
-        el.style().refine(&self.style);
+        crate::style_merge::apply(el.style(), &self.style);
         el
     }
 }

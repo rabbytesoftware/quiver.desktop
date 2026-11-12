@@ -130,10 +130,12 @@ pub fn arrow_row(
                     menu_state.update(cx, |s, cx| s.open_row_menu(ns, at, anchor, cx));
                 }
             })
-            .child(
-                div()
-                    .flex_none()
-                    .size(px(20.))
+            .child({
+                let chip = div()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full()
                     .rounded(px(4.))
                     .flex()
                     .items_center()
@@ -149,15 +151,22 @@ pub fn arrow_row(
                         20.,
                         white().opacity(0.92),
                         1.6,
-                    ))
-                    // Old `ArrowIcon`: the arrow's own icon, the drawn chip while it loads or if it cannot.
+                    ));
+                // Old `ArrowIcon`: the arrow's own icon replaces the drawn chip once it has loaded; until then, or
+                // if it cannot, the chip shows.
+                div()
                     .relative()
-                    .children(
-                        icon_url.clone().map(|url| {
-                            quiver_ui::photo(url, gpui::ObjectFit::Cover).rounded(px(4.))
-                        }),
-                    ),
-            )
+                    .flex_none()
+                    .size(px(20.))
+                    .rounded(px(4.))
+                    .child(match icon_url.clone() {
+                        Some(url) => quiver_ui::Photo::new(url)
+                            .radius(4.)
+                            .stand_in(chip)
+                            .into_any_element(),
+                        None => chip.into_any_element(),
+                    })
+            })
             .child(
                 div()
                     .relative()
