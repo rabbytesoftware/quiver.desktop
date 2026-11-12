@@ -264,21 +264,23 @@ pub fn action_row(
         // The old hero's `flex flex-wrap gap-2.5`: a row too wide for the column (an install's progress next to
         // a disabled Remove from Library, beside the banner) goes on a second line instead of under the art.
         .child(
+            // One wrapping run: the buttons, then the settings/methods icons, so a row that breaks takes the
+            // icons with the last button instead of stranding them on a line of their own.
             div()
                 .min_w_0()
                 .flex()
                 .flex_wrap()
                 .items_center()
                 .gap(px(10.))
-                .children(slots),
-        )
-        .child(
-            div()
-                .flex_none()
-                .flex()
-                .items_center()
-                .gap(px(4.))
-                .children(settings)
-                .children(methods),
+                .children(slots)
+                .child(
+                    div()
+                        .flex_none()
+                        .flex()
+                        .items_center()
+                        .gap(px(4.))
+                        .children(settings)
+                        .children(methods),
+                ),
         )
 }
