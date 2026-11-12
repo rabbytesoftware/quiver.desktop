@@ -1,6 +1,8 @@
 //! Maps `quiver_state::tile` models onto the one `quiver_ui::Tile`. Every screen that lists arrows
 //! (Home, Search, Library, Collections, Collection, Recommended) builds its tiles here.
 
+mod launch;
+
 use gpui::{App, Entity};
 use quiver_state::arrow_details::{ArrowActionKind, RunState};
 use quiver_state::domain::{ArrowEntry, SearchEntry};
@@ -107,6 +109,20 @@ pub fn tile(
     app: &Entity<AppModel>,
     cx: &App,
 ) -> Tile {
+    // A row that assumes Start (it has no manifest) gets it only once its manifest says there is something to run.
+    let gated;
+    let input = if input.start_label.is_some() && input.kind == TileKind::Arrow {
+        gated = match launch::lifecycle_of(&input.namespace, app, cx) {
+            Some(lifecycle) => input.clone().with_lifecycle(lifecycle.as_ref()),
+            None => TileInput {
+                start_label: None,
+                ..input.clone()
+            },
+        };
+        &gated
+    } else {
+        input
+    };
     let model = build_tile(input);
     let reveal = reveal(&input.reveal, app, cx);
     tile_from_model(screen, &model, &input.name, size, app, cx).reveal(reveal)

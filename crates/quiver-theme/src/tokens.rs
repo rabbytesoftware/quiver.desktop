@@ -193,7 +193,9 @@ impl Tokens {
         t.success_foreground = EMERALD_400.to_color();
         t.warning_foreground = AMBER_400.to_color();
         t.border = g(0.301);
-        t.input = g(0.13);
+        // White at low alpha, as shadcn's dark `--input`: outline borders, outline fills and the switch's off track
+        // all derive from it, and an opaque near-black one vanished into the background.
+        t.input = ga(1.0, 0.15);
         t.ring = g(0.66);
         t.chart_1 = g(0.9);
         t.chart_2 = g(0.78);
