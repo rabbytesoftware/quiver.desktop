@@ -117,6 +117,15 @@ pub fn build_action_row(
             None => slots.push(ActionSlot::Button(button(&action, in_flight, switching))),
         }
     }
+    // An action that is under way owns the row: the other buttons go. The one that stays is Stop on an
+    // arrow that is running, in the place Open held.
+    if slots.iter().any(|s| matches!(s, ActionSlot::Progress(_))) {
+        let running = matches!(facts.state, RunState::Running | RunState::Detached);
+        slots.retain(|s| match s {
+            ActionSlot::Progress(_) => true,
+            ActionSlot::Button(b) => running && b.kind == ArrowActionKind::Stop,
+        });
+    }
     ActionRow {
         slots,
         show_settings: !facts.variable_names.is_empty(),

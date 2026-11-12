@@ -61,8 +61,26 @@ fn the_running_update_becomes_the_progress_control() {
     assert_eq!(progress.verb, design::VERB_UPDATING);
     assert_eq!(progress.index, 2);
     assert!(row.button(K::Update).is_none());
-    let start = row.button(K::Execute).unwrap();
-    assert!(!start.enabled);
+    assert!(
+        row.button(K::Execute).is_none(),
+        "nothing else shows while it runs"
+    );
+    assert_eq!(row.slots.len(), 1);
+}
+
+#[test]
+fn an_install_in_flight_hides_every_other_button() {
+    let row = build_action_row(&installed(RunState::Absent), Some(K::Install), false);
+    assert_eq!(row.slots.len(), 1);
+    assert!(row.progress().is_some());
+}
+
+#[test]
+fn a_running_arrow_keeps_stop_in_open_s_place_while_another_action_runs() {
+    let row = build_action_row(&installed(RunState::Running), Some(K::Restart), false);
+    assert!(row.progress().is_some());
+    assert!(row.button(K::Stop).is_some());
+    assert!(row.button(K::Execute).is_none());
 }
 
 #[test]

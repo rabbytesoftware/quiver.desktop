@@ -265,7 +265,6 @@ pub fn action_row(
         // a disabled Remove from Library, beside the banner) goes on a second line instead of under the art.
         .child(
             div()
-                .flex_1()
                 .min_w_0()
                 .flex()
                 .flex_wrap()
@@ -276,7 +275,6 @@ pub fn action_row(
         .child(
             div()
                 .flex_none()
-                .ml_auto()
                 .flex()
                 .items_center()
                 .gap(px(4.))
