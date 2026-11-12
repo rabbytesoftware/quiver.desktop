@@ -1,6 +1,6 @@
 //! `ProgressButton`: the action that becomes its own progress (design board "The action is the
 //! progress"). A soft fill is the progress; line 1 names the action, line 2 the step and count;
-//! the only pressable part is the trailing "Steps" toggle. No business logic: callers feed text,
+//! the only pressable part is the trailing "Steps" toggle, joined to the track as one control. No business logic: callers feed text,
 //! a 0..=1 fraction and the toggle state.
 
 use std::rc::Rc;
@@ -146,13 +146,14 @@ impl RenderOnce for ProgressButton {
             .w(px(self.width))
             .h(px(HEIGHT))
             .overflow_hidden()
-            .rounded(px(RADIUS))
+            .rounded_l(px(RADIUS))
             .bg(p.muted)
             // Painted already cut to the track's rounded ends: `overflow_hidden` clips to the rectangle only, and a
             // plain fill showed square corners outside the track.
             .child(crate::clipped_rect(
                 (0., 0., fill_width(self.fraction, self.width), HEIGHT),
-                (self.width, HEIGHT, RADIUS),
+                // Cut as if the box ran on past the square right end, which `overflow_hidden` then trims flat.
+                (self.width + RADIUS, HEIGHT, RADIUS),
                 p.foreground.opacity(0.12),
             ))
             .child(
@@ -199,7 +200,9 @@ impl RenderOnce for ProgressButton {
             .w(px(36.))
             .h(px(HEIGHT))
             .px(px(0.))
-            .rounded(px(RADIUS))
+            .rounded_r(px(RADIUS))
+            .rounded_l(px(0.))
+            .border_l_0()
             .pressed(self.steps_open)
             .child(icon(glyph, 15., p.foreground));
         if let Some(f) = self.on_steps {
@@ -209,7 +212,6 @@ impl RenderOnce for ProgressButton {
             .id(self.id)
             .flex()
             .items_start()
-            .gap(px(4.))
             .child(track)
             .child(steps);
         crate::style_merge::apply(el.style(), &self.style);
