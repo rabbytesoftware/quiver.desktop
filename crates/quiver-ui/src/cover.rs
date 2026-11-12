@@ -3,8 +3,7 @@
 //! GPUI's `img` with `ObjectFit::Cover` paints the picture at the *cover* size (larger than the box on one
 //! axis) and rounds the corners of that oversized quad, so the visible part, cut by a rectangular clip, has
 //! square corners whenever the picture's aspect differs from the box's. Here the picture is cropped to the
-//! box's aspect on the CPU (and shrunk to the box's pixel size, which also keeps far less memory resident than
-//! the full-resolution original), so the quad painted is exactly the box and its corners round.
+//! box's aspect on the CPU so the quad painted is exactly the box and its corners round.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -14,7 +13,6 @@ use gpui::{
     canvas, px, size, App, Bounds, Corners, Element, ImageSource, ImgResourceLoader, Pixels,
     RenderImage, Styled, Window,
 };
-use image::imageops::{crop_imm, resize, FilterType};
 use image::{Frame, RgbaImage};
 
 /// Where, in a `src_w`×`src_h` picture, the part that covers a `box_w`×`box_h` box lies, centred: `(x, y, w, h)`.
@@ -40,13 +38,36 @@ pub(crate) fn cover_crop(
     }
 }
 
+/// The part of the `sw`×`sh` RGBA `bytes` that covers a `box_px` box, cropped by copying whole row slices.
+/// Nothing per-pixel and nothing from the `image` crate's generic code: that compiles with this crate's
+/// settings, and unoptimised a crop-and-resize of one 1280×640 banner took 230 ms on the UI thread, which
+/// froze the window while a page of banners arrived.
+fn crop_to_cover(
+    bytes: &[u8],
+    sw: u32,
+    sh: u32,
+    box_px: (u32, u32),
+) -> Option<RgbaImage> {
+    let (x, y, w, h) = cover_crop(sw, sh, box_px.0, box_px.1);
+    if bytes.len() != sw as usize * sh as usize * 4 || w == 0 || h == 0 {
+        return None;
+    }
+    let (stride, row) = (sw as usize * 4, w as usize * 4);
+    let mut out = Vec::with_capacity(row * h as usize);
+    for line in y as usize..(y + h) as usize {
+        let from = line * stride + x as usize * 4;
+        out.extend_from_slice(&bytes[from..from + row]);
+    }
+    RgbaImage::from_raw(w, h, out)
+}
+
 const CACHE_CAPACITY: usize = 256;
 
 thread_local! {
     static CACHE: RefCell<HashMap<(usize, u32, u32), Arc<RenderImage>>> = RefCell::new(HashMap::new());
 }
 
-/// `data` cropped to cover a `box_w`×`box_h` pixel box (never enlarged), made once per image and size.
+/// `data` cropped to cover a `box_w`×`box_h` pixel box, made once per image and size.
 fn covered(
     data: &Arc<RenderImage>,
     box_w: u32,
@@ -62,14 +83,7 @@ fn covered(
         u32::try_from(src.width.0).ok()?,
         u32::try_from(src.height.0).ok()?,
     );
-    let (x, y, w, h) = cover_crop(sw, sh, box_w, box_h);
-    let whole = RgbaImage::from_raw(sw, sh, data.as_bytes(0)?.to_vec())?;
-    let cropped = crop_imm(&whole, x, y, w, h).to_image();
-    let fitted = if w > box_w && h > box_h {
-        resize(&cropped, box_w, box_h, FilterType::Triangle)
-    } else {
-        cropped
-    };
+    let fitted = crop_to_cover(data.as_bytes(0)?, sw, sh, (box_w, box_h))?;
     let made = Arc::new(RenderImage::new(vec![Frame::new(fitted)]));
     CACHE.with(|c| {
         let mut c = c.borrow_mut();
@@ -141,6 +155,33 @@ mod tests {
     #[test]
     fn a_picture_of_the_boxs_own_aspect_is_kept_whole() {
         assert_eq!(cover_crop(880, 436, 440, 218), (0, 0, 880, 436));
+    }
+
+    #[test]
+    fn the_crop_keeps_the_centre_pixels_of_each_row() {
+        // 6x2 picture whose pixel (x, y) is [x, y, 0, 255]; a 2x2 box takes the centre 2 columns.
+        let (sw, sh) = (6u32, 2u32);
+        let bytes: Vec<u8> = (0..sh)
+            .flat_map(|y| (0..sw).flat_map(move |x| [x as u8, y as u8, 0, 255]))
+            .collect();
+        let out = crop_to_cover(&bytes, sw, sh, (2, 2)).unwrap();
+        assert_eq!(out.dimensions(), (2, 2));
+        assert_eq!(out.get_pixel(0, 0).0, [2, 0, 0, 255]);
+        assert_eq!(out.get_pixel(1, 1).0, [3, 1, 0, 255]);
+    }
+
+    #[test]
+    fn a_crop_of_a_real_banner_is_not_slow_even_unoptimised() {
+        // The regression: crop + resize took 230 ms per banner here. A copy of rows is orders cheaper.
+        let bytes = vec![120u8; 1280 * 640 * 4];
+        let started = std::time::Instant::now();
+        let out = crop_to_cover(&bytes, 1280, 640, (878, 436)).unwrap();
+        assert!(out.width() > 0 && out.height() > 0);
+        assert!(
+            started.elapsed() < std::time::Duration::from_millis(100),
+            "{:?}",
+            started.elapsed()
+        );
     }
 
     #[test]
