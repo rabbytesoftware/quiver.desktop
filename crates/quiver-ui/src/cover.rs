@@ -8,6 +8,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use gpui::{
     canvas, px, size, App, Bounds, Corners, Element, ImageSource, ImgResourceLoader, Pixels,
@@ -61,38 +62,78 @@ fn crop_to_cover(
     RgbaImage::from_raw(w, h, out)
 }
 
-const CACHE_CAPACITY: usize = 256;
+/// Aspect ratios are told apart to 1/ASPECT_STEPS: a window being resized changes a tile's size every frame
+/// but keeps its shape, and one crop serves them all (the GPU scales the quad). A finer key made an entry, and
+/// an atlas texture, per frame.
+const ASPECT_STEPS: u32 = 64;
+/// Entries are only released once this many have piled up...
+const SWEEP_ABOVE: usize = 48;
+/// ...and only those unused for this long. A texture the current frame's scene still points at must never be
+/// freed (GPUI panics in its Metal atlas when it is), and a frame takes milliseconds.
+const IDLE_BEFORE_RELEASE: Duration = Duration::from_secs(10);
 
-thread_local! {
-    static CACHE: RefCell<HashMap<(usize, u32, u32), Arc<RenderImage>>> = RefCell::new(HashMap::new());
+struct Entry {
+    image: Arc<RenderImage>,
+    used: Instant,
 }
 
-/// `data` cropped to cover a `box_w`×`box_h` pixel box, made once per image and size.
-fn covered(
-    data: &Arc<RenderImage>,
+thread_local! {
+    static CACHE: RefCell<HashMap<(usize, u32), Entry>> = RefCell::new(HashMap::new());
+}
+
+/// The box's aspect ratio (width over height) in `1/ASPECT_STEPS`.
+pub(crate) fn aspect_key(
     box_w: u32,
     box_h: u32,
+) -> u32 {
+    (u64::from(box_w) * u64::from(ASPECT_STEPS) * 2 / (u64::from(box_h.max(1)) * 2)).max(1) as u32
+}
+
+/// `data` cropped to the aspect of a box, made once per image and aspect.
+fn covered(
+    data: &Arc<RenderImage>,
+    aspect: u32,
     window: &mut Window,
 ) -> Option<Arc<RenderImage>> {
-    let key = (data.id.0, box_w, box_h);
-    if let Some(hit) = CACHE.with(|c| c.borrow().get(&key).cloned()) {
-        return Some(hit);
+    let key = (data.id.0, aspect);
+    let now = Instant::now();
+    let hit = CACHE.with(|c| {
+        c.borrow_mut().get_mut(&key).map(|entry| {
+            entry.used = now;
+            entry.image.clone()
+        })
+    });
+    if hit.is_some() {
+        return hit;
     }
     let src = data.size(0);
     let (sw, sh) = (
         u32::try_from(src.width.0).ok()?,
         u32::try_from(src.height.0).ok()?,
     );
-    let fitted = crop_to_cover(data.as_bytes(0)?, sw, sh, (box_w, box_h))?;
+    let fitted = crop_to_cover(data.as_bytes(0)?, sw, sh, (aspect, ASPECT_STEPS))?;
     let made = Arc::new(RenderImage::new(vec![Frame::new(fitted)]));
     CACHE.with(|c| {
         let mut c = c.borrow_mut();
-        if c.len() >= CACHE_CAPACITY {
-            for (_, old) in c.drain() {
-                window.drop_image(old).ok();
+        if c.len() >= SWEEP_ABOVE {
+            let idle: Vec<_> = c
+                .iter()
+                .filter(|(_, e)| now.duration_since(e.used) >= IDLE_BEFORE_RELEASE)
+                .map(|(k, _)| *k)
+                .collect();
+            for key in idle {
+                if let Some(old) = c.remove(&key) {
+                    window.drop_image(old.image).ok();
+                }
             }
         }
-        c.insert(key, made.clone());
+        c.insert(
+            key,
+            Entry {
+                image: made.clone(),
+                used: now,
+            },
+        );
     });
     Some(made)
 }
@@ -113,14 +154,9 @@ pub(crate) fn cover(
                 _ => None,
             };
             let Some(Ok(data)) = data else { return };
-            let scale = window.scale_factor();
-            let device = |v: Pixels| (f32::from(v) * scale).round().max(1.0) as u32;
-            let Some(cropped) = covered(
-                &data,
-                device(bounds.size.width),
-                device(bounds.size.height),
-                window,
-            ) else {
+            let device = |v: Pixels| f32::from(v).round().max(1.0) as u32;
+            let aspect = aspect_key(device(bounds.size.width), device(bounds.size.height));
+            let Some(cropped) = covered(&data, aspect, window) else {
                 return;
             };
             let radii = Corners::all(px(radius))
@@ -182,6 +218,15 @@ mod tests {
             "{:?}",
             started.elapsed()
         );
+    }
+
+    #[test]
+    fn a_resize_keeps_the_aspect_key_so_it_keeps_the_cached_crop() {
+        // A 440x218 tile being dragged one pixel at a time across a few widths, shape unchanged.
+        let keys: std::collections::HashSet<_> =
+            (438..=446).map(|w| aspect_key(w, w * 218 / 440)).collect();
+        assert!(keys.len() <= 2, "{keys:?}");
+        assert_ne!(aspect_key(440, 218), aspect_key(213, 213));
     }
 
     #[test]

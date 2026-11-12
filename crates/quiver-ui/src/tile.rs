@@ -356,7 +356,14 @@ impl RenderOnce for Tile {
         let hue = match &self.art {
             TileArtKind::Banner(card) | TileArtKind::Drawn(card) => card.hue,
         };
-        let strip = strip(&self.reveal, hue, self.icon_image.as_ref(), frame.strip, cx);
+        let strip = strip(
+            &self.reveal,
+            hue,
+            &self.art.card().initial,
+            self.icon_image.as_ref(),
+            frame.strip,
+            cx,
+        );
         // The card: the strip at its bottom, the art over it, lifted by the hover.
         let card = div()
             .relative()
@@ -413,6 +420,7 @@ impl RenderOnce for Tile {
 fn strip(
     reveal: &TileReveal,
     hue: u16,
+    initial: &SharedString,
     image: Option<&SharedString>,
     opacity: f32,
     cx: &App,
@@ -452,7 +460,7 @@ fn strip(
         .font_family(mono)
         .text_size(px(9.5))
         .line_height(px(12.))
-        .child(mark(hue, 20., image).rounded(px(5.)))
+        .child(mark(hue, 20., image, initial).rounded(px(5.)))
         .child(
             div()
                 .flex_1()

@@ -1,7 +1,7 @@
 //! The 44px header: icon, name, status, version, then Reload, Details, the actions menu and Stop.
 
 use gpui::prelude::*;
-use gpui::{div, hsla, linear_color_stop, linear_gradient, px, Context, FontWeight, IntoElement};
+use gpui::{div, px, Context, FontWeight, IntoElement};
 use quiver_state::arrow_app::{build_pane_header, PaneMenuItem};
 use quiver_state::i18n::en::arrowapp;
 use quiver_state::queries::mutations::{Mutations, Variables};
@@ -13,15 +13,6 @@ use quiver_ui::{
 
 use crate::bridge::spawn_detached;
 use crate::views::arrow_app::ArrowAppView;
-
-/// The arrow's colour, as its sidebar row, tile and page draw it: hue, and the lightness lift.
-fn hue(namespace: &str) -> (f32, f32) {
-    let h = quiver_state::tile::hue_for(namespace);
-    (
-        f32::from(h % 360) / 360.0,
-        if h >= 360 { 0.09 } else { 0.0 },
-    )
-}
 
 fn menu(
     view: &ArrowAppView,
@@ -83,6 +74,13 @@ pub fn header(
     let p = cx.quiver().palette;
     let entry = view.app.read(cx).services.arrows.entry(&view.namespace);
     let pane = build_pane_header(&view.namespace, entry.as_ref(), true, true);
+    let initial: gpui::SharedString = pane
+        .name
+        .chars()
+        .next()
+        .map(|c| c.to_uppercase().collect::<String>())
+        .unwrap_or_else(|| "?".into())
+        .into();
     let (running, starting) = {
         let m = view.app.read(cx);
         (m.t(arrowapp::RUNNING), m.t(arrowapp::STARTING))
@@ -95,8 +93,6 @@ pub fn header(
             m.t(arrowapp::STOP),
         )
     };
-    let (h, lift) = hue(&view.namespace);
-    let tint = |s, l: f32| hsla(h, s, l + lift, 1.);
     let status = if pane.ready { running } else { starting };
     let version = entry
         .as_ref()
@@ -165,18 +161,15 @@ pub fn header(
         .border_color(p.border)
         .child(
             div()
+                .relative()
                 .flex_none()
                 .size(px(24.))
-                .rounded(px(6.))
-                .flex()
-                .items_center()
-                .justify_center()
-                .bg(linear_gradient(
-                    180.,
-                    linear_color_stop(tint(0.48, 0.50), 0.),
-                    linear_color_stop(tint(0.52, 0.33), 1.),
-                ))
-                .child(icon(Glyph::Mark, 15., gpui::white())),
+                .child(quiver_ui::monogram(
+                    quiver_state::tile::hue_for(&view.namespace),
+                    24.,
+                    6.,
+                    &initial,
+                )),
         )
         .child(
             div()

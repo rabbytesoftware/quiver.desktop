@@ -95,7 +95,7 @@ pub use switch::{Switch, SwitchSize};
 pub use tabs::{Orientation, TabItem, Tabs, TabsVariant};
 pub use theme::{install, window_root, ActiveQuiver, Palette, QuiverTheme};
 pub use tile::{Tile, TileArtKind, TileSize, TileStart};
-pub use tile_art::{banner_photo, card_stand_in, CardArt};
+pub use tile_art::{banner_photo, card_stand_in, monogram, CardArt};
 pub use tile_badge::{TileBadge, TileStatus};
 pub use tile_lift::{TileReveal, REVEAL};
 pub use tooltip::{tooltip, Tip, TipExt, TooltipPopup};

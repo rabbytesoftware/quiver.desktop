@@ -16,11 +16,11 @@ use quiver_state::i18n::{Params, Translator};
 use quiver_theme::FontFamily;
 use quiver_ui::inspect::{probe, Kind};
 use quiver_ui::{
-    ActiveQuiver, Avatar, Badge, BadgeSize, BadgeVariant, GlyphKind, Palette,
+    ActiveQuiver, Avatar, Badge, BadgeSize, BadgeVariant, CardArt, GlyphKind, Palette,
     StatusGlyph as GlyphWidget,
 };
 
-use super::banner::{app_icon_sized, Art};
+use super::banner::app_icon_sized;
 use crate::views::arrow_details::page::Page;
 use crate::views::arrow_details::ArrowDetailsView;
 
@@ -133,7 +133,6 @@ fn requirements(
 fn dependency_row(
     row: &DependencyRow,
     id: String,
-    art: Art,
     tr: &Translator,
     p: &Palette,
     cx: &mut Context<ArrowDetailsView>,
@@ -155,6 +154,18 @@ fn dependency_row(
     let label = tr.t(status.label);
     let namespace = row.namespace.clone();
     let app = view_app(cx);
+    let card = CardArt {
+        initial: row
+            .name
+            .chars()
+            .next()
+            .map(|c| c.to_uppercase().collect::<String>())
+            .unwrap_or_else(|| "?".into())
+            .into(),
+        name: row.name.clone().into(),
+        publisher: SharedString::default(),
+        hue: quiver_state::tile::hue_for(quiver_state::namespace::bare_namespace(&row.namespace)),
+    };
     div()
         .id(SharedString::from(id.replace('.', "-")))
         .relative()
@@ -173,7 +184,7 @@ fn dependency_row(
             };
             app.update(cx, |m, cx| m.navigate(route, cx));
         })
-        .child(app_icon_sized(art, 20., row.icon.as_deref()))
+        .child(app_icon_sized(&card, 20., row.icon.as_deref()))
         .child(
             div()
                 .flex_1()
@@ -203,7 +214,6 @@ fn dependency_list(
     heading: String,
     id: &str,
     rows: &[DependencyRow],
-    demo: bool,
     tr: &Translator,
     p: &Palette,
     cx: &mut Context<ArrowDetailsView>,
@@ -212,12 +222,7 @@ fn dependency_list(
         .iter()
         .map(|row| {
             let bare = quiver_state::namespace::bare_namespace(&row.namespace);
-            let art = if demo {
-                Art::mock(bare)
-            } else {
-                Art::hashed(bare)
-            };
-            dependency_row(row, format!("arrow.{id}.{bare}"), art, tr, p, cx)
+            dependency_row(row, format!("arrow.{id}.{bare}"), tr, p, cx)
         })
         .collect();
     div()
@@ -349,7 +354,6 @@ pub fn details(
 ) -> Option<impl IntoElement> {
     let p = cx.quiver().palette;
     let tr = view.app.read(cx).translator;
-    let demo = view.app.read(cx).demo;
     let entries = catalog(view, cx);
     let namespaces = |list: Vec<String>| build_dependency_rows(&list, &entries);
     let depends_on = namespaces(
@@ -368,7 +372,6 @@ pub fn details(
                 tr.t(arrow::DETAILS_DEPENDENCIES),
                 "dependency",
                 &depends_on,
-                demo,
                 &tr,
                 &p,
                 cx,
@@ -377,7 +380,6 @@ pub fn details(
                 tr.t(arrow::DETAILS_REQUIRED_BY),
                 "required-by",
                 &required_by,
-                demo,
                 &tr,
                 &p,
                 cx,

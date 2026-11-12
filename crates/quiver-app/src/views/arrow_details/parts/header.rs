@@ -15,7 +15,7 @@ use quiver_ui::{
 };
 
 use super::action_row::action_row;
-use super::banner::{app_icon, banner_art, Art, BANNER_W, HEIGHT};
+use super::banner::{app_icon, banner_art, BANNER_W, HEIGHT};
 use super::icons::{pict, Pict};
 use super::popovers::popovers;
 use crate::views::arrow_details::page::Page;
@@ -178,11 +178,6 @@ pub fn header(
         .clone()
         .filter(|u| !u.is_empty())
         .map(gpui::SharedString::from);
-    let hue_value = if model.demo {
-        Art::mock(bare)
-    } else {
-        Art::hashed(bare)
-    };
     let status_label = tr.t(h.status.label);
     let platform = h.platform_badge.as_ref().map(|b| b.text(&tr));
     let problem = h.problem.as_ref().map(|_| tr.t(arrow::PROBLEM_LABEL));
@@ -233,7 +228,7 @@ pub fn header(
                         .w_full()
                         .flex()
                         .gap(px(16.))
-                        .child(app_icon(hue_value, h.icon.as_deref()))
+                        .child(app_icon(&card, h.icon.as_deref()))
                         .child(
                             div()
                                 .relative()

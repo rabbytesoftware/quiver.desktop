@@ -1,20 +1,14 @@
 //! One arrow row: gradient icon, name (and namespace@version when selected), status glyph.
 
 use gpui::prelude::*;
-use gpui::{
-    div, hsla, linear_color_stop, linear_gradient, px, white, FontWeight, IntoElement, MouseButton,
-    SharedString,
-};
+use gpui::{div, px, FontWeight, IntoElement, MouseButton, SharedString};
 use quiver_state::arrow_details::{RunState, StatusGlyph as StateGlyph};
 use quiver_state::domain::ArrowEntry;
 use quiver_state::namespace::bare_namespace;
 use quiver_theme::FontFamily;
 use quiver_ui::inspect::{probe, Kind};
 
-use quiver_ui::{
-    icon_with_stroke, inner_highlight, shadow_xs, ActiveQuiver, Glyph, GlyphKind, StatusGlyph,
-    TrackedText,
-};
+use quiver_ui::{inner_highlight, shadow_xs, ActiveQuiver, GlyphKind, StatusGlyph, TrackedText};
 
 use super::super::Sidebar;
 use crate::model::Route;
@@ -40,14 +34,6 @@ fn glyph_name(kind: GlyphKind) -> &'static str {
     }
 }
 
-/// The arrow's art colour, the same one its tile and page draw (`hue_for`: hue plus a lift bit).
-fn mock_palette(namespace: &str) -> (f32, f32) {
-    let h = quiver_state::tile::hue_for(namespace);
-    let hue = f32::from(h % 360) / 360.0;
-    let lift = if h >= 360 { 0.09 } else { 0.0 };
-    (hue, lift)
-}
-
 pub fn arrow_row(
     sidebar: &mut Sidebar,
     entry: ArrowEntry,
@@ -56,7 +42,6 @@ pub fn arrow_row(
 ) -> impl IntoElement {
     let p = cx.quiver().palette;
     let namespace = bare_namespace(&entry.namespace).to_owned();
-    let (hue, lift) = mock_palette(&entry.namespace);
     let icon_url: Option<gpui::SharedString> =
         entry.icon.clone().filter(|u| !u.is_empty()).map(Into::into);
     let glyph = glyph_kind(StateGlyph::for_state(
@@ -131,27 +116,19 @@ pub fn arrow_row(
                 }
             })
             .child({
-                let chip = div()
-                    .absolute()
-                    .top_0()
-                    .left_0()
-                    .size_full()
-                    .rounded(px(4.))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .overflow_hidden()
-                    .bg(linear_gradient(
-                        180.,
-                        linear_color_stop(hsla(hue, 0.52, 0.38 + lift, 1.), 0.5),
-                        linear_color_stop(hsla(hue, 0.48, 0.30 + lift, 1.), 0.5),
-                    ))
-                    .child(icon_with_stroke(
-                        Glyph::ArrowIcon,
-                        20.,
-                        white().opacity(0.92),
-                        1.6,
-                    ));
+                let initial: gpui::SharedString = entry
+                    .name
+                    .chars()
+                    .next()
+                    .map(|c| c.to_uppercase().collect::<String>())
+                    .unwrap_or_else(|| "?".into())
+                    .into();
+                let chip = quiver_ui::monogram(
+                    quiver_state::tile::hue_for(&entry.namespace),
+                    20.,
+                    4.,
+                    &initial,
+                );
                 // Old `ArrowIcon`: the arrow's own icon replaces the drawn chip once it has loaded; until then, or
                 // if it cannot, the chip shows.
                 div()

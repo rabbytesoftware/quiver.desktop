@@ -8,7 +8,6 @@ use gpui::{
 };
 use quiver_theme::FontFamily;
 
-use crate::icon::{icon_with_stroke, Glyph};
 use crate::photo::Photo;
 use crate::theme::ActiveQuiver;
 use crate::tracked::TrackedText;
@@ -111,33 +110,45 @@ pub fn banner_photo(
         )
 }
 
-/// The arrow's mark: its hue's gradient square with the Quiver glyph, `size` wide (the drawn tile's icon, the
-/// strip under a lifted tile).
+/// The default icon of an arrow with none of its own (or none loaded yet): its initial, white, on its hue's
+/// gradient. Fills its (relatively positioned) parent; `size` is the parent's width, `radius` its corners.
+pub fn monogram(
+    h: u16,
+    size: f32,
+    radius: f32,
+    initial: &SharedString,
+) -> gpui::Div {
+    div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .size_full()
+        .rounded(px(radius))
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_size(px(size * 0.52))
+        .line_height(px(size * 0.52))
+        .font_weight(FontWeight::BOLD)
+        .text_color(white())
+        .bg(linear_gradient(
+            180.,
+            linear_color_stop(hue(h, 0.52, 0.38 + lift(h)), 0.),
+            linear_color_stop(hue(h, 0.48, 0.30 + lift(h)), 1.),
+        ))
+        .child(initial.clone())
+}
+
+/// The arrow's icon, `size` wide: its own image once it has loaded, the [`monogram`] until then (and for good
+/// when there is none or it cannot load).
 pub(crate) fn mark(
     h: u16,
     size: f32,
     image: Option<&SharedString>,
+    initial: &SharedString,
 ) -> gpui::Div {
     let radius = size * 0.24;
-    let drawn = || {
-        div()
-            .absolute()
-            .top_0()
-            .left_0()
-            .size_full()
-            .rounded(px(radius))
-            .flex()
-            .items_center()
-            .justify_center()
-            .bg(linear_gradient(
-                180.,
-                linear_color_stop(hue(h, 0.52, 0.38 + lift(h)), 0.),
-                linear_color_stop(hue(h, 0.48, 0.30 + lift(h)), 1.),
-            ))
-            .child(icon_with_stroke(Glyph::Mark, size * 0.6, white(), 1.9))
-    };
-    // The arrow's own icon replaces the drawn mark once it has loaded (old `drawn-mark`: `background-size:
-    // cover`); until then, or if it cannot, the drawn mark is what shows.
+    let drawn = || monogram(h, size, radius, initial);
     div()
         .relative()
         .flex_none()
@@ -172,7 +183,10 @@ fn drawn(
         .font_weight(FontWeight::EXTRA_BOLD)
         .text_color(p.foreground.opacity(0.048))
         .child(initial.clone());
-    let mark = mark(h, icon, image).absolute().left(px(pad)).top(px(pad));
+    let mark = mark(h, icon, image, initial)
+        .absolute()
+        .left(px(pad))
+        .top(px(pad));
     let title = div()
         .absolute()
         .left(px(pad))
