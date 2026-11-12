@@ -209,6 +209,7 @@ impl Render for Sidebar {
             .child(parts::top_row(self, cx))
             .child(parts::search_and_tabs(self, cx))
             .child(parts::arrow_list(self, window, cx))
+            .children(parts::build_footer(self, cx))
             .child(parts::resize_handle(self, cx))
             .children(parts::context_menu(self, cx))
     }

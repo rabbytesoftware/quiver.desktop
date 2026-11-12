@@ -34,7 +34,9 @@ pub const MAIN_WINDOW: WindowSpec = WindowSpec {
     resizable: true,
     background_throttling_disabled: true,
     macos_overlay_titlebar: true,
-    macos_traffic_lights: TrafficLights { x: 12, y: 20 },
+    // `y` is where the buttons' top edge sits below the window top (GPUI), not their centre: the 34px top row's
+    // centre is 17, the buttons are 14 tall, so 10.
+    macos_traffic_lights: TrafficLights { x: 12, y: 10 },
 };
 
 #[cfg(test)]
