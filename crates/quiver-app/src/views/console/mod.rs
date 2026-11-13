@@ -141,6 +141,8 @@ impl Render for ConsoleDock {
         div()
             .id("console")
             .absolute()
+            // Drawn over the page, so without this a wheel over the console also reached the scroll area behind it.
+            .occlude()
             .top_0()
             .left_0()
             .right_0()
@@ -156,5 +158,85 @@ impl Render for ConsoleDock {
             .child(parts::prompt(self, window, cx))
             .child(crate::views::screen_probe("console"))
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::views::grid_page::testing::demo_app;
+    use gpui::{point, Modifiers, ScrollDelta, ScrollWheelEvent, TestAppContext, TouchPhase};
+
+    /// A tall scrolling page with the console drawn over its top (as in the shell).
+    struct Harness {
+        dock: Entity<ConsoleDock>,
+        page: ScrollHandle,
+    }
+
+    impl Render for Harness {
+        fn render(
+            &mut self,
+            _: &mut Window,
+            _: &mut Context<Self>,
+        ) -> impl IntoElement {
+            div()
+                .size_full()
+                .relative()
+                .child(
+                    div()
+                        .id("page")
+                        .size_full()
+                        .overflow_y_scroll()
+                        .track_scroll(&self.page)
+                        .child(div().h(px(6000.))),
+                )
+                .child(self.dock.clone())
+        }
+    }
+
+    fn wheel(y: f32) -> ScrollWheelEvent {
+        ScrollWheelEvent {
+            position: point(px(300.), px(y)),
+            delta: ScrollDelta::Pixels(point(px(0.), px(-120.))),
+            modifiers: Modifiers::none(),
+            touch_phase: TouchPhase::Moved,
+        }
+    }
+
+    /// The console is drawn over the page, so a wheel over it reached both and the page behind scrolled
+    /// with the log. The console must take the wheel for itself and leave the page where it is.
+    #[gpui::test]
+    fn the_wheel_over_the_console_does_not_scroll_the_page_behind(cx: &mut TestAppContext) {
+        let app = demo_app(cx);
+        cx.update(|cx| quiver_ui::install(cx, quiver_theme::Mode::Light));
+        let page = ScrollHandle::new();
+        let (view, cx) = cx.add_window_view(|window, cx| Harness {
+            dock: cx.new(|cx| ConsoleDock::new(app.clone(), window, cx)),
+            page: page.clone(),
+        });
+        // Open it once the dock exists: it learns the app's "open" from the change notification.
+        app.update(cx, |m, cx| m.set_console_open(true, cx));
+        cx.run_until_parked();
+        let dock = view.read_with(cx, |h, _| h.dock.clone());
+        assert!(
+            dock.read_with(cx, |d, _| d.controller.state.open),
+            "the console never opened, so this test would prove nothing"
+        );
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+
+        cx.simulate_event(wheel(20.));
+        assert_eq!(
+            page.offset().y,
+            px(0.),
+            "the page moved under a wheel over the console"
+        );
+
+        // Control: the same wheel below the console does scroll the page, so the check above can fail.
+        cx.simulate_event(wheel(700.));
+        assert!(
+            page.offset().y < px(0.),
+            "the page does not scroll at all in this harness"
+        );
     }
 }
