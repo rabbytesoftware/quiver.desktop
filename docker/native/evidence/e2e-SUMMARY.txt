@@ -1,0 +1,109 @@
+quiver.desktop native E2E
+run started: 2026-11-10T07:17:08Z
+host:        Linux x86_64 in a container, display :1
+
+build: ok
+artifact: quiver-stable-26.5.90  59226181 bytes  sha256=4b3d76333476b0166ed81f9217584e281d882eba50e4f9ae49132355bb8063ae
+artifact: quiver-stable-26.5.91  59226181 bytes  sha256=f2e08a6cb309b41e9f742a8ed83a9b44284622fc76cbd29b5b5a177a9e169278
+artifact: quiver-stable-26.5.92  59226181 bytes  sha256=cf93c3d1cfa40b4270d48b9d7f87751d252538f6f30a57e90d331dd6a7cad8a7
+artifact: quiver-stable-26.5.93  59226181 bytes  sha256=f564af5aa775e3457cdc1c7952126d081a644ac583656515198c4af7ee759abd
+artifact: quiverdesktop-stable-1.0  64732496 bytes  sha256=f34d36043a778aef5c70282afdf67a3f03661c497b399de0c08d66c3c8ee5892
+artifact: quiver-arrow-window  6167824 bytes  sha256=11d6c0d49f4a6ee95dd458f1c0b3585862d3e392150fa1170ae0d91e3a5cb27a
+
+tests: 21 (filters: none)
+test arrow_apps::a_late_binding_app_is_isolated_and_its_window_opens_only_when_ready: PASS
+test arrow_apps::chat::quiver_chat_runs_sandboxed_in_its_window_and_stops: PASS
+test arrow_apps::ended::when_the_run_serving_the_interface_ends_the_pane_returns_to_the_arrow_page: PASS
+test arrow_apps::reload_remounts_the_page_and_stop_ends_the_window_and_the_process: PASS
+test arrow_apps::the_window_cap_is_four_and_the_oldest_hidden_app_makes_room: PASS
+test arrow_page::the_action_row_follows_the_arrow_through_install_start_and_stop: PASS
+test auto_register::only_the_local_daemon_learns_about_the_desktop: PASS
+test bootstrap::a_clean_home_comes_up_self_installed: PASS
+test console::the_build_indicator_and_the_daemon_console: PASS
+test generic_outdated_badge::an_outdated_self_arrow_gets_the_generic_outdated_badge: PASS
+test glyphs::a_detached_arrow_after_a_daemon_swap_shows_needs_attention: PASS
+test glyphs::sidebar_rows_show_the_glyph_of_their_state: PASS
+test modals::settings_validates_and_methods_expand_and_both_close: PASS
+test qol::the_pre_playtest_qol_fixes: PASS
+test self_update_while_running::a_supervised_process_survives_the_daemon_replacing_itself: PASS
+test update_core::a_build_that_never_becomes_healthy_is_rolled_back: PASS
+test update_core::a_release_whose_checksum_does_not_match_is_refused_and_nothing_changes: PASS
+test update_core::a_second_update_can_be_offered_after_the_first_swap: PASS
+test update_core::closing_the_window_stops_the_daemon_and_leaves_no_quiver_process: PASS
+test update_core::update_from_settings_swaps_the_daemon_and_settings_shows_the_new_version: PASS
+test update_core::update_from_the_arrow_page_swaps_the_daemon_and_the_app_stays_up: PASS
+
+passed: arrow_apps::a_late_binding_app_is_isolated_and_its_window_opens_only_when_ready arrow_apps::chat::quiver_chat_runs_sandboxed_in_its_window_and_stops arrow_apps::ended::when_the_run_serving_the_interface_ends_the_pane_returns_to_the_arrow_page arrow_apps::reload_remounts_the_page_and_stop_ends_the_window_and_the_process arrow_apps::the_window_cap_is_four_and_the_oldest_hidden_app_makes_room arrow_page::the_action_row_follows_the_arrow_through_install_start_and_stop auto_register::only_the_local_daemon_learns_about_the_desktop bootstrap::a_clean_home_comes_up_self_installed console::the_build_indicator_and_the_daemon_console generic_outdated_badge::an_outdated_self_arrow_gets_the_generic_outdated_badge glyphs::a_detached_arrow_after_a_daemon_swap_shows_needs_attention glyphs::sidebar_rows_show_the_glyph_of_their_state modals::settings_validates_and_methods_expand_and_both_close qol::the_pre_playtest_qol_fixes self_update_while_running::a_supervised_process_survives_the_daemon_replacing_itself update_core::a_build_that_never_becomes_healthy_is_rolled_back update_core::a_release_whose_checksum_does_not_match_is_refused_and_nothing_changes update_core::a_second_update_can_be_offered_after_the_first_swap update_core::closing_the_window_stops_the_daemon_and_leaves_no_quiver_process update_core::update_from_settings_swaps_the_daemon_and_settings_shows_the_new_version update_core::update_from_the_arrow_page_swaps_the_daemon_and_the_app_stays_up
+failed: none
+screenshots:
+  /workspace/results/native/arrow_apps__a_late_binding_app_is_isolated_and_its_window_opens_only_when_ready/echo-open.png (32654 bytes)
+  /workspace/results/native/arrow_apps__a_late_binding_app_is_isolated_and_its_window_opens_only_when_ready/echo-starting.png (25285 bytes)
+  /workspace/results/native/arrow_apps__a_late_binding_app_is_isolated_and_its_window_opens_only_when_ready/final-screen.png (3072 bytes)
+  /workspace/results/native/arrow_apps__chat__quiver_chat_runs_sandboxed_in_its_window_and_stops/final-screen.png (3072 bytes)
+  /workspace/results/native/arrow_apps__ended__when_the_run_serving_the_interface_ends_the_pane_returns_to_the_arrow_page/final-screen.png (3072 bytes)
+  /workspace/results/native/arrow_apps__ended__when_the_run_serving_the_interface_ends_the_pane_returns_to_the_arrow_page/short-ended.png (17842 bytes)
+  /workspace/results/native/arrow_apps__quiver_chat_runs_sandboxed_in_its_window_and_stops/final-screen.png (3072 bytes)
+  /workspace/results/native/arrow_apps__reload_remounts_the_page_and_stop_ends_the_window_and_the_process/after-reload.png (34555 bytes)
+  /workspace/results/native/arrow_apps__reload_remounts_the_page_and_stop_ends_the_window_and_the_process/after-stop.png (17992 bytes)
+  /workspace/results/native/arrow_apps__reload_remounts_the_page_and_stop_ends_the_window_and_the_process/final-screen.png (3072 bytes)
+  /workspace/results/native/arrow_apps__the_window_cap_is_four_and_the_oldest_hidden_app_makes_room/fifth-evicts-first.png (44220 bytes)
+  /workspace/results/native/arrow_apps__the_window_cap_is_four_and_the_oldest_hidden_app_makes_room/final-screen.png (3072 bytes)
+  /workspace/results/native/arrow_apps__the_window_cap_is_four_and_the_oldest_hidden_app_makes_room/four-open.png (39977 bytes)
+  /workspace/results/native/arrow_apps__when_the_run_serving_the_interface_ends_the_pane_returns_to_the_arrow_page/final-screen.png (3072 bytes)
+  /workspace/results/native/arrow_apps__when_the_run_serving_the_interface_ends_the_pane_returns_to_the_arrow_page/short-ended.png (17831 bytes)
+  /workspace/results/native/arrow_page__the_action_row_follows_the_arrow_through_install_start_and_stop/final-screen.png (3072 bytes)
+  /workspace/results/native/arrow_page__the_action_row_follows_the_arrow_through_install_start_and_stop/page-installed.png (58433 bytes)
+  /workspace/results/native/arrow_page__the_action_row_follows_the_arrow_through_install_start_and_stop/page-installing-steps.png (58747 bytes)
+  /workspace/results/native/arrow_page__the_action_row_follows_the_arrow_through_install_start_and_stop/page-not-installed.png (17178 bytes)
+  /workspace/results/native/arrow_page__the_action_row_follows_the_arrow_through_install_start_and_stop/page-running.png (40588 bytes)
+  /workspace/results/native/auto_register__only_the_local_daemon_learns_about_the_desktop/final-screen.png (3072 bytes)
+  /workspace/results/native/auto_register__only_the_local_daemon_learns_about_the_desktop/remote-active.png (42807 bytes)
+  /workspace/results/native/auto_register__only_the_local_daemon_learns_about_the_desktop/remote-added.png (23132 bytes)
+  /workspace/results/native/bootstrap__a_clean_home_comes_up_self_installed/bootstrap-ready.png (6665 bytes)
+  /workspace/results/native/bootstrap__a_clean_home_comes_up_self_installed/bootstrap-sidebar.png (29153 bytes)
+  /workspace/results/native/bootstrap__a_clean_home_comes_up_self_installed/final-screen.png (3072 bytes)
+  /workspace/results/native/console__the_build_indicator_and_the_daemon_console/console-indicator.png (6662 bytes)
+  /workspace/results/native/console__the_build_indicator_and_the_daemon_console/console-open.png (12287 bytes)
+  /workspace/results/native/console__the_build_indicator_and_the_daemon_console/console-refused.png (84102 bytes)
+  /workspace/results/native/console__the_build_indicator_and_the_daemon_console/final-screen.png (3072 bytes)
+  /workspace/results/native/generic_outdated_badge__an_outdated_self_arrow_gets_the_generic_outdated_badge/final-screen.png (3072 bytes)
+  /workspace/results/native/generic_outdated_badge__an_outdated_self_arrow_gets_the_generic_outdated_badge/outdated-badge.png (41141 bytes)
+  /workspace/results/native/generic_outdated_badge__an_outdated_self_arrow_gets_the_generic_outdated_badge/outdated-details.png (22658 bytes)
+  /workspace/results/native/glyphs__a_detached_arrow_after_a_daemon_swap_shows_needs_attention/final-screen.png (3072 bytes)
+  /workspace/results/native/glyphs__a_detached_arrow_after_a_daemon_swap_shows_needs_attention/glyph-needs-attention.png (69021 bytes)
+  /workspace/results/native/glyphs__sidebar_rows_show_the_glyph_of_their_state/final-screen.png (3072 bytes)
+  /workspace/results/native/glyphs__sidebar_rows_show_the_glyph_of_their_state/glyph-busy.png (24479 bytes)
+  /workspace/results/native/glyphs__sidebar_rows_show_the_glyph_of_their_state/glyph-running.png (23570 bytes)
+  /workspace/results/native/glyphs__sidebar_rows_show_the_glyph_of_their_state/glyph-update-available.png (33793 bytes)
+  /workspace/results/native/modals__settings_validates_and_methods_expand_and_both_close/final-screen.png (3072 bytes)
+  /workspace/results/native/modals__settings_validates_and_methods_expand_and_both_close/methods-expanded.png (136115 bytes)
+  /workspace/results/native/modals__settings_validates_and_methods_expand_and_both_close/settings-defaults.png (44433 bytes)
+  /workspace/results/native/qol__the_pre_playtest_qol_fixes/01-scrolled.png (72248 bytes)
+  /workspace/results/native/qol__the_pre_playtest_qol_fixes/02-next-screen-at-top.png (15977 bytes)
+  /workspace/results/native/qol__the_pre_playtest_qol_fixes/03-search-focused.png (44674 bytes)
+  /workspace/results/native/qol__the_pre_playtest_qol_fixes/04-search-typed.png (43819 bytes)
+  /workspace/results/native/qol__the_pre_playtest_qol_fixes/05-update-available.png (71834 bytes)
+  /workspace/results/native/qol__the_pre_playtest_qol_fixes/06-update-done.png (71816 bytes)
+  /workspace/results/native/qol__the_pre_playtest_qol_fixes/final-screen.png (3072 bytes)
+  /workspace/results/native/self_update_while_running__a_supervised_process_survives_the_daemon_replacing_itself/after-self-update.png (29977 bytes)
+  /workspace/results/native/self_update_while_running__a_supervised_process_survives_the_daemon_replacing_itself/final-screen.png (3072 bytes)
+  /workspace/results/native/update_core__a_build_that_never_becomes_healthy_is_rolled_back/10-settings-after-rollback.png (69197 bytes)
+  /workspace/results/native/update_core__a_build_that_never_becomes_healthy_is_rolled_back/final-screen.png (3072 bytes)
+  /workspace/results/native/update_core__a_release_whose_checksum_does_not_match_is_refused_and_nothing_changes/08-settings-wrong-checksum.png (69171 bytes)
+  /workspace/results/native/update_core__a_release_whose_checksum_does_not_match_is_refused_and_nothing_changes/09-arrow-page-wrong-checksum.png (22855 bytes)
+  /workspace/results/native/update_core__a_release_whose_checksum_does_not_match_is_refused_and_nothing_changes/final-screen.png (3072 bytes)
+  /workspace/results/native/update_core__a_second_update_can_be_offered_after_the_first_swap/final-screen.png (3072 bytes)
+  /workspace/results/native/update_core__closing_the_window_stops_the_daemon_and_leaves_no_quiver_process/final-screen.png (3072 bytes)
+  /workspace/results/native/update_core__quiver_core_updates_itself_from_the_app_and_refuses_what_it_cannot_trust/01-settings-up-to-date.png (24727 bytes)
+  /workspace/results/native/update_core__quiver_core_updates_itself_from_the_app_and_refuses_what_it_cannot_trust/02-settings-update-available.png (66618 bytes)
+  /workspace/results/native/update_core__quiver_core_updates_itself_from_the_app_and_refuses_what_it_cannot_trust/04-arrow-page-after-swap.png (98986 bytes)
+  /workspace/results/native/update_core__quiver_core_updates_itself_from_the_app_and_refuses_what_it_cannot_trust/FAILED.png (71432 bytes)
+  /workspace/results/native/update_core__quiver_core_updates_itself_from_the_app_and_refuses_what_it_cannot_trust/final-screen.png (3072 bytes)
+  /workspace/results/native/update_core__update_from_settings_swaps_the_daemon_and_settings_shows_the_new_version/06-settings-updating.png (69417 bytes)
+  /workspace/results/native/update_core__update_from_settings_swaps_the_daemon_and_settings_shows_the_new_version/07-settings-after-swap.png (69021 bytes)
+  /workspace/results/native/update_core__update_from_settings_swaps_the_daemon_and_settings_shows_the_new_version/final-screen.png (3072 bytes)
+  /workspace/results/native/update_core__update_from_the_arrow_page_swaps_the_daemon_and_the_app_stays_up/01-settings-up-to-date.png (24733 bytes)
+  /workspace/results/native/update_core__update_from_the_arrow_page_swaps_the_daemon_and_the_app_stays_up/02-settings-update-available.png (66615 bytes)
+  /workspace/results/native/update_core__update_from_the_arrow_page_swaps_the_daemon_and_the_app_stays_up/05-settings-after-swap.png (24726 bytes)
+  /workspace/results/native/update_core__update_from_the_arrow_page_swaps_the_daemon_and_the_app_stays_up/final-screen.png (3072 bytes)
+finished: 2026-11-10T07:22:21Z

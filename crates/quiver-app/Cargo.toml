@@ -1,0 +1,75 @@
+[package]
+name = "quiver-app"
+description = "The Quiver Desktop binaries: views only."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+name = "quiver_app"
+path = "src/lib.rs"
+
+[[bin]]
+name = "quiver"
+path = "src/main.rs"
+
+[features]
+# Debug-only control bridge. Never enabled in release builds (CI checks the artifact).
+e2e-bridge = ["quiver-ui/inspect", "dep:quiver-e2e"]
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+base64 = "0.22"
+futures-util.workspace = true
+reqwest.workspace = true
+gpui.workspace = true
+gpui-component.workspace = true
+http.workspace = true
+log.workspace = true
+quiver-arrow-host.workspace = true
+quiver-core-client.workspace = true
+quiver-platform.workspace = true
+quiver-release.workspace = true
+quiver-state.workspace = true
+quiver-theme.workspace = true
+quiver-ui.workspace = true
+quiver-e2e = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+raw-window-handle = "0.6"
+wry = "0.53"
+# The covered page's photograph as a GPUI image (services/arrow_windows/cover.rs); the version GPUI uses.
+image = { version = "0.25", default-features = false }
+
+# Arrow apps' webviews are children of the main window; on Linux wry's X11 backend runs on GTK, which
+# gets a thread of its own (services/arrow_windows/embedded).
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+# The webview under wry, for its snapshot (the same crate wry builds on).
+webkit2gtk = "2.0"
+x11-dl = "2"
+
+# The native context menu: the crate Tauri's menus are built on (services/native_menu). Linux uses GTK.
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+muda = { version = "0.17", default-features = false }
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+wiremock.workspace = true
+
+# Reserved for the views and the arrow-window helper that land after the services.
+[package.metadata.cargo-machete]
+ignored = ["anyhow", "base64", "quiver-e2e"]
+
+[target.'cfg(windows)'.build-dependencies]
+embed-resource = "3"

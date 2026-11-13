@@ -1,0 +1,10 @@
+[package]
+name = "quiver-theme"
+description = "Quiver design tokens (colours, radii, type, layout) ported from src/index.css. Pure data."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

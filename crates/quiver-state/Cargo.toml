@@ -1,0 +1,29 @@
+[package]
+name = "quiver-state"
+description = "App state and actions (what the Zustand store did): one module per domain. No GPUI."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait.workspace = true
+futures-util.workspace = true
+indexmap = { workspace = true, features = ["serde"] }
+log.workspace = true
+serde.workspace = true
+# preserve_order: config sections and manifest targets keep the wire order, as JS objects do.
+serde_json = { workspace = true, features = ["preserve_order"] }
+thiserror.workspace = true
+tokio.workspace = true
+
+[features]
+# Fakes (FakeCoreApi, FakeBackend, in-memory stores) for other crates' tests.
+testing = []
+
+[dev-dependencies]
+# start_paused: timer-driven tests advance virtual time instead of sleeping.
+tokio = { workspace = true, features = ["test-util"] }

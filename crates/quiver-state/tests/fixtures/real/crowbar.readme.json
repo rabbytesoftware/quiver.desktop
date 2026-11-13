@@ -1,0 +1,7 @@
+{
+ "ok": true,
+ "data": {
+  "namespace": "github.com/char2cs/crowbar",
+  "readme": "# Crowbar\n\n_Bring your own agent. Keep your own context._\n\nThe workbench for coding agents. Run Claude Code and Codex side by side on real branches, switch between them mid-conversation without losing a word, and review the result like a pull request that never leaves your machine.\n\n- **Your subscription, our bench.** Claude Code, Codex, whichever you already pay for.\n- **Change your mind mid-sentence.** Swap the agent between turns; the branch, the diff and the transcript stay put.\n- **Conversations that branch like your code.** A chat can start another chat, and it reports back when it's done.\n- **Pull requests, without the pull.** Inline comment threads that agents read and answer, all local.\n- **Run it anywhere.** Put the daemon on a box of yours and drive it from your laptop.\n\nFree, open source, no account. For macOS and Linux.\n\n---\n\n\n---\n\nCrowbar is dual-licensed under the AGPL-3.0 or a commercial license."
+ }
+}

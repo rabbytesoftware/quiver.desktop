@@ -1,0 +1,86 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/quiver-theme",
+    "crates/quiver-core-client",
+    "crates/quiver-state",
+    "crates/quiver-release",
+    "crates/quiver-arrow-host",
+    "crates/quiver-platform",
+    "crates/quiver-ui",
+    "crates/quiver-app",
+    "crates/quiver-e2e",
+    "xtask",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+cognitive_complexity = "warn"
+
+# Versions are pinned: gpui and gpui-component with `=`, everything else by Cargo.lock (committed).
+[workspace.dependencies]
+# --- GPUI (only quiver-ui and quiver-app may use these) ---
+gpui = "=0.2.2"
+gpui-component = "=0.5.1"
+
+# --- no-GPUI crates ---
+anyhow = "1"
+async-trait = "0.1"
+base64 = "0.22"
+bytes = "1"
+futures-util = "0.3"
+http = "1"
+http-body-util = "0.1"
+indexmap = "2"
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "tokio"] }
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+libc = "0.2"
+log = "0.4"
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+png = "0.17"
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+thiserror = "1"
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+uuid = { version = "1", features = ["v4"] }
+wiremock = "0.6"
+
+# --- internal ---
+quiver-theme = { path = "crates/quiver-theme" }
+quiver-core-client = { path = "crates/quiver-core-client" }
+quiver-state = { path = "crates/quiver-state" }
+quiver-release = { path = "crates/quiver-release" }
+quiver-arrow-host = { path = "crates/quiver-arrow-host" }
+quiver-platform = { path = "crates/quiver-platform" }
+quiver-ui = { path = "crates/quiver-ui" }
+quiver-e2e = { path = "crates/quiver-e2e" }
+
+[patch.crates-io]
+# gpui 0.2.2 pulls xattr 0.2.3, which fails on current libc (ENOATTR). See docs/decision-log.md.
+xattr = { path = "vendor/xattr" }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
+
+# The dev build runs GPUI, taffy and the image decoders on every frame; unoptimized they cost several times
+# the frame budget (a 35-card page drew at ~18 fps). Dependencies are optimized, our own crates stay
+# quick to rebuild.
+[profile.dev.package."*"]
+opt-level = 3

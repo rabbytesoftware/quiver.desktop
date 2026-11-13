@@ -1,0 +1,20 @@
+{
+ "ok": true,
+ "data": {
+  "namespace": "github.com/rabbytesoftware/quiver.chat@main",
+  "name": "rabbytesoftware.quiver-chat",
+  "description": "Real-time chat that opens inside Quiver and is also reachable on a TCP port.",
+  "license": "MIT",
+  "state": "absent",
+  "tags": [
+   "chat",
+   "arrow-app"
+  ],
+  "user_installed": false,
+  "selector_kind": "pin",
+  "resolved_ref": "",
+  "installed_commit": "",
+  "outdated": false,
+  "origin": "declared"
+ }
+}

@@ -1,0 +1,20 @@
+name: 'Native Linux dependencies'
+description: >-
+  The system packages GPUI, the arrow-app WebView and the headless rendering tests need on Ubuntu (same set as
+  docker/native/Dockerfile): build tools, X11/Wayland/Vulkan/font headers, WebKitGTK, and Xvfb with Mesa software
+  Vulkan (lavapipe) so tests can open a window.
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install packages
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential cmake clang pkg-config libfontconfig-dev libfreetype-dev libxcb1-dev \
+          libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libssl-dev libvulkan-dev libx11-dev \
+          libx11-xcb-dev libxcb-xkb-dev libxkbfile-dev libdbus-1-dev libzstd-dev libasound2-dev \
+          libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev xvfb x11-utils mesa-vulkan-drivers \
+          vulkan-tools libgl1-mesa-dri libegl1 openbox fonts-dejavu-core gnome-keyring libsecret-1-dev \
+          libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf

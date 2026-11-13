@@ -1,0 +1,7 @@
+{
+ "ok": true,
+ "data": {
+  "namespace": "github.com/rabbytesoftware/quiver.chat",
+  "readme": "# Quiver Chat\n\nA small real-time chat. Its interface opens inside the Quiver app, and the same\nchat room is also served on TCP port 8686, so anyone who can reach the machine\ncan join from a browser at `http://<machine>:8686`."
+ }
+}

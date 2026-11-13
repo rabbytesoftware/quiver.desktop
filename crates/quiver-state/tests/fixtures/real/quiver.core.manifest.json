@@ -1,0 +1,497 @@
+{
+ "ok": true,
+ "data": {
+  "namespace": "github.com/rabbytesoftware/quiver.core@nightly-latest",
+  "name": "Quiver Core",
+  "description": "The Quiver package manager's own engine daemon.",
+  "tags": null,
+  "variables": [],
+  "targets": {
+   "darwin/amd64": {
+    "requirements": {
+     "cpu_cores": 1,
+     "memory_gb": 1,
+     "disk_gb": 1
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Download the new quiver.core binary",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/quiver-darwin-amd64",
+       "to": "${WORKDIR}/quiver-new",
+       "checksum": "sha256sums:https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/checksums.txt",
+       "timeout": "120s"
+      },
+      {
+       "type": "run",
+       "title": "Hand over to the new binary",
+       "exit_on_failure": true,
+       "command": "chmod +x \"${WORKDIR}/quiver-new\" && \"${WORKDIR}/quiver-new\" self-update \"${WORKDIR}/quiver-new\"",
+       "elevated": false,
+       "timeout": "30s"
+      }
+     ],
+     "execute": [],
+     "stop": [],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {},
+    "expose": {}
+   },
+   "darwin/arm64": {
+    "requirements": {
+     "cpu_cores": 1,
+     "memory_gb": 1,
+     "disk_gb": 1
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Download the new quiver.core binary",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/quiver-darwin-arm64",
+       "to": "${WORKDIR}/quiver-new",
+       "checksum": "sha256sums:https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/checksums.txt",
+       "timeout": "120s"
+      },
+      {
+       "type": "run",
+       "title": "Hand over to the new binary",
+       "exit_on_failure": true,
+       "command": "chmod +x \"${WORKDIR}/quiver-new\" && \"${WORKDIR}/quiver-new\" self-update \"${WORKDIR}/quiver-new\"",
+       "elevated": false,
+       "timeout": "30s"
+      }
+     ],
+     "execute": [],
+     "stop": [],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {},
+    "expose": {}
+   },
+   "linux/amd64": {
+    "requirements": {
+     "cpu_cores": 1,
+     "memory_gb": 1,
+     "disk_gb": 1
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Download the new quiver.core binary",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/quiver-linux-amd64",
+       "to": "${WORKDIR}/quiver-new",
+       "checksum": "sha256sums:https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/checksums.txt",
+       "timeout": "120s"
+      },
+      {
+       "type": "run",
+       "title": "Hand over to the new binary",
+       "exit_on_failure": true,
+       "command": "chmod +x \"${WORKDIR}/quiver-new\" && \"${WORKDIR}/quiver-new\" self-update \"${WORKDIR}/quiver-new\"",
+       "elevated": false,
+       "timeout": "30s"
+      }
+     ],
+     "execute": [],
+     "stop": [],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {},
+    "expose": {}
+   },
+   "linux/arm64": {
+    "requirements": {
+     "cpu_cores": 1,
+     "memory_gb": 1,
+     "disk_gb": 1
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Download the new quiver.core binary",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/quiver-linux-arm64",
+       "to": "${WORKDIR}/quiver-new",
+       "checksum": "sha256sums:https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/checksums.txt",
+       "timeout": "120s"
+      },
+      {
+       "type": "run",
+       "title": "Hand over to the new binary",
+       "exit_on_failure": true,
+       "command": "chmod +x \"${WORKDIR}/quiver-new\" && \"${WORKDIR}/quiver-new\" self-update \"${WORKDIR}/quiver-new\"",
+       "elevated": false,
+       "timeout": "30s"
+      }
+     ],
+     "execute": [],
+     "stop": [],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {},
+    "expose": {}
+   },
+   "windows/amd64": {
+    "requirements": {
+     "cpu_cores": 1,
+     "memory_gb": 1,
+     "disk_gb": 1
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Download the new quiver.core binary",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/quiver-windows-amd64.exe",
+       "to": "${WORKDIR}\\quiver-new.exe",
+       "checksum": "sha256sums:https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/checksums.txt",
+       "timeout": "120s"
+      },
+      {
+       "type": "run",
+       "title": "Hand over to the new binary",
+       "exit_on_failure": true,
+       "command": "\"${WORKDIR}\\quiver-new.exe\" self-update \"${WORKDIR}\\quiver-new.exe\"",
+       "elevated": false,
+       "timeout": "30s"
+      }
+     ],
+     "execute": [],
+     "stop": [],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {},
+    "expose": {}
+   },
+   "windows/arm64": {
+    "requirements": {
+     "cpu_cores": 1,
+     "memory_gb": 1,
+     "disk_gb": 1
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Download the new quiver.core binary",
+       "exit_on_failure": true,
+       "url": "https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/quiver-windows-amd64.exe",
+       "to": "${WORKDIR}\\quiver-new.exe",
+       "checksum": "sha256sums:https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/checksums.txt",
+       "timeout": "120s"
+      },
+      {
+       "type": "run",
+       "title": "Hand over to the new binary",
+       "exit_on_failure": true,
+       "command": "\"${WORKDIR}\\quiver-new.exe\" self-update \"${WORKDIR}\\quiver-new.exe\"",
+       "elevated": false,
+       "timeout": "30s"
+      }
+     ],
+     "execute": [],
+     "stop": [],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {},
+    "expose": {}
+   }
+  },
+  "manifest": {
+   "metadata": {
+    "name": "Quiver Core",
+    "description": "The Quiver package manager's own engine daemon.",
+    "license": "GPL-3.0",
+    "url": "https://github.com/rabbytesoftware/quiver.core",
+    "maintainers": [
+     {
+      "name": "Rabbyte Software",
+      "url": "https://char2cs.net"
+     }
+    ],
+    "credits": [
+     {
+      "name": "Rabbyte Software"
+     }
+    ],
+    "tags": null,
+    "media": {
+     "icon": "https://raw.githubusercontent.com/rabbytesoftware/quiver.core/develop/docs/quiver-icon.svg",
+     "banner": "https://raw.githubusercontent.com/rabbytesoftware/quiver.core/develop/docs/quiver-banner.svg"
+    }
+   },
+   "variables": [],
+   "netbridge": [],
+   "targets": {
+    "darwin/amd64": {
+     "requirements": {
+      "cpu_cores": 1,
+      "memory_gb": 1,
+      "disk_gb": 1
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Download the new quiver.core binary",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/quiver-darwin-amd64",
+        "to": "${WORKDIR}/quiver-new",
+        "checksum": "sha256sums:https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/checksums.txt",
+        "timeout": "120s"
+       },
+       {
+        "type": "run",
+        "title": "Hand over to the new binary",
+        "exit_on_failure": true,
+        "command": "chmod +x \"${WORKDIR}/quiver-new\" && \"${WORKDIR}/quiver-new\" self-update \"${WORKDIR}/quiver-new\"",
+        "elevated": false,
+        "timeout": "30s"
+       }
+      ],
+      "execute": [],
+      "stop": [],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {},
+     "expose": {}
+    },
+    "darwin/arm64": {
+     "requirements": {
+      "cpu_cores": 1,
+      "memory_gb": 1,
+      "disk_gb": 1
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Download the new quiver.core binary",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/quiver-darwin-arm64",
+        "to": "${WORKDIR}/quiver-new",
+        "checksum": "sha256sums:https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/checksums.txt",
+        "timeout": "120s"
+       },
+       {
+        "type": "run",
+        "title": "Hand over to the new binary",
+        "exit_on_failure": true,
+        "command": "chmod +x \"${WORKDIR}/quiver-new\" && \"${WORKDIR}/quiver-new\" self-update \"${WORKDIR}/quiver-new\"",
+        "elevated": false,
+        "timeout": "30s"
+       }
+      ],
+      "execute": [],
+      "stop": [],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {},
+     "expose": {}
+    },
+    "linux/amd64": {
+     "requirements": {
+      "cpu_cores": 1,
+      "memory_gb": 1,
+      "disk_gb": 1
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Download the new quiver.core binary",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/quiver-linux-amd64",
+        "to": "${WORKDIR}/quiver-new",
+        "checksum": "sha256sums:https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/checksums.txt",
+        "timeout": "120s"
+       },
+       {
+        "type": "run",
+        "title": "Hand over to the new binary",
+        "exit_on_failure": true,
+        "command": "chmod +x \"${WORKDIR}/quiver-new\" && \"${WORKDIR}/quiver-new\" self-update \"${WORKDIR}/quiver-new\"",
+        "elevated": false,
+        "timeout": "30s"
+       }
+      ],
+      "execute": [],
+      "stop": [],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {},
+     "expose": {}
+    },
+    "linux/arm64": {
+     "requirements": {
+      "cpu_cores": 1,
+      "memory_gb": 1,
+      "disk_gb": 1
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Download the new quiver.core binary",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/quiver-linux-arm64",
+        "to": "${WORKDIR}/quiver-new",
+        "checksum": "sha256sums:https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/checksums.txt",
+        "timeout": "120s"
+       },
+       {
+        "type": "run",
+        "title": "Hand over to the new binary",
+        "exit_on_failure": true,
+        "command": "chmod +x \"${WORKDIR}/quiver-new\" && \"${WORKDIR}/quiver-new\" self-update \"${WORKDIR}/quiver-new\"",
+        "elevated": false,
+        "timeout": "30s"
+       }
+      ],
+      "execute": [],
+      "stop": [],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {},
+     "expose": {}
+    },
+    "windows/amd64": {
+     "requirements": {
+      "cpu_cores": 1,
+      "memory_gb": 1,
+      "disk_gb": 1
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Download the new quiver.core binary",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/quiver-windows-amd64.exe",
+        "to": "${WORKDIR}\\quiver-new.exe",
+        "checksum": "sha256sums:https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/checksums.txt",
+        "timeout": "120s"
+       },
+       {
+        "type": "run",
+        "title": "Hand over to the new binary",
+        "exit_on_failure": true,
+        "command": "\"${WORKDIR}\\quiver-new.exe\" self-update \"${WORKDIR}\\quiver-new.exe\"",
+        "elevated": false,
+        "timeout": "30s"
+       }
+      ],
+      "execute": [],
+      "stop": [],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {},
+     "expose": {}
+    },
+    "windows/arm64": {
+     "requirements": {
+      "cpu_cores": 1,
+      "memory_gb": 1,
+      "disk_gb": 1
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Download the new quiver.core binary",
+        "exit_on_failure": true,
+        "url": "https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/quiver-windows-amd64.exe",
+        "to": "${WORKDIR}\\quiver-new.exe",
+        "checksum": "sha256sums:https://github.com/rabbytesoftware/quiver.core/releases/download/${REF}/checksums.txt",
+        "timeout": "120s"
+       },
+       {
+        "type": "run",
+        "title": "Hand over to the new binary",
+        "exit_on_failure": true,
+        "command": "\"${WORKDIR}\\quiver-new.exe\" self-update \"${WORKDIR}\\quiver-new.exe\"",
+        "elevated": false,
+        "timeout": "30s"
+       }
+      ],
+      "execute": [],
+      "stop": [],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {},
+     "expose": {}
+    }
+   },
+   "readme": "# Quiver Core\n\n<p align=\"center\">\n  <img src=\"https://raw.githubusercontent.com/rabbytesoftware/quiver.core/develop/.github/quiver.svg\" alt=\"Quiver\" width=\"450\" />\n  <br/>\n  <em>The engine running quietly underneath everything else.</em>\n</p>\n\nThis is Quiver's own engine: the background service that actually installs, runs, and manages every application in your library, including the desktop app you're browsing this catalog with. It's listed here so it can report its own version alongside everyone else's, the same way it tracks updates for anything else on your machine.\n\nThere's nothing to install here: it's already running, since it's what's showing you this page."
+  }
+ }
+}

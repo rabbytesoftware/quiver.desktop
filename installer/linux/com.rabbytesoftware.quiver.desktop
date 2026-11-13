@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Quiver
+Comment=Quiver Desktop
+Exec=quiverdesktop
+Icon=com.rabbytesoftware.quiver
+Categories=Development;
+Terminal=false
+# The window's app id (GPUI sets it as the Wayland app_id and the X11 WM_CLASS): it must equal this file's name
+# without ".desktop", or the shell cannot tie the window to this entry and shows a generic icon.
+StartupWMClass=com.rabbytesoftware.quiver

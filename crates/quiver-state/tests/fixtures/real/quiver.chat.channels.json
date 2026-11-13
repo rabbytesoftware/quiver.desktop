@@ -1,0 +1,17 @@
+{
+ "ok": true,
+ "data": {
+  "channels": [
+   {
+    "name": "stable",
+    "kind": "ordered",
+    "latest": "v27.7.15",
+    "count": 2,
+    "members": [
+     "v27.7.15",
+     "v27.7.14"
+    ]
+   }
+  ]
+ }
+}

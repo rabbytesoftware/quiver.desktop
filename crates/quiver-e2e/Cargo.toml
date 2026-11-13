@@ -1,0 +1,23 @@
+[package]
+name = "quiver-e2e"
+description = "End-to-end control: the bridge protocol, a client, the MCP server and the scenarios that drive the real app."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "quiver-mcp"
+path = "src/bin/quiver_mcp.rs"
+
+[dependencies]
+anyhow.workspace = true
+base64 = "0.22"
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+async-trait.workspace = true

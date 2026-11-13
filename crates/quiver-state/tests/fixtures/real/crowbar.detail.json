@@ -1,0 +1,24 @@
+{
+ "ok": true,
+ "data": {
+  "namespace": "github.com/char2cs/crowbar@nightly",
+  "name": "crowbar",
+  "description": "The workbench for coding agents. Claude Code and Codex side by side on real branches, switchable mid-conversation, with local pull-request-style review. Free, open source, no account.",
+  "license": "AGPL-3.0-only OR LicenseRef-Commercial",
+  "state": "absent",
+  "tags": [
+   "ide",
+   "development",
+   "agents",
+   "git",
+   "desktop",
+   "code-review"
+  ],
+  "user_installed": false,
+  "selector_kind": "pin",
+  "resolved_ref": "nightly",
+  "installed_commit": "ef839cd86908b428e517160989c71a3f6d6f413d",
+  "outdated": false,
+  "origin": "declared"
+ }
+}

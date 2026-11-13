@@ -1,0 +1,21 @@
+[package]
+name = "quiver-arrow-host"
+description = "Arrow app rules: scheme, CSP, host allow-list, 4-app cap, script injection, window IPC. No GPUI."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait.workspace = true
+log.workspace = true
+base64.workspace = true
+http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true

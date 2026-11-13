@@ -1,0 +1,960 @@
+{
+ "ok": true,
+ "data": {
+  "namespace": "github.com/char2cs/crowbar@nightly",
+  "name": "crowbar",
+  "description": "The workbench for coding agents. Claude Code and Codex side by side on real branches, switchable mid-conversation, with local pull-request-style review. Free, open source, no account.",
+  "tags": [
+   "ide",
+   "development",
+   "agents",
+   "git",
+   "desktop",
+   "code-review"
+  ],
+  "variables": [],
+  "targets": {
+   "darwin/amd64": {
+    "requirements": {
+     "cpu_cores": 2,
+     "memory_gb": 4,
+     "disk_gb": 2
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [
+      {
+       "type": "fetch",
+       "title": "Download Crowbar",
+       "exit_on_failure": true,
+       "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+       "to": "${INSTALL_PATH}/Crowbar.dmg",
+       "checksum": "",
+       "timeout": "15m"
+      },
+      {
+       "type": "portable",
+       "title": "Install Crowbar",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/Crowbar.dmg",
+       "to": "${INSTALL_PATH}/app",
+       "timeout": "10m"
+      }
+     ],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Download Crowbar",
+       "exit_on_failure": true,
+       "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+       "to": "${INSTALL_PATH}/Crowbar.dmg",
+       "checksum": "",
+       "timeout": "15m"
+      },
+      {
+       "type": "portable",
+       "title": "Install Crowbar",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/Crowbar.dmg",
+       "to": "${INSTALL_PATH}/app",
+       "timeout": "10m"
+      }
+     ],
+     "execute": [
+      {
+       "type": "run",
+       "title": "Start",
+       "exit_on_failure": true,
+       "command": "exec \"${ARROW_APP}\"",
+       "elevated": false,
+       "timeout": ""
+      }
+     ],
+     "stop": [
+      {
+       "type": "signal",
+       "title": "Stop",
+       "exit_on_failure": false,
+       "signal": "graceful",
+       "timeout": "10s"
+      }
+     ],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {
+     "add_service": {
+      "available_in": [
+       "ready"
+      ],
+      "steps": [
+       {
+        "type": "run",
+        "title": "Run the Crowbar daemon as a login service",
+        "exit_on_failure": true,
+        "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-install.sh | sh -s -- ${REF}",
+        "elevated": false,
+        "timeout": "5m"
+       }
+      ]
+     },
+     "remove_service": {
+      "available_in": [
+       "ready"
+      ],
+      "steps": [
+       {
+        "type": "run",
+        "title": "Remove the Crowbar daemon login service",
+        "exit_on_failure": true,
+        "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-uninstall.sh | sh",
+        "elevated": false,
+        "timeout": "2m"
+       }
+      ]
+     }
+    },
+    "expose": {
+     "desktop": [
+      {
+       "name": "Crowbar",
+       "path": "auto"
+      }
+     ]
+    }
+   },
+   "darwin/arm64": {
+    "requirements": {
+     "cpu_cores": 2,
+     "memory_gb": 4,
+     "disk_gb": 2
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [
+      {
+       "type": "fetch",
+       "title": "Download Crowbar",
+       "exit_on_failure": true,
+       "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+       "to": "${INSTALL_PATH}/Crowbar.dmg",
+       "checksum": "",
+       "timeout": "15m"
+      },
+      {
+       "type": "portable",
+       "title": "Install Crowbar",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/Crowbar.dmg",
+       "to": "${INSTALL_PATH}/app",
+       "timeout": "10m"
+      }
+     ],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Download Crowbar",
+       "exit_on_failure": true,
+       "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+       "to": "${INSTALL_PATH}/Crowbar.dmg",
+       "checksum": "",
+       "timeout": "15m"
+      },
+      {
+       "type": "portable",
+       "title": "Install Crowbar",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/Crowbar.dmg",
+       "to": "${INSTALL_PATH}/app",
+       "timeout": "10m"
+      }
+     ],
+     "execute": [
+      {
+       "type": "run",
+       "title": "Start",
+       "exit_on_failure": true,
+       "command": "exec \"${ARROW_APP}\"",
+       "elevated": false,
+       "timeout": ""
+      }
+     ],
+     "stop": [
+      {
+       "type": "signal",
+       "title": "Stop",
+       "exit_on_failure": false,
+       "signal": "graceful",
+       "timeout": "10s"
+      }
+     ],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {
+     "add_service": {
+      "available_in": [
+       "ready"
+      ],
+      "steps": [
+       {
+        "type": "run",
+        "title": "Run the Crowbar daemon as a login service",
+        "exit_on_failure": true,
+        "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-install.sh | sh -s -- ${REF}",
+        "elevated": false,
+        "timeout": "5m"
+       }
+      ]
+     },
+     "remove_service": {
+      "available_in": [
+       "ready"
+      ],
+      "steps": [
+       {
+        "type": "run",
+        "title": "Remove the Crowbar daemon login service",
+        "exit_on_failure": true,
+        "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-uninstall.sh | sh",
+        "elevated": false,
+        "timeout": "2m"
+       }
+      ]
+     }
+    },
+    "expose": {
+     "desktop": [
+      {
+       "name": "Crowbar",
+       "path": "auto"
+      }
+     ]
+    }
+   },
+   "linux/amd64": {
+    "requirements": {
+     "cpu_cores": 2,
+     "memory_gb": 4,
+     "disk_gb": 2
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [
+      {
+       "type": "fetch",
+       "title": "Download Crowbar",
+       "exit_on_failure": true,
+       "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_amd64.AppImage",
+       "to": "${INSTALL_PATH}/Crowbar.AppImage",
+       "checksum": "",
+       "timeout": "15m"
+      },
+      {
+       "type": "portable",
+       "title": "Install Crowbar",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/Crowbar.AppImage",
+       "to": "${INSTALL_PATH}/app",
+       "timeout": "5m"
+      }
+     ],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Download Crowbar",
+       "exit_on_failure": true,
+       "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_amd64.AppImage",
+       "to": "${INSTALL_PATH}/Crowbar.AppImage",
+       "checksum": "",
+       "timeout": "15m"
+      },
+      {
+       "type": "portable",
+       "title": "Install Crowbar",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/Crowbar.AppImage",
+       "to": "${INSTALL_PATH}/app",
+       "timeout": "5m"
+      }
+     ],
+     "execute": [
+      {
+       "type": "run",
+       "title": "Start",
+       "exit_on_failure": true,
+       "command": "exec \"${ARROW_APP}\"",
+       "elevated": false,
+       "timeout": ""
+      }
+     ],
+     "stop": [
+      {
+       "type": "signal",
+       "title": "Stop",
+       "exit_on_failure": false,
+       "signal": "graceful",
+       "timeout": "10s"
+      }
+     ],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {
+     "add_service": {
+      "available_in": [
+       "ready"
+      ],
+      "steps": [
+       {
+        "type": "run",
+        "title": "Run the Crowbar daemon as a login service",
+        "exit_on_failure": true,
+        "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-install.sh | sh -s -- ${REF}",
+        "elevated": false,
+        "timeout": "5m"
+       }
+      ]
+     },
+     "remove_service": {
+      "available_in": [
+       "ready"
+      ],
+      "steps": [
+       {
+        "type": "run",
+        "title": "Remove the Crowbar daemon login service",
+        "exit_on_failure": true,
+        "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-uninstall.sh | sh",
+        "elevated": false,
+        "timeout": "2m"
+       }
+      ]
+     }
+    },
+    "expose": {
+     "desktop": [
+      {
+       "name": "Crowbar",
+       "path": "auto",
+       "categories": [
+        "Development",
+        "IDE"
+       ]
+      }
+     ]
+    }
+   },
+   "linux/arm64": {
+    "requirements": {
+     "cpu_cores": 2,
+     "memory_gb": 4,
+     "disk_gb": 2
+    },
+    "tools": [],
+    "services": [],
+    "exports": {},
+    "lifecycle": {
+     "install": [
+      {
+       "type": "fetch",
+       "title": "Download Crowbar",
+       "exit_on_failure": true,
+       "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_aarch64.AppImage",
+       "to": "${INSTALL_PATH}/Crowbar.AppImage",
+       "checksum": "",
+       "timeout": "15m"
+      },
+      {
+       "type": "portable",
+       "title": "Install Crowbar",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/Crowbar.AppImage",
+       "to": "${INSTALL_PATH}/app",
+       "timeout": "5m"
+      }
+     ],
+     "update": [
+      {
+       "type": "fetch",
+       "title": "Download Crowbar",
+       "exit_on_failure": true,
+       "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_aarch64.AppImage",
+       "to": "${INSTALL_PATH}/Crowbar.AppImage",
+       "checksum": "",
+       "timeout": "15m"
+      },
+      {
+       "type": "portable",
+       "title": "Install Crowbar",
+       "exit_on_failure": true,
+       "from": "${INSTALL_PATH}/Crowbar.AppImage",
+       "to": "${INSTALL_PATH}/app",
+       "timeout": "5m"
+      }
+     ],
+     "execute": [
+      {
+       "type": "run",
+       "title": "Start",
+       "exit_on_failure": true,
+       "command": "exec \"${ARROW_APP}\"",
+       "elevated": false,
+       "timeout": ""
+      }
+     ],
+     "stop": [
+      {
+       "type": "signal",
+       "title": "Stop",
+       "exit_on_failure": false,
+       "signal": "graceful",
+       "timeout": "10s"
+      }
+     ],
+     "uninstall": [],
+     "preinstalled": []
+    },
+    "methods": {
+     "add_service": {
+      "available_in": [
+       "ready"
+      ],
+      "steps": [
+       {
+        "type": "run",
+        "title": "Run the Crowbar daemon as a login service",
+        "exit_on_failure": true,
+        "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-install.sh | sh -s -- ${REF}",
+        "elevated": false,
+        "timeout": "5m"
+       }
+      ]
+     },
+     "remove_service": {
+      "available_in": [
+       "ready"
+      ],
+      "steps": [
+       {
+        "type": "run",
+        "title": "Remove the Crowbar daemon login service",
+        "exit_on_failure": true,
+        "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-uninstall.sh | sh",
+        "elevated": false,
+        "timeout": "2m"
+       }
+      ]
+     }
+    },
+    "expose": {
+     "desktop": [
+      {
+       "name": "Crowbar",
+       "path": "auto",
+       "categories": [
+        "Development",
+        "IDE"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "manifest": {
+   "metadata": {
+    "name": "crowbar",
+    "description": "The workbench for coding agents. Claude Code and Codex side by side on real branches, switchable mid-conversation, with local pull-request-style review. Free, open source, no account.",
+    "license": "AGPL-3.0-only OR LicenseRef-Commercial",
+    "url": "https://github.com/char2cs/crowbar",
+    "maintainers": [
+     {
+      "name": "char2cs",
+      "url": "https://char2cs.net"
+     }
+    ],
+    "credits": [
+     {
+      "name": "Rabbyte Software",
+      "url": "https://github.com/rabbytesoftware"
+     }
+    ],
+    "tags": [
+     "ide",
+     "development",
+     "agents",
+     "git",
+     "desktop",
+     "code-review"
+    ],
+    "media": {
+     "icon": "https://raw.githubusercontent.com/char2cs/crowbar/develop/.github/crowbar-icon.png",
+     "banner": "https://raw.githubusercontent.com/char2cs/crowbar/develop/.github/crowbar-banner.png"
+    }
+   },
+   "variables": [],
+   "netbridge": [],
+   "targets": {
+    "darwin/amd64": {
+     "requirements": {
+      "cpu_cores": 2,
+      "memory_gb": 4,
+      "disk_gb": 2
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [
+       {
+        "type": "fetch",
+        "title": "Download Crowbar",
+        "exit_on_failure": true,
+        "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+        "to": "${INSTALL_PATH}/Crowbar.dmg",
+        "checksum": "",
+        "timeout": "15m"
+       },
+       {
+        "type": "portable",
+        "title": "Install Crowbar",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/Crowbar.dmg",
+        "to": "${INSTALL_PATH}/app",
+        "timeout": "10m"
+       }
+      ],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Download Crowbar",
+        "exit_on_failure": true,
+        "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+        "to": "${INSTALL_PATH}/Crowbar.dmg",
+        "checksum": "",
+        "timeout": "15m"
+       },
+       {
+        "type": "portable",
+        "title": "Install Crowbar",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/Crowbar.dmg",
+        "to": "${INSTALL_PATH}/app",
+        "timeout": "10m"
+       }
+      ],
+      "execute": [
+       {
+        "type": "run",
+        "title": "Start",
+        "exit_on_failure": true,
+        "command": "exec \"${ARROW_APP}\"",
+        "elevated": false,
+        "timeout": ""
+       }
+      ],
+      "stop": [
+       {
+        "type": "signal",
+        "title": "Stop",
+        "exit_on_failure": false,
+        "signal": "graceful",
+        "timeout": "10s"
+       }
+      ],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {
+      "add_service": {
+       "available_in": [
+        "ready"
+       ],
+       "steps": [
+        {
+         "type": "run",
+         "title": "Run the Crowbar daemon as a login service",
+         "exit_on_failure": true,
+         "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-install.sh | sh -s -- ${REF}",
+         "elevated": false,
+         "timeout": "5m"
+        }
+       ]
+      },
+      "remove_service": {
+       "available_in": [
+        "ready"
+       ],
+       "steps": [
+        {
+         "type": "run",
+         "title": "Remove the Crowbar daemon login service",
+         "exit_on_failure": true,
+         "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-uninstall.sh | sh",
+         "elevated": false,
+         "timeout": "2m"
+        }
+       ]
+      }
+     },
+     "expose": {
+      "desktop": [
+       {
+        "name": "Crowbar",
+        "path": "auto"
+       }
+      ]
+     }
+    },
+    "darwin/arm64": {
+     "requirements": {
+      "cpu_cores": 2,
+      "memory_gb": 4,
+      "disk_gb": 2
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [
+       {
+        "type": "fetch",
+        "title": "Download Crowbar",
+        "exit_on_failure": true,
+        "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+        "to": "${INSTALL_PATH}/Crowbar.dmg",
+        "checksum": "",
+        "timeout": "15m"
+       },
+       {
+        "type": "portable",
+        "title": "Install Crowbar",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/Crowbar.dmg",
+        "to": "${INSTALL_PATH}/app",
+        "timeout": "10m"
+       }
+      ],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Download Crowbar",
+        "exit_on_failure": true,
+        "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_universal.dmg",
+        "to": "${INSTALL_PATH}/Crowbar.dmg",
+        "checksum": "",
+        "timeout": "15m"
+       },
+       {
+        "type": "portable",
+        "title": "Install Crowbar",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/Crowbar.dmg",
+        "to": "${INSTALL_PATH}/app",
+        "timeout": "10m"
+       }
+      ],
+      "execute": [
+       {
+        "type": "run",
+        "title": "Start",
+        "exit_on_failure": true,
+        "command": "exec \"${ARROW_APP}\"",
+        "elevated": false,
+        "timeout": ""
+       }
+      ],
+      "stop": [
+       {
+        "type": "signal",
+        "title": "Stop",
+        "exit_on_failure": false,
+        "signal": "graceful",
+        "timeout": "10s"
+       }
+      ],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {
+      "add_service": {
+       "available_in": [
+        "ready"
+       ],
+       "steps": [
+        {
+         "type": "run",
+         "title": "Run the Crowbar daemon as a login service",
+         "exit_on_failure": true,
+         "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-install.sh | sh -s -- ${REF}",
+         "elevated": false,
+         "timeout": "5m"
+        }
+       ]
+      },
+      "remove_service": {
+       "available_in": [
+        "ready"
+       ],
+       "steps": [
+        {
+         "type": "run",
+         "title": "Remove the Crowbar daemon login service",
+         "exit_on_failure": true,
+         "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-uninstall.sh | sh",
+         "elevated": false,
+         "timeout": "2m"
+        }
+       ]
+      }
+     },
+     "expose": {
+      "desktop": [
+       {
+        "name": "Crowbar",
+        "path": "auto"
+       }
+      ]
+     }
+    },
+    "linux/amd64": {
+     "requirements": {
+      "cpu_cores": 2,
+      "memory_gb": 4,
+      "disk_gb": 2
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [
+       {
+        "type": "fetch",
+        "title": "Download Crowbar",
+        "exit_on_failure": true,
+        "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_amd64.AppImage",
+        "to": "${INSTALL_PATH}/Crowbar.AppImage",
+        "checksum": "",
+        "timeout": "15m"
+       },
+       {
+        "type": "portable",
+        "title": "Install Crowbar",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/Crowbar.AppImage",
+        "to": "${INSTALL_PATH}/app",
+        "timeout": "5m"
+       }
+      ],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Download Crowbar",
+        "exit_on_failure": true,
+        "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_amd64.AppImage",
+        "to": "${INSTALL_PATH}/Crowbar.AppImage",
+        "checksum": "",
+        "timeout": "15m"
+       },
+       {
+        "type": "portable",
+        "title": "Install Crowbar",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/Crowbar.AppImage",
+        "to": "${INSTALL_PATH}/app",
+        "timeout": "5m"
+       }
+      ],
+      "execute": [
+       {
+        "type": "run",
+        "title": "Start",
+        "exit_on_failure": true,
+        "command": "exec \"${ARROW_APP}\"",
+        "elevated": false,
+        "timeout": ""
+       }
+      ],
+      "stop": [
+       {
+        "type": "signal",
+        "title": "Stop",
+        "exit_on_failure": false,
+        "signal": "graceful",
+        "timeout": "10s"
+       }
+      ],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {
+      "add_service": {
+       "available_in": [
+        "ready"
+       ],
+       "steps": [
+        {
+         "type": "run",
+         "title": "Run the Crowbar daemon as a login service",
+         "exit_on_failure": true,
+         "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-install.sh | sh -s -- ${REF}",
+         "elevated": false,
+         "timeout": "5m"
+        }
+       ]
+      },
+      "remove_service": {
+       "available_in": [
+        "ready"
+       ],
+       "steps": [
+        {
+         "type": "run",
+         "title": "Remove the Crowbar daemon login service",
+         "exit_on_failure": true,
+         "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-uninstall.sh | sh",
+         "elevated": false,
+         "timeout": "2m"
+        }
+       ]
+      }
+     },
+     "expose": {
+      "desktop": [
+       {
+        "name": "Crowbar",
+        "path": "auto",
+        "categories": [
+         "Development",
+         "IDE"
+        ]
+       }
+      ]
+     }
+    },
+    "linux/arm64": {
+     "requirements": {
+      "cpu_cores": 2,
+      "memory_gb": 4,
+      "disk_gb": 2
+     },
+     "tools": [],
+     "services": [],
+     "exports": {},
+     "lifecycle": {
+      "install": [
+       {
+        "type": "fetch",
+        "title": "Download Crowbar",
+        "exit_on_failure": true,
+        "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_aarch64.AppImage",
+        "to": "${INSTALL_PATH}/Crowbar.AppImage",
+        "checksum": "",
+        "timeout": "15m"
+       },
+       {
+        "type": "portable",
+        "title": "Install Crowbar",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/Crowbar.AppImage",
+        "to": "${INSTALL_PATH}/app",
+        "timeout": "5m"
+       }
+      ],
+      "update": [
+       {
+        "type": "fetch",
+        "title": "Download Crowbar",
+        "exit_on_failure": true,
+        "url": "https://github.com/char2cs/crowbar/releases/download/${REF}/Crowbar_${REF}_aarch64.AppImage",
+        "to": "${INSTALL_PATH}/Crowbar.AppImage",
+        "checksum": "",
+        "timeout": "15m"
+       },
+       {
+        "type": "portable",
+        "title": "Install Crowbar",
+        "exit_on_failure": true,
+        "from": "${INSTALL_PATH}/Crowbar.AppImage",
+        "to": "${INSTALL_PATH}/app",
+        "timeout": "5m"
+       }
+      ],
+      "execute": [
+       {
+        "type": "run",
+        "title": "Start",
+        "exit_on_failure": true,
+        "command": "exec \"${ARROW_APP}\"",
+        "elevated": false,
+        "timeout": ""
+       }
+      ],
+      "stop": [
+       {
+        "type": "signal",
+        "title": "Stop",
+        "exit_on_failure": false,
+        "signal": "graceful",
+        "timeout": "10s"
+       }
+      ],
+      "uninstall": [],
+      "preinstalled": []
+     },
+     "methods": {
+      "add_service": {
+       "available_in": [
+        "ready"
+       ],
+       "steps": [
+        {
+         "type": "run",
+         "title": "Run the Crowbar daemon as a login service",
+         "exit_on_failure": true,
+         "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-install.sh | sh -s -- ${REF}",
+         "elevated": false,
+         "timeout": "5m"
+        }
+       ]
+      },
+      "remove_service": {
+       "available_in": [
+        "ready"
+       ],
+       "steps": [
+        {
+         "type": "run",
+         "title": "Remove the Crowbar daemon login service",
+         "exit_on_failure": true,
+         "command": "curl -fsSL https://raw.githubusercontent.com/char2cs/crowbar/${REF}/scripts/service-uninstall.sh | sh",
+         "elevated": false,
+         "timeout": "2m"
+        }
+       ]
+      }
+     },
+     "expose": {
+      "desktop": [
+       {
+        "name": "Crowbar",
+        "path": "auto",
+        "categories": [
+         "Development",
+         "IDE"
+        ]
+       }
+      ]
+     }
+    }
+   },
+   "readme": "# Crowbar\n\n_Bring your own agent. Keep your own context._\n\nThe workbench for coding agents. Run Claude Code and Codex side by side on real branches, switch between them mid-conversation without losing a word, and review the result like a pull request that never leaves your machine.\n\n- **Your subscription, our bench.** Claude Code, Codex, whichever you already pay for.\n- **Change your mind mid-sentence.** Swap the agent between turns; the branch, the diff and the transcript stay put.\n- **Conversations that branch like your code.** A chat can start another chat, and it reports back when it's done.\n- **Pull requests, without the pull.** Inline comment threads that agents read and answer, all local.\n- **Run it anywhere.** Put the daemon on a box of yours and drive it from your laptop.\n\nFree, open source, no account. For macOS and Linux.\n\n---\n\n\n---\n\nCrowbar is dual-licensed under the AGPL-3.0 or a commercial license."
+  }
+ }
+}

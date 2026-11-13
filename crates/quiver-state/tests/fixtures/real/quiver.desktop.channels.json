@@ -1,0 +1,30 @@
+{
+ "ok": true,
+ "data": {
+  "channels": [
+   {
+    "name": "stable",
+    "kind": "ordered",
+    "latest": "stable-2026-10-13",
+    "count": 1,
+    "members": [
+     "stable-2026-10-13"
+    ]
+   },
+   {
+    "name": "beta",
+    "kind": "ordered",
+    "latest": "beta-2026-10-13",
+    "count": 1,
+    "members": [
+     "beta-2026-10-13"
+    ]
+   },
+   {
+    "name": "nightly-rolling",
+    "kind": "pointer",
+    "latest": "nightly-rolling"
+   }
+  ]
+ }
+}

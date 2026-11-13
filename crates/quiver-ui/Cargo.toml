@@ -1,0 +1,30 @@
+[package]
+name = "quiver-ui"
+description = "GPUI components, one file per Coss component, plus the gallery."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+quiver-theme.workspace = true
+gpui.workspace = true
+gpui-component.workspace = true
+thiserror.workspace = true
+lyon_tessellation = "1"
+# Cropping a banner to its box (cover.rs); the version GPUI uses.
+image = { version = "0.25", default-features = false }
+
+[features]
+# Element registry for the e2e control bridge; off in release builds.
+inspect = []
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+
+[[example]]
+name = "gallery"
+path = "examples/gallery.rs"

@@ -1,0 +1,7 @@
+{
+ "ok": true,
+ "data": {
+  "namespace": "github.com/rabbytesoftware/quiver.desktop",
+  "readme": "# Quiver\n\n<p align=\"center\">\n  <img src=\"https://raw.githubusercontent.com/rabbytesoftware/quiver.desktop/develop/.github/quiver.svg\" alt=\"Quiver\" width=\"450\" />\n  <br/>\n  <em>The window you're looking through right now.</em>\n</p>\n\nThis is Quiver itself: the desktop app you're using to browse this catalog, showing up in it like any other application. It's listed here so it can report its own version next to everyone else's, the same way it tracks updates for anything else you've installed.\n\nIf you're reading this inside the app, there's nothing to do: you already have it. If you're not, this is how you'd get it. Quiver installs, updates and removes this window exactly the way it handles everything else in your library."
+ }
+}

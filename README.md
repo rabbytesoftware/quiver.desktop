@@ -10,7 +10,7 @@ Quiver is a truly decentralized, cross-platform, open-source application store. 
 
 #### What's in this repo
 
-`quiver.desktop` is the visual interface for Quiver — a Tauri application built with React and TypeScript that lets users browse, install, and manage Arrows through a native desktop UI, and remotely manage multiple hosts from a single window. The core engine lives in a separate repository.
+`quiver.desktop` is the visual interface for Quiver: a fully native Rust application on [GPUI](https://www.gpui.rs) that lets users browse, install, and manage Arrows, and remotely manage multiple hosts from a single window. The core engine lives in a separate repository. The architecture (crate graph, module mapping from the former Tauri app) is in [docs/architecture.md](docs/architecture.md).
 
 ---
 
@@ -36,29 +36,27 @@ Both scripts read the latest GitHub release, pick the right asset for your machi
 
 Quiver is open-source and we welcome contributions from the community — whether that's improving the UI, adding features, or anything in between.
 
-### Common commands
+### Build and test
+
+You need a stable Rust toolchain. On Linux install the GPUI system libraries listed in
+[docker/native/Dockerfile](docker/native/Dockerfile) (or build everything inside the container:
+`scripts/box.sh cargo ...`).
 
 | Command | Description |
 |---|---|
-| `make deps` | Install all dependencies (frontend + Rust) |
-| `make deps-frontend` | Install frontend dependencies (bun) |
-| `make deps-rust` | Download Rust dependencies |
-| `make build` | Build both frontend and Tauri backend |
-| `make fmt-frontend` | Fix frontend formatting with Prettier |
-| `make lint-frontend` | Run ESLint |
-| `make typecheck-frontend` | Run TypeScript type checking |
-| `make fmt-rust` | Fix Rust formatting |
-| `make lint-rust` | Run Clippy |
-| `make test-rust` | Run Rust tests |
-| `make coverage-rust` | Run tests with coverage (≥80%) |
+| `make dev` | Run the app against a real quiver.core (fetches the sidecar once) |
+| `make dev-local` | Run against a sibling quiver.core checkout (`QUIVER_CORE_DEV_PATH`) |
+| `cargo run -p quiver-app -- --demo` | Run over seeded in-memory data, no daemon (design review, screenshots) |
+| `make build` | Release build of the workspace binaries (no e2e bridge) |
+| `make test` | `cargo test --workspace` |
+| `make gate` | The PR gate: fmt, clippy `-D warnings`, test, cargo-deny, cargo-audit, machete, dependency direction, file layout |
+| `make package` | Assemble the installer/bundle for this OS in `target/bundle/` |
+| `make test-e2e-box` | End-to-end scenarios against a real quiver.core in the Linux desktop container (Docker) |
 
-Before opening a PR, always run:
+Before opening a PR run `make gate`. Run `make help` for the rest.
 
-```bash
-make pr-checks
-```
-
-This runs the full validation suite — formatting, linting, type checking, build, and tests. Run `make help` to see all available targets.
+The crates below `quiver-ui` never depend on `gpui`; `cargo xtask check-deps` enforces it. Files stay under
+300 lines (500 is a hard limit, `cargo xtask check-layout`). See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
