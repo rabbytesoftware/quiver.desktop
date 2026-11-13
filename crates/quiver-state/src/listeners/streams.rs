@@ -17,7 +17,9 @@ use crate::persistence::entity_stream::{
 };
 use crate::persistence::version::maybe_wipe_on_version_change;
 use crate::persistence::{EntityCache, KeyValueStore};
-use crate::queries::keys::{arrow_detail_prefix, collection_prefix};
+use crate::queries::keys::{
+    arrow_detail_prefix, collection_prefix, followed_collections_key, home_key,
+};
 use crate::queries::QueryClient;
 use crate::store::{ArrowStore, StatusStore};
 use crate::transport::ws_manager::{is_reconnect_sentinel, Subscription, WsManager};
@@ -330,9 +332,15 @@ impl Inner {
         *reseeder.lock().unwrap_or_else(PoisonError::into_inner) = Some(handle.clone());
         deps.arrows.set_catalog_refresh(move || handle.reseed());
 
-        // A reconnect may have dropped frames, so the sentinel re-reads too.
+        // A reconnect may have dropped frames, so the sentinel re-reads too. It also means the daemon may
+        // be another one (a self-update swap or a respawn leaves the status at ready, so nothing else
+        // says so): every read that daemon answered per connection is stale, not just the open details.
         let refresh = deps.queries.clone().map(|queries| {
-            deps.ws.subscribe(REFRESHED_ENDPOINT, move |_| {
+            deps.ws.subscribe(REFRESHED_ENDPOINT, move |data| {
+                if is_reconnect_sentinel(data) {
+                    queries.invalidate(&home_key());
+                    queries.invalidate(&followed_collections_key());
+                }
                 queries.invalidate(&arrow_detail_prefix());
                 queries.invalidate(&collection_prefix());
             })

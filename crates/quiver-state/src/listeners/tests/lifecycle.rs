@@ -79,6 +79,46 @@ async fn re_reads_open_details_and_collections_when_core_refreshes_a_manifest() 
     assert_eq!(rig.queries.epoch(&arrow_detail_key("x@1")), 1);
 }
 
+/// A daemon swap (self-update, crash and respawn) leaves the status at ready, so nothing flips it and no
+/// feed re-reads on its own: the socket's reconnect is the only signal that every read the old daemon
+/// answered (Home, followed collections, open details and collections) is stale. Observed against a real
+/// daemon: the arrow overlay re-converged, the per-daemon reads did not.
+#[tokio::test]
+async fn a_reconnect_re_reads_everything_the_old_daemon_answered() {
+    let rig = rig();
+    let _l = rig.ready().await;
+    let refreshed = rig
+        .api
+        .wait_stream("/v0/arrow?user_installed=false", 0)
+        .await;
+    refreshed.send_json(json!({"reconnected": true}));
+    let mut rx = rig.queries.subscribe();
+    while rig.queries.epoch(&collection_key("c")) == 0 {
+        rx.changed().await.unwrap();
+    }
+    assert_eq!(rig.queries.epoch(&arrow_detail_key("x@1")), 1);
+    assert_eq!(rig.queries.epoch(&home_key()), 1);
+    assert_eq!(rig.queries.epoch(&followed_collections_key()), 1);
+}
+
+/// The other half: a manifest the daemon refreshed re-reads only the screens that showed that manifest.
+#[tokio::test]
+async fn a_refreshed_manifest_leaves_home_and_followed_collections_alone() {
+    let rig = rig();
+    let _l = rig.ready().await;
+    let refreshed = rig
+        .api
+        .wait_stream("/v0/arrow?user_installed=false", 0)
+        .await;
+    refreshed.send_json(json!({"event": "upserted", "namespace": "other@1"}));
+    let mut rx = rig.queries.subscribe();
+    while rig.queries.epoch(&collection_key("c")) == 0 {
+        rx.changed().await.unwrap();
+    }
+    assert_eq!(rig.queries.epoch(&home_key()), 0);
+    assert_eq!(rig.queries.epoch(&followed_collections_key()), 0);
+}
+
 #[tokio::test]
 async fn does_not_subscribe_to_manifest_refreshes_without_a_query_client() {
     let rig = rig();

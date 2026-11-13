@@ -13,7 +13,7 @@ use crate::domain::{
 };
 use crate::persistence::version::{CACHE_VERSION_KEY, QUIVER_CACHE_VERSION};
 use crate::persistence::{EntityCache, InMemoryKeyValueStore, KeyValueStore};
-use crate::queries::keys::{arrow_detail_key, collection_key};
+use crate::queries::keys::{arrow_detail_key, collection_key, followed_collections_key, home_key};
 use crate::queries::QueryClient;
 use crate::store::{ArrowStore, StatusStore};
 use crate::transport::ws_manager::WsManager;
