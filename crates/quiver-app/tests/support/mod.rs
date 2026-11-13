@@ -280,6 +280,7 @@ impl LocalSetup {
             pages: None,
             release: Arc::new(NativeReleaseSource::new()),
             platform: "linux/amd64".into(),
+            start_local: true,
         }
     }
 }

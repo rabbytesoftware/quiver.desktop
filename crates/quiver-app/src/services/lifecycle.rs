@@ -49,6 +49,10 @@ pub struct ServicesConfig {
     pub release: Arc<dyn ReleaseSource>,
     /// This machine's `"os/arch"` key.
     pub platform: String,
+    /// Start the local daemon connection in the background. The demo and its tests turn it off: a
+    /// connection that is going to fail anyway still emits `starting`, which resets the arrow store
+    /// at an arbitrary moment and wipes whatever the demo seeded.
+    pub start_local: bool,
 }
 
 impl ServicesConfig {
@@ -65,6 +69,7 @@ impl ServicesConfig {
             pages: Some(Arc::new(EmbeddedPages::new())),
             release: Arc::new(NativeReleaseSource::new()),
             platform: platform_key(),
+            start_local: true,
         })
     }
 }
@@ -194,8 +199,10 @@ impl AppServices {
             announce: Arc::new(NoAnnounce),
         })
         .await;
-        let start = manager.clone();
-        tokio::spawn(async move { start.start().await });
+        if config.start_local {
+            let start = manager.clone();
+            tokio::spawn(async move { start.start().await });
+        }
 
         let upstream = Arc::new(CoreUpstream::new(manager.clone()));
         let launcher = config.pages.clone().map_or_else(

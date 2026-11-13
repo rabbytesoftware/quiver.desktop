@@ -31,6 +31,7 @@ pub fn services(
         pages: None,
         release: Arc::new(NativeReleaseSource::new()),
         platform: quiver_platform::platform_key(),
+        start_local: false,
     };
     Ok(Arc::new(runtime.block_on(AppServices::build(config))))
 }
