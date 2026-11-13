@@ -217,6 +217,22 @@ pub fn default_socket_path(env: &PathEnv) -> PathBuf {
 mod tests {
     use super::*;
 
+    /// The desktop shell ties a window to its menu entry and icon by the window's app id, which is this
+    /// constant: the Linux entry, its file name and its icons must all carry it.
+    #[test]
+    fn the_linux_desktop_entry_and_icons_are_named_by_the_app_identifier() {
+        let entry = include_str!("../../../installer/linux/com.rabbytesoftware.quiver.desktop");
+        assert_eq!(APP_IDENTIFIER, "com.rabbytesoftware.quiver");
+        assert!(entry.lines().any(|l| l == format!("Icon={APP_IDENTIFIER}")));
+        assert!(entry
+            .lines()
+            .any(|l| l == format!("StartupWMClass={APP_IDENTIFIER}")));
+        let largest = include_bytes!(
+            "../../../installer/icons/hicolor/512x512/apps/com.rabbytesoftware.quiver.png"
+        );
+        assert!(largest.starts_with(b"\x89PNG"));
+    }
+
     fn env(os: Os) -> PathEnv {
         PathEnv {
             os,

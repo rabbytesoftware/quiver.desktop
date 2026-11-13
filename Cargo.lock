@@ -5484,6 +5484,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.22.1",
+ "embed-resource",
  "futures-util",
  "gpui",
  "gpui-component",

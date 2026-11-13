@@ -182,6 +182,19 @@ logs in `docker/e2e/results/native/`, not just the checkmark: `SUMMARY.txt` list
 The box tests a bridge-enabled build of the same source, not the release binary: the release binary is covered
 by `check-release-artifact` plus step 7.
 
+## 6b. The app icon, on each OS (look at it; nothing in CI can)
+
+The icon is declared per platform and none of it is observable from a test:
+
+- **macOS**: the Dock, Finder and Cmd-Tab show the yellow squircle with the arrow, inset with a soft shadow like
+  the neighbouring icons (`installer/icons/icon.icns`, padded to the macOS grid). Install the `.dmg`, not a
+  `cargo run` binary: an unbundled binary has no icon.
+- **Windows**: Explorer, the taskbar while it runs, and Alt-Tab show it (`crates/quiver-app/windows/quiver.rc`
+  embeds `icon.ico` in the exe), not only the Start-menu shortcut and the uninstall entry.
+- **Linux**: the window's app id, `com.rabbytesoftware.quiver`, equals the `.desktop` file name, its `Icon=` and
+  `StartupWMClass=`, and the icon file name (a unit test pins that). Check the launcher and the taskbar on X11 and on
+  Wayland after installing the `.deb`, and from the AppImage.
+
 ## 7. Update from the previous release
 
 The updater path (the app asks quiver.core to run `ARROW.md`'s update lifecycle with the asset URL and checksum the

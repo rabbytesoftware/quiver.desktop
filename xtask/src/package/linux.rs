@@ -14,8 +14,38 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::PathBuf;
 
-const DESKTOP_ENTRY: &str = include_str!("../../../installer/linux/quiver.desktop");
-const ICON: &str = "installer/icons/icon.png";
+/// The app's id: GPUI sends it as the window's Wayland app_id / X11 WM_CLASS, and the desktop shell matches it to
+/// `<id>.desktop` and the `<id>` icon. Everything installed below uses it, or the window gets a generic icon.
+pub(super) const APP_ID: &str = "com.rabbytesoftware.quiver";
+pub(super) const DESKTOP_ENTRY: &str =
+    include_str!("../../../installer/linux/com.rabbytesoftware.quiver.desktop");
+/// `<size>x<size>/apps/<APP_ID>.png` for each size, laid out as the freedesktop icon theme wants.
+const ICON_THEME: &str = "installer/icons/hicolor";
+/// The largest one, which an AppImage also carries at its top level.
+const ICON: &str = "installer/icons/hicolor/512x512/apps/com.rabbytesoftware.quiver.png";
+
+/// Copies every icon size into `<root>/usr/share/icons/hicolor`.
+pub(super) fn install_icons(root: &std::path::Path) -> Result<()> {
+    install_icons_from(std::path::Path::new(ICON_THEME), root)
+}
+
+fn install_icons_from(
+    theme: &std::path::Path,
+    root: &std::path::Path,
+) -> Result<()> {
+    for size in fs::read_dir(theme).with_context(|| format!("reading {}", theme.display()))? {
+        let size = size?.path();
+        let from = size.join("apps").join(format!("{APP_ID}.png"));
+        let Some(name) = size.file_name() else {
+            continue;
+        };
+        let to = root.join("usr/share/icons/hicolor").join(name).join("apps");
+        fs::create_dir_all(&to)?;
+        fs::copy(&from, to.join(format!("{APP_ID}.png")))
+            .with_context(|| format!("copying {}", from.display()))?;
+    }
+    Ok(())
+}
 
 pub fn appimage_name(
     version: &str,
@@ -36,8 +66,14 @@ pub fn package(inputs: &Inputs) -> Result<Vec<PathBuf>> {
         fs::remove_dir_all(&appdir)?;
     }
     copy_pieces(&pieces, &appdir.join("usr/bin"))?;
-    fs::write(appdir.join("quiver.desktop"), DESKTOP_ENTRY)?;
-    fs::copy(ICON, appdir.join("quiver.png")).with_context(|| format!("copying {ICON}"))?;
+    fs::write(appdir.join(format!("{APP_ID}.desktop")), DESKTOP_ENTRY)?;
+    fs::copy(ICON, appdir.join(format!("{APP_ID}.png")))
+        .with_context(|| format!("copying {ICON}"))?;
+    fs::copy(ICON, appdir.join(".DirIcon")).with_context(|| format!("copying {ICON}"))?;
+    install_icons(&appdir)?;
+    let apps = appdir.join("usr/share/applications");
+    fs::create_dir_all(&apps)?;
+    fs::write(apps.join(format!("{APP_ID}.desktop")), DESKTOP_ENTRY)?;
     let apprun = appdir.join("AppRun");
     fs::write(&apprun, app_run())?;
     crate::sidecar::make_executable(&apprun)?;
@@ -76,6 +112,22 @@ pub fn package(inputs: &Inputs) -> Result<Vec<PathBuf>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_icon_size_lands_in_the_hicolor_theme_under_the_app_id() {
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let out = std::env::temp_dir().join(format!("quiver-icons-{}", std::process::id()));
+        install_icons_from(&repo.join(ICON_THEME), &out).unwrap();
+        for size in [16, 32, 48, 64, 128, 256, 512] {
+            let icon = out.join(format!(
+                "usr/share/icons/hicolor/{size}x{size}/apps/{APP_ID}.png"
+            ));
+            assert!(icon.is_file(), "missing {}", icon.display());
+        }
+        fs::remove_dir_all(out).unwrap();
+        assert!(DESKTOP_ENTRY.contains(&format!("Icon={APP_ID}\n")));
+        assert!(DESKTOP_ENTRY.contains(&format!("StartupWMClass={APP_ID}\n")));
+    }
 
     #[test]
     fn the_appimage_name_ends_in_the_suffix_the_updater_selects() {

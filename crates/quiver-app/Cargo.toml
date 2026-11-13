@@ -70,3 +70,6 @@ wiremock.workspace = true
 # Reserved for the views and the arrow-window helper that land after the services.
 [package.metadata.cargo-machete]
 ignored = ["anyhow", "base64", "quiver-e2e"]
+
+[target.'cfg(windows)'.build-dependencies]
+embed-resource = "3"

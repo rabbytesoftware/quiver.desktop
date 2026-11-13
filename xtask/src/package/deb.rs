@@ -7,8 +7,7 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::PathBuf;
 
-const DESKTOP_ENTRY: &str = include_str!("../../../installer/linux/quiver.desktop");
-const ICON: &str = "installer/icons/icon.png";
+use super::linux::{install_icons, APP_ID, DESKTOP_ENTRY};
 /// Runtime libraries the GPUI app and its embedded WebKitGTK views load.
 const DEPENDS: &str = "libwebkit2gtk-4.1-0, libgtk-3-0, libxkbcommon-x11-0, libvulkan1, libfontconfig1, libssl3, libxcb1";
 
@@ -33,10 +32,8 @@ pub fn build(
     copy_pieces(pieces, &root.join("usr/bin"))?;
     let apps = root.join("usr/share/applications");
     fs::create_dir_all(&apps)?;
-    fs::write(apps.join("quiver.desktop"), DESKTOP_ENTRY)?;
-    let icons = root.join("usr/share/icons/hicolor/512x512/apps");
-    fs::create_dir_all(&icons)?;
-    fs::copy(ICON, icons.join("quiver.png")).with_context(|| format!("copying {ICON}"))?;
+    fs::write(apps.join(format!("{APP_ID}.desktop")), DESKTOP_ENTRY)?;
+    install_icons(&root)?;
     fs::create_dir_all(root.join("DEBIAN"))?;
     fs::write(root.join("DEBIAN/control"), control(&inputs.version, arch))?;
 

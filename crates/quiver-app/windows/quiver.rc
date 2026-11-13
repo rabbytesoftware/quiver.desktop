@@ -1,0 +1,27 @@
+// Windows resources of the app's executable. The icon is what Explorer, the taskbar, Alt-Tab and the
+// notification area show for a running Quiver; without it they show the generic executable icon (the .ico
+// the installer ships only reaches the shortcut and the uninstall entry).
+1 ICON "../../../installer/icons/icon.ico"
+
+// Numeric flags instead of <winver.h>: the resource compiler is not guaranteed an include path in CI.
+1 VERSIONINFO
+FILEVERSION 0,0,0,0
+PRODUCTVERSION 0,0,0,0
+FILEOS 0x40004L
+FILETYPE 0x1L
+{
+  BLOCK "StringFileInfo"
+  {
+    BLOCK "040904b0"
+    {
+      VALUE "ProductName", "Quiver"
+      VALUE "FileDescription", "Quiver Desktop"
+      VALUE "CompanyName", "Rabbyte Software"
+      VALUE "OriginalFilename", "quiverdesktop.exe"
+    }
+  }
+  BLOCK "VarFileInfo"
+  {
+    VALUE "Translation", 0x0409, 0x04b0
+  }
+}
