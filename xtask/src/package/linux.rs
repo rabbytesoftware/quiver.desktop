@@ -125,8 +125,10 @@ mod tests {
             assert!(icon.is_file(), "missing {}", icon.display());
         }
         fs::remove_dir_all(out).unwrap();
-        assert!(DESKTOP_ENTRY.contains(&format!("Icon={APP_ID}\n")));
-        assert!(DESKTOP_ENTRY.contains(&format!("StartupWMClass={APP_ID}\n")));
+        // By line: a Windows checkout has CRLF endings, which a "...\n" substring match would miss.
+        let has = |wanted: String| DESKTOP_ENTRY.lines().any(|l| l == wanted);
+        assert!(has(format!("Icon={APP_ID}")));
+        assert!(has(format!("StartupWMClass={APP_ID}")));
     }
 
     #[test]
