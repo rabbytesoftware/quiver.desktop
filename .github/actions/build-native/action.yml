@@ -75,11 +75,12 @@ runs:
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
-          build-essential cmake clang pkg-config file patchelf dpkg-dev \
+          build-essential cmake clang pkg-config file patchelf dpkg-dev desktop-file-utils \
           libfontconfig-dev libfreetype-dev libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
           libssl-dev libvulkan-dev libx11-dev libx11-xcb-dev libxcb-xkb-dev libxkbfile-dev libdbus-1-dev \
           libzstd-dev libasound2-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libsecret-1-dev \
           libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev
+        # desktop-file-utils: appimagetool runs desktop-file-validate on the entry and refuses to build without it.
         # appimagetool is itself an AppImage; xtask runs it with APPIMAGE_EXTRACT_AND_RUN, so no FUSE is
         # needed. NOT VERIFIED from here: the pinned release asset name and that this version still exists.
         curl -fsSL -o /usr/local/bin/appimagetool \
@@ -121,8 +122,13 @@ runs:
           throw "vc_redist.x64.exe is not validly signed by Microsoft (status: $($sig.Status))"
         }
         "QUIVER_VCREDIST_PATH=$path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-        # makensis ships on windows-latest runner images; install it if a future image drops it.
+        # makensis ships on windows-latest runner images; install it if a future image drops it. Neither case is
+        # guaranteed to be on PATH for the NEXT step (choco's PATH change only reaches this shell), so put the
+        # install directory on GITHUB_PATH explicitly and fail here, not deep inside the packaging step.
         if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) { choco install nsis -y --no-progress }
+        $nsis = @("${env:ProgramFiles(x86)}\NSIS", "$env:ProgramFiles\NSIS") | Where-Object { Test-Path (Join-Path $_ 'makensis.exe') } | Select-Object -First 1
+        if (-not $nsis) { throw 'makensis.exe not found after installing NSIS' }
+        $nsis | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
     # Signing is opt-in. An unset secret expands to an empty string; empty values are treated as absent by
     # xtask, so an unconfigured run produces the ad-hoc signed DMG. UNVERIFIED here: needs the Apple secrets.
