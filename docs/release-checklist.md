@@ -105,7 +105,7 @@ branch-driven workflows keep only their trigger and tag derivation and call it w
 `backport.yml`). It can also be run by hand (`workflow_dispatch`, `publish: false` uploads workflow artifacts
 only). Its `prepare` job resolves the quiver.core tag (`cargo xtask resolve-core-version` for beta/stable/nightly;
 `extract-core-version` of the latest stable for a hotfix, also when a hotfix is promoted to stable), checks that
-release exists, and for stable creates and pushes the tag. Its `build` job runs `.github/actions/build-native` on ubuntu, macos-15 and windows: fetch the sidecar, `cargo build
+release exists, and for stable creates and pushes the tag. Its `build` job runs `.github/actions/build-native` on ubuntu, macos-26 and windows: fetch the sidecar, `cargo build
 --release -p quiver-app` (never `--features e2e-bridge`), `cargo xtask package`, then
 `cargo xtask check-release-artifact` on the binaries. Its `publish` job runs `cargo xtask checksums` and
 `cargo xtask check-release-assets` (below) before `gh release create`.
