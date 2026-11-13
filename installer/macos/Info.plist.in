@@ -5,6 +5,9 @@
   <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>CFBundleExecutable</key><string>quiverdesktop</string>
   <key>CFBundleIconFile</key><string>icon.icns</string>
+  <!-- The adaptive icon inside Resources/Assets.car (compiled from icons/quiver.icon); macOS 26 ignores the
+       car without this and draws its own dark version of icon.icns. Must equal ADAPTIVE_ICON_NAME. -->
+  <key>CFBundleIconName</key><string>quiver</string>
   <key>CFBundleIdentifier</key><string>com.rabbytesoftware.quiver</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleName</key><string>Quiver</string>

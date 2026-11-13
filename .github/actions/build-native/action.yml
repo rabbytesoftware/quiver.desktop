@@ -157,6 +157,17 @@ runs:
 
     # The stamps are compile-time inputs: cargo re-runs quiver-release's build.rs when they change, so a
     # restored target/ cache cannot carry the previous release's stamp. NEVER pass --features e2e-bridge here.
+    # `cargo xtask package macos` compiles the adaptive icon with actool. Xcode 26.3's actool CRASHES on
+    # installer/icons/quiver.icon (the old build hit this), so use the newest Xcode 26.x the image carries.
+    - name: Select the newest Xcode 26 (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+        [ -n "$XCODE" ] || { echo "no Xcode 26 under /Applications"; exit 1; }
+        echo "DEVELOPER_DIR=$XCODE/Contents/Developer" >> "$GITHUB_ENV"
+        echo "using $XCODE"
+
     - name: Build and package
       shell: bash
       env:

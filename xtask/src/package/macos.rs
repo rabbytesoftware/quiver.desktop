@@ -16,6 +16,15 @@ use std::path::{Path, PathBuf};
 
 const INFO_PLIST: &str = include_str!("../../../installer/macos/Info.plist.in");
 const ICON: &str = "installer/icons/icon.icns";
+/// The Icon Composer source of the macOS 26 adaptive icon: the light look, the dark look (a yellow arrow) and
+/// the tinted one. Compiled by `actool` into `Assets.car`; without it macOS draws its own dark version of
+/// `icon.icns` (a black arrow).
+const ADAPTIVE_ICON_SOURCE: &str = "installer/icons/quiver.icon";
+/// The name `actool` gives the icon in `Assets.car`. It must equal the `.icon` bundle's stem and the
+/// `CFBundleIconName` in `Info.plist.in`, or macOS ignores the car and falls back to the plain `.icns`.
+const ADAPTIVE_ICON_NAME: &str = "quiver";
+/// Set (to anything) to build without the adaptive icon, on a machine whose Xcode cannot compile it.
+const PLAIN_ICON_ENV: &str = "QUIVER_PLAIN_MAC_ICON";
 const ENTITLEMENTS: &str = "installer/macos/Entitlements.plist";
 
 pub fn info_plist(version: &str) -> String {
@@ -42,6 +51,7 @@ pub fn package(
     let resources = app.join("Contents/Resources");
     fs::create_dir_all(&resources)?;
     fs::copy(ICON, resources.join("icon.icns")).with_context(|| format!("copying {ICON}"))?;
+    compile_adaptive_icon(&inputs.out, &resources)?;
     fs::write(app.join("Contents/Info.plist"), info_plist(&inputs.version))?;
 
     let identity = std::env::var("APPLE_SIGNING_IDENTITY")
@@ -80,6 +90,66 @@ pub fn package(
         notarize(&dmg)?;
     }
     Ok(vec![dmg])
+}
+
+/// Compiles `quiver.icon` into `Resources/Assets.car` (the old build did this in `icons-compiler/`).
+///
+/// A failure fails the build: shipping only the plain `.icns` looks right on macOS 15 and wrong on 26 (the
+/// system invents a dark version with a black arrow), so a release must not do it silently. Needs Xcode
+/// 26.4 or newer (26.3's `actool` crashes on this file); `QUIVER_PLAIN_MAC_ICON=1` opts out for a local build.
+fn compile_adaptive_icon(
+    out: &Path,
+    resources: &Path,
+) -> Result<()> {
+    if std::env::var_os(PLAIN_ICON_ENV).is_some_and(|v| !v.is_empty()) {
+        println!("warning: {PLAIN_ICON_ENV} is set: the app ships without its adaptive (dark/tinted) icon");
+        return Ok(());
+    }
+    let work = out.join("actool");
+    if work.exists() {
+        fs::remove_dir_all(&work)?;
+    }
+    fs::create_dir_all(&work)?;
+    let compiled = work.to_str().context("non-utf8 path")?;
+    let partial = work.join("partial.plist");
+    let partial = partial.to_str().context("non-utf8 path")?;
+    run(
+        "xcrun",
+        &[
+            "actool",
+            ADAPTIVE_ICON_SOURCE,
+            "--compile",
+            compiled,
+            "--output-partial-info-plist",
+            partial,
+            "--app-icon",
+            ADAPTIVE_ICON_NAME,
+            "--include-all-app-icons",
+            "--enable-on-demand-resources",
+            "NO",
+            "--development-region",
+            "en",
+            "--target-device",
+            "mac",
+            "--minimum-deployment-target",
+            "11.0",
+            "--platform",
+            "macosx",
+        ],
+    )
+    .with_context(|| {
+        format!(
+            "compiling {ADAPTIVE_ICON_SOURCE} needs Xcode 26.4+ (set {PLAIN_ICON_ENV}=1 to build without it)"
+        )
+    })?;
+    let car = work.join("Assets.car");
+    anyhow::ensure!(
+        car.is_file(),
+        "actool wrote no Assets.car in {}",
+        work.display()
+    );
+    fs::copy(&car, resources.join("Assets.car")).context("copying Assets.car")?;
+    Ok(())
 }
 
 fn arch_label(
@@ -216,6 +286,29 @@ fn link_applications(_stage: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The dark icon was lost once in the port (the old build compiled `quiver.icon`; the new one did not, and
+    /// macOS then drew a black-arrow dark icon). These keep the three pieces tied together without a Mac.
+    #[test]
+    fn the_plist_names_the_adaptive_icon_the_source_provides() {
+        let plist = info_plist("1.2.3");
+        assert!(plist.contains(&format!(
+            "<key>CFBundleIconName</key><string>{ADAPTIVE_ICON_NAME}</string>"
+        )));
+        let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join(ADAPTIVE_ICON_SOURCE);
+        assert_eq!(
+            source.file_stem().and_then(|s| s.to_str()),
+            Some(ADAPTIVE_ICON_NAME),
+            "the .icon bundle's name is the icon's name in Assets.car"
+        );
+        let json = fs::read_to_string(source.join("icon.json")).unwrap();
+        assert!(
+            json.contains("\"appearance\" : \"dark\""),
+            "the source must define a dark look (the yellow arrow)"
+        );
+    }
 
     #[test]
     fn the_plist_carries_the_bundle_identity_and_version() {
