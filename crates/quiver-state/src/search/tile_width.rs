@@ -16,9 +16,35 @@ pub fn tile_width(
     ((available - (fit - 1.) * gap) / fit).max(min)
 }
 
+/// Width of each of `columns` equal tiles that fill an `available` px row (the old
+/// `repeat(columns, minmax(0, 1fr))`: a fixed column count, no minimum).
+pub fn equal_columns_width(
+    columns: usize,
+    available: f32,
+) -> f32 {
+    let columns = columns.max(1) as f32;
+    ((available - (columns - 1.) * COLUMN_GAP as f32) / columns).max(0.)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn equal_columns_fill_the_row_whatever_its_width() {
+        assert_eq!(equal_columns_width(3, 890.), (890. - 2. * 12.) / 3.);
+        assert_eq!(equal_columns_width(3, 1590.), 522.);
+    }
+
+    #[test]
+    fn equal_columns_never_go_negative_in_a_collapsed_window() {
+        assert_eq!(equal_columns_width(3, 10.), 0.);
+        assert_eq!(
+            equal_columns_width(0, 100.),
+            100.,
+            "zero columns counts as one"
+        );
+    }
 
     #[test]
     fn a_thin_answer_gets_two_wide_columns() {

@@ -18,12 +18,16 @@ pub fn sections(
     let mut out = div().w_full().flex().flex_col().gap(px(38.));
     for section in &model.sections {
         out = match section {
-            HomeSection::Recents => {
-                out.child(div().w(px(width)).child(recents::recents(view, model, cx)))
-            }
-            HomeSection::Library => {
-                out.child(div().w(px(width)).child(library::library(view, model, cx)))
-            }
+            HomeSection::Recents => out.child(
+                div()
+                    .w(px(width))
+                    .child(recents::recents(view, model, width, cx)),
+            ),
+            HomeSection::Library => out.child(
+                div()
+                    .w(px(width))
+                    .child(library::library(view, model, width, cx)),
+            ),
             HomeSection::LeadShelf | HomeSection::TrailingShelves => {
                 // The lead shelf and the shelves after it are one "Popular" block on Home.
                 if matches!(section, HomeSection::LeadShelf) {
