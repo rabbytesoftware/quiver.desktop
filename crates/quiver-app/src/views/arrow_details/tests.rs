@@ -74,6 +74,9 @@ fn the_page_renders_for_every_demo_state(cx: &mut TestAppContext) {
     let model = boot(cx);
     for slug in ["minecraft", "caddy", "terraria", "redis", "valheim"] {
         let namespace = format!("github.com/rabbyte/{slug}");
+        // Read once, before the page exists: the store has background writers, and reading it a second time
+        // inside the page's closure raced them on a loaded CI box (None between two reads of one closure).
+        let expected = cx.update(|cx| entry_state(&model, cx, slug));
         let (m, ns) = (model.clone(), namespace.clone());
         let window = cx.add_window(move |_, cx| ArrowDetailsView::new(m, ns, cx));
         let mut vcx = VisualTestContext::from_window(*window, cx);
@@ -87,10 +90,7 @@ fn the_page_renders_for_every_demo_state(cx: &mut TestAppContext) {
             .update(&mut vcx, |view, _, cx| {
                 let detail = view.merged(cx).expect("a demo arrow has a detail");
                 assert_eq!(detail.namespace, namespace);
-                assert_eq!(
-                    RunState::from(detail.state),
-                    RunState::from(entry_state(&model, cx, slug))
-                );
+                assert_eq!(RunState::from(detail.state), RunState::from(expected));
             })
             .unwrap();
     }

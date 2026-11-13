@@ -264,6 +264,12 @@ jobs:
         QUIVER_CORE_DEV_PATH: ${{ github.workspace }}/quiver.core
       run: make -C quiver.desktop test-e2e-box
 
+    - name: Make the results readable
+      # The box runs as root: its result directories (and the screenshots in them) are not scannable by the
+      # runner user, which made the upload below fail with EACCES even when every scenario passed.
+      if: always()
+      run: sudo chown -R "$(id -u):$(id -g)" quiver.desktop/docker/e2e/results || true
+
     - name: Upload results
       if: always()
       uses: actions/upload-artifact@v4

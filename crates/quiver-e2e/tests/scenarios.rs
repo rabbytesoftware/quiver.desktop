@@ -1,3 +1,4 @@
+#![cfg(unix)]
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 //! The end-to-end scenarios: each drives the REAL app (built with the e2e bridge) against a real quiver.core.
 //! Run them in the box (`make test-e2e-box`); without `QUIVER_E2E_APP_BINARY` every scenario skips.
