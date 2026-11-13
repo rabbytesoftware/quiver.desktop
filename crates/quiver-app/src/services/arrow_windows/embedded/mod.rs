@@ -16,7 +16,9 @@ mod thread_ui;
 mod x11_lookup;
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+#[cfg(target_os = "linux")]
+use std::sync::OnceLock;
+use std::sync::{Arc, Mutex};
 
 use quiver_arrow_host::{HostToWindow, WindowToHost};
 use raw_window_handle::HasWindowHandle;
@@ -24,7 +26,9 @@ use tokio::sync::mpsc::unbounded_channel;
 use tokio::task::JoinHandle;
 
 use super::launcher::{HelperArgs, HelperLauncher, HelperLink};
-use crate::services::{Error, Result};
+#[cfg(target_os = "linux")]
+use crate::services::Error;
+use crate::services::Result;
 use pages::Pages;
 pub use parent::ParentHandle;
 

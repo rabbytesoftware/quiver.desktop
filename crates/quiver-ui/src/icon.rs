@@ -75,6 +75,10 @@ pub enum Glyph {
     Mark,
     /// The same mark with the proportions of the arrow icon (a 512 box: chevron 144..368, dot at 392).
     ArrowIcon,
+    /// Platform logos (Phosphor fill): macOS, Windows, Linux.
+    OsApple,
+    OsWindows,
+    OsLinux,
 }
 
 impl Glyph {
@@ -136,6 +140,9 @@ impl Glyph {
         Glyph::Star,
         Glyph::Mark,
         Glyph::ArrowIcon,
+        Glyph::OsApple,
+        Glyph::OsWindows,
+        Glyph::OsLinux,
     ];
 }
 
@@ -219,6 +226,9 @@ fn shape(glyph: Glyph) -> (Paint, &'static [&'static str]) {
         Glyph::Star => (Paint::Fill, STAR),
         Glyph::Mark => (Paint::Stroke, MARK),
         Glyph::ArrowIcon => (Paint::Stroke, ARROW_ICON),
+        Glyph::OsApple => (Paint::Fill, paths::OSAPPLE),
+        Glyph::OsWindows => (Paint::Fill, paths::OSWINDOWS),
+        Glyph::OsLinux => (Paint::Fill, paths::OSLINUX),
     }
 }
 

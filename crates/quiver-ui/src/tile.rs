@@ -428,12 +428,23 @@ fn strip(
     let p = cx.quiver().palette;
     let mono = quiver_theme::FontFamily::Mono.family();
     let os = reveal.os.map(|has| {
-        div().flex().flex_none().gap(px(2.5)).children(
-            ["L", "M", "W"]
-                .into_iter()
-                .zip(has)
-                .map(|(letter, on)| div().opacity(if on { 0.85 } else { 0.25 }).child(letter)),
-        )
+        div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .gap(px(4.))
+            .children(
+                [Glyph::OsLinux, Glyph::OsApple, Glyph::OsWindows]
+                    .into_iter()
+                    .zip(has)
+                    .map(|(glyph, on)| {
+                        div().opacity(if on { 0.85 } else { 0.25 }).child(icon(
+                            glyph,
+                            10.,
+                            p.foreground,
+                        ))
+                    }),
+            )
     });
     let stars = reveal.stars.clone().map(|count| {
         div()
