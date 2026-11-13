@@ -1,3 +1,4 @@
+mod collections;
 mod library;
 mod popular;
 mod recents;

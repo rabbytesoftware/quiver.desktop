@@ -29,4 +29,4 @@ pub use resolve::{
 };
 pub use results::{build_results, EmptyState, ResultsInput, ResultsModel, SourceLine};
 pub use sort::{sort_entries, SortKey, DEFAULT_SORT, SORT_KEYS};
-pub use tile_width::tile_width;
+pub use tile_width::{equal_columns_width, tile_width};
