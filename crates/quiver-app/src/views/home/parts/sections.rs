@@ -5,7 +5,7 @@ use gpui::{div, px, Context, IntoElement};
 use quiver_state::domain::Home;
 use quiver_state::home::{HomeModel, HomeSection};
 
-use super::{library, popular, recents, skeleton};
+use super::{collections, library, popular, recents, skeleton};
 use crate::views::home::HomeView;
 
 pub fn sections(
@@ -41,8 +41,11 @@ pub fn sections(
                 }
             }
             HomeSection::Skeleton => out.child(div().w(px(width)).child(skeleton::skeleton(cx))),
-            // The boards do not put collections on Home; they live on their own page.
-            HomeSection::Collections => out,
+            HomeSection::Collections => out.child(
+                div()
+                    .w(px(width))
+                    .child(collections::collections(view, model, width, cx)),
+            ),
         };
     }
     out
