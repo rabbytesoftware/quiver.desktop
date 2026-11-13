@@ -4,6 +4,7 @@
 use serde_json::Value;
 
 use super::app::App;
+use super::arrow_windows::wait_embedded;
 use super::arrows::{runtime, wait_arrow};
 use super::daemon::{enc, Daemon};
 use super::wait::{eventually, LONG};
@@ -115,6 +116,10 @@ pub async fn start_from_page(
     ns: &str,
 ) {
     app.click(&format!("sidebar.row.{ns}")).await;
+    // Leaving an app pane unmaps its page window a beat after the page has painted the arrow's own screen, and the
+    // window system delivers a click to whichever window is on top: a Start pressed in that gap went to the page
+    // being hidden and the run never started (the window-cap scenario lost its second app that way on CI).
+    wait_embedded(app, 0).await;
     app.click("arrow.action.start").await;
     app.node("screen.arrow-app").await;
 }
