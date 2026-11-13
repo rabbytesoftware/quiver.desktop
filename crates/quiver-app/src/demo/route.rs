@@ -59,6 +59,25 @@ pub fn theme_from_environment() -> Option<quiver_state::shell::ThemePreference> 
     }
 }
 
+/// `QUIVER_DEMO_SIDEBAR=<left|right>[:<width>]`: the sidebar's side and width, for checking how a page lays out
+/// beside a wide sidebar or with the sidebar under the traffic lights' side of the window.
+pub fn sidebar_from_environment() -> Option<(quiver_state::shell::SidebarSide, Option<f64>)> {
+    parse_sidebar(&std::env::var("QUIVER_DEMO_SIDEBAR").ok()?)
+}
+
+fn parse_sidebar(spec: &str) -> Option<(quiver_state::shell::SidebarSide, Option<f64>)> {
+    let (side, width) = match spec.split_once(':') {
+        Some((side, width)) => (side, width.parse::<f64>().ok()),
+        None => (spec, None),
+    };
+    let side = match side {
+        "left" => quiver_state::shell::SidebarSide::Left,
+        "right" => quiver_state::shell::SidebarSide::Right,
+        _ => return None,
+    };
+    Some((side, width))
+}
+
 /// The route the environment asks for, if any.
 pub fn from_environment() -> Option<Route> {
     parse(&std::env::var("QUIVER_DEMO_ROUTE").ok()?)
@@ -67,6 +86,14 @@ pub fn from_environment() -> Option<Route> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_sidebar_spec_names_a_side_and_an_optional_width() {
+        use quiver_state::shell::SidebarSide::{Left, Right};
+        assert_eq!(parse_sidebar("right:320"), Some((Right, Some(320.))));
+        assert_eq!(parse_sidebar("left"), Some((Left, None)));
+        assert_eq!(parse_sidebar("up"), None);
+    }
 
     #[test]
     fn names_map_to_routes() {

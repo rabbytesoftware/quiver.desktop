@@ -128,3 +128,55 @@ fn an_unknown_arrow_is_a_404_not_a_blank_page(cx: &mut TestAppContext) {
         .unwrap();
     let _ = Route::Home;
 }
+
+/// The Steps and ⓘ cards were toggled only by their own button, so they stayed up when the user clicked
+/// elsewhere. A press outside closes the card, a press inside leaves it, and Escape closes it too.
+#[gpui::test]
+fn the_steps_card_closes_on_an_outside_press_and_on_escape(cx: &mut TestAppContext) {
+    use gpui::{point, px, Modifiers, MouseButton};
+    let model = boot(cx);
+    let m = model.clone();
+    // caddy has an update in flight, so its action row is a progress control with a Steps card.
+    let (view, vcx) = cx.add_window_view(move |_, cx| {
+        ArrowDetailsView::new(m, "github.com/rabbyte/caddy".into(), cx)
+    });
+    let open = |vcx: &mut VisualTestContext| view.read_with(vcx, |v, _| v.open_card());
+    let settle = |vcx: &mut VisualTestContext| {
+        vcx.run_until_parked();
+        vcx.update(|window, _| window.refresh());
+        vcx.run_until_parked();
+    };
+    settle(vcx);
+    view.update(vcx, |v, cx| v.set_card(Some(Card::Steps), cx));
+    settle(vcx);
+    assert_eq!(open(vcx), Some(Card::Steps));
+
+    // Inside the card (it hangs below the action row, at the page's left padding): it stays.
+    vcx.simulate_mouse_down(
+        point(px(150.), px(330.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    settle(vcx);
+    assert_eq!(
+        open(vcx),
+        Some(Card::Steps),
+        "a press inside closed the card"
+    );
+
+    // Outside it: it closes.
+    vcx.simulate_mouse_down(
+        point(px(900.), px(700.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    settle(vcx);
+    assert_eq!(open(vcx), None, "a press outside left the card open");
+
+    // Escape closes it too.
+    view.update(vcx, |v, cx| v.set_card(Some(Card::Steps), cx));
+    settle(vcx);
+    vcx.simulate_keystrokes("escape");
+    settle(vcx);
+    assert_eq!(open(vcx), None, "Escape left the card open");
+}

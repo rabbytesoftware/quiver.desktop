@@ -171,7 +171,7 @@ pub(super) fn steps_card(
                 )
             })
     });
-    card(&p)
+    card(&p, cx)
         .child(div().flex().flex_col().gap(px(2.)).p(px(6.)).children(rows))
         .children(detail)
         .child(probe("arrow.steps.popover", Kind::Other, "Steps", true, ""))

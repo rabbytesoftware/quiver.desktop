@@ -15,11 +15,12 @@ use quiver_ui::{
 };
 
 use super::action_row::action_row;
-use super::banner::{app_icon, banner_art, BANNER_W, HEIGHT};
+use super::banner::app_icon;
 use super::icons::{pict, Pict};
 use super::popovers::popovers;
 use crate::views::arrow_details::page::Page;
 use crate::views::arrow_details::ArrowDetailsView;
+use crate::views::hero_fit::{banner_art, BANNER_H, BANNER_W};
 
 pub(super) fn glyph_kind(glyph: StateGlyph) -> Option<GlyphKind> {
     match glyph {
@@ -356,12 +357,18 @@ pub fn header(
         .relative()
         .flex()
         // The banner's height, or more when the action row wraps.
-        .min_h(px(HEIGHT))
+        .min_h(px(BANNER_H))
         .child(left)
-        .children(
-            (banner && fit.banner_beside)
-                .then(|| banner_art(&card, BANNER_W, h.banner.as_deref(), icon_url.as_ref(), cx)),
-        )
+        .children((banner && fit.banner_beside).then(|| {
+            banner_art(
+                "arrow.banner",
+                &card,
+                BANNER_W,
+                h.banner.as_deref(),
+                icon_url.as_ref(),
+                cx,
+            )
+        }))
         .children(popovers(view, page, cx));
     if banner && !fit.banner_beside {
         // A narrow window: the banner above, the content's width, as the old hero stacked it below `lg`.
@@ -370,6 +377,7 @@ pub fn header(
             .flex_col()
             .gap(px(24.))
             .child(banner_art(
+                "arrow.banner",
                 &card,
                 fit.content,
                 h.banner.as_deref(),

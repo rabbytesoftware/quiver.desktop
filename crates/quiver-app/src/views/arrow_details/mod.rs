@@ -14,7 +14,7 @@ mod switch;
 mod values;
 
 use gpui::prelude::*;
-use gpui::{div, Context, Entity, Render, Subscription, Window};
+use gpui::{div, Context, Entity, KeyDownEvent, MouseDownEvent, Render, Subscription, Window};
 use quiver_state::arrow_details::channel::ChannelSelection;
 use quiver_state::arrow_details::invoke::InvokeState;
 use quiver_state::arrow_details::ArrowActionKind;
@@ -25,6 +25,7 @@ use quiver_ui::{ActiveQuiver, ScrollArea};
 
 use crate::bridge::observe_store;
 use crate::model::AppModel;
+use crate::views::card_dismiss::CardDismiss;
 use crate::views::screen_probe;
 use load::{Load, ReadTask};
 use values::FormValues;
@@ -35,6 +36,13 @@ fn is_row_of(
     route: &str,
 ) -> bool {
     row == route || (!route.contains('@') && bare_namespace(row) == route)
+}
+
+/// The popover card under the action row that is showing.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(super) enum Card {
+    Steps,
+    Info(ArrowActionKind),
 }
 
 pub struct ArrowDetailsView {
@@ -52,6 +60,8 @@ pub struct ArrowDetailsView {
     /// The ⓘ popover of an action button.
     pub(super) info_open: Option<ArrowActionKind>,
     pub(super) problem_open: bool,
+    /// Outside press and Escape close the Steps and ⓘ cards; see [`CardDismiss`].
+    pub(super) card: CardDismiss<Card>,
     /// The Channel and Version pickers of an arrow that is not in the library yet: the identity Add registers.
     pub(super) selection: ChannelSelection,
     /// The selector and channel count the picker was last seeded from: either changing re-seeds it (the
@@ -114,6 +124,7 @@ impl ArrowDetailsView {
             seeded: false,
             invoke: InvokeState::default(),
             steps_open: false,
+            card: CardDismiss::new(cx.focus_handle()),
             inspected_step: None,
             info_open: None,
             problem_open: false,
@@ -173,6 +184,41 @@ impl ArrowDetailsView {
     }
 }
 
+impl ArrowDetailsView {
+    /// Which popover card is showing (the Steps card wins if both flags were ever set).
+    pub(super) fn open_card(&self) -> Option<Card> {
+        if self.steps_open {
+            Some(Card::Steps)
+        } else {
+            self.info_open.map(Card::Info)
+        }
+    }
+
+    pub(super) fn set_card(
+        &mut self,
+        card: Option<Card>,
+        cx: &mut Context<Self>,
+    ) {
+        self.steps_open = card == Some(Card::Steps);
+        self.info_open = match card {
+            Some(Card::Info(kind)) => Some(kind),
+            _ => None,
+        };
+        cx.notify();
+    }
+
+    /// The trigger of `card` was clicked: close it if showing, open it if not, and never reopen what the
+    /// press that began this click just closed.
+    pub(super) fn toggle_card(
+        &mut self,
+        card: Card,
+        cx: &mut Context<Self>,
+    ) {
+        let next = self.card.next(card, self.open_card());
+        self.set_card(next, cx);
+    }
+}
+
 impl Render for ArrowDetailsView {
     fn render(
         &mut self,
@@ -204,9 +250,23 @@ impl Render for ArrowDetailsView {
             None => parts::skeleton(cx).into_any_element(),
         };
         let dialogs = parts::dialogs(self, problem, cx);
+        // A card up takes the keyboard so Escape reaches this root (the card is drawn where there is no window).
+        if self.open_card().is_some() && !self.card.focus.contains_focused(window, cx) {
+            let focus = self.card.focus.clone();
+            window.defer(cx, move |window, _| window.focus(&focus));
+        }
         div()
             .id("arrow")
             .relative()
+            .track_focus(&self.card.focus)
+            .capture_any_mouse_down(
+                cx.listener(|this, _: &MouseDownEvent, _, _| this.card.press(this.open_card())),
+            )
+            .on_key_down(cx.listener(|this, e: &KeyDownEvent, _, cx| {
+                if e.keystroke.key == "escape" && this.open_card().is_some() {
+                    this.set_card(None, cx);
+                }
+            }))
             .size_full()
             .when_some(self.corner, |d, r| d.rounded(gpui::px(r)))
             .bg(p.background)

@@ -4,10 +4,12 @@
 pub mod arrow_app;
 pub mod arrow_details;
 pub mod arrow_page;
+pub mod card_dismiss;
 pub mod collection;
 pub mod collections;
 pub mod console;
 pub mod grid_page;
+pub mod hero_fit;
 pub mod home;
 pub mod library;
 pub mod recommended;

@@ -17,8 +17,15 @@ use crate::views::arrow_details::ArrowDetailsView;
 /// Below the action row: it ends at 178 + 40, plus the 8 px gap of the board.
 const TOP: f32 = 226.0;
 
-pub(super) fn card(p: &Palette) -> gpui::Div {
+/// The card's surface. A press outside it dismisses it (the trigger's own press is handled by
+/// `ArrowDetailsView::toggle_card`).
+pub(super) fn card(
+    p: &Palette,
+    cx: &mut Context<ArrowDetailsView>,
+) -> gpui::Stateful<gpui::Div> {
     div()
+        .id("arrow.popover-card")
+        .on_mouse_down_out(cx.listener(|this, _, _, cx| this.set_card(None, cx)))
         .absolute()
         .left_0()
         .top(px(TOP))
@@ -93,7 +100,7 @@ fn info_card(
     });
     let configure = tr.t(arrow::PREVIEW_CONFIGURE);
     Some(
-        card(&p)
+        card(&p, cx)
             .p(px(16.))
             .flex()
             .flex_col()

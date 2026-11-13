@@ -12,13 +12,14 @@ mod shell_state;
 use std::sync::Arc;
 
 use gpui::{AnyView, App, AppContext, Context, Entity, Global, SharedString};
+use quiver_platform::window::{MAIN_WINDOW, TITLEBAR_ROW};
 use quiver_state::console::CoreVersions;
 use quiver_state::domain::Home;
 use quiver_state::i18n::{Key, Locale, Translator};
 use quiver_state::observable::Store;
 use quiver_state::queries::Query;
 use quiver_state::remote::{RemoteOverlays, ToastStack, TOAST_DURATION_MS};
-use quiver_state::shell::{ShellSettings, ThemePreference};
+use quiver_state::shell::{ShellSettings, SidebarSide, ThemePreference};
 use tokio::runtime::Handle;
 
 use crate::services::AppServices;
@@ -226,6 +227,13 @@ impl AppModel {
         }
     }
 
+    /// How far the page and the console dock start below the top of the window. The traffic lights sit over
+    /// the top-left corner: with the sidebar on the left that is the sidebar's own top row, but with it on
+    /// the right the corner belongs to the page, which must clear them.
+    pub fn titlebar_inset(&self) -> f32 {
+        inset_for(self.shell.sidebar_side, MAIN_WINDOW.overlay_titlebar())
+    }
+
     pub fn set_sidebar_width(
         &mut self,
         width: f64,
@@ -267,4 +275,33 @@ pub fn close_modal(
 /// The tokio handle for work that must not run on the UI thread.
 pub fn handle(cx: &App) -> Handle {
     app_model(cx).read(cx).handle().clone()
+}
+
+/// The strip the page leaves for the traffic lights: only where the window has an overlay title bar and the
+/// sidebar, which normally sits under them, is on the other side.
+fn inset_for(
+    side: SidebarSide,
+    overlay: bool,
+) -> f32 {
+    if overlay && side == SidebarSide::Right {
+        TITLEBAR_ROW
+    } else {
+        0.
+    }
+}
+
+#[cfg(test)]
+mod inset_tests {
+    use super::*;
+
+    #[test]
+    fn the_page_clears_the_traffic_lights_only_when_the_sidebar_is_not_under_them() {
+        assert_eq!(inset_for(SidebarSide::Right, true), TITLEBAR_ROW);
+        assert_eq!(inset_for(SidebarSide::Left, true), 0.);
+        assert_eq!(
+            inset_for(SidebarSide::Right, false),
+            0.,
+            "no overlay title bar, no lights to clear"
+        );
+    }
 }
