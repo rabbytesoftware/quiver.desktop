@@ -185,7 +185,11 @@ part!(
 part!(
     /// `font-heading font-semibold text-xl leading-none`.
     DialogTitle,
-    |p, d| d.text_size(px(20.)).font_weight(FontWeight::SEMIBOLD).line_height(gpui::relative(1.)).text_color(p.popover_foreground)
+    |p, d| d
+        .text_size(px(20.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .line_height(gpui::relative(1.))
+        .text_color(p.popover_foreground)
 );
 
 part!(
@@ -220,5 +224,11 @@ part!(
 part!(
     /// `variant="bare"` footer: `flex justify-end gap-2 px-6 pt-4 pb-6`.
     DialogFooterBare,
-    |_p, d| d.flex().justify_end().gap(px(8.)).px(px(24.)).pt(px(16.)).pb(px(24.))
+    |_p, d| d
+        .flex()
+        .justify_end()
+        .gap(px(8.))
+        .px(px(24.))
+        .pt(px(16.))
+        .pb(px(24.))
 );

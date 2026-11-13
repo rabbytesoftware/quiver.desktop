@@ -11,7 +11,13 @@ use crate::parts::part;
 part!(
     /// `relative flex flex-col rounded-2xl bg-muted p-1`.
     Frame,
-    |p, d| d.relative().flex().flex_col().rounded(px(Radius::XXL)).bg(p.muted).p(px(4.))
+    |p, d| d
+        .relative()
+        .flex()
+        .flex_col()
+        .rounded(px(Radius::XXL))
+        .bg(p.muted)
+        .p(px(4.))
 );
 
 part!(
@@ -37,7 +43,10 @@ part!(
 part!(
     /// `font-semibold text-sm`.
     FrameTitle,
-    |p, d| d.text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(p.foreground)
+    |p, d| d
+        .text_size(px(14.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(p.foreground)
 );
 
 part!(

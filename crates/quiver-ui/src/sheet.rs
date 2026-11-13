@@ -198,7 +198,11 @@ part!(
 part!(
     /// `font-semibold text-xl leading-none`.
     SheetTitle,
-    |p, d| d.text_size(px(20.)).font_weight(FontWeight::SEMIBOLD).line_height(relative(1.)).text_color(p.popover_foreground)
+    |p, d| d
+        .text_size(px(20.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .line_height(relative(1.))
+        .text_color(p.popover_foreground)
 );
 
 part!(
@@ -216,5 +220,13 @@ part!(
 part!(
     /// Default footer: `flex justify-end gap-2 px-6 py-4 border-t bg-muted/72`.
     SheetFooter,
-    |p, d| d.flex().justify_end().gap(px(8.)).px(px(24.)).py(px(16.)).border_t_1().border_color(p.border).bg(p.muted.opacity(0.72))
+    |p, d| d
+        .flex()
+        .justify_end()
+        .gap(px(8.))
+        .px(px(24.))
+        .py(px(16.))
+        .border_t_1()
+        .border_color(p.border)
+        .bg(p.muted.opacity(0.72))
 );
