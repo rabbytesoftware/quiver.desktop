@@ -210,7 +210,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, windows-latest]
+        os: [macos-26, windows-latest]
     steps:
     - uses: actions/checkout@v4
 
