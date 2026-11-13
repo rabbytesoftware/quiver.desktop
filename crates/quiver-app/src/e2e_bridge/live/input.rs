@@ -55,6 +55,8 @@ pub fn press(
         let mut keystroke =
             Keystroke::parse(chord).map_err(|e| format!("bad key chord {chord:?}: {e}"))?;
         // GPUI's parsed `enter` carries a "\n" a field would insert as text; the window system's Return does not.
+        // (Not enough here: `dispatch_keystroke` simulates an IME and puts the "\n" back, so a single-line field
+        // that lets the key propagate still receives it after PressEnter. The search bar ignores that edit.)
         if keystroke.key == "enter" {
             keystroke.key_char = None;
         }

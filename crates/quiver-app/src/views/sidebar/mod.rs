@@ -142,6 +142,12 @@ impl Sidebar {
         let text = input.read(cx).value().to_string();
         match event {
             InputEvent::Change => {
+                // A line break is not part of a query: Enter in this single-line field propagates, and the
+                // keystroke's text ("\n") is then inserted after PressEnter has run. Debouncing a search for
+                // that edit replaced the page Enter had just opened with results for "<draft>\n".
+                if text.ends_with(['\n', '\r']) {
+                    return;
+                }
                 if text.is_empty() && !self.showing_results(cx) {
                     return;
                 }
