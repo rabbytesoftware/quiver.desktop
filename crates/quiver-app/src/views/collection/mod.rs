@@ -4,7 +4,7 @@
 mod parts;
 
 use gpui::prelude::*;
-use gpui::{div, px, Context, Entity, FontWeight, Render, Window};
+use gpui::{div, px, Context, Entity, FontWeight, KeyDownEvent, MouseDownEvent, Render, Window};
 use quiver_state::domain::CollectionDetail;
 use quiver_state::queries::collection::fetch_collection_detail;
 use quiver_state::queries::keys::collection_key;
@@ -13,7 +13,9 @@ use quiver_ui::{ActiveQuiver, TileSize, TrackedText};
 
 use crate::bridge::observe_store;
 use crate::model::AppModel;
+use crate::views::card_dismiss::CardDismiss;
 use crate::views::grid_page::{error_state, page, skeleton, start_feed, Feed};
+use crate::views::hero_fit::Fit;
 use crate::views::screen_probe;
 
 pub struct CollectionView {
@@ -25,6 +27,8 @@ pub struct CollectionView {
     pub(super) follow_pending: bool,
     /// The ⓘ popover of the Follow button.
     pub(super) info_open: bool,
+    /// Outside press and Escape close the ⓘ card; see [`CardDismiss`].
+    pub(super) card: CardDismiss<()>,
     pub(super) demo: bool,
     _feed: Option<Feed>,
 }
@@ -64,6 +68,7 @@ impl CollectionView {
             detail,
             follow_pending: false,
             info_open: false,
+            card: CardDismiss::new(cx.focus_handle()),
             demo,
             _feed: feed,
         }
@@ -79,6 +84,28 @@ impl CollectionView {
     }
 }
 
+impl CollectionView {
+    pub(super) fn set_info(
+        &mut self,
+        open: bool,
+        cx: &mut Context<Self>,
+    ) {
+        self.info_open = open;
+        cx.notify();
+    }
+
+    /// The ⓘ button was clicked: toggle the card, but never reopen what the press that began the click just
+    /// closed from outside.
+    pub(super) fn toggle_info(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) {
+        let open = self.info_open.then_some(());
+        let next = self.card.next((), open);
+        self.set_info(next.is_some(), cx);
+    }
+}
+
 impl Render for CollectionView {
     fn render(
         &mut self,
@@ -88,6 +115,9 @@ impl Render for CollectionView {
         let p = cx.quiver().palette;
         let app = self.app.clone();
         let state = self.detail.snapshot();
+        // The page's padding is 24 px at the left and 40 at the right (`grid_page::page`).
+        let sidebar = app.read(cx).shell.sidebar_width as f32;
+        let fit = Fit::at(f32::from(window.viewport_size().width), sidebar, 64.);
         let body = match &state.data {
             None if state.error.is_some() => {
                 error_state("collection", &app, collection_key(&self.id), cx).into_any_element()
@@ -97,7 +127,7 @@ impl Render for CollectionView {
                 .flex()
                 .flex_col()
                 .gap(px(28.))
-                .child(parts::hero(self, detail, cx))
+                .child(parts::hero(self, detail, fit, cx))
                 .child(
                     div()
                         .flex()
@@ -112,9 +142,23 @@ impl Render for CollectionView {
                 )
                 .into_any_element(),
         };
+        // A card up takes the keyboard so Escape reaches this root.
+        if self.info_open && !self.card.focus.contains_focused(window, cx) {
+            let focus = self.card.focus.clone();
+            window.defer(cx, move |window, _| window.focus(&focus));
+        }
         div()
             .id("collection")
             .relative()
+            .track_focus(&self.card.focus)
+            .capture_any_mouse_down(cx.listener(|this, _: &MouseDownEvent, _, _| {
+                this.card.press(this.info_open.then_some(()))
+            }))
+            .on_key_down(cx.listener(|this, e: &KeyDownEvent, _, cx| {
+                if e.keystroke.key == "escape" && this.info_open {
+                    this.set_info(false, cx);
+                }
+            }))
             .size_full()
             .bg(p.background)
             .child(page(

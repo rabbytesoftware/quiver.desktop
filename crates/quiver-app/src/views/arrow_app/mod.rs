@@ -240,6 +240,8 @@ impl Render for ArrowAppView {
         let p = cx.quiver().palette;
         let this = cx.entity();
         let height = f32::from(window.viewport_size().height) * 0.9;
+        let room =
+            f32::from(window.viewport_size().width) - self.app.read(cx).shell.sidebar_width as f32;
         div()
             .id("arrow-app")
             .relative()
@@ -247,7 +249,7 @@ impl Render for ArrowAppView {
             .flex()
             .flex_col()
             .bg(p.background)
-            .child(parts::header(self, cx))
+            .child(parts::header(self, room < parts::HEADER_COMPACT_BELOW, cx))
             .child(parts::body(self, cx))
             .child(
                 Dialog::new("arrow-app-details-dialog")

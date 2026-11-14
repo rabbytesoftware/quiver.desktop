@@ -25,6 +25,18 @@ pub struct WindowSpec {
     pub macos_traffic_lights: TrafficLights,
 }
 
+/// The height of the strip the traffic lights occupy at the top-left of an overlay-title-bar window (the top
+/// row of the sidebar, which also holds the back and forward buttons).
+pub const TITLEBAR_ROW: f32 = 34.;
+
+impl WindowSpec {
+    /// The window draws under a transparent title bar (macOS only), so what sits at its top-left must leave
+    /// room for the traffic lights.
+    pub fn overlay_titlebar(&self) -> bool {
+        cfg!(target_os = "macos") && self.macos_overlay_titlebar
+    }
+}
+
 pub const MAIN_WINDOW: WindowSpec = WindowSpec {
     title: "Quiver",
     width: 1200,

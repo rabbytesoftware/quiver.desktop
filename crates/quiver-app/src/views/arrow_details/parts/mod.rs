@@ -23,19 +23,10 @@ use super::ArrowDetailsView;
 
 /// Below this content width the Details card goes under the body (the old page's `RAIL_MIN_WIDTH`).
 const RAIL_MIN_WIDTH: f32 = 860.;
-/// Below this window width the banner goes above the header's text (the old hero's `lg` breakpoint).
-const BANNER_BESIDE_MIN_VIEWPORT: f32 = 1024.;
 const PAD_LEFT: f32 = 44.;
 const PAD_RIGHT: f32 = 60.;
 
-/// How the page lays out at the window's width.
-#[derive(Clone, Copy)]
-pub(super) struct Fit {
-    /// The page's content width, inside its padding.
-    pub content: f32,
-    /// The banner beside the header's text (wide) or above it.
-    pub banner_beside: bool,
-}
+pub(super) use crate::views::hero_fit::Fit;
 
 /// Header, then README (or the glance) beside the Details card.
 pub(super) fn page(
@@ -46,10 +37,7 @@ pub(super) fn page(
 ) -> impl IntoElement {
     let viewport = f32::from(window.viewport_size().width);
     let sidebar = view.app.read(cx).shell.sidebar_width as f32;
-    let fit = Fit {
-        content: (viewport - sidebar - PAD_LEFT - PAD_RIGHT).max(0.),
-        banner_beside: viewport >= BANNER_BESIDE_MIN_VIEWPORT,
-    };
+    let fit = Fit::at(viewport, sidebar, PAD_LEFT + PAD_RIGHT);
     // The old page's rule (`RAIL_MIN_WIDTH`), measured as it did: the main area inside its `px-11` (44px each
     // side). Narrower, the Details card goes under the body.
     let beside = viewport - sidebar - 2. * 44. >= RAIL_MIN_WIDTH;

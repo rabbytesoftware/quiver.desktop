@@ -32,6 +32,17 @@ pub fn run(
         {
             model.update(cx, |m, _| m.theme = theme);
         }
+        if let Some((side, width)) = demo
+            .then(crate::demo::route::sidebar_from_environment)
+            .flatten()
+        {
+            model.update(cx, |m, _| {
+                m.shell.set_side(side);
+                if let Some(width) = width {
+                    m.shell.set_width(width);
+                }
+            });
+        }
         if let Some(seed) = seed {
             seed(model.read(cx));
         }

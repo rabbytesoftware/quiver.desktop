@@ -131,13 +131,7 @@ fn split_button(
             .tooltip(tooltip(tip.clone()))
             .child(pict(Pict::Info, 17., fg))
             .on_click(cx.listener(move |this, _, _, cx| {
-                this.info_open = if this.info_open == Some(kind) {
-                    None
-                } else {
-                    Some(kind)
-                };
-                this.steps_open = false;
-                cx.notify();
+                this.toggle_card(crate::views::arrow_details::Card::Info(kind), cx)
             }))
             .child(probe(info_id, Kind::Button, tip, true, ""));
         corners(button, 0., 11.)
@@ -170,9 +164,7 @@ fn progress(
                     .progress(fraction)
                     .steps_open(view.steps_open)
                     .on_steps(cx.listener(|this, _, _, cx| {
-                        this.steps_open = !this.steps_open;
-                        this.info_open = None;
-                        cx.notify();
+                        this.toggle_card(crate::views::arrow_details::Card::Steps, cx)
                     })),
             )
             .child(probe(

@@ -143,7 +143,7 @@ impl Render for ConsoleDock {
             .absolute()
             // Drawn over the page, so without this a wheel over the console also reached the scroll area behind it.
             .occlude()
-            .top_0()
+            .top(px(self.app.read(cx).titlebar_inset()))
             .left_0()
             .right_0()
             .h(height)

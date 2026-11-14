@@ -79,7 +79,14 @@ impl Render for AppShell {
             .h_full()
             .flex()
             .flex_col()
-            .child(div().flex_1().min_h_0().child(page))
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    // Clear the traffic lights when the sidebar is not under them (see `titlebar_inset`).
+                    .pt(px(self.app.read(cx).titlebar_inset()))
+                    .child(page),
+            )
             .children(mock_indicator::mock_indicator(self.app.read(cx), cx))
             .child(self.console.clone());
         let rail = self.sidebar.clone();

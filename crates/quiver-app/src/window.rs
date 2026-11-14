@@ -39,7 +39,7 @@ pub fn open_main_window(cx: &mut App) -> Option<gpui::AnyWindowHandle> {
         size(px(spec.width as f32), px(spec.height as f32)),
         cx,
     );
-    let overlay = cfg!(target_os = "macos") && spec.macos_overlay_titlebar;
+    let overlay = spec.overlay_titlebar();
     let options = WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(bounds)),
         window_min_size: Some(size(px(spec.min_width as f32), px(spec.min_height as f32))),

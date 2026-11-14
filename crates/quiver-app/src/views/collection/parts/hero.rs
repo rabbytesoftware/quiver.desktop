@@ -14,6 +14,7 @@ use quiver_ui::{
 
 use crate::bridge::spawn_action;
 use crate::views::collection::CollectionView;
+use crate::views::hero_fit::{banner_art, Fit, BANNER_GAP, BANNER_H, BANNER_W};
 
 const FOLLOW_INFO: &str = "Following keeps this collection under Collections. Unfollowing only removes it from that list; the arrows you installed from it stay in your library.";
 
@@ -60,10 +61,7 @@ fn follow_group(
         .pressed(view.info_open)
         .tooltip(quiver_ui::tooltip(tip.clone()))
         .child(icon(Glyph::Info, 17., fg))
-        .on_click(cx.listener(|this, _, _, cx| {
-            this.info_open = !this.info_open;
-            cx.notify();
-        }))
+        .on_click(cx.listener(|this, _, _, cx| this.toggle_info(cx)))
         .child(probe("collection.follow.info", Kind::Button, tip, true, ""));
     div()
         .relative()
@@ -74,6 +72,8 @@ fn follow_group(
             d.child(
                 quiver_ui::layer(
                     div()
+                        .id("collection.follow.popover-card")
+                        .on_mouse_down_out(cx.listener(|this, _, _, cx| this.set_info(false, cx)))
                         .absolute()
                         .left_0()
                         .top(px(48.))
@@ -177,6 +177,7 @@ fn follow_button(
 pub fn hero(
     view: &CollectionView,
     detail: &CollectionDetail,
+    fit: Fit,
     cx: &mut Context<CollectionView>,
 ) -> impl IntoElement {
     let p = cx.quiver().palette;
@@ -264,12 +265,15 @@ pub fn hero(
         .flex()
         .flex_col()
         .gap(px(14.))
-        .w(px(390.))
+        // Flexible, as on arrow details: the text takes what the banner leaves, it does not fix its own width.
+        .flex_1()
+        .min_w_0()
         .child(identity)
         .child(meta)
         .when(!detail.item.description.is_empty(), |d| {
             d.child(
                 div()
+                    .max_w(px(390.))
                     .text_size(px(14.5))
                     .line_height(px(21.))
                     .text_color(p.foreground.opacity(0.8))
@@ -310,16 +314,36 @@ pub fn hero(
         publisher: detail.item.namespace.clone().into(),
         hue: hue_for(&detail.item.namespace),
     };
-    let banner = detail
-        .media
-        .banner
-        .clone()
-        .filter(|b| !b.is_empty())
-        .map(|url| quiver_ui::banner_photo(url, &card, 440., None, cx).h(px(218.)));
-    div()
+    let image = detail.media.banner.as_deref().filter(|b| !b.is_empty());
+    let beside = image.is_some() && fit.banner_beside;
+    let text = div()
+        .relative()
         .flex()
-        .justify_between()
-        .gap(px(40.))
+        .gap(px(BANNER_GAP))
+        // The banner's height beside it, so the Follow button sits where the old hero put it.
+        .when(beside, |d| d.min_h(px(BANNER_H)))
         .child(left)
-        .children(banner)
+        .children(
+            beside.then(|| banner_art("collection.banner", &card, BANNER_W, image, None, cx)),
+        );
+    if image.is_some() && !beside {
+        // A narrow window, or one the sidebar leaves too little of: the banner above, the content's width,
+        // exactly as arrow details stacks it.
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(24.))
+            .child(banner_art(
+                "collection.banner",
+                &card,
+                fit.content,
+                image,
+                None,
+                cx,
+            ))
+            .child(text)
+            .into_any_element()
+    } else {
+        text.into_any_element()
+    }
 }

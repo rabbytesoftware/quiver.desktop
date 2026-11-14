@@ -67,8 +67,13 @@ fn action(
         .child(probe(probe_id, Kind::Button, label, true, ""))
 }
 
+/// Below this much room (the window less its sidebar) the header drops the version, so its four controls
+/// still fit: at 800 px beside a 320 px sidebar they overran the edge by 17 px.
+pub const HEADER_COMPACT_BELOW: f32 = 600.;
+
 pub fn header(
     view: &mut ArrowAppView,
+    compact: bool,
     cx: &mut Context<ArrowAppView>,
 ) -> impl IntoElement {
     let p = cx.quiver().palette;
@@ -173,6 +178,7 @@ pub fn header(
         )
         .child(
             div()
+                .min_w_0()
                 .text_size(px(14.))
                 .line_height(px(18.))
                 .font_weight(FontWeight::SEMIBOLD)
@@ -212,14 +218,17 @@ pub fn header(
                     if pane.ready { "ready" } else { "starting" },
                 )),
         )
-        .child(
-            div()
-                .font_family(FontFamily::Mono.family())
-                .text_size(px(12.))
-                .text_color(p.foreground_subtle)
-                .child(version),
-        )
-        .child(div().flex_1())
+        .when(!compact, |d| {
+            d.child(
+                div()
+                    .flex_none()
+                    .font_family(FontFamily::Mono.family())
+                    .text_size(px(12.))
+                    .text_color(p.foreground_subtle)
+                    .child(version),
+            )
+        })
+        .child(div().flex_1().min_w_0())
         .child(reload_btn)
         .child(details_btn)
         .child(menu(view, &pane.menu, cx))
